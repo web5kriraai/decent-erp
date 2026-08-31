@@ -10,8 +10,9 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
-import { useTaskHasFiles } from "@/components/tasks/TaskArtifactPanel";
+import { TaskArtifactPanel, useTaskHasFiles } from "@/components/tasks/TaskArtifactPanel";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
@@ -44,11 +45,12 @@ export function TaskWorkspace() {
   const onHoldTask = tasks.find((t) => t.status === "ON_HOLD");
   const activeTask = runningTask ?? onHoldTask ?? selectedTask;
 
-  const { hasFiles } = useTaskHasFiles(
+  const { hasFiles, isLoading: filesLoading } = useTaskHasFiles(
     activeTask?.id ?? "",
     activeTask?.design.id ?? "",
     !!activeTask,
   );
+  const fileRequired = !!activeTask?.subProcess?.isFileRequired;
 
   // Snapshot from server events; TimerWidget ticks live while RUNNING.
   const elapsedSeconds = useMemo(() => {
@@ -100,6 +102,7 @@ export function TaskWorkspace() {
 
   async function handleEndSubmit() {
     if (!activeTask || !endRemark.trim()) return;
+    if (fileRequired && !hasFiles) return;
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -274,14 +277,36 @@ export function TaskWorkspace() {
           </div>
         </div>
 
+        {activeTask && (runningTask || onHoldTask) && fileRequired && (
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Task Files{!hasFiles ? " — required before completion" : ""}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!hasFiles && (
+                <p className="mb-3 text-sm text-amber-800">
+                  This sub-process requires at least one uploaded file before you can complete the
+                  task.
+                </p>
+              )}
+              <TaskArtifactPanel
+                taskId={activeTask.id}
+                designId={activeTask.design.id}
+                canUpload
+                subProcessCode={activeTask.subProcess.code}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {activeTask && (
           <p className="mt-4 text-sm text-muted-foreground">
             Selected:{" "}
             <Link href={ROUTES.work.taskDetail(activeTask.id)} className="data-table-link">
               {activeTask.design.ideaRef} · {activeTask.subProcess.name}
             </Link>
-            {" — "}
-            open task detail to upload files before completion.
           </p>
         )}
       </QueryState>
@@ -312,7 +337,9 @@ export function TaskWorkspace() {
         }
         checklistNote={checklistNote}
         onChecklistNoteChange={setChecklistNote}
+        fileRequired={fileRequired}
         hasUploadedFiles={hasFiles}
+        filesLoading={filesLoading}
         onSubmit={handleEndSubmit}
         isPending={end.isPending}
       />

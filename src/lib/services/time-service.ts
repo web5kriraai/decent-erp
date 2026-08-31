@@ -11,7 +11,7 @@ import {
 const taskTimeInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true } },
   process: { select: { id: true, name: true, code: true } },
-  subProcess: { select: { id: true, name: true, code: true } },
+  subProcess: { select: { id: true, name: true, code: true, isFileRequired: true } },
   assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
   timeEvents: {
     orderBy: { eventTimeUtc: "asc" as const },

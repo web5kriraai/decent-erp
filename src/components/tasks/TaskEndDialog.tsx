@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { Modal } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,9 @@ type TaskEndDialogProps = {
   onChecklistNoteChange: (value: string) => void;
   fileRequired?: boolean;
   hasUploadedFiles?: boolean;
+  filesLoading?: boolean;
+  /** When set, file-required warning links here (e.g. task detail upload section). */
+  uploadHref?: string;
   onSubmit: () => void;
   isPending: boolean;
 };
@@ -42,10 +46,13 @@ export function TaskEndDialog({
   onChecklistNoteChange,
   fileRequired,
   hasUploadedFiles,
+  filesLoading,
+  uploadHref,
   onSubmit,
   isPending,
 }: TaskEndDialogProps) {
   const fileWarning = !!fileRequired && !hasUploadedFiles;
+  const filesBlocking = fileWarning || (!!fileRequired && !!filesLoading);
 
   const { pendingChecklist, passedCount, allChecklistPassed, isPartialChecklist } = useMemo(() => {
     const pending = checklistItems.filter((item) => !checklistResults[item.id]);
@@ -67,7 +74,7 @@ export function TaskEndDialog({
     !!endRemark.trim() &&
     !nonePassed &&
     (allChecklistPassed || (isPartialChecklist && notesOk)) &&
-    !fileWarning &&
+    !filesBlocking &&
     !isPending;
 
   function markAllPassed() {
@@ -100,10 +107,26 @@ export function TaskEndDialog({
     >
       <div className="space-y-5">
         {fileWarning && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            This sub-process requires at least one uploaded file before completion. Upload files in
-            the Task Files section, then try again.
+          <div
+            className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            role="alert"
+          >
+            This sub-process requires at least one uploaded file before completion.
+            {uploadHref ? (
+              <>
+                {" "}
+                <Link href={uploadHref} className="font-medium underline underline-offset-2">
+                  Upload a file on the task detail page
+                </Link>
+                , then open Complete Task again.
+              </>
+            ) : (
+              <> Upload a file in the Task Files section below, then try again.</>
+            )}
           </div>
+        )}
+        {!!fileRequired && !!filesLoading && !hasUploadedFiles && (
+          <p className="text-sm text-muted-foreground">Checking uploaded files…</p>
         )}
 
         <FormSelect

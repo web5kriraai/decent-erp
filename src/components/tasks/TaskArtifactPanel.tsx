@@ -21,6 +21,7 @@ type TaskArtifact = {
   id: string;
   artifactType: TaskArtifactType;
   fileName?: string | null;
+  storageKey?: string | null;
   stitchCount?: number | null;
   machineFormat?: string | null;
   versionNo?: number | null;
@@ -210,11 +211,12 @@ export function useTaskHasFiles(taskId: string, designId: string, enabled = true
     enabled: enabled && !!designId,
   });
 
-  const artifactCount = artifactsQuery.data?.length ?? 0;
+  // Match endTask: design images OR artifacts with a storage key
+  const artifactWithFile = artifactsQuery.data?.some((a) => !!a.storageKey) ?? false;
   const imageCount = Array.isArray(imagesQuery.data) ? imagesQuery.data.length : 0;
 
   return {
-    hasFiles: artifactCount > 0 || imageCount > 0,
+    hasFiles: artifactWithFile || imageCount > 0,
     isLoading: artifactsQuery.isLoading || imagesQuery.isLoading,
   };
 }

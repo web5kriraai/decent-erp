@@ -136,37 +136,51 @@ test.describe("Workday UI flow (end-to-end)", () => {
     await page.getByRole("button", { name: /Resume task/i }).click();
     await expect(page.locator(".timer-status")).toContainText(/RUNNING/i, { timeout: 15_000 });
 
-    // --- File required for SKETCH: upload so end can succeed ---
-    const runningDetail = await apiGetJson<{
+    // --- File-required gate: Complete Task blocked until a design file exists ---
+    const taskMeta = await apiGetJson<{
       id: string;
       designId: string;
       design: { id: string };
       version: number;
       status: string;
+      subProcess: { isFileRequired?: boolean; code?: string };
     }>(page, `/api/tasks/${assignedTask.id}`);
-    const designId = runningDetail.designId ?? runningDetail.design.id;
-    await ensureDesignHasImage(page, designId);
+    const designId = taskMeta.designId ?? taskMeta.design.id;
+    const needsFile = !!taskMeta.subProcess?.isFileRequired;
 
-    // --- End / checklist gate ---
     await page.getByRole("button", { name: /End Task/i }).click();
     const endDialog = page.getByRole("dialog", { name: /Complete Task/i });
     await expect(endDialog).toBeVisible();
-
     await endDialog.locator("#endRemark").fill("E2E workday UI completion remark");
 
     const checklistSection = endDialog.getByText(/Quality Checklist/i);
     const hasChecklist = await checklistSection.isVisible().catch(() => false);
-
-    const submitBtn = endDialog.getByRole("button", { name: /Submit Completion/i });
-
     if (hasChecklist) {
-      await expect(submitBtn).toBeDisabled();
       await endDialog.getByRole("button", { name: /Mark all as passed/i }).click();
-      await expect(submitBtn).toBeEnabled({ timeout: 5_000 });
-    } else {
-      await expect(submitBtn).toBeEnabled();
     }
 
+    const submitBtn = endDialog.getByRole("button", { name: /Submit Completion|Submit with notes/i });
+    if (needsFile) {
+      await expect(endDialog.getByRole("alert")).toContainText(/requires at least one uploaded file/i);
+      await expect(submitBtn).toBeDisabled();
+      await endDialog.getByRole("button", { name: /Cancel/i }).click();
+      await expect(endDialog).not.toBeVisible();
+
+      await ensureDesignHasImage(page, designId);
+      await page.reload();
+      await expect(page.locator(".timer-widget")).toBeVisible({ timeout: 15_000 });
+
+      await page.getByRole("button", { name: /End Task/i }).click();
+      await expect(endDialog).toBeVisible();
+      await endDialog.locator("#endRemark").fill("E2E workday UI completion remark");
+      if (hasChecklist) {
+        await endDialog.getByRole("button", { name: /Mark all as passed/i }).click();
+      }
+    } else {
+      await ensureDesignHasImage(page, designId);
+    }
+
+    await expect(submitBtn).toBeEnabled({ timeout: 10_000 });
     await submitBtn.click();
     await expect(endDialog).not.toBeVisible({ timeout: 20_000 });
     await expect(page.locator(".timer-status")).toContainText(/IDLE/i, { timeout: 15_000 });

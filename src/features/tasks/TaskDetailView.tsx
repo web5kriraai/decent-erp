@@ -61,11 +61,12 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const backHref = designId ? ROUTES.designs.detail(designId) : ROUTES.work.tasks;
   const backLabel = designId ? "Back to Design" : "Back to My Tasks";
 
-  const { hasFiles } = useTaskHasFiles(
+  const { hasFiles, isLoading: filesLoading } = useTaskHasFiles(
     taskId,
     task?.designId ?? task?.design.id ?? "",
     !!task && canControl,
   );
+  const fileRequired = !!task?.subProcess?.isFileRequired;
 
   if (sessionStatus === "loading") {
     return (
@@ -99,6 +100,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   async function handleEndSubmit() {
     if (!task || !endRemark.trim()) return;
+    if (fileRequired && !hasFiles) return;
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -264,9 +266,18 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle>Task Files</CardTitle>
+                <CardTitle>
+                  Task Files
+                  {fileRequired && !hasFiles ? " — required before completion" : ""}
+                </CardTitle>
               </CardHeader>
               <CardContent>
+                {fileRequired && !hasFiles && canControl && (
+                  <p className="mb-3 text-sm text-amber-800">
+                    This sub-process requires at least one uploaded file before you can complete the
+                    task.
+                  </p>
+                )}
                 <TaskArtifactPanel
                   taskId={task.id}
                   designId={task.designId ?? task.design.id}
@@ -316,8 +327,9 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             }
             checklistNote={checklistNote}
             onChecklistNoteChange={setChecklistNote}
-            fileRequired={"isFileRequired" in task.subProcess && !!task.subProcess.isFileRequired}
+            fileRequired={fileRequired}
             hasUploadedFiles={hasFiles}
+            filesLoading={filesLoading}
             onSubmit={handleEndSubmit}
             isPending={end.isPending}
           />

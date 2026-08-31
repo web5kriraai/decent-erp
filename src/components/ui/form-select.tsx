@@ -1,6 +1,6 @@
 "use client";
 
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/ui/form-field";
 import {
   Select,
   SelectContent,
@@ -29,6 +29,7 @@ type FormSelectProps = {
   className?: string;
   triggerClassName?: string;
   hint?: string;
+  error?: string;
 };
 
 /**
@@ -47,17 +48,19 @@ export function FormSelect({
   className,
   triggerClassName,
   hint,
+  error,
 }: FormSelectProps) {
   const items = Object.fromEntries(options.map((o) => [o.value, o.label]));
 
   return (
-    <div className={cn("space-y-2", className)}>
-      {label && (
-        <Label htmlFor={id}>
-          {label}
-          {required ? <span className="text-destructive"> *</span> : null}
-        </Label>
-      )}
+    <FormField
+      id={id}
+      label={label}
+      required={required}
+      hint={hint}
+      error={error}
+      className={className}
+    >
       <Select
         value={value}
         onValueChange={(next) => {
@@ -66,25 +69,38 @@ export function FormSelect({
         items={items}
         disabled={disabled}
       >
-        <SelectTrigger id={id} className={cn("w-full", triggerClassName)}>
+        <SelectTrigger
+          id={id}
+          aria-invalid={error ? true : undefined}
+          className={cn("w-full", triggerClassName)}
+        >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false} align="start" className="min-w-[var(--anchor-width)]">
-          {options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
-              {opt.description ? (
-                <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
-                  <span className="truncate font-medium">{opt.label}</span>
-                  <span className="truncate text-xs text-muted-foreground">{opt.description}</span>
-                </span>
-              ) : (
-                opt.label
-              )}
-            </SelectItem>
-          ))}
+        <SelectContent
+          alignItemWithTrigger={false}
+          align="start"
+          className="min-w-[var(--anchor-width)]"
+        >
+          {options.length === 0 ? (
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">No options</div>
+          ) : (
+            options.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
+                {opt.description ? (
+                  <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
+                    <span className="truncate font-medium">{opt.label}</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {opt.description}
+                    </span>
+                  </span>
+                ) : (
+                  opt.label
+                )}
+              </SelectItem>
+            ))
+          )}
         </SelectContent>
       </Select>
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-    </div>
+    </FormField>
   );
 }

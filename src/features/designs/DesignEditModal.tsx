@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextArea } from "@/components/ui/form-text-area";
+import { FormTextField } from "@/components/ui/form-text-field";
+import { Button } from "@/components/ui/button";
 import { useUpdateDesign } from "@/hooks/use-designs";
 import type { DesignSummary, WorkType } from "@/lib/types/api";
 
@@ -10,6 +14,13 @@ type DesignEditModalProps = {
   open: boolean;
   onClose: () => void;
 };
+
+const WORK_TYPE_OPTIONS = [
+  { value: "NEW_DESIGN", label: "New Design" },
+  { value: "REPEAT", label: "Repeat" },
+  { value: "REVIVAL", label: "Revival" },
+  { value: "CUSTOM", label: "Custom" },
+];
 
 export function DesignEditModal({ design, open, onClose }: DesignEditModalProps) {
   const updateDesign = useUpdateDesign();
@@ -41,51 +52,60 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
       onClose={onClose}
       footer={
         <>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn btn-primary"
             disabled={!collectionName.trim() || updateDesign.isPending}
             onClick={handleSave}
           >
             Save
-          </button>
+          </Button>
         </>
       }
     >
-      <div style={{ display: "grid", gap: "1rem" }}>
-        <div className="form-group">
-          <label className="form-label">Collection Name *</label>
-          <input className="form-input" value={collectionName} onChange={(e) => setCollectionName(e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Style Name</label>
-          <input className="form-input" value={styleName} onChange={(e) => setStyleName(e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Work Type</label>
-          <select className="form-select" value={workType} onChange={(e) => setWorkType(e.target.value as WorkType | "")}>
-            <option value="">Select…</option>
-            <option value="NEW_DESIGN">New Design</option>
-            <option value="REPEAT">Repeat</option>
-            <option value="REVIVAL">Revival</option>
-            <option value="CUSTOM">Custom</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label">Concept Note</label>
-          <textarea className="form-textarea" rows={3} value={conceptNote} onChange={(e) => setConceptNote(e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Trend Reference</label>
-          <input className="form-input" value={trendReference} onChange={(e) => setTrendReference(e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Celebrity Reference</label>
-          <input className="form-input" value={celebrityReference} onChange={(e) => setCelebrityReference(e.target.value)} />
-        </div>
+      <div className="form-grid">
+        <FormTextField
+          id="editCollection"
+          label="Collection Name"
+          required
+          value={collectionName}
+          onChange={(e) => setCollectionName(e.target.value)}
+        />
+        <FormTextField
+          id="editStyleName"
+          label="Style Name"
+          value={styleName}
+          onChange={(e) => setStyleName(e.target.value)}
+        />
+        <FormSelect
+          id="editWorkType"
+          label="Work Type"
+          value={workType || null}
+          onValueChange={(v) => setWorkType(v as WorkType)}
+          options={WORK_TYPE_OPTIONS}
+          placeholder="Select…"
+        />
+        <FormTextArea
+          id="editConceptNote"
+          label="Concept Note"
+          rows={3}
+          value={conceptNote}
+          onChange={(e) => setConceptNote(e.target.value)}
+        />
+        <FormTextField
+          id="editTrend"
+          label="Trend Reference"
+          value={trendReference}
+          onChange={(e) => setTrendReference(e.target.value)}
+        />
+        <FormTextField
+          id="editCelebrity"
+          label="Celebrity Reference"
+          value={celebrityReference}
+          onChange={(e) => setCelebrityReference(e.target.value)}
+        />
       </div>
     </Modal>
   );

@@ -41,7 +41,7 @@ export type DesignTask = {
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
   design: { id: string; ideaRef: string; collectionName: string };
   process: { id: number; name: string; code: string };
-  subProcess: { id: number; name: string; code: string };
+  subProcess: { id: number; name: string; code: string; isFileRequired?: boolean };
   timeEvents?: TaskTimeEvent[];
 };
 
@@ -115,7 +115,7 @@ export type TaskTimeDetail = {
   assignedEmployeeId?: number | null;
   design: { id: string; ideaRef: string; collectionName: string };
   process: { id: number; name: string; code: string };
-  subProcess: { id: number; name: string; code: string };
+  subProcess: { id: number; name: string; code: string; isFileRequired?: boolean };
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
   timeSummary: TimeSummary;
   timeline: TaskTimeEvent[];

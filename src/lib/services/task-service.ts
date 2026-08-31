@@ -325,8 +325,11 @@ export async function endTask(
 
     if (task.subProcess.isFileRequired) {
       const imageCount = await tx.designImage.count({ where: { designId: task.designId } });
+      const artifactCount = await tx.taskArtifact.count({
+        where: { taskId, storageKey: { not: null } },
+      });
       const attachmentCount = input.attachmentIds?.length ?? 0;
-      if (imageCount === 0 && attachmentCount === 0) {
+      if (imageCount === 0 && artifactCount === 0 && attachmentCount === 0) {
         throw new ApiError("At least one file must be uploaded before completing this task", 422);
       }
     }
