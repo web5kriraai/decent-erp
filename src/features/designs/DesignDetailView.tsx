@@ -1,15 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { ROUTES } from "@/config/routes";
 import { useDesign } from "@/hooks/use-designs";
+import { useRequestDesignApproval } from "@/hooks/use-approvals";
+import { ImageGallery } from "@/components/ImageGallery";
+import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
+import { PERMISSIONS } from "@/lib/permissions";
+import type { DesignTask } from "@/lib/types/api";
 
 export function DesignDetailView({ designId }: { designId: string }) {
+  const { data: session } = useSession();
+  const permissions = session?.user?.permissions ?? [];
   const designQuery = useDesign(designId);
+  const requestApproval = useRequestDesignApproval();
+  const [assignTask, setAssignTask] = useState<DesignTask | null>(null);
+
+  const canRequestApproval =
+    permissions.includes(PERMISSIONS.DESIGN_APPROVE) &&
+    designQuery.data &&
+    ["DRAFT", "ACTIVE"].includes(designQuery.data.status);
+  const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
 
   return (
     <div className="page-shell">
@@ -29,6 +46,16 @@ export function DesignDetailView({ designId }: { designId: string }) {
                 <>
                   <StatusBadge status={designQuery.data.status} />
                   <PriorityBadge priority={designQuery.data.priority} />
+                  {canRequestApproval && (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={requestApproval.isPending}
+                      onClick={() => requestApproval.mutate(designId)}
+                    >
+                      Request Approval
+                    </button>
+                  )}
                   <Link href={ROUTES.designs.list} className="btn btn-secondary btn-sm">
                     Back
                   </Link>
@@ -61,7 +88,7 @@ export function DesignDetailView({ designId }: { designId: string }) {
                 {designQuery.data.tasks && designQuery.data.tasks.length > 0 ? (
                   <ul className="detail-task-list">
                     {designQuery.data.tasks.map((task) => (
-                      <li key={task.id}>
+                      <li key={task.id} className="detail-task-row">
                         <Link
                           href={ROUTES.designs.task(designId, task.id)}
                           className="data-table-link"
@@ -69,12 +96,29 @@ export function DesignDetailView({ designId }: { designId: string }) {
                           {task.subProcess?.name ?? "Task"}
                         </Link>
                         <StatusBadge status={task.status} />
+                        {canAssign && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => setAssignTask(task as DesignTask)}
+                          >
+                            Assign
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <p style={{ color: "var(--color-neutral-500)", margin: 0 }}>No tasks generated</p>
                 )}
+              </div>
+
+              <div className="card">
+                <h3 style={{ marginBottom: "1rem" }}>Design Files</h3>
+                <ImageGallery
+                  designId={designId}
+                  canUpload={permissions.includes(PERMISSIONS.DESIGN_CREATE)}
+                />
               </div>
 
               <div className="card">
@@ -87,6 +131,11 @@ export function DesignDetailView({ designId }: { designId: string }) {
                 </p>
               </div>
             </div>
+            <AssignTaskModal
+              open={!!assignTask}
+              task={assignTask}
+              onClose={() => setAssignTask(null)}
+            />
           </>
         )}
       </QueryState>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { IconCheck, IconDesigns } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
+import { DEMO_ACCOUNTS, formatRoleLabel } from "@/config/roles";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -120,11 +121,34 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <details className="login-demo-accounts" style={{ marginTop: "1.25rem" }}>
+            <summary className="form-hint" style={{ cursor: "pointer", textAlign: "center" }}>
+              Demo accounts by role (password Demo@123)
+            </summary>
+            <ul className="login-demo-list">
+              {DEMO_ACCOUNTS.filter((a) => a.email !== "admin@decent-erp.local").map((account) => (
+                <li key={account.email}>
+                  <button
+                    type="button"
+                    className="login-demo-btn"
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword(account.password);
+                    }}
+                  >
+                    <strong>{formatRoleLabel(account.role)}</strong>
+                    <span>{account.email}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </details>
+
           <p
             className="form-hint"
-            style={{ marginTop: "1.25rem", textAlign: "center" }}
+            style={{ marginTop: "0.75rem", textAlign: "center" }}
           >
-            Default: admin@decent-erp.local / Admin@123
+            Admin: admin@decent-erp.local / Admin@123
           </p>
         </div>
       </div>

@@ -20,6 +20,54 @@ export async function getMyTasks(employeeId: number) {
   });
 }
 
+export async function assignTask(
+  taskId: bigint,
+  employeeId: number,
+  actorId: number,
+  correlationId: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    const task = await tx.designTask.findUnique({ where: { id: taskId } });
+    if (!task) throw new ApiError("Task not found", 404);
+
+    const employee = await tx.employee.findUnique({ where: { id: employeeId, active: true } });
+    if (!employee) throw new ApiError("Employee not found", 404);
+
+    const updated = await tx.designTask.update({
+      where: { id: taskId },
+      data: {
+        assignedEmployeeId: employeeId,
+        status: task.status === "PENDING" ? "ASSIGNED" : task.status,
+        version: { increment: 1 },
+      },
+      include: {
+        assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
+        process: true,
+        subProcess: true,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      entityType: "DesignTask",
+      entityId: taskId.toString(),
+      action: "ASSIGN",
+      userId: actorId,
+      correlationId,
+      before: task,
+      after: updated,
+    });
+
+    return updated;
+  }).then(async (task) => {
+    await enqueueOutboxAndNotify(
+      "TASK_ASSIGNED",
+      { taskId: task.id.toString(), employeeId },
+      correlationId,
+    );
+    return task;
+  });
+}
+
 export async function createManualTask(
   input: {
     designId: bigint;
@@ -208,11 +256,15 @@ export async function endTask(
     completionStatus: TaskStatus;
     outputRemark: string;
     version: number;
+    attachmentIds?: number[];
   },
   correlationId: string,
 ) {
   return prisma.$transaction(async (tx) => {
-    const task = await tx.designTask.findUnique({ where: { id: taskId } });
+    const task = await tx.designTask.findUnique({
+      where: { id: taskId },
+      include: { subProcess: true },
+    });
     if (!task) throw new ApiError("Task not found", 404);
     if (task.assignedEmployeeId !== employeeId) {
       throw new ApiError("Task not assigned to you", 403);
@@ -222,6 +274,14 @@ export async function endTask(
     }
     if (!["RUNNING", "ON_HOLD"].includes(task.status)) {
       throw new ApiError(`Cannot end task in status ${task.status}`, 409);
+    }
+
+    if (task.subProcess.isFileRequired) {
+      const imageCount = await tx.designImage.count({ where: { designId: task.designId } });
+      const attachmentCount = input.attachmentIds?.length ?? 0;
+      if (imageCount === 0 && attachmentCount === 0) {
+        throw new ApiError("At least one file must be uploaded before completing this task", 422);
+      }
     }
 
     const now = new Date();
@@ -270,14 +330,6 @@ export async function endTask(
 }
 
 export async function closeWorkday(employeeId: number, correlationId: string) {
-  const running = await prisma.designTask.findFirst({
-    where: { assignedEmployeeId: employeeId, status: "RUNNING" },
-  });
-  if (running) {
-    throw new ApiError("Cannot close workday while a task is running", 409, {
-      taskId: running.id.toString(),
-    });
-  }
-
-  return { closed: true, employeeId, correlationId };
+  const { persistWorkdayClose } = await import("@/lib/services/time-service");
+  return persistWorkdayClose(employeeId, correlationId);
 }

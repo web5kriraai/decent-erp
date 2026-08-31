@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignTask } from "@/lib/types/api";
 import { ApiClientError } from "@/lib/api-client";
@@ -26,7 +26,10 @@ export function useTaskMutations() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+    queryClient.invalidateQueries({ queryKey: ["tasks", "detail"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.time.mySummary });
+    queryClient.invalidateQueries({ queryKey: queryKeys.time.live });
   };
 
   const start = useMutation({
@@ -100,9 +103,28 @@ export function useTaskMutations() {
 
   const closeWorkday = useMutation({
     mutationFn: () => apiPost<{ closed: boolean }>("/api/workday/close"),
-    onSuccess: () => toast.success("Workday closed"),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Workday closed");
+    },
     onError: (error) => toast.errorFromApi(error, "Cannot close workday"),
   });
 
   return { start, hold, resume, end, closeWorkday, isPending: start.isPending || hold.isPending || resume.isPending || end.isPending };
+}
+
+export function useAssignTask() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: ({ taskId, employeeId }: { taskId: string; employeeId: number }) =>
+      apiPatch<DesignTask>(`/api/tasks/${taskId}/assign`, { employeeId }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      toast.success("Task assigned", data.assignedEmployee?.name ?? "Employee updated");
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not assign task"),
+  });
 }

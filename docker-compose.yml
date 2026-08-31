@@ -129,6 +129,27 @@ services:
     networks:
       - decent-erp-net
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: decent-erp-worker
+    restart: unless-stopped
+    command: npx tsx src/worker/notification-worker.ts
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-decent_user}:${POSTGRES_PASSWORD:-decent_dev_password}@postgres:5432/${POSTGRES_DB:-decent_erp}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - decent-erp-net
+
   nginx:
     image: nginx:alpine
     container_name: decent-erp-nginx

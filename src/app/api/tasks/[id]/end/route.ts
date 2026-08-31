@@ -27,6 +27,7 @@ export async function POST(
         completionStatus: body.completionStatus,
         outputRemark: body.outputRemark,
         version: body.version,
+        attachmentIds: body.attachmentIds,
       },
       ctx.correlationId,
     );

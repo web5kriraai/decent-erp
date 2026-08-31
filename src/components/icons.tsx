@@ -150,3 +150,44 @@ export function IconCheck(props: IconProps) {
     </Icon>
   );
 }
+
+export function IconClock(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </Icon>
+  );
+}
+
+export function IconUsers(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 00-3-3.87" />
+      <path d="M16 3.13a4 4 0 010 7.75" />
+    </Icon>
+  );
+}
+
+export function IconRoles(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </Icon>
+  );
+}
+
+export function IconWorkflow(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="18" cy="18" r="3" />
+      <circle cx="18" cy="6" r="3" />
+      <path d="M6 9v3a3 3 0 003 3h3" />
+      <path d="M18 9V6" />
+    </Icon>
+  );
+}

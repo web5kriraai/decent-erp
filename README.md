@@ -1,19 +1,25 @@
-# Decent ERP - Design Management
+# Decent ERP — Design Management
 
-Production-ready Next.js 16.3 full-stack application with PostgreSQL (Docker), Redis, MinIO, and Nginx.
+Production-ready Next.js full-stack application for textile design operations: concepts, task workflows, time tracking, approvals, costing, production release, KPI, and admin masters — with PostgreSQL, Redis, MinIO, and RBAC.
 
 ## Stack
 
-- **Next.js 16.3.3** - App Router, Route Handlers, standalone Docker output
-- **PostgreSQL 16** - primary database (Prisma ORM)
-- **Redis 7** - BullMQ job queue
-- **MinIO** - S3-compatible object storage for design files
-- **NextAuth v5** - JWT auth with RBAC
-- **TanStack Query** - server state on the frontend
+| Layer | Technology |
+|---|---|
+| App | **Next.js 16.3** (App Router, Route Handlers, standalone Docker output) |
+| Database | **PostgreSQL 16** + **Prisma 6** |
+| Auth | **NextAuth v5** (JWT) + role-based permissions |
+| Queue | **Redis 7** + **BullMQ** (notification worker) |
+| Files | **MinIO** (S3-compatible) for design images |
+| UI state | **TanStack Query** |
+| Charts | **Recharts** (KPI dashboards) |
+| Tests | **Vitest** + GitHub Actions CI |
+
+---
 
 ## Quick start (local)
 
-If ports **5432**, **6379**, or **9000** are already in use on your machine, the default `.env.example` uses alternate ports (**5433**, **6380**, **9002**) - no changes needed.
+If ports **5432**, **6379**, or **9000** are already in use, the default `.env.example` uses **5433**, **6380**, and **9002** — no changes needed.
 
 ```bash
 cp .env.example .env
@@ -24,7 +30,29 @@ npm run db:seed
 npm run dev
 ```
 
-Open http://localhost:3000 - login with `admin@decent-erp.local` / `Admin@123`
+Open **http://localhost:3000** and sign in as System Admin:
+
+| Field | Value |
+|---|---|
+| Email | `admin@decent-erp.local` |
+| Password | `Admin@123` |
+
+Optional background worker (email/in-app notifications via BullMQ):
+
+```bash
+npm run worker
+```
+
+### Production build (local)
+
+Stop `dev`, `start`, and `worker` first — on Windows a running server can lock `.next/standalone` and cause `EBUSY` during build.
+
+```bash
+npm run build
+npm run start
+```
+
+---
 
 ## Quick start (full Docker)
 
@@ -33,11 +61,13 @@ cp .env.example .env
 docker compose up --build
 ```
 
-App: http://localhost:3000  
-Nginx proxy: http://localhost:8080  
-MinIO console: http://localhost:9001
+| Service | URL |
+|---|---|
+| App | http://localhost:3000 |
+| Nginx proxy | http://localhost:8080 |
+| MinIO console | http://localhost:9001 |
 
-## Production
+Production overlay:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
@@ -45,21 +75,206 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 Place TLS certs in `docker/nginx/certs/` (`fullchain.pem`, `privkey.pem`).
 
-## API surface
+---
 
-REST endpoints under `/api/` - see `.cursor/rules/30-api-surface.mdc` for the full contract.
+## Roles and permissions
 
-## Database
+Access is controlled by **permissions**, not role names directly. Each employee has one primary role; the sidebar shows only modules their permissions allow.
 
-- Migrations: `npm run db:migrate`
-- Seed roles/permissions/admin: `npm run db:seed`
-- Schema reference: `prisma/schema.prisma`
+### Permission codes
 
-## Default admin
-
-| Field | Value |
+| Permission | What it unlocks |
 |---|---|
-| Email | admin@decent-erp.local |
-| Password | Admin@123 |
+| `DESIGN_CREATE` | Create concepts, browse all designs |
+| `DESIGN_ASSIGN` | Assign / reassign tasks on a design |
+| `TASK_EXECUTE` | My Tasks, task timer (start / hold / resume / end) |
+| `CORRECTION_RAISE` | Raise and track design corrections |
+| `DESIGN_APPROVE` | Approval queue (multi-level chain) |
+| `COST_VIEW` | Costing screens and design cost entry |
+| `PRODUCTION_RELEASE` | Production release queue |
+| `TIME_VIEW_TEAM` | Live team time + time reports |
+| `KPI_ADMIN` | KPI dashboards and monthly recompute |
+| `MASTER_ADMIN` | Employees, roles catalog, process masters, workflow patterns (read), audit log |
 
-Change immediately in production.
+### Roles (seeded)
+
+| Role | Typical user | Key permissions |
+|---|---|---|
+| **System Admin** (`ADMIN`) | IT / super-user | All permissions |
+| **Design Head** | Pipeline owner | Create, assign, approve, costing view, team time, production release |
+| **Sketch Designer** | Sketch artist | Task execute, corrections |
+| **Punching Designer** | Wilcom / digitizing | Task execute, corrections |
+| **Machine Operator** | Sample floor | Task execute only |
+| **Sample Checker** | QC gate | Task execute, corrections, approve |
+| **Costing Team** | Finance / costing | Cost view |
+| **Production Head** | Shop-floor handoff | Production release, cost view |
+| **Management** | Owner / director | Approve, KPI, team time, costing, production release |
+
+Full role descriptions (responsibilities, restrictions, nav focus) live in `src/config/roles.ts` and appear on **Admin → Roles & Access**.
+
+### Demo login accounts
+
+All demo users except admin share password **`Demo@123`**.
+
+| Email | Role |
+|---|---|
+| `admin@decent-erp.local` | System Admin (`Admin@123`) |
+| `designhead@decent-erp.local` | Design Head |
+| `sketch@decent-erp.local` | Sketch Designer |
+| `punch@decent-erp.local` | Punching Designer |
+| `machine@decent-erp.local` | Machine Operator |
+| `checker@decent-erp.local` | Sample Checker |
+| `costing@decent-erp.local` | Costing Team |
+| `production@decent-erp.local` | Production Head |
+| `management@decent-erp.local` | Management |
+
+Change all passwords before production. After an admin changes a user's role, the user must **sign out and sign in again** for permissions to refresh.
+
+---
+
+## What works today
+
+### Design pipeline
+
+- **New Concept** — product type, season, workflow pattern, optional manual tasks; auto-generates task chain from pattern
+- **Design detail** — task list, assign/reassign, request approval, image gallery (MinIO), regenerate tasks from pattern
+- **Task execution** — server-authoritative timer: start → hold (with reason) → resume → end; file required enforced where sub-process marks `isFileRequired`
+
+### Quality
+
+- **Corrections** — list, raise, track status
+- **Approvals** — pending queue; multi-level chain (Checker → Design Head → Management); final approval gated on costing completeness
+
+### Finance and production
+
+- **Costing** — per-design development / standard cost lines with margin view
+- **Production release** — queue of approved designs; accept or hold release
+
+### Team and analytics
+
+- **My Time Today** — personal active/hold breakdown
+- **Live Team Time** / **Time Report** — supervisors see team activity
+- **Performance KPI** — monthly metrics with charts; employee and design-head drill-downs; `POST /api/kpi/recompute` for refresh
+
+### System admin
+
+- **Employees** — create, edit, activate/deactivate, assign role, reset password
+- **Roles & Access** — read-only role catalog with permission matrix
+- **Process Masters** — create processes; hold reasons and approval levels via API
+- **Workflow Patterns** — **read-only list** (one pattern seeded: *Standard Saree Development*)
+- **Audit Log** — filterable admin action history
+
+### Infrastructure
+
+- REST API under `/api/` — see `.cursor/rules/30-api-surface.mdc`
+- Notification worker (`npm run worker`) + Docker `worker` service
+- CI: lint, migrate, test, build on push/PR (`.github/workflows/ci.yml`)
+
+### Not yet implemented
+
+- **Create / edit workflow patterns** via API or admin UI (patterns today come from seed only)
+- Full KPI metric set (5 core metrics implemented; extended set in product rules pending)
+- Auto-create correction record when approval decision is `CORRECTION_REQUIRED`
+
+---
+
+## How to work with the project
+
+### Typical end-to-end flow
+
+```mermaid
+flowchart LR
+  A[Design Head: New Concept] --> B[Tasks generated from pattern]
+  B --> C[Designer: Start / Hold / End task]
+  C --> D[Upload files if required]
+  D --> E[Request approval on design]
+  E --> F[Checker / DH / Mgmt approve chain]
+  F --> G[Costing team enters costs]
+  G --> H[Final approval with costing gate]
+  H --> I[Production Head: release]
+```
+
+1. **Design Head** — **Design Pipeline → New Concept**, pick workflow pattern, submit.
+2. **Designer** — **My Tasks**, open task, **Start**, work, upload files if prompted, **End**.
+3. **Design Head** — on design detail, **Assign** tasks if needed; **Request Approval** when stage is ready.
+4. **Checker / Management** — **Quality → Approvals**, approve or reject (multi-level).
+5. **Costing** — **Finance → Costing**, enter costs for the design.
+6. **Management** — final approval after costing is complete.
+7. **Production Head** — **Production → Production Release**, accept handoff.
+
+### Admin setup (first time)
+
+1. Run migrate + seed (roles, permissions, demo users, processes, hold reasons, approval levels, sample pattern and design).
+2. Sign in as admin → **Employees** to add real staff and assign roles.
+3. **Process Masters** — add/adjust main processes and sub-processes before new patterns are needed.
+4. For new workflow templates today: extend `src/lib/seed.ts` or insert into DB (UI/API for pattern CRUD coming later).
+
+### Developer commands
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Prisma generate + production build + standalone prep |
+| `npm run start` | Run standalone server (`node .next/standalone/server.js`) |
+| `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
+| `npm run db:migrate:dev` | Create/apply migrations in development |
+| `npm run db:seed` | Seed roles, users, masters, sample data |
+| `npm run worker` | BullMQ notification consumer |
+| `npm test` | Vitest unit tests |
+| `npm run lint` | ESLint |
+
+### Database
+
+- Schema: `prisma/schema.prisma`
+- Migrations: `prisma/migrations/`
+- Seed entry: `prisma/seed.ts` → `src/lib/seed.ts`
+
+### API reference
+
+Full endpoint list and sample payloads: `.cursor/rules/30-api-surface.mdc`
+
+Key routes:
+
+- `GET/POST /api/designs`, `GET/PATCH /api/designs/{id}`
+- `POST /api/designs/{id}/tasks/generate`, `PATCH /api/tasks/{id}/assign`
+- `POST /api/tasks/{id}/start|hold|resume|end`
+- `GET/POST /api/corrections`, `GET/POST /api/approvals`
+- `GET/POST /api/designs/{id}/costs`, `GET/POST /api/production/release`
+- `GET /api/admin/employees`, `PATCH /api/admin/employees/{id}`
+- `GET /api/admin/audit`, `GET /api/workflow-patterns`
+
+---
+
+## Project layout
+
+```
+decent-erp/
+├── prisma/              # Schema, migrations, seed
+├── src/
+│   ├── app/             # Pages + /api route handlers
+│   ├── features/        # Screen-level UI by domain
+│   ├── components/      # Shared UI
+│   ├── hooks/           # TanStack Query hooks
+│   ├── lib/
+│   │   ├── services/    # Business logic
+│   │   └── permissions.ts
+│   ├── config/          # Routes, role catalog
+│   └── worker/          # BullMQ notification worker
+├── docker/              # Nginx, init scripts
+└── scripts/             # Standalone build helper
+```
+
+---
+
+## Security notes
+
+- Never commit `.env` — use `.env.example` as template.
+- Rotate `NEXTAUTH_SECRET` / `AUTH_SECRET` in production.
+- System Admin actions are written to the audit log.
+- Task times are server-authoritative; client clock is not trusted for duration.
+
+---
+
+## License
+
+Private — Decent ERP design management module.

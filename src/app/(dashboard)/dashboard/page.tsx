@@ -6,11 +6,14 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { IconDesigns, IconPlus, IconTasks } from "@/components/icons";
+import { IconDesigns, IconPlus, IconTasks, IconClock } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useMyTasks } from "@/hooks/use-tasks";
+import { useMyTimeSummary } from "@/hooks/use-time";
+import { formatDuration } from "@/lib/services/time-calculation";
+import { RoleOverviewCard } from "@/components/roles/RoleOverviewCard";
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -20,6 +23,7 @@ export default function DashboardPage() {
 
   const designsQuery = useDesignsList(canViewDesigns);
   const tasksQuery = useMyTasks(canViewTasks);
+  const timeQuery = useMyTimeSummary(canViewTasks);
 
   const designs = designsQuery.data;
   const tasks = tasksQuery.data;
@@ -29,7 +33,8 @@ export default function DashboardPage() {
   const pendingTasks = tasks?.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status)).length ?? 0;
   const runningTasks = tasks?.filter((t) => t.status === "RUNNING").length ?? 0;
 
-  const isLoading = designsQuery.isLoading || tasksQuery.isLoading;
+  const isLoading = designsQuery.isLoading || tasksQuery.isLoading || timeQuery.isLoading;
+  const timeSummary = timeQuery.data;
 
   return (
     <div className="page-shell">
@@ -57,6 +62,15 @@ export default function DashboardPage() {
         }}
         skeletonVariant="stats"
       >
+        {session?.user?.roleCode && (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <RoleOverviewCard
+              roleCode={session.user.roleCode}
+              permissions={permissions}
+            />
+          </div>
+        )}
+
         <div className="stat-grid" style={{ marginBottom: "1.5rem" }}>
           {canViewDesigns && (
             <>
@@ -68,6 +82,20 @@ export default function DashboardPage() {
             <>
               <StatCard label="Open Tasks" value={pendingTasks} accent />
               <StatCard label="Running Now" value={runningTasks} trend="Server-tracked timers" />
+              {timeSummary && (
+                <>
+                  <StatCard
+                    label="Active Today"
+                    value={formatDuration(timeSummary.totals.activeSeconds)}
+                    trend="From TaskTimeEvent"
+                  />
+                  <StatCard
+                    label="Hold Today"
+                    value={formatDuration(timeSummary.totals.holdSeconds)}
+                    trend={timeSummary.workdayClosed ? "Workday closed" : "Workday open"}
+                  />
+                </>
+              )}
             </>
           )}
         </div>
@@ -115,6 +143,19 @@ export default function DashboardPage() {
                 <span className="card-title">Quick Actions</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <Link href={ROUTES.work.myTime} className="card card--interactive" style={{ padding: "1rem", textDecoration: "none", color: "inherit" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <IconClock size={20} style={{ color: "var(--color-primary)" }} />
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 600 }}>My Time Today</p>
+                      <p style={{ margin: "0.125rem 0 0", fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
+                        {timeSummary
+                          ? `${formatDuration(timeSummary.totals.activeSeconds)} active · ${formatDuration(timeSummary.totals.holdSeconds)} hold`
+                          : "View daily time breakdown"}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
                 <Link href={ROUTES.work.tasks} className="card card--interactive" style={{ padding: "1rem", textDecoration: "none", color: "inherit" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                     <IconTasks size={20} style={{ color: "var(--color-primary)" }} />

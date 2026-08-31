@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
-import { createCorrection } from "@/lib/services/correction-service";
+import { createCorrection, listCorrections } from "@/lib/services/correction-service";
+import type { CorrectionStatus } from "@prisma/client";
 
-const schema = z.object({
+const createSchema = z.object({
   designId: z.string(),
   taskId: z.string(),
   correctionType: z.enum([
@@ -18,9 +19,30 @@ const schema = z.object({
   extraCost: z.number().optional(),
 });
 
+const STATUS_VALUES = ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING", "DONE", "REJECTED"] as const;
+
+export async function GET(request: Request) {
+  return withApiHandler(PERMISSIONS.CORRECTION_RAISE, async (ctx) => {
+    const url = new URL(request.url);
+    const designId = url.searchParams.get("designId");
+    const mine = url.searchParams.get("mine") === "1";
+    const status = url.searchParams.get("status") as CorrectionStatus | null;
+
+    const corrections = await listCorrections({
+      designId: designId ? BigInt(designId) : undefined,
+      responsibleEmployeeId: mine ? ctx.employeeId : undefined,
+      status: status && STATUS_VALUES.includes(status as (typeof STATUS_VALUES)[number])
+        ? status
+        : undefined,
+    });
+
+    return jsonOk(serializeBigInt(corrections), ctx.correlationId);
+  });
+}
+
 export async function POST(request: Request) {
   return withApiHandler(PERMISSIONS.CORRECTION_RAISE, async (ctx) => {
-    const body = await parseBody(request, schema);
+    const body = await parseBody(request, createSchema);
     const correction = await createCorrection(
       {
         designId: BigInt(body.designId),

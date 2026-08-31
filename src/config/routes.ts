@@ -10,6 +10,11 @@ import {
   IconKpi,
   IconMasters,
   IconPlus,
+  IconClock,
+  IconUsers,
+  IconRoles,
+  IconWorkflow,
+  IconLock,
 } from "@/components/icons";
 
 export const ROUTES = {
@@ -24,6 +29,7 @@ export const ROUTES = {
   work: {
     tasks: "/work/tasks",
     taskDetail: (taskId: string) => `/work/tasks/${taskId}`,
+    myTime: "/work/time",
   },
   quality: {
     corrections: "/quality/corrections",
@@ -36,10 +42,18 @@ export const ROUTES = {
     kpi: "/analytics/kpi",
     kpiEmployees: "/analytics/kpi/employees",
     kpiDesignHead: "/analytics/kpi/design-head",
+    timeReport: "/analytics/time",
   },
   admin: {
     masters: "/admin/masters",
     workflowPatterns: "/admin/workflow-patterns",
+    timeLive: "/admin/time/live",
+    employees: "/admin/employees",
+    roles: "/admin/roles",
+    audit: "/admin/audit",
+  },
+  production: {
+    release: "/production/release",
   },
 } as const;
 
@@ -86,8 +100,8 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "design",
-    label: "Design",
+    id: "design-pipeline",
+    label: "Design Pipeline",
     items: [
       {
         id: "designs-list",
@@ -103,11 +117,24 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: IconPlus,
         permission: PERMISSIONS.DESIGN_CREATE,
       },
+    ],
+  },
+  {
+    id: "my-work",
+    label: "My Work",
+    items: [
       {
         id: "work-tasks",
         label: "My Tasks",
         href: ROUTES.work.tasks,
         icon: IconTasks,
+        permission: PERMISSIONS.TASK_EXECUTE,
+      },
+      {
+        id: "work-time",
+        label: "My Time Today",
+        href: ROUTES.work.myTime,
+        icon: IconClock,
         permission: PERMISSIONS.TASK_EXECUTE,
       },
     ],
@@ -146,9 +173,23 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "analytics",
-    label: "Analytics",
+    id: "team-reports",
+    label: "Team & Reports",
     items: [
+      {
+        id: "time-live",
+        label: "Live Team Time",
+        href: ROUTES.admin.timeLive,
+        icon: IconClock,
+        permission: PERMISSIONS.TIME_VIEW_TEAM,
+      },
+      {
+        id: "time-report",
+        label: "Time Report",
+        href: ROUTES.analytics.timeReport,
+        icon: IconClock,
+        permission: PERMISSIONS.TIME_VIEW_TEAM,
+      },
       {
         id: "kpi",
         label: "Performance KPI",
@@ -159,9 +200,36 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "admin",
-    label: "Administration",
+    id: "production",
+    label: "Production",
     items: [
+      {
+        id: "production-release",
+        label: "Production Release",
+        href: ROUTES.production.release,
+        icon: IconDesigns,
+        permission: PERMISSIONS.PRODUCTION_RELEASE,
+      },
+    ],
+  },
+  {
+    id: "admin",
+    label: "System Admin",
+    items: [
+      {
+        id: "employees",
+        label: "Employees",
+        href: ROUTES.admin.employees,
+        icon: IconUsers,
+        permission: PERMISSIONS.MASTER_ADMIN,
+      },
+      {
+        id: "roles",
+        label: "Roles & Access",
+        href: ROUTES.admin.roles,
+        icon: IconRoles,
+        permission: PERMISSIONS.MASTER_ADMIN,
+      },
       {
         id: "masters",
         label: "Process Masters",
@@ -173,7 +241,14 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "workflow-patterns",
         label: "Workflow Patterns",
         href: ROUTES.admin.workflowPatterns,
-        icon: IconMasters,
+        icon: IconWorkflow,
+        permission: PERMISSIONS.MASTER_ADMIN,
+      },
+      {
+        id: "audit",
+        label: "Audit Log",
+        href: ROUTES.admin.audit,
+        icon: IconLock,
         permission: PERMISSIONS.MASTER_ADMIN,
       },
     ],
@@ -197,6 +272,10 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "Overview", href: ROUTES.dashboard },
     { label: "My Tasks" },
   ],
+  [ROUTES.work.myTime]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "My Time Today" },
+  ],
   [ROUTES.quality.corrections]: [
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Corrections" },
@@ -213,6 +292,20 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Performance KPI" },
   ],
+  [ROUTES.analytics.kpiEmployees]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Employee KPI" },
+  ],
+  [ROUTES.analytics.kpiDesignHead]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Design Head KPI" },
+  ],
+  [ROUTES.analytics.timeReport]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Time Report" },
+  ],
   [ROUTES.admin.masters]: [
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Process Masters" },
@@ -220,6 +313,26 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   [ROUTES.admin.workflowPatterns]: [
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Workflow Patterns" },
+  ],
+  [ROUTES.admin.timeLive]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Live Team Time" },
+  ],
+  [ROUTES.admin.roles]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Roles & Access" },
+  ],
+  [ROUTES.admin.employees]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Employees" },
+  ],
+  [ROUTES.admin.audit]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Audit Log" },
+  ],
+  [ROUTES.production.release]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Production Release" },
   ],
 };
 

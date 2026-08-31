@@ -10,7 +10,9 @@ export async function seedDatabase() {
   for (const [roleCode, perms] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
     const role = await prisma.role.upsert({
       where: { code: roleCode },
-      update: {},
+      update: {
+        name: roleCode.replace(/_/g, " "),
+      },
       create: {
         code: roleCode,
         name: roleCode.replace(/_/g, " "),
@@ -62,6 +64,19 @@ export async function seedDatabase() {
     });
   }
 
+  const approvalLevels = [
+    { code: "CHECKER_APPROVAL", name: "Sample Checker Approval", sequence: 1 },
+    { code: "DESIGN_HEAD_APPROVAL", name: "Design Head Approval", sequence: 2 },
+    { code: "MANAGEMENT_APPROVAL", name: "Management Approval", sequence: 3 },
+  ];
+  for (const level of approvalLevels) {
+    await prisma.approvalLevel.upsert({
+      where: { code: level.code },
+      update: { name: level.name, sequence: level.sequence },
+      create: level,
+    });
+  }
+
   const productTypes = [
     { code: "SAREE", name: "Saree" },
     { code: "SUIT", name: "Suit" },
@@ -97,9 +112,14 @@ export async function seedDatabase() {
   });
 
   const passwordHash = await bcrypt.hash("Admin@123", 12);
+  const demoPasswordHash = await bcrypt.hash("Demo@123", 12);
+
   const admin = await prisma.employee.upsert({
     where: { email: "admin@decent-erp.local" },
-    update: {},
+    update: {
+      name: "System Admin",
+      roleId: adminRole.id,
+    },
     create: {
       employeeCode: "EMP001",
       name: "System Admin",
@@ -108,6 +128,32 @@ export async function seedDatabase() {
       roleId: adminRole.id,
     },
   });
+
+  const demoUsers = [
+    { code: "EMP002", name: "Priya Design Head", email: "designhead@decent-erp.local", role: ROLE_CODES.DESIGN_HEAD },
+    { code: "EMP003", name: "Ravi Sketch", email: "sketch@decent-erp.local", role: ROLE_CODES.SKETCH_DESIGNER },
+    { code: "EMP004", name: "Meera Punch", email: "punch@decent-erp.local", role: ROLE_CODES.PUNCHING_DESIGNER },
+    { code: "EMP005", name: "Kumar Machine", email: "machine@decent-erp.local", role: ROLE_CODES.MACHINE_OPERATOR },
+    { code: "EMP006", name: "Anita Checker", email: "checker@decent-erp.local", role: ROLE_CODES.SAMPLE_CHECKER },
+    { code: "EMP007", name: "Sanjay Costing", email: "costing@decent-erp.local", role: ROLE_CODES.COSTING_TEAM },
+    { code: "EMP008", name: "Vikram Production", email: "production@decent-erp.local", role: ROLE_CODES.PRODUCTION_HEAD },
+    { code: "EMP009", name: "Owner Management", email: "management@decent-erp.local", role: ROLE_CODES.MANAGEMENT },
+  ] as const;
+
+  for (const user of demoUsers) {
+    const role = await prisma.role.findUniqueOrThrow({ where: { code: user.role } });
+    await prisma.employee.upsert({
+      where: { email: user.email },
+      update: { name: user.name, roleId: role.id },
+      create: {
+        employeeCode: user.code,
+        name: user.name,
+        email: user.email,
+        passwordHash: demoPasswordHash,
+        roleId: role.id,
+      },
+    });
+  }
 
   // Process masters
   const devProcess = await prisma.designProcessMaster.upsert({

@@ -7,6 +7,7 @@ import {
   isNavActive,
   ROUTES,
 } from "@/config/routes";
+import { formatRoleLabel, getRoleDefinition } from "@/config/roles";
 import { useRouteMeta } from "@/hooks/use-route-meta";
 import { useSidebarState } from "@/components/layout/SidebarProvider";
 import { IconSearch, IconLogout } from "@/components/icons";
@@ -21,7 +22,7 @@ function getInitials(name: string) {
 }
 
 function formatRole(code: string) {
-  return code.replace(/_/g, " ").toLowerCase();
+  return formatRoleLabel(code);
 }
 
 export function Sidebar() {
@@ -99,9 +100,13 @@ export function Sidebar() {
           ))}
         </nav>
 
-        {!collapsed && (
+        {!collapsed && session?.user?.roleCode && (
           <div className="sidebar-footer">
-            Textile design lifecycle · v1.0
+            <div className="sidebar-footer-role">{formatRoleLabel(session.user.roleCode)}</div>
+            <div className="sidebar-footer-hint">
+              {getRoleDefinition(session.user.roleCode)?.navFocus.slice(0, 2).join(" · ") ??
+                "Design Management"}
+            </div>
           </div>
         )}
       </aside>

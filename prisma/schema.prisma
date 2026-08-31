@@ -105,6 +105,9 @@ model Employee {
   kpiScores            EmployeeKpiScore[]
   uploadedImages       DesignImage[]
   auditLogs            AuditLog[]
+  workdaySessions      WorkdaySession[] @relation("WorkdayEmployee")
+  closedWorkdaySessions WorkdaySession[] @relation("WorkdayClosedBy")
+  enteredCosts         DesignCost[]
 
   @@map("employees")
 }
@@ -353,6 +356,7 @@ model DesignConcept {
   tasks       DesignTask[]
   corrections DesignCorrection[]
   approvals   DesignApproval[]
+  costs       DesignCost[]
 
   @@index([status, priority])
   @@map("design_concepts")
@@ -523,6 +527,22 @@ model DesignApproval {
   @@map("design_approvals")
 }
 
+model DesignCost {
+  id           BigInt   @id @default(autoincrement()) @map("design_cost_id")
+  designId     BigInt   @map("design_id")
+  costType     String   @map("cost_type")
+  description  String?  @db.Text
+  amount       Decimal  @db.Decimal(18, 2)
+  enteredById  Int      @map("entered_by")
+  enteredAtUtc DateTime @default(now()) @map("entered_at_utc")
+
+  design    DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+  enteredBy Employee      @relation(fields: [enteredById], references: [id])
+
+  @@index([designId, costType])
+  @@map("design_costs")
+}
+
 model EmployeeKpiDefinition {
   id            Int      @id @default(autoincrement()) @map("kpi_definition_id")
   roleId        Int      @map("role_id")
@@ -572,6 +592,21 @@ model AuditLog {
   @@index([userId, atUtc])
   @@index([correlationId])
   @@map("audit_logs")
+}
+
+model WorkdaySession {
+  id          BigInt   @id @default(autoincrement()) @map("workday_session_id")
+  employeeId  Int      @map("employee_id")
+  workDate    DateTime @map("work_date") @db.Date
+  closedAtUtc DateTime @map("closed_at_utc")
+  createdById Int      @map("created_by")
+
+  employee  Employee @relation("WorkdayEmployee", fields: [employeeId], references: [id])
+  createdBy Employee @relation("WorkdayClosedBy", fields: [createdById], references: [id])
+
+  @@unique([employeeId, workDate], map: "UQ_WorkdaySession_Employee_Date")
+  @@index([workDate], map: "IX_WorkdaySession_WorkDate")
+  @@map("workday_sessions")
 }
 
 model NotificationOutbox {
