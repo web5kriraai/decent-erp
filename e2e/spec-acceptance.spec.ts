@@ -46,10 +46,32 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
     await apiPostJson(page, `/api/tasks/${assigned[0].id}/start`, {});
     const secondStart = await page.request.post(`/api/tasks/${assigned[1].id}/start`);
     expect(secondStart.status()).toBe(409);
+
+    const running = await apiGetJson<{ version: number }>(page, `/api/tasks/${assigned[0].id}`);
+    await apiPostJson(page, `/api/tasks/${assigned[0].id}/end`, {
+      completionStatus: "COMPLETED",
+      outputRemark: "TC-04 cleanup after concurrency check",
+      version: running.version,
+    });
   });
 
   test("TC-05: timer start/end records task completion", async ({ page }) => {
     await login(page, USERS.admin.email, USERS.admin.password);
+
+    const existing = await apiGetJson<Array<{ id: string; status: string; version: number }>>(
+      page,
+      "/api/tasks/my",
+    );
+    const leftover = existing.find((t) => t.status === "RUNNING");
+    if (leftover) {
+      const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${leftover.id}`);
+      await apiPostJson(page, `/api/tasks/${leftover.id}/end`, {
+        completionStatus: "COMPLETED",
+        outputRemark: "TC-05 cleanup leftover running task",
+        version: detail.version,
+      });
+    }
+
     await createDesignViaApi(page, `TC05 Timer ${Date.now()}`);
 
     const tasks = await apiGetJson<Array<{ id: string; status: string; version: number }>>(
