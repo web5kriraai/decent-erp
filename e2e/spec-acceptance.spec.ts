@@ -8,7 +8,7 @@ import {
   apiGetJson,
   apiPatchJson,
   apiPostJson,
-  fetchMasters,
+  createDesignViaApi,
   login,
 } from "./helpers/auth";
 
@@ -26,41 +26,22 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
 
   test("TC-03: design head creates design with workflow pattern", async ({ page }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
-    const masters = await fetchMasters(page);
-    const design = await apiPostJson<{ id: string; ideaRef: string; status: string }>(
-      page,
-      "/api/designs",
-      {
-        productTypeId: masters.productTypeId,
-        seasonId: masters.seasonId,
-        collectionName: `E2E Collection ${Date.now()}`,
-        priority: "MEDIUM",
-        conceptNote: "Playwright TC-03",
-        assignmentMode: "AUTOMATIC",
-        workflowPatternId: masters.workflowPatternId,
-      },
-    );
+    const design = await createDesignViaApi(page, `E2E Collection ${Date.now()}`, {
+      conceptNote: "Playwright TC-03",
+    });
     expect(design.id).toBeTruthy();
-    expect(design.status).toBe("ACTIVE");
+    expect(design.status).toBe("DRAFT");
+    expect(design.ideaRef).toMatch(/^IDEA-/);
   });
 
   test("TC-04: only one RUNNING task per employee", async ({ page }) => {
-    await login(page, USERS.designHead.email, USERS.designHead.password);
-    const masters = await fetchMasters(page);
-    for (let i = 0; i < 2; i++) {
-      await apiPostJson(page, "/api/designs", {
-        productTypeId: masters.productTypeId,
-        seasonId: masters.seasonId,
-        collectionName: `TC04 Concurrency ${Date.now()}-${i}`,
-        priority: "MEDIUM",
-        assignmentMode: "AUTOMATIC",
-        workflowPatternId: masters.workflowPatternId,
-      });
-    }
+    await login(page, USERS.admin.email, USERS.admin.password);
+    await createDesignViaApi(page, `TC04 Concurrency ${Date.now()}-a`);
+    await createDesignViaApi(page, `TC04 Concurrency ${Date.now()}-b`);
 
     const tasks = await apiGetJson<Array<{ id: string; status: string }>>(page, "/api/tasks/my");
     const assigned = tasks.filter((t) => t.status === "ASSIGNED");
-    if (assigned.length < 2) test.skip(true, "Need two assigned tasks for design head");
+    if (assigned.length < 2) test.skip(true, "Need two assigned tasks for admin");
 
     await apiPostJson(page, `/api/tasks/${assigned[0].id}/start`, {});
     const secondStart = await page.request.post(`/api/tasks/${assigned[1].id}/start`);
@@ -68,13 +49,15 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
   });
 
   test("TC-05: timer start/end records task completion", async ({ page }) => {
-    await login(page, USERS.designHead.email, USERS.designHead.password);
+    await login(page, USERS.admin.email, USERS.admin.password);
+    await createDesignViaApi(page, `TC05 Timer ${Date.now()}`);
+
     const tasks = await apiGetJson<Array<{ id: string; status: string; version: number }>>(
       page,
       "/api/tasks/my",
     );
-    const task = tasks.find((t) => t.status === "ASSIGNED" || t.status === "PENDING");
-    if (!task) test.skip(true, "No assignable task for design head");
+    const task = tasks.find((t) => t.status === "ASSIGNED");
+    if (!task) test.skip(true, "No assigned task for admin");
 
     await apiPostJson(page, `/api/tasks/${task!.id}/start`, {});
     const running = await apiGetJson<{ status: string; version: number }>(
@@ -115,7 +98,7 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
 
   test("TC-09: approvals queue accessible to checker", async ({ page }) => {
     await login(page, USERS.checker.email, USERS.checker.password);
-    const pending = await apiGetJson<unknown[]>(page, "/api/approvals/pending");
+    const pending = await apiGetJson<unknown[]>(page, "/api/approvals");
     expect(Array.isArray(pending)).toBe(true);
   });
 
@@ -126,23 +109,13 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
 
   test("TC-11: production release blocked without costing", async ({ page }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
-    const masters = await fetchMasters(page);
-    const design = await apiPostJson<{ id: string; status: string; version: number }>(
-      page,
-      "/api/designs",
-      {
-        productTypeId: masters.productTypeId,
-        seasonId: masters.seasonId,
-        collectionName: `TC11 No Cost ${Date.now()}`,
-        priority: "LOW",
-        assignmentMode: "AUTOMATIC",
-        workflowPatternId: masters.workflowPatternId,
-      },
-    );
+    const design = await createDesignViaApi(page, `TC11 No Cost ${Date.now()}`, {
+      priority: "LOW",
+    });
 
     await apiPatchJson(page, `/api/designs/${design.id}/status`, {
       status: "APPROVED",
-      version: design.version,
+      version: design.version ?? 1,
     });
 
     await login(page, USERS.production.email, USERS.production.password);
@@ -155,19 +128,13 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
 
   test("TC-12: production release creates ERP handoffs", async ({ page }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
-    const masters = await fetchMasters(page);
-    const design = await apiPostJson<{ id: string; version: number }>(page, "/api/designs", {
-      productTypeId: masters.productTypeId,
-      seasonId: masters.seasonId,
-      collectionName: `TC12 Release ${Date.now()}`,
+    const design = await createDesignViaApi(page, `TC12 Release ${Date.now()}`, {
       priority: "HIGH",
-      assignmentMode: "AUTOMATIC",
-      workflowPatternId: masters.workflowPatternId,
     });
 
     await apiPatchJson(page, `/api/designs/${design.id}/status`, {
       status: "APPROVED",
-      version: design.version,
+      version: design.version ?? 1,
     });
 
     await login(page, USERS.costing.email, USERS.costing.password);

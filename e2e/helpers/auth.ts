@@ -14,8 +14,11 @@ export const USERS = {
   machine: { email: "machine@decent-erp.local", password: DEMO_PASSWORD },
 } as const;
 
+/** Clear session and sign in (required when switching users mid-test). */
 export async function login(page: Page, email: string, password: string) {
+  await page.context().clearCookies();
   await page.goto("/login");
+  await page.getByLabel("Email address").waitFor({ state: "visible", timeout: 15_000 });
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /Sign in to workspace/i }).click();
@@ -29,8 +32,12 @@ type ApiEnvelope<T> = { data: T; correlationId?: string };
 
 export async function apiGetJson<T>(page: Page, path: string): Promise<T> {
   const res = await page.request.get(path);
-  const json = (await res.json()) as ApiEnvelope<T>;
-  if (!res.ok()) throw new Error(`GET ${path} failed: ${res.status()}`);
+  const contentType = res.headers()["content-type"] ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new Error(`GET ${path} expected JSON but got ${contentType} (${res.status()})`);
+  }
+  const json = (await res.json()) as ApiEnvelope<T> & { error?: string };
+  if (!res.ok()) throw new Error(`GET ${path} failed (${res.status()}): ${json.error ?? ""}`);
   return json.data;
 }
 
@@ -65,4 +72,28 @@ export async function fetchMasters(page: Page) {
     seasonId: seasons[0].id,
     workflowPatternId: patterns[0].id,
   };
+}
+
+export async function createDesignViaApi(
+  page: Page,
+  collectionName: string,
+  overrides?: Partial<{
+    priority: string;
+    conceptNote: string;
+  }>,
+) {
+  const masters = await fetchMasters(page);
+  return apiPostJson<{ id: string; ideaRef: string; status: string; version: number }>(
+    page,
+    "/api/designs",
+    {
+      productTypeId: masters.productTypeId,
+      seasonId: masters.seasonId,
+      collectionName,
+      priority: overrides?.priority ?? "MEDIUM",
+      conceptNote: overrides?.conceptNote,
+      assignmentMode: "AUTOMATIC",
+      workflowPatternId: masters.workflowPatternId,
+    },
+  );
 }
