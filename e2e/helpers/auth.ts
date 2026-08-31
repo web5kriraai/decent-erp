@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { expect } from "@playwright/test";
 
 export const DEMO_PASSWORD = "Demo@123";
 export const ADMIN_PASSWORD = "Admin@123";
@@ -18,7 +19,10 @@ export async function login(page: Page, email: string, password: string) {
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /Sign in to workspace/i }).click();
-  await page.waitForURL("**/dashboard");
+  await page.waitForURL("**/dashboard", { timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: /Welcome back/i })).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 type ApiEnvelope<T> = { data: T; correlationId?: string };

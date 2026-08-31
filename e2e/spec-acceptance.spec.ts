@@ -15,7 +15,7 @@ import {
 test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
   test("TC-01: valid credentials login reaches dashboard", async ({ page }) => {
     await login(page, USERS.admin.email, USERS.admin.password);
-    await expect(page.getByRole("heading", { name: /Overview/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 
   test("TC-02: RBAC blocks sketch designer from admin employees", async ({ page }) => {

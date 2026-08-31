@@ -22,6 +22,7 @@ export default defineConfig({
           ...process.env,
           PORT: "3000",
           HOSTNAME: "127.0.0.1",
+          REDIS_URL: process.env.REDIS_URL ?? "redis://127.0.0.1:6379",
         },
       },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
