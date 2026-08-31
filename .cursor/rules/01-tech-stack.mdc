@@ -1,0 +1,50 @@
+---
+description: Full technology stack and library choices for Decent ERP Design Management. Always load - determines what to import and how to structure new code.
+globs:
+alwaysApply: true
+---
+
+# Technology stack
+
+## Frontend
+- React 18.3.1, Vite 5.4.10 SPA.
+- Server-state layer: TanStack Query - never duplicate API entities across many
+  local `useState` calls; invalidate/refetch on every successful mutation.
+- Styling: CSS variables / design tokens (see `02-design-theme.mdc`), no CSS-in-JS
+  framework unless already present in the repo.
+- Charts: Recharts or Chart.js for KPI dashboards and cost/conversion charts.
+- Tables: a shared `DataTable` component; use AG Grid only for very heavy grids.
+- File upload: multipart form-data direct to the API/storage service.
+  `FileReader`/base64 is for **local preview only**, never for storage.
+- Routing: React Router, with nav items filtered by the current user's
+  permissions (see `22-security-rbac.mdc`).
+
+## Backend
+- REST API, .NET Core-compatible conventions.
+- Auth: JWT bearer tokens; identity resolved server-side on every call.
+- Background work: outbox/queue pattern - notifications and other async effects
+  fire only after the core transaction commits.
+- File storage: S3-compatible or Azure Blob; SQL never stores binaries.
+- API docs: OpenAPI/Swagger as the source of truth for the frontend contract.
+
+## Database
+- SQL Server 2022-compatible schema.
+- Optimistic concurrency via `RowVersion` on `DesignConcept` and `DesignTask`.
+- Key indexes: assignee+status+due date (dashboard), `TaskTimeEvent` by task
+  and by employee, correction by responsible employee, KPI score by
+  employee+period. See `31-data-model.mdc` for the full list.
+
+## Infra / DevOps
+- Windows/Linux host behind IIS or Nginx reverse proxy.
+- Separate Dev / UAT / Production environments; env vars for API base URL,
+  storage credentials, JWT settings - never hardcode.
+- Version-controlled DB migrations shipped with every release.
+- HTTPS only in production; long-cache immutable static assets.
+
+## Testing
+- Frontend: Jest + React Testing Library.
+- Backend: xUnit (or repo equivalent) including concurrency/deadlock tests for
+  task START/HOLD/END.
+- E2E: Playwright or Cypress for the idea-to-release happy path and the
+  correction loop.
+- API contract tests generated from the OpenAPI spec.

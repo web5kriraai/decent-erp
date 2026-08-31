@@ -1,0 +1,41 @@
+---
+description: KRA/KPI engine - weighted scoring and dashboards.
+globs: **/features/kpi/**,**/api/kpi/**,**/EmployeeKpi*
+alwaysApply: false
+---
+
+# Feature: KRA / KPI engine
+
+## Weights
+| KPI | Weight | Formula / source |
+|---|---|---|
+| On-time completion | 20% | Tasks completed by DueAt / completed tasks |
+| Quality / approval | 20% | Approved output score / quality checklist |
+| First-time right | 15% | Tasks approved without correction / eligible tasks |
+| Correction performance | 10% | Weighted mistake corrections; improvements excluded |
+| Creativity / design quality | 10% | Design Head/manual rating, controlled rubric |
+| Cost control | 10% | Actual design cost vs approved estimate/standard |
+| Team coordination | 5% | Dependency/hand-off compliance |
+| Productivity | 5% | Standard hours vs actual active work hours |
+| Documentation discipline | 5% | Required files, checklist, remarks completeness |
+
+```
+WeightedScore = SUM(MetricScore * WeightPercent / 100)
+```
+
+## Rules
+- Recomputable from source events at any time.
+- Store a `CalculationVersion` with every `EmployeeKpiScore` row so historical
+  scores never silently change if the formula is revised later.
+- Improvement-type corrections must be excluded from the Correction
+  Performance metric (see `14-feature-correction.mdc`).
+
+## Design Head rollups
+Ideas created/completed by month, approved/rejected/live counts, average
+development lead time, design-to-production and design-to-sales conversion,
+team first-time-right/correction rate, department actual vs budget cost,
+design success by season/collection/product type/target market.
+
+## API
+- `GET /api/kpi/employees`
+- `GET /api/kpi/design-head`

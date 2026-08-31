@@ -1,0 +1,38 @@
+---
+description: Automatic and manual task allocation for a design.
+globs: **/features/designs/**Task*,**/api/tasks/**,**/DesignTask*,**/WorkflowPatternTask*
+alwaysApply: false
+---
+
+# Feature: Task allocation (automatic & manual)
+
+## Automatic mode
+1. User selects an active `WorkflowPattern` (optionally scoped to product type).
+2. System reads every `WorkflowPatternTask` row and creates one `DesignTask`
+   per row, resolving `RoleId`/`SkillId` to an eligible employee.
+3. `PlannedStart` / `DueAt` are computed from each row's `DayOffset` and the
+   design's start date.
+
+### Reference pattern (for tests / seed data)
+| Seq | Sub-process | Default role | Hours | Day offset | Priority |
+|---|---|---|---|---|---|
+| 1 | Concept Review | Design Head | 2 | 0 | High |
+| 2 | Sketch Creation | Sketch Designer | 8 | 1 | High |
+| 3 | Sketch Approval | Design Head | 2 | 2 | High |
+| 4 | Punching / Wilcom | Punching Designer | 12 | 3 | High |
+| 5 | Machine Sample | Machine Operator | 6 | 5 | Medium |
+| 6 | Sample Checking | Checker | 3 | 6 | High |
+| 7 | Costing | Costing Team | 2 | 7 | Medium |
+| 8 | Final Approval | Design Head | 2 | 8 | High |
+
+## Manual mode
+- Minimum one task row required.
+- Each row: ProcessId, SubProcessId, AssignedEmployeeId/RoleId,
+  ExpectedMinutes, PlannedStart, DueAt, Priority, dependency/sequence.
+- Rows can be inserted, deleted, and reordered before save.
+- The same sub-process may appear more than once (e.g. "Sketch Correction V2").
+- **Never** silently replace manual tasks with workflow defaults on save.
+
+## API
+- `POST /api/designs/{id}/tasks/generate` - generate from a workflow pattern.
+- `POST /api/tasks` - manual task create.

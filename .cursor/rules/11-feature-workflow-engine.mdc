@@ -1,0 +1,34 @@
+---
+description: Process, sub-process and workflow pattern master data engine.
+globs: **/features/masters/**,**/api/masters/**,**/api/workflow-patterns/**,**/WorkflowPattern*,**/DesignProcess*,**/DesignSubProcess*
+alwaysApply: false
+---
+
+# Feature: Workflow & process engine
+
+Every design moves through configurable Main Processes and Sub-processes -
+never a fixed hardcoded path.
+
+## Master data
+- `DesignProcessMaster`: ProcessId, Code, Name, Sequence, Active, AppliesToProductType.
+- `DesignSubProcessMaster`: SubProcessId, ProcessId, Code, Name, Sequence,
+  DefaultRole, IsApproval, IsCorrectionAllowed, IsFileRequired, Active.
+- `ProductProcessMapping`: ties product type to required process/sub-process.
+- `WorkflowPattern` / `WorkflowPatternTask`: reusable templates, versioned
+  (`VersionNo`, `Active`, `EffectiveFrom/To`), referencing `ProcessId` /
+  `SubProcessId` - never storing display text only.
+
+## Default process model
+| Main Process | Default Sub-processes |
+|---|---|
+| Design Development | Concept Review; Sketch Creation; Sketch Approval; Punching/Wilcom; Punching Checking; Correction |
+| Sample Development | Material Requirement; Fabric Issue; Machine Sample; Sample Receive; Sample Checking; Re-Sample |
+| Production Release | Costing; Final Approval; Production Instruction; Production Release; Live Design Review |
+
+## Rule
+Do not hardcode employee names in workflow patterns. Store `RoleId`/`SkillId`;
+resolve to an eligible employee only at task-generation time.
+
+## API
+- `GET /api/masters/processes` - process/sub-process master.
+- `GET /api/workflow-patterns` - workflow pattern definitions.

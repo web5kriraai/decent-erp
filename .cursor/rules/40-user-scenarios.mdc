@@ -1,0 +1,48 @@
+---
+description: Role-by-role usage scenarios (user stories) - good acceptance-test and prompt seeds.
+globs:
+alwaysApply: false
+---
+
+# Role-by-role usage scenarios
+
+## Design Head
+- Register a new idea with images and a concept note.
+- Choose an automatic workflow pattern so the full task chain generates without manual entry.
+- Reassign a task to a different employee without losing task history.
+- See exactly why a design is blocked from release (missing approval level named explicitly).
+- View team on-time rate and correction rate to coach effectively.
+
+## Sketch Designer
+- See only assigned tasks, sorted by due date.
+- Start a task with the timer running server-side (survives a sleeping laptop).
+- Put a task on hold with a reason while waiting for approval, without it counting against productivity.
+- Upload a new sketch version when responding to a correction.
+
+## Punching Designer
+- Upload EMB/DST file with stitch count and machine format for downstream sample production.
+- Get notified immediately when a correction is raised against punching work.
+
+## Machine Operator
+- Record machine details, output quantity and wastage for a sample run.
+- Mark a task on hold when the machine isn't available, attributing the delay correctly.
+
+## Sample Checker
+- Run a quality checklist against a received sample; approve, reject, or request re-sample.
+- Raise a correction with a clear type (mistake vs. machine issue) so responsibility is fair.
+
+## Costing Team
+- Enter time, material and machine cost; compare to the approved estimate.
+- Be blocked from misusing cost entry to record employee mistakes (not their permission).
+
+## Production Head
+- See only fully approved designs with production instructions.
+- Trace an issue back to the original design through cutting/embroidery/garmenting/finishing.
+
+## Admin
+- Manage process, sub-process, workflow pattern and hold-reason masters without a code change.
+- Have every admin action audited automatically.
+
+## Management / Owner
+- Read-only view across all designs, corrections and KPIs.
+- See design-success analytics by season, collection and product type.

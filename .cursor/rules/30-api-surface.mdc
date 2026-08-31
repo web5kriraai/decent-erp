@@ -1,0 +1,80 @@
+---
+description: Full REST API endpoint surface for the module.
+globs: **/api/**,**/apiClient*,**/services/**Service*
+alwaysApply: false
+---
+
+# API surface summary
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | /api/designs | Create concept and tasks in one transaction |
+| GET | /api/designs | Search/filter designs |
+| GET | /api/designs/{id} | Full design detail |
+| PATCH | /api/designs/{id} | Allowed concept updates |
+| POST | /api/designs/{id}/images | Upload/register product or component image |
+| POST | /api/designs/{id}/tasks/generate | Generate tasks from workflow pattern |
+| POST | /api/tasks | Manual task create |
+| GET | /api/tasks/my | Current user task list |
+| POST | /api/tasks/{id}/start | START event |
+| POST | /api/tasks/{id}/hold | HOLD with reason |
+| POST | /api/tasks/{id}/resume | RESUME event |
+| POST | /api/tasks/{id}/end | END with completion payload |
+| POST | /api/workday/close | Close office workday; reject if running task exists |
+| POST | /api/corrections | Create correction |
+| PATCH | /api/corrections/{id} | Correction progress/closure |
+| POST | /api/approvals | Approve/reject stage |
+| GET | /api/kpi/employees | Employee KPI dashboard |
+| GET | /api/kpi/design-head | Design Head KPI |
+| GET | /api/masters/processes | Process/sub-process master |
+| GET | /api/workflow-patterns | Workflow pattern definitions |
+
+## Sample payloads
+
+Create design:
+```json
+{
+  "productTypeId": 1,
+  "collectionName": "Royal Festive 2026",
+  "seasonId": 4,
+  "designHeadEmployeeId": 102,
+  "priority": "HIGH",
+  "conceptNote": "Premium zari + thread concept",
+  "processId": 10,
+  "subProcessId": 101,
+  "assignmentMode": "AUTOMATIC",
+  "workflowPatternId": 3,
+  "manualTasks": [],
+  "componentIds": [1, 2, 3, 4]
+}
+```
+
+Task hold:
+```json
+{ "holdReasonId": 4, "remark": "Waiting for Design Head approval" }
+```
+
+Task end:
+```json
+{
+  "completionStatus": "SEND_FOR_CHECKING",
+  "outputRemark": "Sketch V2 completed and uploaded",
+  "attachmentIds": [8801, 8802],
+  "checklist": [{ "itemId": 12, "result": true }, { "itemId": 13, "result": true }]
+}
+```
+
+## Error handling
+| HTTP | Use case | UI behavior |
+|---|---|---|
+| 400 | Validation error | Field-specific errors |
+| 401 | Not authenticated | Redirect/login |
+| 403 | No permission | Permission-denied state |
+| 404 | Design/task not found | Return to list with message |
+| 409 | Invalid state/concurrency, another running task | Refresh task state and explain conflict |
+| 413 | File too large | Show configured limit |
+| 422 | Business rule failed | Show business reason (e.g. missing approval) |
+| 500 | Unexpected server error | Generic message + CorrelationId |
+
+Every server-fault response includes a `CorrelationId`. Never log confidential
+file contents or auth tokens.

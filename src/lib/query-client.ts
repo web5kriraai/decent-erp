@@ -1,0 +1,36 @@
+import { QueryClient } from "@tanstack/react-query";
+import { ApiClientError } from "@/lib/api-client";
+
+/** Shared QueryClient — tuned for ERP data (memory + stale cache) */
+export function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
+        retry: (failureCount, error) => {
+          if (error instanceof ApiClientError && error.status < 500) return false;
+          return failureCount < 2;
+        },
+      },
+      mutations: {
+        retry: false,
+        gcTime: 0,
+      },
+    },
+  });
+}
+
+let browserQueryClient: QueryClient | undefined;
+
+export function getQueryClient() {
+  if (typeof window === "undefined") {
+    return createQueryClient();
+  }
+  if (!browserQueryClient) {
+    browserQueryClient = createQueryClient();
+  }
+  return browserQueryClient;
+}

@@ -1,0 +1,42 @@
+---
+description: Core product overview and non-negotiable principles for Decent ERP Design Management. Always load this for any work in the repo.
+globs:
+alwaysApply: true
+---
+
+# Decent ERP - Design Management Module
+
+Extends Decent ERP with an end-to-end product design lifecycle for Saree, Suit,
+Kurti, Lehenga and related textile/garment products: idea → sketch → punching →
+sample → correction → costing → multi-level approval → production release into
+the existing ERP.
+
+Reference: Decent ERP Design Management Technical Specification v1.0 (24 Aug 2026).
+
+## Non-negotiable principles (apply to every feature)
+
+- **Server-authoritative state.** Every state change that affects payroll, KPI,
+  or approval is decided and timestamped on the server. Never trust a browser
+  timestamp (`Date.now()`) for anything timer- or KPI-related.
+- **Never accept identity from the client.** `CreatedBy` / `EmployeeId` /
+  `AssignedEmployeeId` on a mutation must be derived from the authenticated
+  token, never read from the request body.
+- **Transactional saves.** Design creation + task generation is one DB
+  transaction - roll back the whole thing if any part fails.
+- **Append-only time events.** `TaskTimeEvent` rows are never updated or
+  deleted. Corrections to time events require an authorized adjustment record.
+- **Audit everything critical.** Every mutation to a design, task, correction,
+  approval, cost, or KPI definition writes an `AuditLog` row with before/after
+  state, user, and server timestamp.
+- **No hardcoded employees in patterns.** `WorkflowPattern` / `WorkflowPatternTask`
+  reference `RoleId` / `SkillId`; the eligible employee is resolved at
+  assignment time and stored as the final `AssignedEmployeeId` on `DesignTask`.
+- **Structured over inferred.** Correction type (mistake vs. improvement vs.
+  customer change vs. machine/material issue) is stored as structured data -
+  never inferred from a free-text remark.
+- **Files stay out of SQL.** Binaries (images, sketches, EMB/DST, video/audio)
+  go to object storage; SQL stores only metadata, storage keys, and secure URLs.
+
+See the other rule files in this folder for stack, design theme, and per-feature
+detail. They are scoped with `globs` so Cursor attaches them automatically when
+you're editing matching files.

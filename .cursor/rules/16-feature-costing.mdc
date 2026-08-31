@@ -1,0 +1,16 @@
+---
+description: Costing module - time, material, machine and rework cost rollup.
+globs: **/features/**Cost*,**/api/**cost*
+alwaysApply: false
+---
+
+# Feature: Costing
+
+- Rolls up employee time, material, machine, and correction/rework cost per design.
+- Compares actual cost against approved estimate/standard; reviews commercial margin.
+- Costing Team role can enter development/standard cost entries and review
+  margin, but **cannot** mark employee mistakes (that's the Sample Checker /
+  Design Head's call via `14-feature-correction.mdc`) and cannot make cost
+  master changes belonging to Admin.
+- Costing must be complete (per configured mandatory rule) before Final
+  Approval can be marked complete - see `15-feature-approval.mdc`.

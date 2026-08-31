@@ -1,0 +1,30 @@
+import { z } from "zod";
+import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
+import { PERMISSIONS } from "@/lib/permissions";
+import { updateCorrection } from "@/lib/services/correction-service";
+
+const schema = z.object({
+  status: z
+    .enum(["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING", "DONE", "REJECTED"])
+    .optional(),
+  rootCause: z.string().optional(),
+  extraMinutes: z.number().int().optional(),
+  extraCost: z.number().optional(),
+});
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  return withApiHandler(PERMISSIONS.CORRECTION_RAISE, async (ctx) => {
+    const { id } = await params;
+    const body = await parseBody(request, schema);
+    const correction = await updateCorrection(
+      BigInt(id),
+      body,
+      ctx.employeeId,
+      ctx.correlationId,
+    );
+    return jsonOk(serializeBigInt(correction), ctx.correlationId);
+  });
+}

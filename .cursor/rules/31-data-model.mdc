@@ -1,0 +1,73 @@
+---
+description: Full database schema and index reference.
+globs: **/migrations/**,**/models/**,**/*.sql,**/entities/**
+alwaysApply: false
+---
+
+# Data model reference
+
+## Core tables (minimum fields)
+- **DesignConcept**: DesignId bigint PK; IdeaRef varchar unique; ProductTypeId;
+  CollectionName; SeasonId; DesignHeadEmployeeId; Priority; ConceptNote;
+  CurrentStage; Status; CreatedBy; CreatedAtUtc; RowVersion.
+- **DesignComponent**: DesignComponentId; DesignId FK; ComponentTypeId;
+  Specification; Sequence; Active.
+- **DesignImage**: ImageId; DesignId; DesignComponentId nullable; StorageKey;
+  FileName; ContentType; FileSize; IsPrimary; UploadedBy; UploadedAtUtc.
+- **DesignProcess**: DesignProcessId; DesignId; ProcessId; Sequence; Status;
+  PlannedStart; PlannedEnd; ActualStart; ActualEnd.
+- **DesignSubProcess**: DesignSubProcessId; DesignProcessId; SubProcessId;
+  Sequence; Status; DependencyId nullable.
+- **WorkflowPattern**: WorkflowPatternId; Name; ProductTypeId nullable;
+  VersionNo; Active; EffectiveFrom/To.
+- **WorkflowPatternTask**: PatternTaskId; WorkflowPatternId; ProcessId;
+  SubProcessId; DefaultRoleId; ExpectedMinutes; DayOffset; Priority; Sequence;
+  DependencySequence.
+- **DesignTask**: TaskId; DesignId; ProcessId; SubProcessId;
+  AssignedEmployeeId; AssignedRoleId; Status; Priority; ExpectedMinutes;
+  PlannedStart; DueAt; StartedAt; CompletedAt; OutputRemark; RowVersion.
+- **TaskTimeEvent**: EventId; TaskId; EmployeeId; EventType; HoldReasonId
+  nullable; Remark; EventTimeUtc; CreatedBy; SourceDeviceId/IP optional.
+- **TaskHoldReason**: HoldReasonId; Code; Name; ExcludeFromActiveTime;
+  DelayOwnerCategory; Active.
+- **DesignCorrection**: CorrectionId; DesignId; TaskId; CorrectionType;
+  ResponsibleEmployeeId; RaisedBy; RootCause; ExtraMinutes; ExtraCost;
+  RatingImpact; Status; timestamps.
+- **DesignApproval**: ApprovalId; DesignId; TaskId nullable; ApprovalLevelId;
+  ApproverEmployeeId; Decision; Remark; DecisionAtUtc.
+- **EmployeeKpiDefinition**: KpiDefinitionId; RoleId; MetricCode;
+  WeightPercent; Target; Effective dates.
+- **EmployeeKpiScore**: KpiScoreId; EmployeeId; PeriodYear; PeriodMonth;
+  MetricCode; Score; WeightedScore; CalculatedAtUtc; CalculationVersion.
+- **AuditLog**: AuditId; EntityType; EntityId; Action; BeforeJson; AfterJson;
+  UserId; AtUtc; CorrelationId.
+
+## Recommended indexes
+- `UX_DesignConcept_IdeaRef` (unique)
+- `IX_DesignTask_AssignedEmployee_Status_DueAt`
+- `IX_DesignTask_DesignId_Process_SubProcess`
+- `IX_TaskTimeEvent_TaskId_EventTimeUtc`, `IX_TaskTimeEvent_EmployeeId_EventTimeUtc`
+- `IX_DesignCorrection_ResponsibleEmployee_Status`
+- `IX_DesignApproval_DesignId_Level_Decision`
+- `IX_EmployeeKpiScore_Employee_Period`
+- Archive/partition strategy for `AuditLog` at high volume
+
+## Status values
+| Entity | Statuses |
+|---|---|
+| Design | DRAFT, ACTIVE, ON_HOLD, APPROVAL_PENDING, APPROVED, REJECTED, PRODUCTION_RELEASED, LIVE, CLOSED |
+| Task | PENDING, ASSIGNED, RUNNING, ON_HOLD, CHECKING, CORRECTION_REQUIRED, COMPLETED, CANCELLED |
+| Correction | OPEN, ASSIGNED, IN_PROGRESS, CHECKING, DONE, REJECTED |
+| Approval | PENDING, APPROVED, REJECTED, CORRECTION_REQUIRED, SKIPPED |
+| Time Event | START, HOLD, RESUME, END, OFFICE_CLOSE, ADMIN_ADJUSTMENT |
+
+## Transaction/concurrency rules
+| Scenario | Required behavior |
+|---|---|
+| Create design + auto tasks | Single transaction; roll back design if task generation fails |
+| Start task | Atomic check: no other RUNNING task for employee, then insert START + update task |
+| Hold/resume/end | Validate current state via RowVersion or equivalent optimistic concurrency |
+| Reassignment | Never overwrite history; store reassignment event/audit, update current assignee |
+| Approval | Prevent duplicate active approval at same level unless configured |
+| Correction close | May unlock/advance dependent task only in the same transaction |
+| Production release | Validate final approval + mandatory costing/files before marking released |

@@ -1,0 +1,59 @@
+---
+description: Enterprise UI design theme - colors, typography, layout and components. Apply when writing or editing any UI code.
+globs: **/*.jsx,**/*.tsx,**/*.css,**/components/**,**/features/**/*.jsx
+alwaysApply: false
+---
+
+# UI/UX design theme - enterprise system
+
+Dense, data-forward, SAP-inspired enterprise style. Calm neutral surfaces, one
+strong brand blue, color reserved for status meaning - not decoration.
+
+## Color tokens (use as CSS variables, never hardcode hex in components)
+
+| Token | Hex | Usage |
+|---|---|---|
+| `--color-primary` | #0854A0 | Top nav, primary buttons, active nav, links |
+| `--color-primary-dark` | #1F3864 | Headers, emphasis text on light backgrounds |
+| `--color-accent` | #2E74B5 | Secondary actions, chart accents |
+| `--color-success` | #2E7D32 | Approved, completed, on-time |
+| `--color-warning` | #B26A00 | On hold, correction raised, due soon |
+| `--color-danger` | #B00020 | Rejected, overdue, validation errors |
+| `--color-info` | #0277BD | Informational banners, waiting states |
+| `--color-neutral-900` | #1A1A1A | Primary body text |
+| `--color-neutral-500` | #6B7280 | Secondary text, captions |
+| `--color-neutral-100` | #F2F2F2 | Table zebra striping, card backgrounds |
+| `--color-surface` | #FFFFFF | Page/card background |
+| `--color-border` | #D9DEE4 | Table borders, card outlines |
+
+## Typography
+- Font: Inter or Roboto, `system-ui` fallback.
+- H1 24px/semibold (page titles), H2 18px/semibold (section/card headers),
+  body 14px/regular, caption 12px/regular neutral-500, KPI numerics 20–28px
+  semibold with tabular-nums.
+
+## Layout & components
+- Left sidebar nav (permission-filtered) + top bar with search/user menu.
+- Content max-width ~1280px desktop; single column below 768px; test to 320px.
+- Cards: 8px radius, 1px border, no heavy shadows.
+- Status badges: pill-shaped, colored from the tokens above - every task/
+  design/correction row gets exactly one.
+- Buttons: primary = solid brand blue, secondary = outlined, destructive =
+  red outline (filled only on final confirm step).
+- Task timer widget: large monospace elapsed time, state-colored border
+  (green running / amber on hold), single-tap hold/resume/end controls.
+- Kanban view for Design Head task overview, grouped by sub-process column.
+- Modals: focus-trapped, Escape to close, inline error region above the
+  primary action.
+
+## Required states - every data screen needs all four
+- **Loading:** skeleton rows matching the final shape, never a blank screen.
+- **Empty:** short explanation + the primary action that fixes it.
+- **Error:** inline banner with the `CorrelationId` and a retry action.
+- **Permission-denied:** explicit message naming the missing permission, not
+  a generic 404.
+
+## Accessibility
+- WCAG 2.1 AA contrast minimum, including status badges.
+- Full keyboard operability for timer and approval actions.
+- ARIA labels on every icon-only button.

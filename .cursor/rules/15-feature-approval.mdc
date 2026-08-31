@@ -1,0 +1,25 @@
+---
+description: Multi-level approval workflow gating production release.
+globs: **/api/approvals/**,**/DesignApproval*,**/features/**Approv*
+alwaysApply: false
+---
+
+# Feature: Approval workflow
+
+## Chain
+Sketch → Punching → Checker → Design Head → Costing → Management/Owner.
+Levels are configurable; not every design necessarily needs every level, but
+whichever levels are marked mandatory must all reach `APPROVED` before release.
+
+## Rules
+- A design cannot enter production release unless mandatory approvals are complete.
+- Prevent duplicate active approval at the same level unless explicitly configured.
+- Preserve prior decisions - never overwrite an approval history row.
+- Decision values: PENDING, APPROVED, REJECTED, CORRECTION_REQUIRED, SKIPPED.
+
+## Entity
+`DesignApproval`: ApprovalId, DesignId, TaskId (nullable), ApprovalLevelId,
+ApproverEmployeeId, Decision, Remark, DecisionAtUtc.
+
+## API
+- `POST /api/approvals` - approve/reject a stage.

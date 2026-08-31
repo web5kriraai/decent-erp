@@ -1,0 +1,35 @@
+---
+description: Correction and version control - the mistake vs improvement responsibility model.
+globs: **/features/corrections/**,**/api/corrections/**,**/DesignCorrection*
+alwaysApply: false
+---
+
+# Feature: Correction & version control
+
+## Fields
+`CorrectionId`, `DesignId`/`TaskId`, `Stage`/`SubProcessId`, `CorrectionType`
+(MISTAKE / IMPROVEMENT / CUSTOMER_CHANGE / MACHINE / MATERIAL / OTHER),
+`ResponsibleEmployeeId` (only when type is MISTAKE and responsibility is
+known), `RaisedBy`, `RootCause`, `BeforeVersion`/`AfterVersion`,
+`ExtraMinutes`/`ExtraCost`, `RatingImpact`, `Status`
+(OPEN / IN_PROGRESS / DONE / REJECTED).
+
+## Critical rule
+A management improvement or customer-requested change must **never** be
+counted as an employee mistake. This is stored as structured data on
+`CorrectionType` - never inferred from a remark string. Do not let a UI or
+API shortcut default `CorrectionType` to MISTAKE.
+
+## Flow
+1. Correction is raised at any stage (typically by Sample Checker or Design Head).
+2. Type is classified; responsibility assigned only if type = MISTAKE.
+3. Extra minutes/cost and before/after version references are recorded.
+4. Correction routes the design back to Sketch, Punching, Machine Sample, or
+   another configured sub-process - the original `DesignTask` history is kept,
+   not overwritten.
+5. Status moves OPEN → IN_PROGRESS → DONE (or REJECTED). Closing a correction
+   may unlock a dependent task, but only within the same transaction.
+
+## API
+- `POST /api/corrections` - create.
+- `PATCH /api/corrections/{id}` - progress/closure.

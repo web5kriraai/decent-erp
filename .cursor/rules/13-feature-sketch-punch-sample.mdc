@@ -1,0 +1,26 @@
+---
+description: Sketch, punching/Wilcom and sample development execution stages.
+globs: **/features/tasks/**Sketch*,**/features/tasks/**Punch*,**/features/tasks/**Sample*
+alwaysApply: false
+---
+
+# Feature: Sketch, punching & sample execution
+
+## Sketch
+- Version upload, assignment, expected vs. actual hours.
+- Routes to Design Head for Sketch Approval.
+
+## Punching / Wilcom
+- Upload EMB/DST files with stitch counts and machine format metadata.
+- Assigned puncher, version tracking.
+
+## Sample development
+- Material requirement raised, fabric/components issued.
+- Machine Operator runs the sample: machine details, output, wastage recorded.
+- Sample received back for checking (see `15-feature-approval.mdc` handoff to
+  Sample Checker).
+
+Each of the above is its own `DesignTask` and follows the timer state machine
+in `17-feature-timer-dashboard.mdc`. File type/size limits: reference image
+10MB, sketch PDF/image 25MB, EMB/DST 50MB (keep original filename + checksum),
+video 200MB, audio 25MB.

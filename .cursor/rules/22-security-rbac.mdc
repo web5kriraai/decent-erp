@@ -1,0 +1,37 @@
+---
+description: Roles, permissions, RBAC and audit rules. Always load - applies to every API handler and every screen.
+globs:
+alwaysApply: true
+---
+
+# Security, RBAC & audit
+
+## Roles and core permissions
+| Role | Core permissions | Restrictions |
+|---|---|---|
+| Design Head | Create/approve concepts, assign/reassign tasks, approve stages, view KPI/costing, release design | Cannot alter server time events directly |
+| Sketch Designer | View assigned sketch tasks, start/hold/resume/end, upload versions, respond to corrections | No final approval or KPI weight editing |
+| Punching Designer | Punching tasks, upload EMB/DST files, corrections, stitch metadata | No concept deletion after approval |
+| Machine Operator | Sample task execution, machine details, sample output and wastage | No design-level approval |
+| Sample Checker | Quality checklist, approve/reject/re-sample, raise correction | No cost master changes |
+| Costing Team | Development/standard cost entries, margin review | Cannot mark employee mistakes unless permitted |
+| Production Head | View approved designs, production instructions, accept production release | Cannot alter prior design history |
+| Admin | Masters, workflow patterns, hold reasons, KPI definitions, role permissions | All admin actions audited |
+| Management/Owner | Final approval, analytics and read access to all performance views | Operational edits should be restricted by role |
+
+## Permission codes
+`DESIGN_CREATE`, `DESIGN_ASSIGN`, `TASK_EXECUTE`, `CORRECTION_RAISE`,
+`DESIGN_APPROVE`, `COST_VIEW`, `KPI_ADMIN`, `MASTER_ADMIN`,
+`PRODUCTION_RELEASE`.
+
+## Rules
+- Authenticated identity on every API call; never accept `CreatedBy`/
+  `EmployeeId` from the client when it can be derived from the token.
+- Object-level authorization: validate `DesignId`/`TaskId` against the
+  caller's role and org/company/location scope on every request.
+- Sensitive cost/KPI screens require extra permissions beyond basic design access.
+- Audit: design edits, task state changes, reassignment, correction
+  responsibility, approval, cost changes, KPI definition changes, file deletion.
+- Never expose physical server file paths in API responses; use signed,
+  non-guessable download URLs for confidential design files.
+- Apply anti-malware/file-scanning policy to uploads where infrastructure supports it.

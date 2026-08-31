@@ -1,0 +1,64 @@
+---
+description: User work dashboard and the server-authoritative task timer state machine. Read this before touching any start/hold/resume/end logic.
+globs: **/features/tasks/**,**/api/tasks/**,**/TaskTimeEvent*,**/TaskHoldReason*
+alwaysApply: false
+---
+
+# Feature: User work dashboard & task timer
+
+**The UI timer is informational only.** All state transitions and timestamps
+are decided and stamped by the server.
+
+## State machine
+| Current state | Allowed action | Next state | Server validation |
+|---|---|---|---|
+| PENDING | START | RUNNING | Employee has no other RUNNING task; task is assigned and open |
+| RUNNING | HOLD | ON_HOLD | `HoldReasonId` is mandatory |
+| ON_HOLD | RESUME | RUNNING | Task is not completed/cancelled |
+| RUNNING / ON_HOLD | END | COMPLETED / CHECKING | Completion status, output remark, and required files/checklist validated |
+| IDLE / ON_HOLD | OFFICE_CLOSE | Office session closed | No RUNNING task allowed |
+
+## Timer calculation
+```
+ActualWorkSeconds = SUM(seconds between each START/RESUME and the next HOLD/END)
+HoldSeconds        = SUM(seconds between each HOLD and the next RESUME/END)
+TotalElapsedSeconds = EndTime - FirstStartTime
+ActualWorkSeconds + HoldSeconds <= TotalElapsedSeconds   // always true
+```
+- Store all timestamps in UTC; convert to local time only for display.
+- Never compute active time from `Task.StartedAt`/`CompletedAt` alone - always
+  pair `TaskTimeEvent` rows.
+- `TaskTimeEvent` is append-only. If connectivity drops mid-RUNNING, the task
+  stays RUNNING server-side until a later valid event or an authorized
+  adjustment record - never silently auto-closed by a client reconnect.
+- Only one active RUNNING task per employee unless a future rule explicitly
+  enables multi-task time splitting.
+
+## Hold reasons (none count as active work time)
+| Code | Reason | KPI treatment |
+|---|---|---|
+| OTHER_WORK | Other work | Reported separately as possible reassignment load |
+| LUNCH | Lunch break | Excluded from task time and delay blame |
+| TEA | Tea break | Excluded |
+| WAIT_APPROVAL | Waiting for approval | Delay attributed to approval dependency |
+| WAIT_MATERIAL | Waiting for material | Delay attributed to material dependency |
+| MACHINE_NA | Machine not available | Delay attributed to machine capacity |
+| MEETING | Meeting | Excluded from active task time |
+| PERSONAL | Personal break | Excluded |
+| OFFICE_CLOSE | Office time close | Must not be used while a task is RUNNING |
+
+## Pseudo transaction for START (apply the same rigor to HOLD/RESUME/END)
+```
+BEGIN TRANSACTION
+  SELECT active task for EmployeeId WITH lock
+  IF another RUNNING task exists -> reject 409
+  Validate requested TaskId belongs to employee and is startable
+  INSERT TaskTimeEvent(START, ServerUtcNow)
+  UPDATE DesignTask SET Status='RUNNING', StartedAt=COALESCE(StartedAt, ServerUtcNow)
+COMMIT
+```
+
+## API
+- `POST /api/tasks/{id}/start`, `/hold`, `/resume`, `/end`
+- `POST /api/workday/close` - rejects if a running task exists
+- `GET /api/tasks/my` - current user's task list

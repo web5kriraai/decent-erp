@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Decent ERP - Design Management
 
-## Getting Started
+Production-ready Next.js 16.3 full-stack application with PostgreSQL (Docker), Redis, MinIO, and Nginx.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16.3.3** - App Router, Route Handlers, standalone Docker output
+- **PostgreSQL 16** - primary database (Prisma ORM)
+- **Redis 7** - BullMQ job queue
+- **MinIO** - S3-compatible object storage for design files
+- **NextAuth v5** - JWT auth with RBAC
+- **TanStack Query** - server state on the frontend
+
+## Quick start (local)
+
+If ports **5432**, **6379**, or **9000** are already in use on your machine, the default `.env.example` uses alternate ports (**5433**, **6380**, **9002**) - no changes needed.
 
 ```bash
+cp .env.example .env
+docker compose up postgres redis minio minio-init -d
+npm install
+npm run db:migrate
+npm run db:seed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 - login with `admin@decent-erp.local` / `Admin@123`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Quick start (full Docker)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cp .env.example .env
+docker compose up --build
+```
 
-## Learn More
+App: http://localhost:3000  
+Nginx proxy: http://localhost:8080  
+MinIO console: http://localhost:9001
 
-To learn more about Next.js, take a look at the following resources:
+## Production
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Place TLS certs in `docker/nginx/certs/` (`fullchain.pem`, `privkey.pem`).
 
-## Deploy on Vercel
+## API surface
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+REST endpoints under `/api/` - see `.cursor/rules/30-api-surface.mdc` for the full contract.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Database
+
+- Migrations: `npm run db:migrate`
+- Seed roles/permissions/admin: `npm run db:seed`
+- Schema reference: `prisma/schema.prisma`
+
+## Default admin
+
+| Field | Value |
+|---|---|
+| Email | admin@decent-erp.local |
+| Password | Admin@123 |
+
+Change immediately in production.

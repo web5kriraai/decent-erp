@@ -1,0 +1,31 @@
+---
+description: File and image upload/storage handling.
+globs: **/services/upload*,**/FileUploader*,**/DesignImage*
+alwaysApply: false
+---
+
+# Feature: File & image management
+
+- Frontend may preview selected images locally before upload (FileReader is
+  for preview only, never storage).
+- Upload binaries via multipart/form-data directly to API/storage service;
+  never store base64 in normal entity JSON.
+- Enforce maximum one active primary image per `DesignId`.
+- Component-wise images supported: Body, Pallu, Border, Blouse, Sleeve,
+  Top Front/Back, Bottom, Dupatta, etc.
+- Supported technical file types: PDF, PNG/JPG/WebP, EMB, DST and other
+  embroidery formats required by operations.
+- Validate file extension, MIME type, actual content signature where
+  possible, size limit, and authorization before accepting an upload.
+
+## Size limits
+| Category | Limit | Notes |
+|---|---|---|
+| Product/reference image | 10 MB each | Multiple; create thumbnails |
+| Sketch PDF/image | 25 MB | Versioned |
+| EMB/DST punching file | 50 MB | Keep original filename and checksum |
+| Video reference | 200 MB | Prefer object storage/streaming |
+| Audio note | 25 MB | Metadata stored; user permissions apply |
+
+## API
+- `POST /api/designs/{id}/images` - upload/register a product or component image.

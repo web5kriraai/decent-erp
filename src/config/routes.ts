@@ -1,0 +1,283 @@
+import type { ComponentType } from "react";
+import { PERMISSIONS, type PermissionCode } from "@/lib/permissions";
+import {
+  IconDashboard,
+  IconDesigns,
+  IconTasks,
+  IconCorrections,
+  IconApprovals,
+  IconCosting,
+  IconKpi,
+  IconMasters,
+  IconPlus,
+} from "@/components/icons";
+
+export const ROUTES = {
+  login: "/login",
+  dashboard: "/dashboard",
+  designs: {
+    list: "/designs",
+    new: "/designs/new",
+    detail: (id: string) => `/designs/${id}`,
+    task: (designId: string, taskId: string) => `/designs/${designId}/tasks/${taskId}`,
+  },
+  work: {
+    tasks: "/work/tasks",
+    taskDetail: (taskId: string) => `/work/tasks/${taskId}`,
+  },
+  quality: {
+    corrections: "/quality/corrections",
+    approvals: "/quality/approvals",
+  },
+  finance: {
+    costing: "/finance/costing",
+  },
+  analytics: {
+    kpi: "/analytics/kpi",
+    kpiEmployees: "/analytics/kpi/employees",
+    kpiDesignHead: "/analytics/kpi/design-head",
+  },
+  admin: {
+    masters: "/admin/masters",
+    workflowPatterns: "/admin/workflow-patterns",
+  },
+} as const;
+
+/** Legacy paths → canonical slugs (permanent redirects in middleware) */
+export const LEGACY_ROUTE_REDIRECTS: Record<string, string> = {
+  "/tasks": ROUTES.work.tasks,
+  "/corrections": ROUTES.quality.corrections,
+  "/approvals": ROUTES.quality.approvals,
+  "/costing": ROUTES.finance.costing,
+  "/kpi": ROUTES.analytics.kpi,
+  "/masters": ROUTES.admin.masters,
+};
+
+export type NavIcon = ComponentType<{ size?: number; className?: string }>;
+
+export type NavLink = {
+  id: string;
+  label: string;
+  href: string;
+  icon?: NavIcon;
+  permission?: PermissionCode;
+  /** Match exact path only (not children) */
+  exact?: boolean;
+};
+
+export type NavSection = {
+  id: string;
+  label: string;
+  items: NavLink[];
+};
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    id: "main",
+    label: "Main",
+    items: [
+      {
+        id: "dashboard",
+        label: "Overview",
+        href: ROUTES.dashboard,
+        icon: IconDashboard,
+        exact: true,
+      },
+    ],
+  },
+  {
+    id: "design",
+    label: "Design",
+    items: [
+      {
+        id: "designs-list",
+        label: "All Designs",
+        href: ROUTES.designs.list,
+        icon: IconDesigns,
+        permission: PERMISSIONS.DESIGN_CREATE,
+      },
+      {
+        id: "designs-new",
+        label: "New Concept",
+        href: ROUTES.designs.new,
+        icon: IconPlus,
+        permission: PERMISSIONS.DESIGN_CREATE,
+      },
+      {
+        id: "work-tasks",
+        label: "My Tasks",
+        href: ROUTES.work.tasks,
+        icon: IconTasks,
+        permission: PERMISSIONS.TASK_EXECUTE,
+      },
+    ],
+  },
+  {
+    id: "quality",
+    label: "Quality",
+    items: [
+      {
+        id: "corrections",
+        label: "Corrections",
+        href: ROUTES.quality.corrections,
+        icon: IconCorrections,
+        permission: PERMISSIONS.CORRECTION_RAISE,
+      },
+      {
+        id: "approvals",
+        label: "Approvals",
+        href: ROUTES.quality.approvals,
+        icon: IconApprovals,
+        permission: PERMISSIONS.DESIGN_APPROVE,
+      },
+    ],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    items: [
+      {
+        id: "costing",
+        label: "Costing",
+        href: ROUTES.finance.costing,
+        icon: IconCosting,
+        permission: PERMISSIONS.COST_VIEW,
+      },
+    ],
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    items: [
+      {
+        id: "kpi",
+        label: "Performance KPI",
+        href: ROUTES.analytics.kpi,
+        icon: IconKpi,
+        permission: PERMISSIONS.KPI_ADMIN,
+      },
+    ],
+  },
+  {
+    id: "admin",
+    label: "Administration",
+    items: [
+      {
+        id: "masters",
+        label: "Process Masters",
+        href: ROUTES.admin.masters,
+        icon: IconMasters,
+        permission: PERMISSIONS.MASTER_ADMIN,
+      },
+      {
+        id: "workflow-patterns",
+        label: "Workflow Patterns",
+        href: ROUTES.admin.workflowPatterns,
+        icon: IconMasters,
+        permission: PERMISSIONS.MASTER_ADMIN,
+      },
+    ],
+  },
+];
+
+export type BreadcrumbItem = { label: string; href?: string };
+
+const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
+  [ROUTES.dashboard]: [{ label: "Overview" }],
+  [ROUTES.designs.list]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Designs" },
+  ],
+  [ROUTES.designs.new]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Designs", href: ROUTES.designs.list },
+    { label: "New Concept" },
+  ],
+  [ROUTES.work.tasks]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "My Tasks" },
+  ],
+  [ROUTES.quality.corrections]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Corrections" },
+  ],
+  [ROUTES.quality.approvals]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Approvals" },
+  ],
+  [ROUTES.finance.costing]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Costing" },
+  ],
+  [ROUTES.analytics.kpi]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Performance KPI" },
+  ],
+  [ROUTES.admin.masters]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Process Masters" },
+  ],
+  [ROUTES.admin.workflowPatterns]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Workflow Patterns" },
+  ],
+};
+
+export function isNavActive(pathname: string, href: string, exact?: boolean): boolean {
+  if (exact) return pathname === href;
+  if (pathname === href) return true;
+  if (href === ROUTES.designs.list && pathname.startsWith("/designs/")) {
+    return pathname !== ROUTES.designs.new;
+  }
+  return pathname.startsWith(`${href}/`);
+}
+
+export function getVisibleNavSections(permissions: string[]): NavSection[] {
+  return NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter(
+      (item) => !item.permission || permissions.includes(item.permission),
+    ),
+  })).filter((section) => section.items.length > 0);
+}
+
+export function getBreadcrumbsForPath(pathname: string): BreadcrumbItem[] {
+  if (ROUTE_BREADCRUMBS[pathname]) {
+    return ROUTE_BREADCRUMBS[pathname];
+  }
+
+  const designDetail = pathname.match(/^\/designs\/([^/]+)$/);
+  if (designDetail && designDetail[1] !== "new") {
+    return [
+      { label: "Overview", href: ROUTES.dashboard },
+      { label: "Designs", href: ROUTES.designs.list },
+      { label: designDetail[1] },
+    ];
+  }
+
+  const designTask = pathname.match(/^\/designs\/([^/]+)\/tasks\/([^/]+)$/);
+  if (designTask) {
+    return [
+      { label: "Overview", href: ROUTES.dashboard },
+      { label: "Designs", href: ROUTES.designs.list },
+      { label: designTask[1], href: ROUTES.designs.detail(designTask[1]) },
+      { label: "Task" },
+    ];
+  }
+
+  const workTask = pathname.match(/^\/work\/tasks\/([^/]+)$/);
+  if (workTask) {
+    return [
+      { label: "Overview", href: ROUTES.dashboard },
+      { label: "My Tasks", href: ROUTES.work.tasks },
+      { label: workTask[1] },
+    ];
+  }
+
+  return [{ label: "Overview", href: ROUTES.dashboard }];
+}
+
+export function getPageTitle(pathname: string): string {
+  const crumbs = getBreadcrumbsForPath(pathname);
+  return crumbs[crumbs.length - 1]?.label ?? "Decent ERP";
+}

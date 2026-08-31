@@ -1,0 +1,40 @@
+---
+description: Idea & concept management feature - creating a design concept, images, and components.
+globs: **/features/designs/**,**/api/designs/**,**/DesignConcept*,**/DesignImage*,**/DesignComponent*
+alwaysApply: false
+---
+
+# Feature: Idea & concept management
+
+Captures the starting point of every design: a unique Idea Reference, product
+type, collection, season, style, concept note, plus images and files.
+
+## Behavior
+- Multi-image upload per design; exactly one image can be marked primary.
+- Component-level breakdown (e.g. Pallu, Blouse, Sleeve, Front/Back) so images
+  and specs attach to the correct part of the garment.
+- Celebrity/trend reference fields and free-text concept notes.
+- Product-type-aware validation via `ProductProcessMapping` (e.g. Saree
+  requires Pallu/Blouse; Kurti requires Sleeve/Front/Back).
+
+## Save sequence (must be one transaction)
+1. Validate required concept fields and product type.
+2. Create `DesignConcept` with a generated unique `IdeaRef`.
+3. Save `DesignComponent` rows and `DesignImage` metadata.
+4. Resolve selected Main Process / Sub-process.
+5. Generate or accept `DesignTask` rows (see `12-feature-task-allocation.mdc`).
+6. Write `AuditLog` entries and employee notifications.
+7. Commit only if design, tasks, and mandatory metadata all succeed.
+
+## Entities
+`DesignConcept`, `DesignComponent`, `DesignImage`.
+
+## API
+- `POST /api/designs` - create concept + tasks in one transaction.
+- `GET /api/designs`, `GET /api/designs/{id}` - search / full detail.
+- `PATCH /api/designs/{id}` - allowed concept updates only.
+- `POST /api/designs/{id}/images` - upload/register an image.
+
+## User story seeds
+- As a Design Head, I want to register a new idea with images and a concept
+  note so the design can start moving through the pipeline.

@@ -1,0 +1,22 @@
+---
+description: Production release and downstream existing-ERP integration.
+globs: **/features/**production*,**/api/**production*
+alwaysApply: false
+---
+
+# Feature: Production release & ERP integration
+
+## Flow
+Final approval + costing complete → `PRODUCTION_RELEASED` → existing ERP:
+Grey/Material → Cutting → Embroidery → Garmenting → Finishing → Ready Stock
+→ Sales → Sales Return → Accounts/GST/TDS → feeds Design Success KPI.
+
+## Rules
+- Validate mandatory approvals + mandatory costing/files before marking a
+  design released - this check happens server-side, not just in the UI.
+- After release, the design reference must be available to existing
+  production transactions for traceability.
+- Design-success KPI consumes downstream production, sales, sales-return and
+  margin data joined by Design Number/SKU.
+- Production Head can view approved designs and accept release but cannot
+  alter prior design history.

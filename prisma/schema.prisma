@@ -1,0 +1,587 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Enums ---
+
+enum DesignStatus {
+  DRAFT
+  ACTIVE
+  ON_HOLD
+  APPROVAL_PENDING
+  APPROVED
+  REJECTED
+  PRODUCTION_RELEASED
+  LIVE
+  CLOSED
+}
+
+enum TaskStatus {
+  PENDING
+  ASSIGNED
+  RUNNING
+  ON_HOLD
+  CHECKING
+  CORRECTION_REQUIRED
+  COMPLETED
+  CANCELLED
+}
+
+enum CorrectionStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  CHECKING
+  DONE
+  REJECTED
+}
+
+enum ApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+  CORRECTION_REQUIRED
+  SKIPPED
+}
+
+enum TimeEventType {
+  START
+  HOLD
+  RESUME
+  END
+  OFFICE_CLOSE
+  ADMIN_ADJUSTMENT
+}
+
+enum CorrectionType {
+  MISTAKE
+  IMPROVEMENT
+  CUSTOMER_CHANGE
+  MACHINE_MATERIAL_ISSUE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AssignmentMode {
+  AUTOMATIC
+  MANUAL
+}
+
+// --- Auth & RBAC ---
+
+model Employee {
+  id              Int       @id @default(autoincrement())
+  employeeCode    String    @unique @map("employee_code")
+  name            String
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  roleId          Int       @map("role_id")
+  active          Boolean   @default(true)
+  createdAtUtc    DateTime  @default(now()) @map("created_at_utc")
+  updatedAtUtc    DateTime  @updatedAt @map("updated_at_utc")
+
+  role            Role      @relation(fields: [roleId], references: [id])
+  accounts        Account[]
+  sessions        Session[]
+
+  designHeadConcepts   DesignConcept[] @relation("DesignHead")
+  createdConcepts      DesignConcept[] @relation("CreatedBy")
+  assignedTasks        DesignTask[]    @relation("AssignedEmployee")
+  timeEvents           TaskTimeEvent[] @relation("TimeEventEmployee")
+  createdTimeEvents    TaskTimeEvent[] @relation("TimeEventCreatedBy")
+  raisedCorrections    DesignCorrection[] @relation("RaisedBy")
+  responsibleCorrections DesignCorrection[] @relation("ResponsibleEmployee")
+  approvals            DesignApproval[]
+  kpiScores            EmployeeKpiScore[]
+  uploadedImages       DesignImage[]
+  auditLogs            AuditLog[]
+
+  @@map("employees")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  code        String           @unique
+  name        String
+  active      Boolean          @default(true)
+  employees   Employee[]
+  permissions RolePermission[]
+  kpiDefinitions EmployeeKpiDefinition[]
+  workflowPatternTasks WorkflowPatternTask[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  code        String           @unique
+  name        String
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            Int     @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       Int      @map("user_id")
+  expires      DateTime
+
+  user Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// --- Masters ---
+
+model ProductType {
+  id        Int     @id @default(autoincrement())
+  code      String  @unique
+  name      String
+  active    Boolean @default(true)
+
+  designConcepts    DesignConcept[]
+  workflowPatterns  WorkflowPattern[]
+  processMappings   ProductProcessMapping[]
+
+  @@map("product_types")
+}
+
+model Season {
+  id        Int     @id @default(autoincrement())
+  code      String  @unique
+  name      String
+  active    Boolean @default(true)
+
+  designConcepts DesignConcept[]
+
+  @@map("seasons")
+}
+
+model DesignProcessMaster {
+  id                    Int     @id @default(autoincrement()) @map("process_id")
+  code                  String  @unique
+  name                  String
+  sequence              Int
+  active                Boolean @default(true)
+  appliesToProductType  Int?    @map("applies_to_product_type")
+
+  subProcesses          DesignSubProcessMaster[]
+  designProcesses       DesignProcess[]
+  workflowPatternTasks  WorkflowPatternTask[]
+  designTasks           DesignTask[]
+  productMappings       ProductProcessMapping[]
+
+  @@map("design_process_master")
+}
+
+model DesignSubProcessMaster {
+  id                  Int     @id @default(autoincrement()) @map("sub_process_id")
+  processId           Int     @map("process_id")
+  code                String
+  name                String
+  sequence            Int
+  defaultRoleId       Int?    @map("default_role_id")
+  isApproval          Boolean @default(false) @map("is_approval")
+  isCorrectionAllowed Boolean @default(true) @map("is_correction_allowed")
+  isFileRequired      Boolean @default(false) @map("is_file_required")
+  active              Boolean @default(true)
+
+  process             DesignProcessMaster @relation(fields: [processId], references: [id])
+  designSubProcesses  DesignSubProcess[]
+  workflowPatternTasks WorkflowPatternTask[]
+  designTasks         DesignTask[]
+
+  @@unique([processId, code])
+  @@map("design_sub_process_master")
+}
+
+model ProductProcessMapping {
+  id            Int @id @default(autoincrement())
+  productTypeId Int @map("product_type_id")
+  processId     Int @map("process_id")
+  required      Boolean @default(true)
+
+  productType ProductType         @relation(fields: [productTypeId], references: [id])
+  process     DesignProcessMaster @relation(fields: [processId], references: [id])
+
+  @@unique([productTypeId, processId])
+  @@map("product_process_mapping")
+}
+
+model WorkflowPattern {
+  id            Int       @id @default(autoincrement()) @map("workflow_pattern_id")
+  name          String
+  productTypeId Int?      @map("product_type_id")
+  versionNo     Int       @map("version_no")
+  active        Boolean   @default(true)
+  effectiveFrom DateTime? @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+
+  productType ProductType?          @relation(fields: [productTypeId], references: [id])
+  tasks       WorkflowPatternTask[]
+  designConcepts DesignConcept[]
+
+  @@map("workflow_patterns")
+}
+
+model WorkflowPatternTask {
+  id                  Int  @id @default(autoincrement()) @map("pattern_task_id")
+  workflowPatternId   Int  @map("workflow_pattern_id")
+  processId           Int  @map("process_id")
+  subProcessId        Int  @map("sub_process_id")
+  defaultRoleId       Int  @map("default_role_id")
+  expectedMinutes     Int  @map("expected_minutes")
+  dayOffset           Int  @default(0) @map("day_offset")
+  priority            Priority @default(MEDIUM)
+  sequence            Int
+  dependencySequence  Int? @map("dependency_sequence")
+
+  workflowPattern WorkflowPattern        @relation(fields: [workflowPatternId], references: [id], onDelete: Cascade)
+  process         DesignProcessMaster    @relation(fields: [processId], references: [id])
+  subProcess      DesignSubProcessMaster @relation(fields: [subProcessId], references: [id])
+  defaultRole     Role                   @relation(fields: [defaultRoleId], references: [id])
+
+  @@index([workflowPatternId, sequence])
+  @@map("workflow_pattern_tasks")
+}
+
+model TaskHoldReason {
+  id                   Int     @id @default(autoincrement()) @map("hold_reason_id")
+  code                 String  @unique
+  name                 String
+  excludeFromActiveTime Boolean @default(false) @map("exclude_from_active_time")
+  delayOwnerCategory   String? @map("delay_owner_category")
+  active               Boolean @default(true)
+
+  timeEvents TaskTimeEvent[]
+
+  @@map("task_hold_reasons")
+}
+
+model ApprovalLevel {
+  id       Int    @id @default(autoincrement()) @map("approval_level_id")
+  code     String @unique
+  name     String
+  sequence Int
+  active   Boolean @default(true)
+
+  approvals DesignApproval[]
+
+  @@map("approval_levels")
+}
+
+// --- Core design entities ---
+
+model DesignConcept {
+  id                   BigInt       @id @default(autoincrement()) @map("design_id")
+  ideaRef              String       @unique @map("idea_ref")
+  productTypeId        Int          @map("product_type_id")
+  collectionName       String       @map("collection_name")
+  seasonId             Int          @map("season_id")
+  designHeadEmployeeId Int          @map("design_head_employee_id")
+  priority             Priority     @default(MEDIUM)
+  conceptNote          String?      @map("concept_note") @db.Text
+  currentStage         String?      @map("current_stage")
+  status               DesignStatus @default(DRAFT)
+  workflowPatternId    Int?         @map("workflow_pattern_id")
+  createdById          Int          @map("created_by")
+  createdAtUtc         DateTime     @default(now()) @map("created_at_utc")
+  updatedAtUtc         DateTime     @updatedAt @map("updated_at_utc")
+  version              Int          @default(1)
+
+  productType    ProductType      @relation(fields: [productTypeId], references: [id])
+  season         Season           @relation(fields: [seasonId], references: [id])
+  designHead     Employee         @relation("DesignHead", fields: [designHeadEmployeeId], references: [id])
+  createdBy      Employee         @relation("CreatedBy", fields: [createdById], references: [id])
+  workflowPattern WorkflowPattern? @relation(fields: [workflowPatternId], references: [id])
+
+  components  DesignComponent[]
+  images      DesignImage[]
+  processes   DesignProcess[]
+  tasks       DesignTask[]
+  corrections DesignCorrection[]
+  approvals   DesignApproval[]
+
+  @@index([status, priority])
+  @@map("design_concepts")
+}
+
+model DesignComponent {
+  id                BigInt  @id @default(autoincrement()) @map("design_component_id")
+  designId          BigInt  @map("design_id")
+  componentTypeId   Int     @map("component_type_id")
+  specification     String? @db.Text
+  sequence          Int
+  active            Boolean @default(true)
+
+  design DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+  images DesignImage[]
+
+  @@index([designId, sequence])
+  @@map("design_components")
+}
+
+model DesignImage {
+  id                BigInt   @id @default(autoincrement()) @map("image_id")
+  designId          BigInt   @map("design_id")
+  designComponentId BigInt?  @map("design_component_id")
+  storageKey        String   @map("storage_key")
+  fileName          String   @map("file_name")
+  contentType       String   @map("content_type")
+  fileSize          BigInt   @map("file_size")
+  isPrimary         Boolean  @default(false) @map("is_primary")
+  uploadedById      Int      @map("uploaded_by")
+  uploadedAtUtc     DateTime @default(now()) @map("uploaded_at_utc")
+
+  design    DesignConcept    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  component DesignComponent? @relation(fields: [designComponentId], references: [id])
+  uploadedBy Employee        @relation(fields: [uploadedById], references: [id])
+
+  @@index([designId])
+  @@map("design_images")
+}
+
+model DesignProcess {
+  id              BigInt   @id @default(autoincrement()) @map("design_process_id")
+  designId        BigInt   @map("design_id")
+  processId       Int      @map("process_id")
+  sequence        Int
+  status          String   @default("PENDING")
+  plannedStart    DateTime? @map("planned_start")
+  plannedEnd      DateTime? @map("planned_end")
+  actualStart     DateTime? @map("actual_start")
+  actualEnd       DateTime? @map("actual_end")
+
+  design      DesignConcept       @relation(fields: [designId], references: [id], onDelete: Cascade)
+  process     DesignProcessMaster @relation(fields: [processId], references: [id])
+  subProcesses DesignSubProcess[]
+
+  @@index([designId, sequence])
+  @@map("design_processes")
+}
+
+model DesignSubProcess {
+  id              BigInt   @id @default(autoincrement()) @map("design_sub_process_id")
+  designProcessId BigInt   @map("design_process_id")
+  subProcessId    Int      @map("sub_process_id")
+  sequence        Int
+  status          String   @default("PENDING")
+  dependencyId    BigInt?  @map("dependency_id")
+
+  designProcess DesignProcess          @relation(fields: [designProcessId], references: [id], onDelete: Cascade)
+  subProcess    DesignSubProcessMaster @relation(fields: [subProcessId], references: [id])
+
+  @@index([designProcessId, sequence])
+  @@map("design_sub_processes")
+}
+
+model DesignTask {
+  id                  BigInt     @id @default(autoincrement()) @map("task_id")
+  designId            BigInt     @map("design_id")
+  processId           Int        @map("process_id")
+  subProcessId        Int        @map("sub_process_id")
+  assignedEmployeeId  Int?       @map("assigned_employee_id")
+  assignedRoleId      Int        @map("assigned_role_id")
+  status              TaskStatus @default(PENDING)
+  priority            Priority   @default(MEDIUM)
+  expectedMinutes     Int        @map("expected_minutes")
+  plannedStart        DateTime?  @map("planned_start")
+  dueAt               DateTime?  @map("due_at")
+  startedAt           DateTime?  @map("started_at")
+  completedAt         DateTime?  @map("completed_at")
+  outputRemark        String?    @map("output_remark") @db.Text
+  updatedAtUtc        DateTime   @updatedAt @map("updated_at_utc")
+  version             Int        @default(1)
+
+  design           DesignConcept          @relation(fields: [designId], references: [id], onDelete: Cascade)
+  process          DesignProcessMaster    @relation(fields: [processId], references: [id])
+  subProcess       DesignSubProcessMaster @relation(fields: [subProcessId], references: [id])
+  assignedEmployee Employee?              @relation("AssignedEmployee", fields: [assignedEmployeeId], references: [id])
+  timeEvents       TaskTimeEvent[]
+  corrections      DesignCorrection[]
+  approvals        DesignApproval[]
+
+  @@index([assignedEmployeeId, status, dueAt], map: "IX_DesignTask_AssignedEmployee_Status_DueAt")
+  @@index([designId, processId, subProcessId], map: "IX_DesignTask_DesignId_Process_SubProcess")
+  @@map("design_tasks")
+}
+
+model TaskTimeEvent {
+  id            BigInt        @id @default(autoincrement()) @map("event_id")
+  taskId        BigInt        @map("task_id")
+  employeeId    Int           @map("employee_id")
+  eventType     TimeEventType @map("event_type")
+  holdReasonId  Int?          @map("hold_reason_id")
+  remark        String?       @db.Text
+  eventTimeUtc  DateTime      @default(now()) @map("event_time_utc")
+  createdById   Int           @map("created_by")
+  sourceDeviceId String?      @map("source_device_id")
+  sourceIp      String?       @map("source_ip")
+
+  task       DesignTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employee   Employee        @relation("TimeEventEmployee", fields: [employeeId], references: [id])
+  createdBy  Employee        @relation("TimeEventCreatedBy", fields: [createdById], references: [id])
+  holdReason TaskHoldReason? @relation(fields: [holdReasonId], references: [id])
+
+  @@index([taskId, eventTimeUtc], map: "IX_TaskTimeEvent_TaskId_EventTimeUtc")
+  @@index([employeeId, eventTimeUtc], map: "IX_TaskTimeEvent_EmployeeId_EventTimeUtc")
+  @@map("task_time_events")
+}
+
+model DesignCorrection {
+  id                    BigInt           @id @default(autoincrement()) @map("correction_id")
+  designId              BigInt           @map("design_id")
+  taskId                BigInt           @map("task_id")
+  correctionType        CorrectionType   @map("correction_type")
+  responsibleEmployeeId Int              @map("responsible_employee_id")
+  raisedById            Int              @map("raised_by")
+  rootCause             String?          @map("root_cause") @db.Text
+  extraMinutes          Int?             @map("extra_minutes")
+  extraCost             Decimal?         @map("extra_cost") @db.Decimal(18, 2)
+  ratingImpact          Decimal?         @map("rating_impact") @db.Decimal(5, 2)
+  status                CorrectionStatus @default(OPEN)
+  createdAtUtc          DateTime         @default(now()) @map("created_at_utc")
+  updatedAtUtc          DateTime         @updatedAt @map("updated_at_utc")
+
+  design              DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+  task                DesignTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  responsibleEmployee Employee      @relation("ResponsibleEmployee", fields: [responsibleEmployeeId], references: [id])
+  raisedBy            Employee      @relation("RaisedBy", fields: [raisedById], references: [id])
+
+  @@index([responsibleEmployeeId, status], map: "IX_DesignCorrection_ResponsibleEmployee_Status")
+  @@map("design_corrections")
+}
+
+model DesignApproval {
+  id                 BigInt           @id @default(autoincrement()) @map("approval_id")
+  designId           BigInt           @map("design_id")
+  taskId             BigInt?          @map("task_id")
+  approvalLevelId    Int              @map("approval_level_id")
+  approverEmployeeId Int              @map("approver_employee_id")
+  decision           ApprovalDecision @default(PENDING)
+  remark             String?          @db.Text
+  decisionAtUtc      DateTime?        @map("decision_at_utc")
+
+  design   DesignConcept  @relation(fields: [designId], references: [id], onDelete: Cascade)
+  task     DesignTask?    @relation(fields: [taskId], references: [id])
+  level    ApprovalLevel  @relation(fields: [approvalLevelId], references: [id])
+  approver Employee       @relation(fields: [approverEmployeeId], references: [id])
+
+  @@index([designId, approvalLevelId, decision], map: "IX_DesignApproval_DesignId_Level_Decision")
+  @@map("design_approvals")
+}
+
+model EmployeeKpiDefinition {
+  id            Int      @id @default(autoincrement()) @map("kpi_definition_id")
+  roleId        Int      @map("role_id")
+  metricCode    String   @map("metric_code")
+  weightPercent Decimal  @map("weight_percent") @db.Decimal(5, 2)
+  target        Decimal? @db.Decimal(10, 2)
+  effectiveFrom DateTime @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@index([roleId, metricCode])
+  @@map("employee_kpi_definitions")
+}
+
+model EmployeeKpiScore {
+  id                 BigInt   @id @default(autoincrement()) @map("kpi_score_id")
+  employeeId         Int      @map("employee_id")
+  periodYear         Int      @map("period_year")
+  periodMonth        Int      @map("period_month")
+  metricCode         String   @map("metric_code")
+  score              Decimal  @db.Decimal(10, 2)
+  weightedScore      Decimal  @map("weighted_score") @db.Decimal(10, 2)
+  calculatedAtUtc    DateTime @default(now()) @map("calculated_at_utc")
+  calculationVersion Int      @map("calculation_version")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, periodYear, periodMonth], map: "IX_EmployeeKpiScore_Employee_Period")
+  @@map("employee_kpi_scores")
+}
+
+model AuditLog {
+  id            BigInt   @id @default(autoincrement()) @map("audit_id")
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id")
+  action        String
+  beforeJson    Json?    @map("before_json")
+  afterJson     Json?    @map("after_json")
+  userId        Int      @map("user_id")
+  atUtc         DateTime @default(now()) @map("at_utc")
+  correlationId String?  @map("correlation_id")
+
+  user Employee @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId, atUtc])
+  @@index([correlationId])
+  @@map("audit_logs")
+}
+
+model NotificationOutbox {
+  id            BigInt   @id @default(autoincrement())
+  eventType     String   @map("event_type")
+  payload       Json
+  processed     Boolean  @default(false)
+  createdAtUtc  DateTime @default(now()) @map("created_at_utc")
+  processedAtUtc DateTime? @map("processed_at_utc")
+
+  @@index([processed, createdAtUtc])
+  @@map("notification_outbox")
+}

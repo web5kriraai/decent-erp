@@ -1,0 +1,21 @@
+---
+description: Reporting and dashboard queries.
+globs: **/features/reports/**,**/api/reports/**
+alwaysApply: false
+---
+
+# Feature: Reporting & analytics
+
+| Dashboard/Report | Key measures |
+|---|---|
+| Admin Dashboard | Total ideas, under development, corrections, approved, released, avg lead time |
+| Employee Dashboard | Assigned/pending/running/hold/completed, active work seconds, hold seconds, overdue count |
+| Design Head Dashboard | Created, approved, rejected, live, conversion %, team load, team KPI and cost |
+| Correction Analysis | By type, responsible person, stage, root cause, extra hours and cost |
+| KPI Report | Employee/month/role/metric score and weighted score |
+| Design Success | Production qty, sales qty/value, return qty/value, stock, margin, repeat order, market/customer performance |
+
+## Time-based query caution
+Never calculate active working time from `Task.StartedAt`/`CompletedAt` alone.
+Always pair `TaskTimeEvent` intervals so lunch/hold time is excluded and
+dependency delays can be analyzed correctly (see `17-feature-timer-dashboard.mdc`).

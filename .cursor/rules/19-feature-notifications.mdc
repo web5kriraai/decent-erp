@@ -1,0 +1,22 @@
+---
+description: Notifications and escalations - must be async via outbox/queue.
+globs: **/services/notification*,**/features/**notif*
+alwaysApply: false
+---
+
+# Feature: Notifications & escalations
+
+| Event | Recipients | Trigger |
+|---|---|---|
+| Task Assigned | Assigned employee + supervisor | Immediately after commit |
+| Task Due Soon | Employee | Configurable hours before DueAt |
+| Task Overdue | Employee + Design Head | DueAt crossed and not complete |
+| Correction Raised | Responsible person + Design Head | Immediately |
+| Approval Pending | Approver | Immediately and reminders |
+| Material/Machine Hold | Relevant department + Design Head | On HOLD reason |
+| Production Release | Production Head | On final release |
+
+## Architecture rule
+Notifications are emitted **after** the business transaction commits, via an
+outbox/queue pattern, so a WhatsApp/email/push failure can never roll back
+core ERP work.
