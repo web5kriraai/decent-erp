@@ -65,12 +65,19 @@ export async function fetchMasters(page: Page) {
   const [productTypes, seasons, patterns] = await Promise.all([
     apiGetJson<Array<{ id: number; code: string }>>(page, "/api/masters/product-types"),
     apiGetJson<Array<{ id: number; code: string }>>(page, "/api/masters/seasons"),
-    apiGetJson<Array<{ id: number; name: string }>>(page, "/api/workflow-patterns"),
+    apiGetJson<
+      Array<{ id: number; name: string; productTypeId?: number | null }>
+    >(page, "/api/workflow-patterns"),
   ]);
+  const productTypeId = productTypes.find((p) => p.code === "SAREE")?.id ?? productTypes[0].id;
+  const matchingPattern =
+    patterns.find((p) => p.productTypeId === productTypeId) ??
+    patterns.find((p) => p.productTypeId == null) ??
+    patterns[0];
   return {
-    productTypeId: productTypes.find((p) => p.code === "SAREE")?.id ?? productTypes[0].id,
+    productTypeId,
     seasonId: seasons[0].id,
-    workflowPatternId: patterns[0].id,
+    workflowPatternId: matchingPattern.id,
   };
 }
 

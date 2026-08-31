@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CheckIcon } from "lucide-react";
 import type { ChecklistItemMaster } from "@/hooks/use-masters";
+import { TaskArtifactPanel } from "@/components/tasks/TaskArtifactPanel";
 
 type TaskEndDialogProps = {
   open: boolean;
@@ -26,7 +27,12 @@ type TaskEndDialogProps = {
   fileRequired?: boolean;
   hasUploadedFiles?: boolean;
   filesLoading?: boolean;
-  /** When set, file-required warning links here (e.g. task detail upload section). */
+  /** Embed in-dialog upload when file is required (preferred). */
+  taskId?: string;
+  designId?: string;
+  subProcessCode?: string;
+  canUpload?: boolean;
+  /** Fallback link when in-dialog upload cannot be shown. */
   uploadHref?: string;
   /** When sub-process is SAMPLE_CHECK */
   isSampleCheck?: boolean;
@@ -51,6 +57,10 @@ export function TaskEndDialog({
   fileRequired,
   hasUploadedFiles,
   filesLoading,
+  taskId,
+  designId,
+  subProcessCode,
+  canUpload = true,
   uploadHref,
   isSampleCheck,
   sampleOutcome,
@@ -60,6 +70,7 @@ export function TaskEndDialog({
 }: TaskEndDialogProps) {
   const fileWarning = !!fileRequired && !hasUploadedFiles;
   const filesBlocking = fileWarning || (!!fileRequired && !!filesLoading);
+  const showInlineUpload = !!fileRequired && !!taskId && !!designId;
 
   const { pendingChecklist, passedCount, allChecklistPassed, isPartialChecklist } = useMemo(() => {
     const pending = checklistItems.filter((item) => !checklistResults[item.id]);
@@ -123,7 +134,9 @@ export function TaskEndDialog({
             role="alert"
           >
             This sub-process requires at least one uploaded file before completion.
-            {uploadHref ? (
+            {showInlineUpload ? (
+              <> Upload a file in the Task Files section below, then try again.</>
+            ) : uploadHref ? (
               <>
                 {" "}
                 <Link href={uploadHref} className="font-medium underline underline-offset-2">
@@ -132,12 +145,32 @@ export function TaskEndDialog({
                 , then open Complete Task again.
               </>
             ) : (
-              <> Upload a file in the Task Files section below, then try again.</>
+              <> Upload a task file for this sub-process, then try again.</>
             )}
           </div>
         )}
         {!!fileRequired && !!filesLoading && !hasUploadedFiles && (
           <p className="text-sm text-muted-foreground">Checking uploaded files…</p>
+        )}
+
+        {showInlineUpload && (
+          <div className="space-y-2">
+            <Label>
+              Task Files
+              {fileWarning ? (
+                <>
+                  {" "}
+                  <span className="text-destructive">*</span>
+                </>
+              ) : null}
+            </Label>
+            <TaskArtifactPanel
+              taskId={taskId}
+              designId={designId}
+              canUpload={canUpload && !isPending}
+              subProcessCode={subProcessCode}
+            />
+          </div>
         )}
 
         {isSampleCheck && (

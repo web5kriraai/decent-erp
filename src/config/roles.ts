@@ -21,24 +21,25 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     responsibilities: [
       "Create and manage design concepts and collections",
       "Assign and reassign tasks to designers",
+      "Execute stage tasks on My Tasks (Concept Review, Sketch Approval, Final Approval)",
       "Approve design stages and release to next process",
       "Monitor team time, costing, and KPI for the design unit",
       "Raise corrections and coordinate rework",
     ],
     restrictions: [
       "Cannot alter server time events directly",
-      "Operational task execution is delegated to designers",
     ],
     permissions: [
       PERMISSIONS.DESIGN_CREATE,
       PERMISSIONS.DESIGN_ASSIGN,
       PERMISSIONS.DESIGN_APPROVE,
+      PERMISSIONS.TASK_EXECUTE,
       PERMISSIONS.CORRECTION_RAISE,
       PERMISSIONS.COST_VIEW,
       PERMISSIONS.TIME_VIEW_TEAM,
       PERMISSIONS.PRODUCTION_RELEASE,
     ],
-    navFocus: ["Design Pipeline", "Quality", "Finance", "Team & Reports", "Production"],
+    navFocus: ["My Work", "Design Pipeline", "Quality", "Finance", "Team & Reports", "Production"],
   },
   [ROLE_CODES.SKETCH_DESIGNER]: {
     code: ROLE_CODES.SKETCH_DESIGNER,
@@ -116,15 +117,16 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     summary: "Development and standard cost entry with margin review.",
     responsibilities: [
       "Enter development and standard costs per design",
+      "Complete Costing stage tasks on My Tasks when assigned by workflow",
       "Review margin against thresholds",
       "Support approval gate with mandatory costing completeness",
     ],
     restrictions: [
       "Cannot mark employee mistakes unless explicitly permitted",
-      "No task execution or design creation",
+      "No design creation or final approval authority",
     ],
-    permissions: [PERMISSIONS.COST_VIEW],
-    navFocus: ["Finance"],
+    permissions: [PERMISSIONS.COST_VIEW, PERMISSIONS.TASK_EXECUTE],
+    navFocus: ["My Work", "Finance"],
   },
   [ROLE_CODES.PRODUCTION_HEAD]: {
     code: ROLE_CODES.PRODUCTION_HEAD,

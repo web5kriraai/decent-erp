@@ -1,15 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
-import { FormField } from "@/components/ui/form-field";
-import { FormSelect } from "@/components/ui/form-select";
-import { FormTextArea } from "@/components/ui/form-text-area";
-import { FormTextField } from "@/components/ui/form-text-field";
-import { Button } from "@/components/ui/button";
 import { useCreateDesign } from "@/hooks/use-designs";
 import {
   useComponentTypes,
@@ -23,6 +18,7 @@ import { getFieldErrors, ApiClientError } from "@/lib/api-client";
 import type { Priority, WorkType } from "@/lib/types/api";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ROUTES } from "@/config/routes";
+import { filterWorkflowPatternsForProductType } from "@/lib/workflow-patterns";
 
 type AssignmentMode = "AUTOMATIC" | "MANUAL";
 
@@ -71,6 +67,7 @@ export function DesignCreateForm() {
   const [workflowPatternId, setWorkflowPatternId] = useState<number | "">("");
   const [manualTasks, setManualTasks] = useState<ManualTaskDraft[]>(() => [emptyManualTask(0)]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   const productTypes = useProductTypes();
   const seasons = useSeasons();
@@ -108,20 +105,38 @@ export function DesignCreateForm() {
     );
   }, [componentTypes.data, productTypeId]);
 
-  const availablePatterns = useMemo(() => {
-    const list = patterns.data ?? [];
-    if (!productTypeId) return list;
-    return list.filter(
-      (p) => p.productTypeId == null || p.productTypeId === productTypeId,
-    );
-  }, [patterns.data, productTypeId]);
+  const availablePatterns = useMemo(
+    () => filterWorkflowPatternsForProductType(patterns.data ?? [], productTypeId),
+    [patterns.data, productTypeId],
+  );
+
+  // Keep selection valid + auto-pick when exactly one pattern matches the product type.
+  useEffect(() => {
+    if (assignmentMode !== "AUTOMATIC") return;
+    if (
+      workflowPatternId &&
+      availablePatterns.some((pattern) => pattern.id === workflowPatternId)
+    ) {
+      return;
+    }
+    if (availablePatterns.length === 1) {
+      setWorkflowPatternId(availablePatterns[0].id);
+      return;
+    }
+    if (workflowPatternId) {
+      setWorkflowPatternId("");
+    }
+  }, [assignmentMode, availablePatterns, workflowPatternId]);
 
   const validationErrors: Record<string, string> = {};
   if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
   if (assignmentMode === "AUTOMATIC" && !workflowPatternId) {
-    validationErrors.workflowPatternId = "Workflow pattern is required";
+    validationErrors.workflowPatternId =
+      availablePatterns.length === 0
+        ? "No workflow pattern for this product type — switch to Manual or ask Admin to create one"
+        : "Workflow pattern is required";
   }
   if (assignmentMode === "MANUAL") {
     const incomplete = manualTasks.some(
@@ -135,6 +150,8 @@ export function DesignCreateForm() {
       validationErrors.manualTasks = "Add at least one complete task (process, sub-process, minutes)";
     }
   }
+
+  const showErrors = attemptedSubmit;
 
   function toggleComponentType(id: number) {
     setComponentTypeIds((prev) =>
@@ -174,6 +191,7 @@ export function DesignCreateForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setAttemptedSubmit(true);
     setFieldErrors({});
 
     if (Object.keys(validationErrors).length > 0) return;
@@ -268,7 +286,7 @@ export function DesignCreateForm() {
                 onChange={(e) => setCollectionName(e.target.value)}
                 placeholder="e.g. Royal Festive 2026"
               />
-              {(validationErrors.collectionName || fieldErrors.collectionName) && (
+              {(showErrors && (validationErrors.collectionName || fieldErrors.collectionName)) && (
                 <span className="form-error">
                   {validationErrors.collectionName ?? fieldErrors.collectionName?.[0]}
                 </span>
@@ -410,7 +428,7 @@ export function DesignCreateForm() {
                     </option>
                   ))}
                 </select>
-                {validationErrors.productTypeId && (
+                {showErrors && validationErrors.productTypeId && (
                   <span className="form-error">{validationErrors.productTypeId}</span>
                 )}
               </div>
@@ -432,7 +450,7 @@ export function DesignCreateForm() {
                     </option>
                   ))}
                 </select>
-                {validationErrors.seasonId && (
+                {showErrors && validationErrors.seasonId && (
                   <span className="form-error">{validationErrors.seasonId}</span>
                 )}
               </div>
@@ -502,28 +520,47 @@ export function DesignCreateForm() {
                   <label className="form-label" htmlFor="pattern">
                     Workflow Pattern *
                   </label>
-                  <select
-                    id="pattern"
-                    className="form-select"
-                    value={workflowPatternId}
-                    onChange={(e) =>
-                      setWorkflowPatternId(e.target.value ? Number(e.target.value) : "")
-                    }
-                  >
-                    <option value="">Select pattern…</option>
-                    {availablePatterns.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (v{p.versionNo})
-                        {p.productType ? ` · ${p.productType.name}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {(validationErrors.workflowPatternId || fieldErrors.workflowPatternId) && (
-                    <span className="form-error">
-                      {validationErrors.workflowPatternId ??
-                        fieldErrors.workflowPatternId?.[0]}
-                    </span>
+                  {availablePatterns.length === 0 ? (
+                    <>
+                      <select
+                        id="pattern"
+                        className="form-select"
+                        value=""
+                        disabled
+                        aria-invalid={showErrors ? true : undefined}
+                      >
+                        <option value="">No pattern for this product type</option>
+                      </select>
+                      <p className="form-hint">
+                        Switch Task Assignment to Manual, or ask Admin to create a
+                        pattern for this product type.
+                      </p>
+                    </>
+                  ) : (
+                    <select
+                      id="pattern"
+                      className="form-select"
+                      value={workflowPatternId}
+                      onChange={(e) =>
+                        setWorkflowPatternId(e.target.value ? Number(e.target.value) : "")
+                      }
+                    >
+                      <option value="">Select pattern…</option>
+                      {availablePatterns.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (v{p.versionNo})
+                          {p.productType ? ` · ${p.productType.name}` : ""}
+                        </option>
+                      ))}
+                    </select>
                   )}
+                  {showErrors &&
+                    (validationErrors.workflowPatternId || fieldErrors.workflowPatternId) && (
+                      <span className="form-error">
+                        {validationErrors.workflowPatternId ??
+                          fieldErrors.workflowPatternId?.[0]}
+                      </span>
+                    )}
                 </div>
               )}
             </div>
@@ -548,7 +585,7 @@ export function DesignCreateForm() {
                   </button>
                 </div>
 
-                {(validationErrors.manualTasks || fieldErrors.manualTasks) && (
+                {(showErrors && (validationErrors.manualTasks || fieldErrors.manualTasks)) && (
                   <span className="form-error" style={{ display: "block", marginBottom: "0.5rem" }}>
                     {validationErrors.manualTasks ?? fieldErrors.manualTasks?.[0]}
                   </span>

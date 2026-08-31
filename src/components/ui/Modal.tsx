@@ -48,7 +48,7 @@ export function Modal({
       modal="trap-focus"
     >
       <DialogContent
-        className={cn(sizeClasses[size], "gap-0 p-0 sm:max-w-md")}
+        className={cn("gap-0 p-0", sizeClasses[size])}
         showCloseButton
         aria-describedby={description ? "modal-description" : undefined}
       >
@@ -60,7 +60,7 @@ export function Modal({
             </p>
           )}
         </DialogHeader>
-        <div className="px-4 py-3">{children}</div>
+        <div className="max-h-[min(70vh,36rem)] overflow-y-auto px-4 py-3">{children}</div>
         {footer && (
           <DialogFooter className="border-t bg-muted/30 px-4 py-3">{footer}</DialogFooter>
         )}

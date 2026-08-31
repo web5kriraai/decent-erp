@@ -9,7 +9,7 @@ alwaysApply: true
 ## Roles and core permissions
 | Role | Core permissions | Restrictions |
 |---|---|---|
-| Design Head | Create/approve concepts, assign/reassign tasks, approve stages, view KPI/costing, release design | Cannot alter server time events directly |
+| Design Head | Create/approve concepts, assign/reassign tasks, run stage tasks (Concept Review / approvals), view KPI/costing, release design | Cannot alter server time events directly |
 | Sketch Designer | View assigned sketch tasks, start/hold/resume/end, upload versions, respond to corrections | No final approval or KPI weight editing |
 | Punching Designer | Punching tasks, upload EMB/DST files, corrections, stitch metadata | No concept deletion after approval |
 | Machine Operator | Sample task execution, machine details, sample output and wastage | No design-level approval |

@@ -14,6 +14,10 @@ import {
   seedProcessMasters,
   seedProductProcessMappings,
 } from "./seed/masters-data";
+import {
+  STANDARD_WORKFLOW_PRODUCT_CODES,
+  standardWorkflowPatternName,
+} from "./workflow-patterns";
 
 export async function seedDatabase() {
   for (const [roleCode, perms] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
@@ -181,23 +185,54 @@ export async function seedDatabase() {
 
   const sareeType = await prisma.productType.findUniqueOrThrow({ where: { code: "SAREE" } });
   const festiveSeason = await prisma.season.findUniqueOrThrow({ where: { code: "FEST26" } });
-
-  const pattern = await prisma.workflowPattern.upsert({
-    where: { id: 1 },
-    update: { name: "Standard Saree Development (Full)", active: true },
-    create: {
-      name: "Standard Saree Development (Full)",
-      productTypeId: sareeType.id,
-      versionNo: 1,
-      active: true,
-    },
-  });
-
-  await prisma.workflowPatternTask.deleteMany({ where: { workflowPatternId: pattern.id } });
   const workflowTasks = buildStandardWorkflowTasks(roles, subIndex);
-  await prisma.workflowPatternTask.createMany({
-    data: workflowTasks.map((t) => ({ workflowPatternId: pattern.id, ...t })),
-  });
+
+  // One active standard pattern per product type (create-design dropdown filters by product type).
+  const patternsByProductCode: Record<string, { id: number }> = {};
+  for (const code of STANDARD_WORKFLOW_PRODUCT_CODES) {
+    const productType = await prisma.productType.findUniqueOrThrow({ where: { code } });
+    const patternName = standardWorkflowPatternName(productType.name);
+
+    let pattern = await prisma.workflowPattern.findFirst({
+      where: { productTypeId: productType.id, name: patternName },
+      orderBy: { id: "asc" },
+    });
+
+    if (!pattern) {
+      pattern = await prisma.workflowPattern.create({
+        data: {
+          name: patternName,
+          productTypeId: productType.id,
+          versionNo: 1,
+          active: true,
+        },
+      });
+    } else if (!pattern.active) {
+      pattern = await prisma.workflowPattern.update({
+        where: { id: pattern.id },
+        data: { active: true, versionNo: 1 },
+      });
+    }
+
+    // Deactivate duplicates left by the old upsert({ where: { id: 1 } }) seed path.
+    await prisma.workflowPattern.updateMany({
+      where: {
+        productTypeId: productType.id,
+        name: patternName,
+        id: { not: pattern.id },
+      },
+      data: { active: false },
+    });
+
+    await prisma.workflowPatternTask.deleteMany({ where: { workflowPatternId: pattern.id } });
+    await prisma.workflowPatternTask.createMany({
+      data: workflowTasks.map((t) => ({ workflowPatternId: pattern.id, ...t })),
+    });
+
+    patternsByProductCode[code] = { id: pattern.id };
+  }
+
+  const sareePatternId = patternsByProductCode.SAREE.id;
 
   const existingSample = await prisma.designConcept.findUnique({
     where: { ideaRef: "IDEA-SAMPLE-001" },
@@ -226,7 +261,7 @@ export async function seedDatabase() {
         designHeadEmployeeId: designHead.id,
         priority: "HIGH",
         conceptNote: "Premium zari + thread concept for festive collection",
-        workflowPatternId: pattern.id,
+        workflowPatternId: sareePatternId,
         createdById: admin.id,
         status: "ACTIVE",
         currentStage: "SKETCH",

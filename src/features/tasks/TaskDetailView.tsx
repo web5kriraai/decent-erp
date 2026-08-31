@@ -343,6 +343,10 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             fileRequired={fileRequired}
             hasUploadedFiles={hasFiles}
             filesLoading={filesLoading}
+            taskId={task.id}
+            designId={task.designId ?? task.design.id}
+            subProcessCode={task.subProcess.code}
+            canUpload={canControl}
             isSampleCheck={isSampleCheck}
             sampleOutcome={sampleOutcome || undefined}
             onSampleOutcomeChange={setSampleOutcome}

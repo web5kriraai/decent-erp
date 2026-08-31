@@ -1673,48 +1673,119 @@ a.sidebar-brand-link:hover {
   color: var(--color-neutral-700);
 }
 
-/* ---- Roles ---- */
+/* ---- Daily workbench (dashboard home) ---- */
 
-.role-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1.5rem;
+.workbench-pulse {
+  margin-bottom: 1.5rem;
 }
 
-.role-overview-heading {
+.workbench-section-title {
+  margin: 0 0 0.75rem;
   font-size: var(--font-size-caption);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-neutral-500);
-  margin: 0 0 0.5rem;
 }
 
-.role-overview-list {
-  margin: 0;
-  padding-left: 1.125rem;
-  color: var(--color-neutral-700);
-  font-size: var(--font-size-body);
-  line-height: 1.6;
+.workbench-shortcuts {
+  margin-bottom: 1.5rem;
 }
 
-.role-perm-chips {
+.workbench-shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 0.75rem;
+}
+
+.workbench-shortcut {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  text-decoration: none;
+  color: inherit;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 0.5rem);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.role-perm-chip {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  font-size: var(--font-size-caption);
-  font-weight: 500;
-  background: var(--color-neutral-100);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  color: var(--color-neutral-700);
-  text-transform: capitalize;
+.workbench-shortcut:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
+
+.workbench-shortcut-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm, 0.375rem);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.workbench-shortcut-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.workbench-shortcut-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 600;
+  font-size: var(--font-size-body);
+}
+
+.workbench-shortcut-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: var(--radius-full, 999px);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.workbench-shortcut-desc {
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+.workbench-queues {
+  margin-bottom: 1rem;
+}
+
+.workbench-queue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.workbench-empty {
+  margin: 0;
+  padding: 1.25rem 0;
+  color: var(--color-neutral-500);
+  font-size: var(--font-size-body);
+}
+
+.workbench-row-meta {
+  margin: 0.125rem 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+/* ---- Roles ---- */
 
 .role-catalog {
   display: flex;

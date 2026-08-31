@@ -3,6 +3,10 @@ import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { ApiError } from "@/lib/api-utils";
 import type { Priority, TaskStatus } from "@prisma/client";
+import {
+  DEPENDENCY_SATISFIED_STATUSES,
+  effectiveDependencySequence,
+} from "@/lib/services/task-dependency";
 
 export async function getMyTasks(employeeId: number) {
   return prisma.designTask.findMany({
@@ -143,24 +147,26 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
       throw new ApiError(`Cannot start task in status ${task.status}`, 409);
     }
 
-    // Dependency gate: prior sequence tasks must be COMPLETED
-    const depSeq = task.dependencySequence ?? task.sequence;
+    // Dependency gate: prior sequence must be ended (COMPLETED / CHECKING) or CANCELLED
+    const depSeq = effectiveDependencySequence(task);
     if (depSeq > 0) {
-      const blockers = await tx.designTask.findMany({
+      const blocker = await tx.designTask.findFirst({
         where: {
           designId: task.designId,
           id: { not: taskId },
-          status: { notIn: ["COMPLETED", "CANCELLED"] },
+          status: { notIn: [...DEPENDENCY_SATISFIED_STATUSES] },
           OR: [
             { dependencySequence: { lt: depSeq, not: null } },
             { dependencySequence: null, sequence: { lt: depSeq } },
           ],
         },
-        take: 1,
+        include: { subProcess: { select: { name: true, code: true } } },
+        orderBy: [{ dependencySequence: "asc" }, { sequence: "asc" }],
       });
-      if (blockers.length > 0) {
+      if (blocker) {
+        const label = blocker.subProcess?.name ?? blocker.subProcess?.code ?? "prior task";
         throw new ApiError(
-          "Cannot start — a prior dependent task is not completed yet",
+          `Cannot start — “${label}” must be completed or sent for checking first`,
           422,
         );
       }
@@ -440,8 +446,8 @@ export async function endTask(
       },
     });
 
-    if (nextStatus === "COMPLETED") {
-      const depSeq = task.dependencySequence ?? task.sequence;
+    if (nextStatus === "COMPLETED" || nextStatus === "CHECKING") {
+      const depSeq = effectiveDependencySequence(task);
       const next = await tx.designTask.findFirst({
         where: {
           designId: task.designId,

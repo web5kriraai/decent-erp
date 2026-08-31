@@ -27,35 +27,6 @@ function parseTimer(text: string): number {
   return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
 }
 
-async function ensureTaskArtifact(page: Page, taskId: string, designId: string) {
-  const upload = await page.request.post(`/api/designs/${designId}/images`, {
-    multipart: {
-      file: {
-        name: "e2e-sketch.png",
-        mimeType: "image/png",
-        buffer: TINY_PNG,
-      },
-    },
-  });
-
-  let storageKey: string | undefined;
-  let fileName = "e2e-sketch.png";
-  if (upload.ok()) {
-    const json = await upload.json();
-    storageKey = json.data?.storageKey;
-    fileName = json.data?.fileName ?? fileName;
-  } else {
-    execSync(`npx tsx scripts/seed-e2e-design-image.mjs ${designId}`, { stdio: "pipe" });
-    storageKey = `e2e/${designId}/seed.png`;
-  }
-
-  await apiPostJson(page, `/api/tasks/${taskId}/artifacts`, {
-    artifactType: "SKETCH_VERSION",
-    fileName,
-    storageKey,
-  });
-}
-
 /** Complete ASSIGNED prior-sequence tasks for design head so dependency gate allows sketch. */
 async function completePriorDesignHeadTasks(page: Page, designId: string) {
   const tasks = await apiGetJson<
@@ -181,12 +152,9 @@ test.describe("Workday UI flow (end-to-end)", () => {
 
     const taskMeta = await apiGetJson<{
       id: string;
-      designId: string;
-      design: { id: string };
       version: number;
       subProcess: { isFileRequired?: boolean; code?: string };
     }>(page, `/api/tasks/${assignedTask.id}`);
-    const designId = taskMeta.designId ?? taskMeta.design.id;
     const needsFile = !!taskMeta.subProcess?.isFileRequired;
 
     await page.getByRole("button", { name: /End Task/i }).click();
@@ -206,19 +174,18 @@ test.describe("Workday UI flow (end-to-end)", () => {
     if (needsFile) {
       await expect(endDialog.getByRole("alert")).toContainText(/requires at least one uploaded file/i);
       await expect(submitBtn).toBeDisabled();
-      await endDialog.getByRole("button", { name: /Cancel/i }).click();
-      await expect(endDialog).not.toBeVisible();
-
-      await ensureTaskArtifact(page, assignedTask.id, designId);
-      await page.reload();
-      await expect(page.locator(".timer-widget")).toBeVisible({ timeout: 15_000 });
-
-      await page.getByRole("button", { name: /End Task/i }).click();
-      await expect(endDialog).toBeVisible();
-      await endDialog.locator("#endRemark").fill("E2E workday UI completion remark");
-      if (hasChecklist) {
-        await endDialog.getByRole("button", { name: /Mark all as passed/i }).click();
-      }
+      // Upload must be available inside Complete Task (not only behind the modal).
+      await expect(endDialog.getByText(/^Task Files/i)).toBeVisible();
+      await expect(endDialog.getByText(/No task files uploaded yet/i)).toBeVisible();
+      await endDialog.locator('input[type="file"]').setInputFiles({
+        name: "e2e-sketch.png",
+        mimeType: "image/png",
+        buffer: TINY_PNG,
+      });
+      await expect(endDialog.getByText(/No task files uploaded yet/i)).toHaveCount(0, {
+        timeout: 20_000,
+      });
+      await expect(endDialog.getByRole("alert")).toHaveCount(0);
     }
 
     await expect(submitBtn).toBeEnabled({ timeout: 10_000 });

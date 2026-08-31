@@ -353,6 +353,9 @@ export function TaskWorkspace() {
         fileRequired={fileRequired}
         hasUploadedFiles={hasFiles}
         filesLoading={filesLoading}
+        taskId={activeTask?.id}
+        designId={activeTask?.design.id}
+        subProcessCode={activeTask?.subProcess.code}
         isSampleCheck={isSampleCheck}
         sampleOutcome={sampleOutcome || undefined}
         onSampleOutcomeChange={setSampleOutcome}

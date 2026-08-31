@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import {
+  DEFAULT_ROLE_PERMISSIONS,
+  hasPermission,
+  PERMISSIONS,
+  ROLE_CODES,
+} from "@/lib/permissions";
+import {
+  DEPENDENCY_SATISFIED_STATUSES,
+  isDependencySatisfiedStatus,
+} from "@/lib/services/task-dependency";
 
 describe("permissions", () => {
   it("grants access when user has any of the required permissions", () => {
@@ -18,6 +27,25 @@ describe("permissions", () => {
     expect(
       hasPermission([PERMISSIONS.TASK_EXECUTE], [PERMISSIONS.MASTER_ADMIN, PERMISSIONS.DESIGN_CREATE]),
     ).toBe(false);
+  });
+
+  it("gives Design Head TASK_EXECUTE so Concept Review / stage tasks can run on My Tasks", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.DESIGN_HEAD]).toContain(PERMISSIONS.TASK_EXECUTE);
+  });
+
+  it("gives Costing Team TASK_EXECUTE so pattern Costing tasks can clear the dependency gate", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.COSTING_TEAM]).toContain(PERMISSIONS.TASK_EXECUTE);
+  });
+});
+
+describe("task dependency gate", () => {
+  it("treats CHECKING as satisfied so Send-for-Checking unlocks the next sequence", () => {
+    expect(DEPENDENCY_SATISFIED_STATUSES).toContain("CHECKING");
+    expect(isDependencySatisfiedStatus("CHECKING")).toBe(true);
+    expect(isDependencySatisfiedStatus("COMPLETED")).toBe(true);
+    expect(isDependencySatisfiedStatus("CANCELLED")).toBe(true);
+    expect(isDependencySatisfiedStatus("ASSIGNED")).toBe(false);
+    expect(isDependencySatisfiedStatus("RUNNING")).toBe(false);
   });
 });
 
