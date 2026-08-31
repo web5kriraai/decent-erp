@@ -20,7 +20,14 @@ export async function listDesignCosts(designId: bigint) {
 }
 
 export async function getCostSummary(designId: bigint) {
-  const costs = await prisma.designCost.findMany({ where: { designId } });
+  const [design, costs] = await Promise.all([
+    prisma.designConcept.findUnique({
+      where: { id: designId },
+      select: { estimatedCost: true, standardCost: true },
+    }),
+    prisma.designCost.findMany({ where: { designId } }),
+  ]);
+
   const byType: Record<string, number> = {};
   let totalDevCost = 0;
 
@@ -30,11 +37,24 @@ export async function getCostSummary(designId: bigint) {
     totalDevCost += amount;
   }
 
+  const estimated = design?.estimatedCost != null ? Number(design.estimatedCost) : null;
+  const standard = design?.standardCost != null ? Number(design.standardCost) : null;
+  const baseline = estimated ?? standard;
+  const marginAmount = baseline != null ? baseline - totalDevCost : null;
+  const marginPercent =
+    baseline != null && baseline > 0 && marginAmount != null
+      ? (marginAmount / baseline) * 100
+      : null;
+
   return {
     totalDevCost,
     byType,
     entryCount: costs.length,
-    hasCosting: costs.length > 0,
+    hasCosting: costs.some((c) => Number(c.amount) > 0),
+    estimatedCost: estimated,
+    standardCost: standard,
+    marginAmount,
+    marginPercent,
   };
 }
 
@@ -46,6 +66,9 @@ export async function addCostEntry(
 ) {
   if (!isValidCostType(input.costType)) {
     throw new ApiError("Invalid cost type", 400);
+  }
+  if (input.amount <= 0) {
+    throw new ApiError("Cost amount must be greater than zero", 422);
   }
 
   const design = await prisma.designConcept.findUnique({ where: { id: designId } });
@@ -79,6 +102,37 @@ export async function addCostEntry(
 }
 
 export async function designHasCosting(designId: bigint) {
-  const count = await prisma.designCost.count({ where: { designId } });
-  return count > 0;
+  const summary = await getCostSummary(designId);
+  return summary.hasCosting;
+}
+
+export async function updateDesignCostBaselines(
+  designId: bigint,
+  input: { estimatedCost?: number | null; standardCost?: number | null },
+  userId: number,
+  correlationId: string,
+) {
+  const existing = await prisma.designConcept.findUnique({ where: { id: designId } });
+  if (!existing) throw new ApiError("Design not found", 404);
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.designConcept.update({
+      where: { id: designId },
+      data: {
+        ...(input.estimatedCost !== undefined ? { estimatedCost: input.estimatedCost } : {}),
+        ...(input.standardCost !== undefined ? { standardCost: input.standardCost } : {}),
+        version: { increment: 1 },
+      },
+    });
+    await writeAuditLog(tx, {
+      entityType: "DesignConcept",
+      entityId: designId.toString(),
+      action: "COST_BASELINE_UPDATE",
+      userId,
+      correlationId,
+      before: existing,
+      after: updated,
+    });
+    return updated;
+  });
 }

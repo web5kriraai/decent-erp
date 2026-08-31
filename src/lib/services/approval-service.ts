@@ -145,6 +145,20 @@ export async function submitApproval(
     const level = await tx.approvalLevel.findUnique({ where: { id: input.approvalLevelId } });
     if (!level) throw new ApiError("Approval level not found", 404);
 
+    if (level.requiredRoleId) {
+      const approver = await tx.employee.findUnique({
+        where: { id: approverEmployeeId },
+        include: { role: true },
+      });
+      const isAdmin = approver?.role?.code === "ADMIN";
+      if (!isAdmin && approver?.roleId !== level.requiredRoleId) {
+        throw new ApiError(
+          `This approval level requires role ${approver?.role?.name ?? "matching"} — you are not authorized`,
+          403,
+        );
+      }
+    }
+
     const approval = await tx.designApproval.create({
       data: {
         designId: input.designId,

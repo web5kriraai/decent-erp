@@ -27,8 +27,8 @@ function parseTimer(text: string): number {
   return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
 }
 
-async function ensureDesignHasImage(page: Page, designId: string) {
-  const res = await page.request.post(`/api/designs/${designId}/images`, {
+async function ensureTaskArtifact(page: Page, taskId: string, designId: string) {
+  const upload = await page.request.post(`/api/designs/${designId}/images`, {
     multipart: {
       file: {
         name: "e2e-sketch.png",
@@ -37,10 +37,57 @@ async function ensureDesignHasImage(page: Page, designId: string) {
       },
     },
   });
-  if (res.ok()) return;
 
-  // MinIO may be unavailable in local/dev; seed a DB row so file-required end still works.
-  execSync(`npx tsx scripts/seed-e2e-design-image.mjs ${designId}`, { stdio: "pipe" });
+  let storageKey: string | undefined;
+  let fileName = "e2e-sketch.png";
+  if (upload.ok()) {
+    const json = await upload.json();
+    storageKey = json.data?.storageKey;
+    fileName = json.data?.fileName ?? fileName;
+  } else {
+    execSync(`npx tsx scripts/seed-e2e-design-image.mjs ${designId}`, { stdio: "pipe" });
+    storageKey = `e2e/${designId}/seed.png`;
+  }
+
+  await apiPostJson(page, `/api/tasks/${taskId}/artifacts`, {
+    artifactType: "SKETCH_VERSION",
+    fileName,
+    storageKey,
+  });
+}
+
+/** Complete ASSIGNED prior-sequence tasks for design head so dependency gate allows sketch. */
+async function completePriorDesignHeadTasks(page: Page, designId: string) {
+  const tasks = await apiGetJson<
+    Array<{
+      id: string;
+      status: string;
+      version: number;
+      design: { id: string };
+      subProcess: { code?: string; name: string };
+      dependencySequence?: number | null;
+      sequence?: number;
+    }>
+  >(page, "/api/tasks/my");
+
+  const mine = tasks.filter(
+    (t) =>
+      t.design.id === designId &&
+      ["ASSIGNED", "PENDING"].includes(t.status) &&
+      (t.subProcess.code === "CONCEPT_REVIEW" || /concept|review|approval/i.test(t.subProcess.name)),
+  );
+
+  for (const task of mine) {
+    if (task.status === "ASSIGNED" || task.status === "PENDING") {
+      await apiPostJson(page, `/api/tasks/${task.id}/start`, {});
+      const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${task.id}`);
+      await apiPostJson(page, `/api/tasks/${task.id}/end`, {
+        version: detail.version,
+        outputRemark: "E2E prior stage complete",
+        completionStatus: "COMPLETED",
+      });
+    }
+  }
 }
 
 test.describe("Workday UI flow (end-to-end)", () => {
@@ -58,12 +105,18 @@ test.describe("Workday UI flow (end-to-end)", () => {
   test("start → live timer → hold label → resume → checklist end → search", async ({
     page,
   }) => {
-    // --- Cross-role setup: design head creates work, sketch executes ---
     await login(page, USERS.designHead.email, USERS.designHead.password);
     const design = await createDesignViaApi(page, `UI Workday ${Date.now()}`, {
       conceptNote: "Playwright workday UI flow",
     });
     expect(design.id).toBeTruthy();
+    await completePriorDesignHeadTasks(page, design.id);
+
+    // Illegal status jump blocked by FSM
+    const jump = await page.request.patch(`/api/designs/${design.id}/status`, {
+      data: { status: "PRODUCTION_RELEASED", version: 1 },
+    });
+    expect(jump.status()).toBe(422);
 
     await login(page, USERS.sketch.email, USERS.sketch.password);
 
@@ -73,7 +126,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
         status: string;
         version: number;
         design: { id: string; ideaRef: string };
-        subProcess: { id: number; name: string; code?: string };
+        subProcess: { id: number; name: string; code?: string; isFileRequired?: boolean };
       }>
     >(page, "/api/tasks/my");
 
@@ -86,7 +139,6 @@ test.describe("Workday UI flow (end-to-end)", () => {
     await page.goto("/work/tasks");
     await expect(page.getByRole("heading", { name: /My Tasks/i })).toBeVisible();
 
-    // --- Start ---
     const card = page.locator("article.task-card", { hasText: assignedTask.design.ideaRef }).first();
     const startBtn = card.getByRole("button", { name: /^Start$/i });
     if (await startBtn.isVisible().catch(() => false)) {
@@ -99,9 +151,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
 
     await expect(page.locator(".timer-widget")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(".timer-status")).toContainText(/RUNNING/i);
-    await expect(page.getByRole("button", { name: /Hold task/i })).toBeVisible();
 
-    // --- Live timer ticks without refresh ---
     const timer = page.locator(".timer-display");
     await expect(timer).toBeVisible();
     const t0 = parseTimer(await timer.innerText());
@@ -109,7 +159,6 @@ test.describe("Workday UI flow (end-to-end)", () => {
     const t1 = parseTimer(await timer.innerText());
     expect(t1).toBeGreaterThan(t0);
 
-    // --- Hold with human-readable reason label (not raw id) ---
     const holdReasons = await apiGetJson<Array<{ id: number; code: string; name: string }>>(
       page,
       "/api/masters/hold-reasons",
@@ -120,29 +169,21 @@ test.describe("Workday UI flow (end-to-end)", () => {
     await page.getByRole("button", { name: /Hold task/i }).click();
     const holdDialog = page.getByRole("dialog", { name: /Hold Task/i });
     await expect(holdDialog).toBeVisible();
-
     await holdDialog.locator("#holdReason").click();
     await page.getByRole("option", { name: new RegExp(lunch.name, "i") }).click();
-
-    const reasonTriggerText = (await holdDialog.locator("#holdReason").innerText()).trim();
-    expect(reasonTriggerText).not.toMatch(/^\d+$/);
-    expect(reasonTriggerText).toContain(lunch.name);
-
+    expect((await holdDialog.locator("#holdReason").innerText()).trim()).toContain(lunch.name);
     await holdDialog.getByRole("button", { name: /Confirm Hold/i }).click();
     await expect(holdDialog).not.toBeVisible({ timeout: 15_000 });
     await expect(page.locator(".timer-status")).toContainText(/ON HOLD/i, { timeout: 15_000 });
 
-    // --- Resume ---
     await page.getByRole("button", { name: /Resume task/i }).click();
     await expect(page.locator(".timer-status")).toContainText(/RUNNING/i, { timeout: 15_000 });
 
-    // --- File-required gate: Complete Task blocked until a design file exists ---
     const taskMeta = await apiGetJson<{
       id: string;
       designId: string;
       design: { id: string };
       version: number;
-      status: string;
       subProcess: { isFileRequired?: boolean; code?: string };
     }>(page, `/api/tasks/${assignedTask.id}`);
     const designId = taskMeta.designId ?? taskMeta.design.id;
@@ -159,14 +200,16 @@ test.describe("Workday UI flow (end-to-end)", () => {
       await endDialog.getByRole("button", { name: /Mark all as passed/i }).click();
     }
 
-    const submitBtn = endDialog.getByRole("button", { name: /Submit Completion|Submit with notes/i });
+    const submitBtn = endDialog.getByRole("button", {
+      name: /Submit Completion|Submit with notes/i,
+    });
     if (needsFile) {
       await expect(endDialog.getByRole("alert")).toContainText(/requires at least one uploaded file/i);
       await expect(submitBtn).toBeDisabled();
       await endDialog.getByRole("button", { name: /Cancel/i }).click();
       await expect(endDialog).not.toBeVisible();
 
-      await ensureDesignHasImage(page, designId);
+      await ensureTaskArtifact(page, assignedTask.id, designId);
       await page.reload();
       await expect(page.locator(".timer-widget")).toBeVisible({ timeout: 15_000 });
 
@@ -176,8 +219,6 @@ test.describe("Workday UI flow (end-to-end)", () => {
       if (hasChecklist) {
         await endDialog.getByRole("button", { name: /Mark all as passed/i }).click();
       }
-    } else {
-      await ensureDesignHasImage(page, designId);
     }
 
     await expect(submitBtn).toBeEnabled({ timeout: 10_000 });
@@ -188,7 +229,6 @@ test.describe("Workday UI flow (end-to-end)", () => {
     const finished = await apiGetJson<{ status: string }>(page, `/api/tasks/${assignedTask.id}`);
     expect(["CHECKING", "COMPLETED"]).toContain(finished.status);
 
-    // --- Global search opens without subscribe crash ---
     await page.keyboard.press("Control+k");
     const searchDialog = page.getByRole("dialog", { name: /Search Decent ERP/i });
     await expect(searchDialog).toBeVisible({ timeout: 10_000 });

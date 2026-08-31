@@ -22,6 +22,9 @@ export type CreateDesignInput = {
   workType?: WorkType;
   trendReference?: string;
   celebrityReference?: string;
+  targetGrade?: string;
+  estimatedCost?: number;
+  standardCost?: number;
   processId?: number;
   subProcessId?: number;
   assignmentMode: AssignmentMode;
@@ -48,6 +51,21 @@ export async function createDesignWithTasks(
   correlationId: string,
 ) {
   return prisma.$transaction(async (tx) => {
+    if (input.assignmentMode === "AUTOMATIC" && input.workflowPatternId) {
+      const pattern = await tx.workflowPattern.findUnique({
+        where: { id: input.workflowPatternId },
+      });
+      if (!pattern || !pattern.active) {
+        throw new ApiError("Workflow pattern not found", 422);
+      }
+      if (pattern.productTypeId && pattern.productTypeId !== input.productTypeId) {
+        throw new ApiError(
+          "Selected workflow pattern does not apply to this product type",
+          422,
+        );
+      }
+    }
+
     const ideaRef = generateIdeaRef();
     const design = await tx.designConcept.create({
       data: {
@@ -63,6 +81,9 @@ export async function createDesignWithTasks(
         workType: input.workType,
         trendReference: input.trendReference,
         celebrityReference: input.celebrityReference,
+        targetGrade: input.targetGrade,
+        estimatedCost: input.estimatedCost,
+        standardCost: input.standardCost,
         assignmentMode: input.assignmentMode,
         workflowPatternId: input.workflowPatternId,
         createdById,
@@ -273,6 +294,8 @@ export async function updateDesignStatus(
       throw new ApiError("Concurrency conflict - refresh and retry", 409);
     }
 
+    assertAllowedDesignStatusTransition(existing.status, status);
+
     const updated = await tx.designConcept.update({
       where: { id },
       data: { status, version: { increment: 1 } },
@@ -290,6 +313,33 @@ export async function updateDesignStatus(
 
     return updated;
   });
+}
+
+/** Kanban/API-safe transitions. Gate statuses (APPROVED / PRODUCTION_RELEASED / LIVE) use dedicated services. */
+const DESIGN_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
+  DRAFT: ["ACTIVE", "ON_HOLD", "CLOSED"],
+  ACTIVE: ["ON_HOLD", "APPROVAL_PENDING", "DRAFT", "CLOSED"],
+  ON_HOLD: ["ACTIVE", "DRAFT", "CLOSED"],
+  APPROVAL_PENDING: ["ACTIVE", "ON_HOLD", "REJECTED"],
+  APPROVED: ["ON_HOLD", "CLOSED"],
+  REJECTED: ["ACTIVE", "DRAFT", "CLOSED"],
+  PRODUCTION_RELEASED: ["CLOSED"],
+  LIVE: ["CLOSED"],
+  CLOSED: [],
+};
+
+export function assertAllowedDesignStatusTransition(
+  from: string,
+  to: string,
+): void {
+  if (from === to) return;
+  const allowed = DESIGN_STATUS_TRANSITIONS[from] ?? [];
+  if (!allowed.includes(to)) {
+    throw new ApiError(
+      `Cannot change design status from ${from} to ${to}. Use the approval or production release flows for gated transitions.`,
+      422,
+    );
+  }
 }
 
 export async function listDesignsForKanban() {

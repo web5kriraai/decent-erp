@@ -47,6 +47,9 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
   const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [checklistNote, setChecklistNote] = useState("");
+  const [sampleOutcome, setSampleOutcome] = useState<"APPROVE" | "REJECT" | "RESAMPLE" | "">(
+    "",
+  );
 
   const task = detailQuery.data;
   const isAssignee = task?.assignedEmployeeId === session?.user?.employeeId;
@@ -67,6 +70,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     !!task && canControl,
   );
   const fileRequired = !!task?.subProcess?.isFileRequired;
+  const isSampleCheck = task?.subProcess?.code === "SAMPLE_CHECK";
 
   if (sessionStatus === "loading") {
     return (
@@ -101,6 +105,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   async function handleEndSubmit() {
     if (!task || !endRemark.trim()) return;
     if (fileRequired && !hasFiles) return;
+    if (isSampleCheck && !sampleOutcome) return;
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -109,22 +114,29 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     const failed = checklist.length - passed;
     if (checklist.length > 0 && passed === 0) return;
     if (failed > 0 && !checklistNote.trim()) return;
+    if (isSampleCheck && sampleOutcome === "APPROVE" && failed > 0) return;
 
     const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
       taskId: task.id,
       version: task.version,
       outputRemark: endRemark.trim(),
-      completionStatus: endStatus,
+      completionStatus: isSampleCheck
+        ? sampleOutcome === "REJECT"
+          ? "CHECKING"
+          : "COMPLETED"
+        : endStatus,
       checklist: checklist.length
         ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
         : undefined,
       checklistNote: note,
+      sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
     });
     setEndModalOpen(false);
     setEndRemark("");
     setChecklistResults({});
     setChecklistNote("");
+    setSampleOutcome("");
   }
 
   return (
@@ -208,6 +220,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                           setEndModalOpen(true);
                           setEndRemark("");
                           setChecklistNote("");
+                          setSampleOutcome("");
                         }
                       : undefined
                   }
@@ -330,6 +343,9 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             fileRequired={fileRequired}
             hasUploadedFiles={hasFiles}
             filesLoading={filesLoading}
+            isSampleCheck={isSampleCheck}
+            sampleOutcome={sampleOutcome || undefined}
+            onSampleOutcomeChange={setSampleOutcome}
             onSubmit={handleEndSubmit}
             isPending={end.isPending}
           />

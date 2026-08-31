@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useDesign } from "@/hooks/use-designs";
 import { useEmployeeOptions, useRaiseCorrection } from "@/hooks/use-corrections";
+import { useProcessMasters } from "@/hooks/use-masters";
 import type { RaiseCorrectionPayload } from "@/hooks/use-corrections";
 
 type RaiseCorrectionModalProps = {
@@ -13,9 +14,22 @@ type RaiseCorrectionModalProps = {
   defaultDesignId?: string;
 };
 
+const CORRECTION_TYPE_OPTIONS: {
+  value: RaiseCorrectionPayload["correctionType"];
+  label: string;
+}[] = [
+  { value: "MISTAKE", label: "Mistake" },
+  { value: "IMPROVEMENT", label: "Improvement" },
+  { value: "CUSTOMER_CHANGE", label: "Customer Change" },
+  { value: "MACHINE", label: "Machine Issue" },
+  { value: "MATERIAL", label: "Material Issue" },
+  { value: "OTHER", label: "Other" },
+];
+
 export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCorrectionModalProps) {
   const designsQuery = useDesignsList(open);
   const employeesQuery = useEmployeeOptions(open);
+  const processesQuery = useProcessMasters(open);
   const raiseCorrection = useRaiseCorrection();
 
   const [designId, setDesignId] = useState(defaultDesignId ?? "");
@@ -23,12 +37,22 @@ export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCo
   const [correctionType, setCorrectionType] =
     useState<RaiseCorrectionPayload["correctionType"]>("MISTAKE");
   const [responsibleEmployeeId, setResponsibleEmployeeId] = useState<number | "">("");
+  const [routeToSubProcessId, setRouteToSubProcessId] = useState<number | "">("");
   const [rootCause, setRootCause] = useState("");
   const [extraMinutes, setExtraMinutes] = useState("");
   const [extraCost, setExtraCost] = useState("");
 
   const designQuery = useDesign(designId, open && !!designId);
   const tasks = designQuery.data?.tasks ?? [];
+  const isMistake = correctionType === "MISTAKE";
+
+  const subProcessOptions =
+    processesQuery.data?.flatMap((p) =>
+      (p.subProcesses ?? []).map((sp) => ({
+        id: sp.id,
+        label: `${p.name} → ${sp.name}`,
+      })),
+    ) ?? [];
 
   useEffect(() => {
     if (open && defaultDesignId) setDesignId(defaultDesignId);
@@ -38,19 +62,31 @@ export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCo
     setTaskId("");
   }, [designId]);
 
+  useEffect(() => {
+    if (!isMistake) setResponsibleEmployeeId("");
+  }, [isMistake]);
+
   async function handleSubmit() {
-    if (!designId || !taskId || !responsibleEmployeeId) return;
+    if (!designId || !taskId) return;
+    if (isMistake && !responsibleEmployeeId) return;
     await raiseCorrection.mutateAsync({
       designId,
       taskId,
       correctionType,
-      responsibleEmployeeId: Number(responsibleEmployeeId),
+      responsibleEmployeeId: responsibleEmployeeId ? Number(responsibleEmployeeId) : null,
+      routeToSubProcessId: routeToSubProcessId ? Number(routeToSubProcessId) : null,
       rootCause: rootCause.trim() || undefined,
       extraMinutes: extraMinutes ? Number(extraMinutes) : undefined,
       extraCost: extraCost ? Number(extraCost) : undefined,
     });
     onClose();
   }
+
+  const canSubmit =
+    !!designId &&
+    !!taskId &&
+    (!isMistake || !!responsibleEmployeeId) &&
+    !raiseCorrection.isPending;
 
   return (
     <Modal
@@ -65,12 +101,7 @@ export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCo
           <button
             type="button"
             className="btn btn-primary"
-            disabled={
-              !designId ||
-              !taskId ||
-              !responsibleEmployeeId ||
-              raiseCorrection.isPending
-            }
+            disabled={!canSubmit}
             onClick={handleSubmit}
           >
             Raise Correction
@@ -130,15 +161,16 @@ export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCo
               setCorrectionType(e.target.value as RaiseCorrectionPayload["correctionType"])
             }
           >
-            <option value="MISTAKE">Mistake</option>
-            <option value="IMPROVEMENT">Improvement</option>
-            <option value="CUSTOMER_CHANGE">Customer Change</option>
-            <option value="MACHINE_MATERIAL_ISSUE">Machine / Material Issue</option>
+            {CORRECTION_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="corrResponsible">
-            Responsible Employee *
+            Responsible Employee {isMistake ? "*" : "(optional)"}
           </label>
           <select
             id="corrResponsible"
@@ -156,6 +188,27 @@ export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCo
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label" htmlFor="corrRoute">
+          Route back to sub-process
+        </label>
+        <select
+          id="corrRoute"
+          className="form-select"
+          value={routeToSubProcessId}
+          onChange={(e) =>
+            setRouteToSubProcessId(e.target.value ? Number(e.target.value) : "")
+          }
+        >
+          <option value="">Same task (restore on close)</option>
+          {subProcessOptions.map((sp) => (
+            <option key={sp.id} value={sp.id}>
+              {sp.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="form-group">

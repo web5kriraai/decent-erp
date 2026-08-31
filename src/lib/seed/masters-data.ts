@@ -146,8 +146,14 @@ export async function seedComponentTypes(prisma: PrismaClient) {
 export async function seedProductProcessMappings(prisma: PrismaClient) {
   const saree = await prisma.productType.findUnique({ where: { code: "SAREE" } });
   if (!saree) return;
-  const processes = await prisma.designProcessMaster.findMany();
-  for (const proc of processes) {
+  // Saree requires Design Development + Sample Development paths (not every production module)
+  const processes = await prisma.designProcessMaster.findMany({
+    where: { code: { in: ["DESIGN_DEV", "SAMPLE_DEV", "DESIGN_DEVELOPMENT", "SAMPLE_DEVELOPMENT"] } },
+  });
+  const fallback = processes.length
+    ? processes
+    : await prisma.designProcessMaster.findMany({ take: 2, orderBy: { sequence: "asc" } });
+  for (const proc of fallback) {
     await prisma.productProcessMapping.upsert({
       where: { productTypeId_processId: { productTypeId: saree.id, processId: proc.id } },
       update: { required: true },

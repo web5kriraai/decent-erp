@@ -8,6 +8,7 @@ export const queryKeys = {
     images: (id: string) => ["designs", "images", id] as const,
   },
   tasks: {
+    all: ["tasks"] as const,
     my: ["tasks", "my"] as const,
     detail: (id: string) => ["tasks", "detail", id] as const,
   },

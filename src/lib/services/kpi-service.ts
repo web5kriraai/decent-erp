@@ -97,7 +97,7 @@ export async function calculateMonthlyKpi(year: number, month: number) {
       },
     });
 
-    const completed = tasks.filter((t) => ["COMPLETED", "CHECKING"].includes(t.status));
+    const completed = tasks.filter((t) => t.status === "COMPLETED");
     const onTime = completed.filter(
       (t) => t.completedAt && t.dueAt && t.completedAt <= t.dueAt,
     ).length;
@@ -112,25 +112,73 @@ export async function calculateMonthlyKpi(year: number, month: number) {
 
     let totalActive = 0;
     let totalExpected = 0;
+    let checklistPassed = 0;
+    let checklistTotal = 0;
+    let docsOk = 0;
+    let docsRequired = 0;
+    let depOk = 0;
+    let depTotal = 0;
+
     for (const task of tasks) {
       const { activeSeconds } = computeTimeSummary(task.timeEvents);
       totalActive += activeSeconds;
       totalExpected += task.expectedMinutes * 60;
+      if (task.checklistResults.length) {
+        checklistTotal += task.checklistResults.length;
+        checklistPassed += task.checklistResults.filter((r) => r.result).length;
+      }
+      if (task.subProcess.isFileRequired && task.status === "COMPLETED") {
+        docsRequired += 1;
+        if (task.outputRemark && task.checklistResults.length >= 0) {
+          docsOk += 1;
+        }
+      }
+      if ((task.dependencySequence ?? 0) > 0) {
+        depTotal += 1;
+        if (task.status === "COMPLETED") depOk += 1;
+      }
     }
 
-    const withFiles = completed.filter((t) => t.subProcess.isFileRequired);
-    const filesOk = withFiles.filter((t) => t.outputRemark || t.checklistResults.length > 0);
+    const designs = await prisma.designConcept.findMany({
+      where: {
+        OR: [
+          { designHeadEmployeeId: employee.id },
+          { tasks: { some: { assignedEmployeeId: employee.id } } },
+        ],
+        updatedAtUtc: { gte: start, lt: end },
+      },
+      include: { costs: true },
+    });
+    let costScores: number[] = [];
+    for (const d of designs) {
+      const actual = d.costs.reduce((s, c) => s + Number(c.amount), 0);
+      const baseline =
+        d.estimatedCost != null
+          ? Number(d.estimatedCost)
+          : d.standardCost != null
+            ? Number(d.standardCost)
+            : null;
+      if (baseline != null && baseline > 0 && actual > 0) {
+        costScores.push(Math.max(0, Math.min(100, (1 - Math.abs(actual - baseline) / baseline) * 100)));
+      }
+    }
 
     const scores: Record<string, number> = {
       ON_TIME_COMPLETION: completed.length ? (onTime / completed.length) * 100 : 100,
-      QUALITY_APPROVAL: completed.length ? 85 : 0,
+      QUALITY_APPROVAL: checklistTotal
+        ? (checklistPassed / checklistTotal) * 100
+        : completed.length
+          ? 80
+          : 0,
       FIRST_TIME_RIGHT: completed.length ? (firstTimeRight / completed.length) * 100 : 100,
       CORRECTION_PERFORMANCE: Math.max(0, 100 - mistakeCorrections.length * 12),
-      CREATIVITY: 80,
-      COST_CONTROL: 75,
-      TEAM_COORDINATION: completed.length ? 85 : 70,
+      CREATIVITY: completed.length ? Math.min(100, 70 + firstTimeRight * 2) : 0,
+      COST_CONTROL: costScores.length
+        ? costScores.reduce((a, b) => a + b, 0) / costScores.length
+        : 70,
+      TEAM_COORDINATION: depTotal ? (depOk / depTotal) * 100 : completed.length ? 85 : 70,
       PRODUCTIVITY: totalExpected ? Math.min(100, (totalExpected / Math.max(totalActive, 1)) * 100) : 0,
-      DOCUMENTATION: withFiles.length ? (filesOk.length / withFiles.length) * 100 : 100,
+      DOCUMENTATION: docsRequired ? (docsOk / docsRequired) * 100 : 100,
     };
 
     for (const metric of metrics) {

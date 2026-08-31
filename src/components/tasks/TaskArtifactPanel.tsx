@@ -54,10 +54,16 @@ export function TaskArtifactPanel({
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [artifactType, setArtifactType] = useState<TaskArtifactType>(
-    subProcessCode?.includes("PUNCH") ? "PUNCHING_FILE" : "SKETCH_VERSION",
+    subProcessCode?.includes("PUNCH")
+      ? "PUNCHING_FILE"
+      : subProcessCode?.includes("SAMPLE") || subProcessCode?.includes("MACHINE")
+        ? "SAMPLE_OUTPUT"
+        : "SKETCH_VERSION",
   );
   const [stitchCount, setStitchCount] = useState("");
   const [machineFormat, setMachineFormat] = useState("");
+  const [sampleQty, setSampleQty] = useState("");
+  const [wastageQty, setWastageQty] = useState("");
 
   const artifactsQuery = useQuery({
     queryKey: ["tasks", taskId, "artifacts"],
@@ -87,11 +93,15 @@ export function TaskArtifactPanel({
           storageKey,
           stitchCount: stitchCount ? Number(stitchCount) : undefined,
           machineFormat: machineFormat.trim() || undefined,
+          sampleQty: sampleQty ? Number(sampleQty) : undefined,
+          wastageQty: wastageQty ? Number(wastageQty) : undefined,
         });
 
         toast.success("Artifact registered", file.name);
         setStitchCount("");
         setMachineFormat("");
+        setSampleQty("");
+        setWastageQty("");
         await queryClient.invalidateQueries({ queryKey: ["tasks", taskId, "artifacts"] });
         await queryClient.invalidateQueries({ queryKey: queryKeys.designs.images(designId) });
       } catch (error) {
@@ -100,7 +110,17 @@ export function TaskArtifactPanel({
         setUploading(false);
       }
     },
-    [artifactType, designId, machineFormat, queryClient, stitchCount, taskId, toast],
+    [
+      artifactType,
+      designId,
+      machineFormat,
+      queryClient,
+      sampleQty,
+      stitchCount,
+      taskId,
+      toast,
+      wastageQty,
+    ],
   );
 
   function handleFiles(files: FileList | null) {
@@ -142,6 +162,30 @@ export function TaskArtifactPanel({
                     value={machineFormat}
                     onChange={(e) => setMachineFormat(e.target.value)}
                     placeholder="e.g. Tajima / Wilcom"
+                  />
+                </div>
+              </>
+            )}
+            {artifactType === "SAMPLE_OUTPUT" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="sampleQty">Sample Qty</Label>
+                  <Input
+                    id="sampleQty"
+                    type="number"
+                    min={0}
+                    value={sampleQty}
+                    onChange={(e) => setSampleQty(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="wastageQty">Wastage Qty</Label>
+                  <Input
+                    id="wastageQty"
+                    type="number"
+                    min={0}
+                    value={wastageQty}
+                    onChange={(e) => setWastageQty(e.target.value)}
                   />
                 </div>
               </>
@@ -205,18 +249,12 @@ export function useTaskHasFiles(taskId: string, designId: string, enabled = true
     queryFn: () => apiGet<TaskArtifact[]>(`/api/tasks/${taskId}/artifacts`),
     enabled: enabled && !!taskId,
   });
-  const imagesQuery = useQuery({
-    queryKey: queryKeys.designs.images(designId),
-    queryFn: () => apiGet<unknown[]>(`/api/designs/${designId}/images`),
-    enabled: enabled && !!designId,
-  });
 
-  // Match endTask: design images OR artifacts with a storage key
+  // Spec: file-required gates on this task's artifacts only (not concept gallery images)
   const artifactWithFile = artifactsQuery.data?.some((a) => !!a.storageKey) ?? false;
-  const imageCount = Array.isArray(imagesQuery.data) ? imagesQuery.data.length : 0;
 
   return {
-    hasFiles: artifactWithFile || imageCount > 0,
-    isLoading: artifactsQuery.isLoading || imagesQuery.isLoading,
+    hasFiles: artifactWithFile,
+    isLoading: artifactsQuery.isLoading,
   };
 }

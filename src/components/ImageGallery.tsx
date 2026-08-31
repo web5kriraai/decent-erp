@@ -1,10 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignImageRecord } from "@/lib/types/api";
 import { FileUploader } from "@/components/FileUploader";
+import { useApiToast } from "@/components/ui/ToastProvider";
 
 type ImageGalleryProps = {
   designId: string;
@@ -12,6 +13,8 @@ type ImageGalleryProps = {
 };
 
 export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) {
+  const toast = useApiToast();
+  const queryClient = useQueryClient();
   const imagesQuery = useQuery({
     queryKey: queryKeys.designs.images(designId),
     queryFn: () => apiGet<DesignImageRecord[]>(`/api/designs/${designId}/images`),
@@ -21,6 +24,22 @@ export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) 
   async function handleDelete(imageId: string) {
     await fetch(`/api/designs/${designId}/images?imageId=${imageId}`, { method: "DELETE" });
     imagesQuery.refetch();
+  }
+
+  async function handleSetPrimary(imageId: string) {
+    const res = await fetch(`/api/designs/${designId}/images?imageId=${imageId}`, {
+      method: "PATCH",
+    });
+            if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      toast.errorFromApi(
+        new Error(typeof json.error === "string" ? json.error : "Could not set primary image"),
+        "Could not set primary image",
+      );
+      return;
+    }
+    toast.success("Primary image updated");
+    await queryClient.invalidateQueries({ queryKey: queryKeys.designs.images(designId) });
   }
 
   return (
@@ -40,6 +59,15 @@ export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) 
             <div className="image-gallery-meta">
               <span>{image.fileName}</span>
               {image.isPrimary && <span className="badge">Primary</span>}
+              {canUpload && !image.isPrimary && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => void handleSetPrimary(image.id)}
+                >
+                  Set primary
+                </button>
+              )}
               {canUpload && (
                 <button
                   type="button"

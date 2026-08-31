@@ -201,7 +201,8 @@ export type CorrectionRecord = {
     subProcess: { name: string; code: string };
   };
   raisedBy: { id: number; name: string; employeeCode: string };
-  responsibleEmployee: { id: number; name: string; employeeCode: string };
+  responsibleEmployee?: { id: number; name: string; employeeCode: string } | null;
+  routeToSubProcess?: { id: number; code: string; name: string } | null;
 };
 
 export type ApprovalLevel = {
@@ -254,6 +255,10 @@ export type DesignCostSummary = {
   byType: Record<string, number>;
   entryCount: number;
   hasCosting: boolean;
+  estimatedCost?: number | null;
+  standardCost?: number | null;
+  marginAmount?: number | null;
+  marginPercent?: number | null;
 };
 
 export type ManualDesignTask = {
@@ -274,6 +279,9 @@ export type CreateDesignPayload = {
   workType?: WorkType;
   trendReference?: string;
   celebrityReference?: string;
+  targetGrade?: string;
+  estimatedCost?: number;
+  standardCost?: number;
   componentTypeIds?: number[];
   assignmentMode: "AUTOMATIC" | "MANUAL";
   workflowPatternId?: number;

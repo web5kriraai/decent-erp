@@ -38,6 +38,9 @@ export function TaskWorkspace() {
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
   const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [checklistNote, setChecklistNote] = useState("");
+  const [sampleOutcome, setSampleOutcome] = useState<"APPROVE" | "REJECT" | "RESAMPLE" | "">(
+    "",
+  );
 
   const tasks = tasksQuery.data ?? [];
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
@@ -51,6 +54,7 @@ export function TaskWorkspace() {
     !!activeTask,
   );
   const fileRequired = !!activeTask?.subProcess?.isFileRequired;
+  const isSampleCheck = activeTask?.subProcess?.code === "SAMPLE_CHECK";
 
   // Snapshot from server events; TimerWidget ticks live while RUNNING.
   const elapsedSeconds = useMemo(() => {
@@ -103,6 +107,7 @@ export function TaskWorkspace() {
   async function handleEndSubmit() {
     if (!activeTask || !endRemark.trim()) return;
     if (fileRequired && !hasFiles) return;
+    if (isSampleCheck && !sampleOutcome) return;
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -111,22 +116,29 @@ export function TaskWorkspace() {
     const failed = checklist.length - passed;
     if (checklist.length > 0 && passed === 0) return;
     if (failed > 0 && !checklistNote.trim()) return;
+    if (isSampleCheck && sampleOutcome === "APPROVE" && failed > 0) return;
 
     const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
       taskId: activeTask.id,
       version: activeTask.version,
       outputRemark: endRemark.trim(),
-      completionStatus: endStatus,
+      completionStatus: isSampleCheck
+        ? sampleOutcome === "REJECT"
+          ? "CHECKING"
+          : "COMPLETED"
+        : endStatus,
       checklist: checklist.length
         ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
         : undefined,
       checklistNote: note,
+      sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
     });
     setEndModalOpen(false);
     setEndRemark("");
     setChecklistResults({});
     setChecklistNote("");
+    setSampleOutcome("");
     setSelectedTaskId(null);
   }
 
@@ -199,6 +211,7 @@ export function TaskWorkspace() {
                     setEndModalOpen(true);
                     setEndRemark("");
                     setChecklistNote("");
+                    setSampleOutcome("");
                   }
                 : undefined
             }
@@ -340,6 +353,9 @@ export function TaskWorkspace() {
         fileRequired={fileRequired}
         hasUploadedFiles={hasFiles}
         filesLoading={filesLoading}
+        isSampleCheck={isSampleCheck}
+        sampleOutcome={sampleOutcome || undefined}
+        onSampleOutcomeChange={setSampleOutcome}
         onSubmit={handleEndSubmit}
         isPending={end.isPending}
       />

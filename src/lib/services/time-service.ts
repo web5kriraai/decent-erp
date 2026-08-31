@@ -338,6 +338,24 @@ export async function persistWorkdayClose(employeeId: number, correlationId: str
     create: { employeeId, workDate, closedAtUtc: now, createdById: employeeId },
   });
 
+  // Stamp OFFICE_CLOSE on any ON_HOLD task timeline for audit (append-only)
+  const onHoldTasks = await prisma.designTask.findMany({
+    where: { assignedEmployeeId: employeeId, status: "ON_HOLD" },
+    select: { id: true },
+  });
+  if (onHoldTasks.length > 0) {
+    await prisma.taskTimeEvent.createMany({
+      data: onHoldTasks.map((t) => ({
+        taskId: t.id,
+        employeeId,
+        eventType: "OFFICE_CLOSE" as const,
+        eventTimeUtc: now,
+        createdById: employeeId,
+        remark: "Workday closed",
+      })),
+    });
+  }
+
   return {
     closed: true,
     employeeId,

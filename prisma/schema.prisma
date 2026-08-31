@@ -62,7 +62,9 @@ enum CorrectionType {
   MISTAKE
   IMPROVEMENT
   CUSTOMER_CHANGE
-  MACHINE_MATERIAL_ISSUE
+  MACHINE
+  MATERIAL
+  OTHER
 }
 
 enum Priority {
@@ -138,6 +140,7 @@ model Role {
   permissions RolePermission[]
   kpiDefinitions EmployeeKpiDefinition[]
   workflowPatternTasks WorkflowPatternTask[]
+  approvalLevels ApprovalLevel[]
 
   @@map("roles")
 }
@@ -278,6 +281,7 @@ model DesignSubProcessMaster {
   workflowPatternTasks WorkflowPatternTask[]
   designTasks         DesignTask[]
   checklistItems      QualityChecklistItem[]
+  routedCorrections   DesignCorrection[]
 
   @@unique([processId, code])
   @@map("design_sub_process_master")
@@ -347,13 +351,15 @@ model TaskHoldReason {
 }
 
 model ApprovalLevel {
-  id       Int    @id @default(autoincrement()) @map("approval_level_id")
-  code     String @unique
-  name     String
-  sequence Int
-  active   Boolean @default(true)
+  id             Int     @id @default(autoincrement()) @map("approval_level_id")
+  code           String  @unique
+  name           String
+  sequence       Int
+  requiredRoleId Int?    @map("required_role_id")
+  active         Boolean @default(true)
 
   approvals DesignApproval[]
+  requiredRole Role? @relation(fields: [requiredRoleId], references: [id])
 
   @@map("approval_levels")
 }
@@ -375,6 +381,9 @@ model DesignConcept {
   trendReference       String?      @map("trend_reference")
   celebrityReference   String?      @map("celebrity_reference")
   assignmentMode       AssignmentMode @default(AUTOMATIC) @map("assignment_mode")
+  targetGrade          String?      @map("target_grade")
+  estimatedCost        Decimal?     @map("estimated_cost") @db.Decimal(18, 2)
+  standardCost         Decimal?     @map("standard_cost") @db.Decimal(18, 2)
   currentStage         String?      @map("current_stage")
   status               DesignStatus @default(DRAFT)
   workflowPatternId    Int?         @map("workflow_pattern_id")
@@ -536,8 +545,10 @@ model DesignCorrection {
   designId              BigInt           @map("design_id")
   taskId                BigInt           @map("task_id")
   correctionType        CorrectionType   @map("correction_type")
-  responsibleEmployeeId Int              @map("responsible_employee_id")
+  responsibleEmployeeId Int?             @map("responsible_employee_id")
   raisedById            Int              @map("raised_by")
+  routeToSubProcessId   Int?             @map("route_to_sub_process_id")
+  routedTaskId          BigInt?          @map("routed_task_id")
   rootCause             String?          @map("root_cause") @db.Text
   extraMinutes          Int?             @map("extra_minutes")
   extraCost             Decimal?         @map("extra_cost") @db.Decimal(18, 2)
@@ -550,8 +561,9 @@ model DesignCorrection {
 
   design              DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
   task                DesignTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  responsibleEmployee Employee      @relation("ResponsibleEmployee", fields: [responsibleEmployeeId], references: [id])
+  responsibleEmployee Employee?     @relation("ResponsibleEmployee", fields: [responsibleEmployeeId], references: [id])
   raisedBy            Employee      @relation("RaisedBy", fields: [raisedById], references: [id])
+  routeToSubProcess   DesignSubProcessMaster? @relation(fields: [routeToSubProcessId], references: [id])
 
   @@index([responsibleEmployeeId, status], map: "IX_DesignCorrection_ResponsibleEmployee_Status")
   @@map("design_corrections")

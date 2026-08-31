@@ -28,6 +28,10 @@ type TaskEndDialogProps = {
   filesLoading?: boolean;
   /** When set, file-required warning links here (e.g. task detail upload section). */
   uploadHref?: string;
+  /** When sub-process is SAMPLE_CHECK */
+  isSampleCheck?: boolean;
+  sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
+  onSampleOutcomeChange?: (outcome: "APPROVE" | "REJECT" | "RESAMPLE") => void;
   onSubmit: () => void;
   isPending: boolean;
 };
@@ -48,6 +52,9 @@ export function TaskEndDialog({
   hasUploadedFiles,
   filesLoading,
   uploadHref,
+  isSampleCheck,
+  sampleOutcome,
+  onSampleOutcomeChange,
   onSubmit,
   isPending,
 }: TaskEndDialogProps) {
@@ -61,7 +68,6 @@ export function TaskEndDialog({
       pendingChecklist: pending,
       passedCount: passed,
       allChecklistPassed: pending.length === 0,
-      // At least one passed and at least one not → notes path
       isPartialChecklist: checklistItems.length > 0 && pending.length > 0 && passed > 0,
     };
   }, [checklistItems, checklistResults]);
@@ -69,12 +75,17 @@ export function TaskEndDialog({
   const nonePassed = checklistItems.length > 0 && passedCount === 0;
   const notesRequired = isPartialChecklist;
   const notesOk = !notesRequired || !!checklistNote.trim();
+  const sampleOk = !isSampleCheck || !!sampleOutcome;
+  const sampleApproveBlocked =
+    !!isSampleCheck && sampleOutcome === "APPROVE" && !allChecklistPassed && checklistItems.length > 0;
 
   const canSubmit =
     !!endRemark.trim() &&
     !nonePassed &&
     (allChecklistPassed || (isPartialChecklist && notesOk)) &&
     !filesBlocking &&
+    sampleOk &&
+    !sampleApproveBlocked &&
     !isPending;
 
   function markAllPassed() {
@@ -129,17 +140,42 @@ export function TaskEndDialog({
           <p className="text-sm text-muted-foreground">Checking uploaded files…</p>
         )}
 
-        <FormSelect
-          id="endStatus"
-          label="Completion Status"
-          value={endStatus}
-          onValueChange={(v) => onEndStatusChange(v as "CHECKING" | "COMPLETED")}
-          options={[
-            { value: "CHECKING", label: "Send for Checking" },
-            { value: "COMPLETED", label: "Mark Completed" },
-          ]}
-          disabled={isPending}
-        />
+        {isSampleCheck && (
+          <FormSelect
+            id="sampleOutcome"
+            label="Sample Check Decision"
+            value={sampleOutcome ?? ""}
+            onValueChange={(v) =>
+              onSampleOutcomeChange?.(v as "APPROVE" | "REJECT" | "RESAMPLE")
+            }
+            options={[
+              { value: "APPROVE", label: "Approve sample" },
+              { value: "REJECT", label: "Reject (correction required)" },
+              { value: "RESAMPLE", label: "Send for re-sample" },
+            ]}
+            placeholder="Select outcome…"
+            disabled={isPending}
+          />
+        )}
+        {sampleApproveBlocked && (
+          <p className="text-xs text-destructive" role="alert">
+            Approve requires every checklist item to pass. Use Reject or Re-sample if items failed.
+          </p>
+        )}
+
+        {!isSampleCheck && (
+          <FormSelect
+            id="endStatus"
+            label="Completion Status"
+            value={endStatus}
+            onValueChange={(v) => onEndStatusChange(v as "CHECKING" | "COMPLETED")}
+            options={[
+              { value: "CHECKING", label: "Send for Checking" },
+              { value: "COMPLETED", label: "Mark Completed" },
+            ]}
+            disabled={isPending}
+          />
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="endRemark">

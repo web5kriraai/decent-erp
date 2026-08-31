@@ -91,6 +91,25 @@ export function CostingView() {
               value={summary?.hasCosting ? "Yes" : "No"}
               trend={summary?.hasCosting ? "Ready for final approval" : "Add cost entries"}
             />
+            <StatCard
+              label="Estimated"
+              value={
+                summary?.estimatedCost != null ? `₹${summary.estimatedCost.toFixed(2)}` : "—"
+              }
+            />
+            <StatCard
+              label="Margin"
+              value={
+                summary?.marginAmount != null
+                  ? `₹${summary.marginAmount.toFixed(2)}`
+                  : "—"
+              }
+              trend={
+                summary?.marginPercent != null
+                  ? `${summary.marginPercent.toFixed(1)}% vs estimate/standard`
+                  : "Set estimate on design create"
+              }
+            />
           </div>
 
           {summary && summary.entryCount > 0 && (
@@ -113,8 +132,13 @@ export function CostingView() {
                 ))}
               </div>
               <p style={{ margin: "1rem 0 0", fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
-                Compare actual development cost (₹{summary.totalDevCost.toFixed(2)}) against your
-                approved estimate or standard cost before final approval.
+                Actual development cost ₹{summary.totalDevCost.toFixed(2)}
+                {summary.estimatedCost != null
+                  ? ` vs estimate ₹${summary.estimatedCost.toFixed(2)}`
+                  : summary.standardCost != null
+                    ? ` vs standard ₹${summary.standardCost.toFixed(2)}`
+                    : " — set an estimate on the design for margin %"}
+                .
               </p>
             </div>
           )}

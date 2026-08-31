@@ -13,7 +13,7 @@ export const SPEC_KPI_METRICS = [
 
 export const KPI_CALCULATION_VERSION = 2;
 
-export const MISTAKE_CORRECTION_TYPES = ["MISTAKE", "MACHINE_MATERIAL_ISSUE"] as const;
+export const MISTAKE_CORRECTION_TYPES = ["MISTAKE", "MACHINE", "MATERIAL"] as const;
 
 export const ERP_HANDOFF_MODULES = [
   "GREY_MATERIAL",

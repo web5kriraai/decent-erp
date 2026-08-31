@@ -80,6 +80,7 @@ export function useTaskMutations() {
       completionStatus,
       checklist,
       checklistNote,
+      sampleOutcome,
     }: {
       taskId: string;
       version: number;
@@ -87,6 +88,7 @@ export function useTaskMutations() {
       completionStatus: "COMPLETED" | "CHECKING";
       checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
       checklistNote?: string;
+      sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
     }) =>
       apiPost<DesignTask>(`/api/tasks/${taskId}/end`, {
         version,
@@ -94,6 +96,7 @@ export function useTaskMutations() {
         completionStatus,
         checklist,
         checklistNote,
+        sampleOutcome,
       }),
     onSuccess: () => {
       invalidate();

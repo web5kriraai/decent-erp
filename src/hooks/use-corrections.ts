@@ -9,8 +9,15 @@ import { useApiToast } from "@/components/ui/ToastProvider";
 export type RaiseCorrectionPayload = {
   designId: string;
   taskId: string;
-  correctionType: "MISTAKE" | "IMPROVEMENT" | "CUSTOMER_CHANGE" | "MACHINE_MATERIAL_ISSUE";
-  responsibleEmployeeId: number;
+  correctionType:
+    | "MISTAKE"
+    | "IMPROVEMENT"
+    | "CUSTOMER_CHANGE"
+    | "MACHINE"
+    | "MATERIAL"
+    | "OTHER";
+  responsibleEmployeeId?: number | null;
+  routeToSubProcessId?: number | null;
   rootCause?: string;
   extraMinutes?: number;
   extraCost?: number;
@@ -75,6 +82,8 @@ export function useUpdateCorrectionStatus() {
     }) => apiPatch<CorrectionRecord>(`/api/corrections/${id}`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       toast.success("Correction updated");
     },
     onError: (error) => toast.errorFromApi(error, "Could not update correction"),

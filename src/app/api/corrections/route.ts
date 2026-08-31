@@ -4,20 +4,35 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { createCorrection, listCorrections } from "@/lib/services/correction-service";
 import type { CorrectionStatus } from "@prisma/client";
 
-const createSchema = z.object({
-  designId: z.string(),
-  taskId: z.string(),
-  correctionType: z.enum([
-    "MISTAKE",
-    "IMPROVEMENT",
-    "CUSTOMER_CHANGE",
-    "MACHINE_MATERIAL_ISSUE",
-  ]),
-  responsibleEmployeeId: z.number().int().positive(),
-  rootCause: z.string().optional(),
-  extraMinutes: z.number().int().optional(),
-  extraCost: z.number().optional(),
-});
+const CORRECTION_TYPES = [
+  "MISTAKE",
+  "IMPROVEMENT",
+  "CUSTOMER_CHANGE",
+  "MACHINE",
+  "MATERIAL",
+  "OTHER",
+] as const;
+
+const createSchema = z
+  .object({
+    designId: z.string(),
+    taskId: z.string(),
+    correctionType: z.enum(CORRECTION_TYPES),
+    responsibleEmployeeId: z.number().int().positive().optional().nullable(),
+    routeToSubProcessId: z.number().int().positive().optional().nullable(),
+    rootCause: z.string().optional(),
+    extraMinutes: z.number().int().optional(),
+    extraCost: z.number().optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.correctionType === "MISTAKE" && !body.responsibleEmployeeId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Responsible employee is required for mistake corrections",
+        path: ["responsibleEmployeeId"],
+      });
+    }
+  });
 
 const STATUS_VALUES = ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING", "DONE", "REJECTED"] as const;
 
@@ -49,6 +64,7 @@ export async function POST(request: Request) {
         taskId: BigInt(body.taskId),
         correctionType: body.correctionType,
         responsibleEmployeeId: body.responsibleEmployeeId,
+        routeToSubProcessId: body.routeToSubProcessId,
         rootCause: body.rootCause,
         extraMinutes: body.extraMinutes,
         extraCost: body.extraCost,

@@ -72,15 +72,25 @@ export async function seedDatabase() {
   }
 
   const approvalLevels = [
-    { code: "CHECKER_APPROVAL", name: "Sample Checker Approval", sequence: 1 },
-    { code: "DESIGN_HEAD_APPROVAL", name: "Design Head Approval", sequence: 2 },
-    { code: "MANAGEMENT_APPROVAL", name: "Management Approval", sequence: 3 },
+    { code: "CHECKER_APPROVAL", name: "Sample Checker Approval", sequence: 1, roleCode: "SAMPLE_CHECKER" },
+    { code: "DESIGN_HEAD_APPROVAL", name: "Design Head Approval", sequence: 2, roleCode: "DESIGN_HEAD" },
+    { code: "MANAGEMENT_APPROVAL", name: "Management Approval", sequence: 3, roleCode: "MANAGEMENT" },
   ];
   for (const level of approvalLevels) {
+    const role = await prisma.role.findUnique({ where: { code: level.roleCode } });
     await prisma.approvalLevel.upsert({
       where: { code: level.code },
-      update: { name: level.name, sequence: level.sequence },
-      create: level,
+      update: {
+        name: level.name,
+        sequence: level.sequence,
+        requiredRoleId: role?.id ?? null,
+      },
+      create: {
+        code: level.code,
+        name: level.name,
+        sequence: level.sequence,
+        requiredRoleId: role?.id ?? null,
+      },
     });
   }
 

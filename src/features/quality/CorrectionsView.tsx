@@ -104,7 +104,10 @@ export function CorrectionsView() {
               {
                 key: "responsibleEmployee",
                 header: "Responsible",
-                render: (row) => row.responsibleEmployee.name,
+                render: (row) =>
+                  row.responsibleEmployee
+                    ? row.responsibleEmployee.name
+                    : "—",
               },
               {
                 key: "status",

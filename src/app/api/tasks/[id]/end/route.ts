@@ -17,6 +17,7 @@ const schema = z.object({
     )
     .optional(),
   checklistNote: z.string().optional(),
+  sampleOutcome: z.enum(["APPROVE", "REJECT", "RESAMPLE"]).optional(),
   version: z.number().int().positive(),
 });
 
@@ -37,6 +38,7 @@ export async function POST(
         attachmentIds: body.attachmentIds,
         checklist: body.checklist,
         checklistNote: body.checklistNote,
+        sampleOutcome: body.sampleOutcome,
       },
       ctx.correlationId,
     );

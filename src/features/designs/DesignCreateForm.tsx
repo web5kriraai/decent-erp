@@ -61,6 +61,8 @@ export function DesignCreateForm() {
   const [workType, setWorkType] = useState<WorkType | "">("");
   const [trendReference, setTrendReference] = useState("");
   const [celebrityReference, setCelebrityReference] = useState("");
+  const [targetGrade, setTargetGrade] = useState("");
+  const [estimatedCost, setEstimatedCost] = useState("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [productTypeId, setProductTypeId] = useState<number | "">("");
   const [seasonId, setSeasonId] = useState<number | "">("");
@@ -105,6 +107,14 @@ export function DesignCreateForm() {
       (ct) => ct.productTypeId == null || ct.productTypeId === productTypeId,
     );
   }, [componentTypes.data, productTypeId]);
+
+  const availablePatterns = useMemo(() => {
+    const list = patterns.data ?? [];
+    if (!productTypeId) return list;
+    return list.filter(
+      (p) => p.productTypeId == null || p.productTypeId === productTypeId,
+    );
+  }, [patterns.data, productTypeId]);
 
   const validationErrors: Record<string, string> = {};
   if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
@@ -178,6 +188,8 @@ export function DesignCreateForm() {
         workType: workType || undefined,
         trendReference: trendReference.trim() || undefined,
         celebrityReference: celebrityReference.trim() || undefined,
+        targetGrade: targetGrade.trim() || undefined,
+        estimatedCost: estimatedCost ? Number(estimatedCost) : undefined,
         priority,
         componentTypeIds: componentTypeIds.length > 0 ? componentTypeIds : undefined,
         assignmentMode,
@@ -278,6 +290,21 @@ export function DesignCreateForm() {
               </div>
 
               <div className="form-group">
+                <label className="form-label" htmlFor="targetGrade">
+                  Target Grade
+                </label>
+                <input
+                  id="targetGrade"
+                  className="form-input"
+                  value={targetGrade}
+                  onChange={(e) => setTargetGrade(e.target.value)}
+                  placeholder="e.g. Premium / A / Bridal"
+                />
+              </div>
+            </div>
+
+            <div className="form-grid form-grid--2">
+              <div className="form-group">
                 <label className="form-label" htmlFor="workType">
                   Work Type
                 </label>
@@ -294,6 +321,21 @@ export function DesignCreateForm() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="estimatedCost">
+                  Estimated Cost (₹)
+                </label>
+                <input
+                  id="estimatedCost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="form-input"
+                  value={estimatedCost}
+                  onChange={(e) => setEstimatedCost(e.target.value)}
+                  placeholder="Optional estimate for margin"
+                />
               </div>
             </div>
 
@@ -469,9 +511,10 @@ export function DesignCreateForm() {
                     }
                   >
                     <option value="">Select pattern…</option>
-                    {patterns.data?.map((p) => (
+                    {availablePatterns.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} (v{p.versionNo})
+                        {p.productType ? ` · ${p.productType.name}` : ""}
                       </option>
                     ))}
                   </select>
