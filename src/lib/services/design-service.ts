@@ -259,6 +259,50 @@ export async function updateDesign(
   });
 }
 
+export async function updateDesignStatus(
+  id: bigint,
+  status: import("@prisma/client").DesignStatus,
+  version: number,
+  userId: number,
+  correlationId: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.designConcept.findUnique({ where: { id } });
+    if (!existing) throw new ApiError("Design not found", 404);
+    if (existing.version !== version) {
+      throw new ApiError("Concurrency conflict - refresh and retry", 409);
+    }
+
+    const updated = await tx.designConcept.update({
+      where: { id },
+      data: { status, version: { increment: 1 } },
+    });
+
+    await writeAuditLog(tx, {
+      entityType: "DesignConcept",
+      entityId: id.toString(),
+      action: "STATUS_CHANGE",
+      userId,
+      correlationId,
+      before: existing,
+      after: updated,
+    });
+
+    return updated;
+  });
+}
+
+export async function listDesignsForKanban() {
+  return prisma.designConcept.findMany({
+    where: { status: { notIn: ["CLOSED", "REJECTED"] } },
+    orderBy: { updatedAtUtc: "desc" },
+    include: {
+      productType: { select: { name: true } },
+      designHead: { select: { name: true } },
+    },
+  });
+}
+
 export async function generateTasksFromPattern(
   designId: bigint,
   workflowPatternId: number,

@@ -41,7 +41,15 @@ jobs:
         run: npx prisma generate
       - name: Migrate
         run: npx prisma migrate deploy
+      - name: Seed
+        run: npm run db:seed
       - name: Test
         run: npm test
       - name: Build
         run: npm run build
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+      - name: E2E tests
+        run: npm run test:e2e
+        env:
+          CI: true

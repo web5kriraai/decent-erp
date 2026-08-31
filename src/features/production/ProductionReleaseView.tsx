@@ -10,8 +10,10 @@ import { StatusBadge } from "@/components/StatusBadge";
 import {
   useApprovedDesigns,
   useMarkDesignLive,
+  useProductionHandoffs,
   useReleasedDesigns,
   useReleaseToProduction,
+  useRetryHandoffSync,
 } from "@/hooks/use-production";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -25,6 +27,8 @@ export function ProductionReleaseView() {
   const releasedQuery = useReleasedDesigns(canRelease);
   const release = useReleaseToProduction();
   const markLive = useMarkDesignLive();
+  const handoffsQuery = useProductionHandoffs(canRelease);
+  const retrySync = useRetryHandoffSync();
 
   if (!canRelease) {
     return (
@@ -153,6 +157,61 @@ export function ProductionReleaseView() {
             getRowKey={(r) => r.id}
             emptyTitle="No designs awaiting go-live"
             emptyDescription="Production-released designs will appear here for final live marking."
+          />
+        </div>
+      </QueryState>
+
+      <QueryState
+        isLoading={handoffsQuery.isLoading}
+        isError={handoffsQuery.isError}
+        error={handoffsQuery.error}
+        onRetry={() => handoffsQuery.refetch()}
+        skeletonVariant="table"
+      >
+        <div className="card" style={{ marginTop: "1.5rem" }}>
+          <div className="card-header">
+            <span className="card-title">ERP Handoffs (Grey / Cutting / Sales)</span>
+          </div>
+          <DataTable
+            columns={[
+              {
+                key: "design",
+                header: "Design",
+                render: (row) => (
+                  <Link href={ROUTES.designs.detail(row.design.id)} className="data-table-link">
+                    {row.design.ideaRef}
+                  </Link>
+                ),
+              },
+              { key: "erpModule", header: "Module" },
+              { key: "designNumber", header: "Design No." },
+              {
+                key: "status",
+                header: "Sync Status",
+                render: (row) => <StatusBadge status={row.status} />,
+              },
+              { key: "erpReference", header: "ERP Ref", render: (r) => r.erpReference ?? "—" },
+              {
+                key: "actions",
+                header: "",
+                align: "right",
+                render: (row) =>
+                  row.status === "FAILED" || row.status === "QUEUED" ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={retrySync.isPending}
+                      onClick={() => retrySync.mutate(row.id)}
+                    >
+                      Retry sync
+                    </button>
+                  ) : null,
+              },
+            ]}
+            rows={handoffsQuery.data ?? []}
+            getRowKey={(r) => r.id}
+            emptyTitle="No ERP handoffs yet"
+            emptyDescription="Handoffs are created when designs are released to production."
           />
         </div>
       </QueryState>

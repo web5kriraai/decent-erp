@@ -22,6 +22,7 @@ export const ROUTES = {
   dashboard: "/dashboard",
   designs: {
     list: "/designs",
+    kanban: "/designs/kanban",
     new: "/designs/new",
     detail: (id: string) => `/designs/${id}`,
     task: (designId: string, taskId: string) => `/designs/${designId}/tasks/${taskId}`,
@@ -107,6 +108,13 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "designs-list",
         label: "All Designs",
         href: ROUTES.designs.list,
+        icon: IconDesigns,
+        permission: PERMISSIONS.DESIGN_CREATE,
+      },
+      {
+        id: "designs-kanban",
+        label: "Pipeline Board",
+        href: ROUTES.designs.kanban,
         icon: IconDesigns,
         permission: PERMISSIONS.DESIGN_CREATE,
       },
@@ -263,6 +271,11 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Designs" },
   ],
+  [ROUTES.designs.kanban]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Designs", href: ROUTES.designs.list },
+    { label: "Pipeline Board" },
+  ],
   [ROUTES.designs.new]: [
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Designs", href: ROUTES.designs.list },
@@ -340,7 +353,7 @@ export function isNavActive(pathname: string, href: string, exact?: boolean): bo
   if (exact) return pathname === href;
   if (pathname === href) return true;
   if (href === ROUTES.designs.list && pathname.startsWith("/designs/")) {
-    return pathname !== ROUTES.designs.new;
+    return pathname !== ROUTES.designs.new && pathname !== ROUTES.designs.kanban;
   }
   return pathname.startsWith(`${href}/`);
 }

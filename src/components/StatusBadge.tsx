@@ -20,6 +20,9 @@ const STATUS_TOKENS: Record<string, { bg: string; text: string; dot: string }> =
   OPEN: { bg: "var(--color-warning-bg)", text: "var(--color-warning)", dot: "var(--color-warning)" },
   IN_PROGRESS: { bg: "var(--color-primary-light)", text: "var(--color-primary)", dot: "var(--color-primary)" },
   DONE: { bg: "var(--color-success-bg)", text: "var(--color-success)", dot: "var(--color-success)" },
+  SYNCED: { bg: "var(--color-success-bg)", text: "var(--color-success)", dot: "var(--color-success)" },
+  QUEUED: { bg: "var(--color-info-bg)", text: "var(--color-info)", dot: "var(--color-info)" },
+  FAILED: { bg: "var(--color-danger-bg)", text: "var(--color-danger)", dot: "var(--color-danger)" },
 };
 
 type StatusBadgeProps = {

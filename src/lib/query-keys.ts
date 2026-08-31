@@ -1,6 +1,7 @@
 export const queryKeys = {
   designs: {
     all: ["designs"] as const,
+    kanban: ["designs", "kanban"] as const,
     list: (filters?: { status?: string; search?: string }) =>
       ["designs", "list", filters] as const,
     detail: (id: string) => ["designs", "detail", id] as const,
@@ -44,6 +45,7 @@ export const queryKeys = {
   production: {
     approved: ["production", "approved"] as const,
     released: ["production", "released"] as const,
+    handoffs: (designId?: string) => ["production", "handoffs", designId] as const,
   },
   audit: {
     list: (filters?: Record<string, string>) => ["audit", filters] as const,
@@ -52,6 +54,7 @@ export const queryKeys = {
     dashboard: ["admin", "dashboard"] as const,
     employees: ["admin", "employees"] as const,
     roles: ["admin", "roles"] as const,
+    rolePermissions: (roleId: number) => ["admin", "roles", roleId, "permissions"] as const,
     suggestCode: ["admin", "employees", "suggest-code"] as const,
   },
 } as const;

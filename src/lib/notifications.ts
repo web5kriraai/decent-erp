@@ -13,5 +13,16 @@ export async function enqueueOutboxAndNotify(
       payload: payload as Prisma.InputJsonValue,
     },
   });
-  await enqueueNotification({ eventType, payload, correlationId });
+  try {
+    await enqueueNotification({ eventType, payload, correlationId });
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "Notification queue unavailable; outbox row retained",
+        eventType,
+        error: String(error),
+      }),
+    );
+  }
 }

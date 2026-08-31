@@ -1641,6 +1641,58 @@ a.sidebar-brand-link:hover {
   line-height: 1.55;
 }
 
+.role-perm-editor {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.role-perm-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.role-perm-editor-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.role-perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.5rem;
+}
+
+.role-perm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  font-size: var(--font-size-caption);
+}
+
+.role-perm-check--on {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.role-perm-check strong {
+  display: block;
+  font-size: var(--font-size-body);
+}
+
+.role-perm-check small {
+  display: block;
+  color: var(--color-neutral-500);
+  margin-top: 0.125rem;
+}
+
 .sidebar-footer-role {
   font-weight: 600;
   font-size: var(--font-size-caption);

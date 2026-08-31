@@ -91,3 +91,34 @@ export function useUpdateEmployeeRole() {
       updateEmployee.mutateAsync({ employeeId, roleCode }),
   };
 }
+
+export type RolePermissionMatrix = {
+  role: { id: number; code: string; name: string };
+  permissions: Array<{ id: number; code: string; name: string; assigned: boolean }>;
+};
+
+export function useRolePermissionMatrix(roleId: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.admin.rolePermissions(roleId),
+    queryFn: () => apiGet<RolePermissionMatrix>(`/api/admin/roles/${roleId}/permissions`),
+    enabled: enabled && roleId > 0,
+  });
+}
+
+export function useUpdateRolePermissions() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: ({ roleId, permissionCodes }: { roleId: number; permissionCodes: string[] }) =>
+      apiPatch<RolePermissionMatrix>(`/api/admin/roles/${roleId}/permissions`, {
+        permissionCodes,
+      }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.rolePermissions(data.role.id) });
+      toast.success("Permissions saved", data.role.name);
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not update permissions"),
+  });
+}

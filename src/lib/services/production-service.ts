@@ -80,6 +80,8 @@ export async function releaseToProduction(
       { designId: design.id.toString(), ideaRef: design.ideaRef, designNumber: design.designNumber },
       correlationId,
     );
+    const { syncPrimaryErpModules } = await import("@/lib/services/erp-handoff-service");
+    await syncPrimaryErpModules(design.id, actorId, correlationId);
     return design;
   });
 }

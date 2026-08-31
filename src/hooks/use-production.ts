@@ -48,6 +48,7 @@ export function useReleaseToProduction() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.production.approved });
       queryClient.invalidateQueries({ queryKey: queryKeys.production.released });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffs() });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       toast.success("Released to production", data.ideaRef);
     },
@@ -66,9 +67,42 @@ export function useMarkDesignLive() {
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.production.released });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffs() });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       toast.success("Design is live", data.ideaRef);
     },
     onError: (error) => toast.errorFromApi(error, "Could not mark design live"),
+  });
+}
+
+export type ProductionHandoffRow = {
+  id: string;
+  erpModule: string;
+  designNumber: string;
+  status: string;
+  erpReference: string | null;
+  design: { id: string; ideaRef: string; collectionName: string; status: string };
+};
+
+export function useProductionHandoffs(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.production.handoffs(),
+    queryFn: () => apiGet<ProductionHandoffRow[]>("/api/production/handoffs"),
+    enabled,
+  });
+}
+
+export function useRetryHandoffSync() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: (handoffId: string) =>
+      apiPost<ProductionHandoffRow>("/api/production/handoffs", { handoffId }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffs() });
+      toast.success("ERP sync complete", `${data.erpModule} → ${data.erpReference ?? "synced"}`);
+    },
+    onError: (error) => toast.errorFromApi(error, "ERP sync failed"),
   });
 }

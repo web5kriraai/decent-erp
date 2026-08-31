@@ -161,3 +161,66 @@ export async function updateEmployeeRole(
 ) {
   return updateEmployee(employeeId, { roleCode }, actorEmployeeId);
 }
+
+export async function getRolePermissionMatrix(roleId: number) {
+  const role = await prisma.role.findUnique({
+    where: { id: roleId },
+    include: {
+      permissions: { include: { permission: true } },
+    },
+  });
+  if (!role) throw new ApiError("Role not found", 404);
+
+  const allPermissions = await prisma.permission.findMany({ orderBy: { code: "asc" } });
+  const assigned = new Set(role.permissions.map((rp) => rp.permission.code));
+
+  return {
+    role: { id: role.id, code: role.code, name: role.name },
+    permissions: allPermissions.map((p) => ({
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      assigned: assigned.has(p.code),
+    })),
+  };
+}
+
+export async function updateRolePermissions(
+  roleId: number,
+  permissionCodes: string[],
+  actorId: number,
+  correlationId: string,
+) {
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role) throw new ApiError("Role not found", 404);
+
+  if (role.code === ROLE_CODES.ADMIN && !permissionCodes.includes("MASTER_ADMIN")) {
+    throw new ApiError("System Admin role must retain MASTER_ADMIN permission", 422);
+  }
+
+  const permissions = await prisma.permission.findMany({
+    where: { code: { in: permissionCodes } },
+  });
+  if (permissions.length !== permissionCodes.length) {
+    throw new ApiError("One or more permission codes are invalid", 400);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.rolePermission.deleteMany({ where: { roleId } });
+    await tx.rolePermission.createMany({
+      data: permissions.map((p) => ({ roleId, permissionId: p.id })),
+    });
+  });
+
+  const { writeAuditLogDirect } = await import("@/lib/audit");
+  await writeAuditLogDirect({
+    entityType: "Role",
+    entityId: String(roleId),
+    action: "UPDATE_PERMISSIONS",
+    userId: actorId,
+    correlationId,
+    after: { permissionCodes },
+  });
+
+  return getRolePermissionMatrix(roleId);
+}

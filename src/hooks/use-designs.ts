@@ -22,6 +22,26 @@ export function useDesign(id: string, enabled = true) {
   });
 }
 
+export function useDesignKanban(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.designs.kanban,
+    queryFn: () =>
+      apiGet<
+        Array<{
+          id: string;
+          ideaRef: string;
+          collectionName: string;
+          status: string;
+          priority: string;
+          version: number;
+          productType: { name: string };
+          designHead: { name: string };
+        }>
+      >("/api/designs/kanban"),
+    enabled,
+  });
+}
+
 export function useCreateDesign() {
   const queryClient = useQueryClient();
   const toast = useApiToast();
@@ -31,6 +51,7 @@ export function useCreateDesign() {
       apiPost<DesignSummary>("/api/designs", payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.kanban });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       toast.success("Design created", `${data.ideaRef} with tasks generated`);
     },
@@ -59,9 +80,34 @@ export function useUpdateDesign() {
     }) => apiPatch<DesignSummary>(`/api/designs/${designId}`, payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.kanban });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(data.id) });
       toast.success("Design updated");
     },
     onError: (error) => toast.errorFromApi(error, "Failed to update design"),
+  });
+}
+
+export function useUpdateDesignStatus() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: ({
+      designId,
+      status,
+      version,
+    }: {
+      designId: string;
+      status: string;
+      version: number;
+    }) => apiPatch<DesignSummary>(`/api/designs/${designId}/status`, { status, version }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.kanban });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(data.id) });
+      toast.success("Status updated", data.status.replace(/_/g, " "));
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not update status"),
   });
 }
