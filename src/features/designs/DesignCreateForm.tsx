@@ -8,6 +8,7 @@ import { QueryState } from "@/components/ui/QueryState";
 import { useCreateDesign } from "@/hooks/use-designs";
 import {
   useComponentTypes,
+  useMasterEmployees,
   useProcessMasters,
   useProductTypes,
   useSeasons,
@@ -25,6 +26,7 @@ type ManualTaskDraft = {
   processId: number | "";
   subProcessId: number | "";
   expectedMinutes: string;
+  assignedEmployeeId: number | "";
 };
 
 function emptyManualTask(index: number): ManualTaskDraft {
@@ -33,6 +35,7 @@ function emptyManualTask(index: number): ManualTaskDraft {
     processId: "",
     subProcessId: "",
     expectedMinutes: "60",
+    assignedEmployeeId: "",
   };
 }
 
@@ -46,12 +49,6 @@ const WORK_TYPE_OPTIONS: { value: WorkType; label: string }[] = [
 export function DesignCreateForm() {
   const router = useRouter();
   const createDesign = useCreateDesign();
-
-  const productTypes = useProductTypes();
-  const seasons = useSeasons();
-  const patterns = useWorkflowPatterns();
-  const componentTypes = useComponentTypes();
-  const processes = useProcessMasters();
 
   const [collectionName, setCollectionName] = useState("");
   const [styleName, setStyleName] = useState("");
@@ -68,12 +65,33 @@ export function DesignCreateForm() {
   const [manualTasks, setManualTasks] = useState<ManualTaskDraft[]>(() => [emptyManualTask(0)]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
+  const productTypes = useProductTypes();
+  const seasons = useSeasons();
+  const patterns = useWorkflowPatterns();
+  const componentTypes = useComponentTypes();
+  const processes = useProcessMasters(assignmentMode === "MANUAL");
+  const employees = useMasterEmployees(assignmentMode === "MANUAL");
+
   const mastersLoading =
     productTypes.isLoading ||
     seasons.isLoading ||
     patterns.isLoading ||
     componentTypes.isLoading ||
-    processes.isLoading;
+    (assignmentMode === "MANUAL" && (processes.isLoading || employees.isLoading));
+
+  const mastersError =
+    productTypes.isError ||
+    seasons.isError ||
+    patterns.isError ||
+    componentTypes.isError ||
+    (assignmentMode === "MANUAL" && (processes.isError || employees.isError));
+
+  const mastersErrorObj =
+    productTypes.error ??
+    seasons.error ??
+    patterns.error ??
+    componentTypes.error ??
+    (assignmentMode === "MANUAL" ? processes.error ?? employees.error : undefined);
 
   const availableComponentTypes = useMemo(() => {
     const types = componentTypes.data ?? [];
@@ -127,6 +145,18 @@ export function DesignCreateForm() {
     setManualTasks((prev) => (prev.length <= 1 ? prev : prev.filter((task) => task.id !== id)));
   }
 
+  function moveManualTask(id: string, direction: "up" | "down") {
+    setManualTasks((prev) => {
+      const index = prev.findIndex((t) => t.id === id);
+      if (index < 0) return prev;
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFieldErrors({});
@@ -155,10 +185,13 @@ export function DesignCreateForm() {
                 subProcessId: Number(task.subProcessId),
                 expectedMinutes: Number(task.expectedMinutes),
                 sequence: index + 1,
+                assignedEmployeeId: task.assignedEmployeeId
+                  ? Number(task.assignedEmployeeId)
+                  : undefined,
               }))
             : undefined,
       });
-      router.push(ROUTES.designs.detail(design.id));
+      router.push(`${ROUTES.designs.detail(design.id)}?setup=images`);
     } catch (error) {
       if (error instanceof ApiClientError && error.details) {
         setFieldErrors(getFieldErrors(error.details));
@@ -182,30 +215,21 @@ export function DesignCreateForm() {
 
       <QueryState
         isLoading={mastersLoading}
-        isError={
-          productTypes.isError ||
-          seasons.isError ||
-          patterns.isError ||
-          componentTypes.isError ||
-          processes.isError
-        }
-        error={
-          productTypes.error ??
-          seasons.error ??
-          patterns.error ??
-          componentTypes.error ??
-          processes.error
-        }
+        isError={mastersError}
+        error={mastersErrorObj}
         onRetry={() => {
           productTypes.refetch();
           seasons.refetch();
           patterns.refetch();
           componentTypes.refetch();
-          processes.refetch();
+          if (assignmentMode === "MANUAL") {
+            processes.refetch();
+            employees.refetch();
+          }
         }}
         skeletonVariant="table"
       >
-        <form onSubmit={handleSubmit} className="card" style={{ maxWidth: 720 }}>
+        <form onSubmit={handleSubmit} className="card form-card">
           {createDesign.isError && createDesign.error instanceof ApiClientError && (
             <div style={{ marginBottom: "1rem" }}>
               <ErrorBanner
@@ -215,7 +239,7 @@ export function DesignCreateForm() {
             </div>
           )}
 
-          <div style={{ display: "grid", gap: "1rem" }}>
+          <div className="form-grid">
             <div className="form-group">
               <label className="form-label" htmlFor="collection">
                 Collection Name *
@@ -234,7 +258,7 @@ export function DesignCreateForm() {
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div className="form-grid form-grid--2">
               <div className="form-group">
                 <label className="form-label" htmlFor="styleName">
                   Style Name
@@ -282,7 +306,7 @@ export function DesignCreateForm() {
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div className="form-grid form-grid--2">
               <div className="form-group">
                 <label className="form-label" htmlFor="trendReference">
                   Trend Reference
@@ -310,7 +334,7 @@ export function DesignCreateForm() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div className="form-grid form-grid--2">
               <div className="form-group">
                 <label className="form-label" htmlFor="productType">
                   Product Type *
@@ -372,13 +396,7 @@ export function DesignCreateForm() {
               {availableComponentTypes.length === 0 ? (
                 <p className="form-hint">No component types available.</p>
               ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                    gap: "0.25rem 1rem",
-                  }}
-                >
+                <div className="form-grid form-grid--checkboxes">
                   {availableComponentTypes.map((ct) => (
                     <label key={ct.id} className="form-checkbox-row" style={{ margin: 0 }}>
                       <input
@@ -393,7 +411,13 @@ export function DesignCreateForm() {
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div
+              className={
+                assignmentMode === "AUTOMATIC"
+                  ? "form-grid form-grid--3"
+                  : "form-grid form-grid--2"
+              }
+            >
               <div className="form-group">
                 <label className="form-label" htmlFor="priority">
                   Priority
@@ -425,36 +449,36 @@ export function DesignCreateForm() {
                   <option value="MANUAL">Manual (custom task list)</option>
                 </select>
               </div>
-            </div>
 
-            {assignmentMode === "AUTOMATIC" && (
-              <div className="form-group">
-                <label className="form-label" htmlFor="pattern">
-                  Workflow Pattern *
-                </label>
-                <select
-                  id="pattern"
-                  className="form-select"
-                  value={workflowPatternId}
-                  onChange={(e) =>
-                    setWorkflowPatternId(e.target.value ? Number(e.target.value) : "")
-                  }
-                >
-                  <option value="">Select pattern…</option>
-                  {patterns.data?.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} (v{p.versionNo})
-                    </option>
-                  ))}
-                </select>
-                {(validationErrors.workflowPatternId || fieldErrors.workflowPatternId) && (
-                  <span className="form-error">
-                    {validationErrors.workflowPatternId ??
-                      fieldErrors.workflowPatternId?.[0]}
-                  </span>
-                )}
-              </div>
-            )}
+              {assignmentMode === "AUTOMATIC" && (
+                <div className="form-group">
+                  <label className="form-label" htmlFor="pattern">
+                    Workflow Pattern *
+                  </label>
+                  <select
+                    id="pattern"
+                    className="form-select"
+                    value={workflowPatternId}
+                    onChange={(e) =>
+                      setWorkflowPatternId(e.target.value ? Number(e.target.value) : "")
+                    }
+                  >
+                    <option value="">Select pattern…</option>
+                    {patterns.data?.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (v{p.versionNo})
+                      </option>
+                    ))}
+                  </select>
+                  {(validationErrors.workflowPatternId || fieldErrors.workflowPatternId) && (
+                    <span className="form-error">
+                      {validationErrors.workflowPatternId ??
+                        fieldErrors.workflowPatternId?.[0]}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
 
             {assignmentMode === "MANUAL" && (
               <div>
@@ -482,7 +506,7 @@ export function DesignCreateForm() {
                   </span>
                 )}
 
-                <div style={{ display: "grid", gap: "0.75rem" }}>
+                <div className="form-grid" style={{ gap: "0.75rem" }}>
                   {manualTasks.map((task, index) => {
                     const process = processList.find((p) => p.id === task.processId);
                     const subProcesses = process?.subProcesses ?? [];
@@ -491,7 +515,7 @@ export function DesignCreateForm() {
                       <div
                         key={task.id}
                         className="card"
-                        style={{ padding: "0.75rem", display: "grid", gap: "0.5rem" }}
+                        style={{ padding: "0.75rem", display: "grid", gap: "0.75rem" }}
                       >
                         <div
                           style={{
@@ -501,20 +525,38 @@ export function DesignCreateForm() {
                           }}
                         >
                           <strong>Task {index + 1}</strong>
-                          {manualTasks.length > 1 && (
+                          <div style={{ display: "flex", gap: "0.25rem" }}>
                             <button
                               type="button"
                               className="btn btn-ghost btn-sm"
-                              onClick={() => removeManualTaskRow(task.id)}
+                              disabled={index === 0}
+                              onClick={() => moveManualTask(task.id, "up")}
+                              aria-label={`Move task ${index + 1} up`}
                             >
-                              Remove
+                              ↑
                             </button>
-                          )}
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              disabled={index === manualTasks.length - 1}
+                              onClick={() => moveManualTask(task.id, "down")}
+                              aria-label={`Move task ${index + 1} down`}
+                            >
+                              ↓
+                            </button>
+                            {manualTasks.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => removeManualTaskRow(task.id)}
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
                         </div>
 
-                        <div
-                          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}
-                        >
+                        <div className="form-grid form-grid--2" style={{ gap: "0.5rem" }}>
                           <div className="form-group" style={{ margin: 0 }}>
                             <label className="form-label">Process</label>
                             <select
@@ -557,17 +599,41 @@ export function DesignCreateForm() {
                           </div>
                         </div>
 
-                        <div className="form-group" style={{ margin: 0, maxWidth: 160 }}>
-                          <label className="form-label">Expected Minutes</label>
-                          <input
-                            type="number"
-                            min={1}
-                            className="form-input"
-                            value={task.expectedMinutes}
-                            onChange={(e) =>
-                              updateManualTask(task.id, { expectedMinutes: e.target.value })
-                            }
-                          />
+                        <div className="form-grid form-grid--2" style={{ gap: "0.5rem" }}>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label className="form-label">Expected Minutes</label>
+                            <input
+                              type="number"
+                              min={1}
+                              className="form-input"
+                              value={task.expectedMinutes}
+                              onChange={(e) =>
+                                updateManualTask(task.id, { expectedMinutes: e.target.value })
+                              }
+                            />
+                          </div>
+
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label className="form-label">Assign To</label>
+                            <select
+                              className="form-select"
+                              value={task.assignedEmployeeId}
+                              onChange={(e) =>
+                                updateManualTask(task.id, {
+                                  assignedEmployeeId: e.target.value
+                                    ? Number(e.target.value)
+                                    : "",
+                                })
+                              }
+                            >
+                              <option value="">Auto by role</option>
+                              {employees.data?.map((emp) => (
+                                <option key={emp.id} value={emp.id}>
+                                  {emp.name} ({emp.employeeCode})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                       </div>
                     );

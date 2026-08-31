@@ -127,5 +127,6 @@ export function requirePermission(
   required: PermissionCode | PermissionCode[],
 ) {
   const requiredList = Array.isArray(required) ? required : [required];
-  return requiredList.every((p) => permissions.includes(p));
+  // Array = any of (OR). Matches API routes like [DESIGN_CREATE, TASK_EXECUTE].
+  return requiredList.some((p) => permissions.includes(p));
 }

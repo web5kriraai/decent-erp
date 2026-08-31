@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { IconCheck, IconDesigns } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
-import { DEMO_ACCOUNTS, formatRoleLabel } from "@/config/roles";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@decent-erp.local");
-  const [password, setPassword] = useState("Admin@123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -120,36 +119,6 @@ export default function LoginPage() {
               {loading ? "Signing in…" : "Sign in to workspace"}
             </button>
           </form>
-
-          <details className="login-demo-accounts" style={{ marginTop: "1.25rem" }}>
-            <summary className="form-hint" style={{ cursor: "pointer", textAlign: "center" }}>
-              Demo accounts by role (password Demo@123)
-            </summary>
-            <ul className="login-demo-list">
-              {DEMO_ACCOUNTS.filter((a) => a.email !== "admin@decent-erp.local").map((account) => (
-                <li key={account.email}>
-                  <button
-                    type="button"
-                    className="login-demo-btn"
-                    onClick={() => {
-                      setEmail(account.email);
-                      setPassword(account.password);
-                    }}
-                  >
-                    <strong>{formatRoleLabel(account.role)}</strong>
-                    <span>{account.email}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </details>
-
-          <p
-            className="form-hint"
-            style={{ marginTop: "0.75rem", textAlign: "center" }}
-          >
-            Admin: admin@decent-erp.local / Admin@123
-          </p>
         </div>
       </div>
     </div>

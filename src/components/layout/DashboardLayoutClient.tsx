@@ -8,10 +8,15 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`app-shell ${collapsed ? "app-shell--sidebar-collapsed" : ""}`}>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <Sidebar />
       <div className="app-main">
         <TopBar />
-        <div className="app-content">{children}</div>
+        <main id="main-content" className="app-content" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     </div>
   );

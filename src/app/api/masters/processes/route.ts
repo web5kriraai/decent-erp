@@ -12,10 +12,13 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
-    const processes = await getProcessMasters();
-    return jsonOk(serializeBigInt(processes), ctx.correlationId);
-  });
+  return withApiHandler(
+    [PERMISSIONS.MASTER_ADMIN, PERMISSIONS.DESIGN_CREATE, PERMISSIONS.DESIGN_ASSIGN],
+    async (ctx) => {
+      const processes = await getProcessMasters();
+      return jsonOk(serializeBigInt(processes), ctx.correlationId);
+    },
+  );
 }
 
 export async function POST(request: Request) {

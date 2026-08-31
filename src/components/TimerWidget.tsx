@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 type TimerWidgetProps = {
   status: "RUNNING" | "ON_HOLD" | "IDLE";
   elapsedSeconds: number;
@@ -24,6 +26,20 @@ export function TimerWidget({
   onResume,
   onEnd,
 }: TimerWidgetProps) {
+  const [displaySeconds, setDisplaySeconds] = useState(elapsedSeconds);
+
+  useEffect(() => {
+    setDisplaySeconds(elapsedSeconds);
+    if (status !== "RUNNING") return;
+
+    const startedAt = Date.now();
+    const base = elapsedSeconds;
+    const id = window.setInterval(() => {
+      setDisplaySeconds(base + Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [elapsedSeconds, status]);
+
   const widgetClass =
     status === "RUNNING"
       ? "timer-widget timer-widget--running"
@@ -51,8 +67,8 @@ export function TimerWidget({
       >
         Active Task Timer
       </p>
-      <p className="timer-display" aria-live="polite" aria-label={`Elapsed ${formatTime(elapsedSeconds)}`}>
-        {formatTime(elapsedSeconds)}
+      <p className="timer-display" aria-live="polite" aria-label={`Elapsed ${formatTime(displaySeconds)}`}>
+        {formatTime(displaySeconds)}
       </p>
       <span className="timer-status" style={{ color: statusColor }}>
         <span className="badge-dot" style={{ background: statusColor }} />

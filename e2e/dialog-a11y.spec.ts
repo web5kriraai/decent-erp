@@ -1,0 +1,56 @@
+/**
+ * Dialog accessibility tests — Esc closes, outside click does not dismiss, Tab stays trapped.
+ */
+import { execSync } from "node:child_process";
+import { expect, test } from "@playwright/test";
+import { USERS, apiGetJson, apiPostJson, login } from "./helpers/auth";
+
+function resetActiveTasks() {
+  execSync("npx tsx scripts/reset-e2e-task-state.mjs", { stdio: "pipe" });
+}
+
+test.describe("Dialog accessibility", () => {
+  test.beforeEach(async ({ page }) => {
+    resetActiveTasks();
+    await login(page, USERS.sketch.email, USERS.sketch.password);
+    const tasks = await apiGetJson<Array<{ id: string; status: string }>>(page, "/api/tasks/my");
+    const running = tasks.find((t) => t.status === "RUNNING");
+    const assigned = tasks.find((t) => t.status === "ASSIGNED");
+    if (!running && assigned) {
+      await apiPostJson(page, `/api/tasks/${assigned.id}/start`, {});
+    }
+    await page.goto("/work/tasks");
+    await expect(page.getByRole("heading", { name: /My Tasks/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Hold task/i })).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  test.afterEach(() => {
+    resetActiveTasks();
+  });
+
+  test("Hold dialog: Esc closes, overlay click does not close", async ({ page }) => {
+    await page.getByRole("button", { name: /Hold task/i }).click();
+    const dialog = page.getByRole("dialog", { name: /Hold Task/i });
+    await expect(dialog).toBeVisible();
+
+    await page.locator('[data-slot="dialog-overlay"]').click({ position: { x: 5, y: 5 }, force: true });
+    await expect(dialog).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+  });
+
+  test("Hold dialog: Tab cycles within dialog", async ({ page }) => {
+    await page.getByRole("button", { name: /Hold task/i }).click();
+    const dialog = page.getByRole("dialog", { name: /Hold Task/i });
+    await expect(dialog).toBeVisible();
+
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    const focusedInDialog = await dialog.evaluate((el) => el.contains(document.activeElement));
+    expect(focusedInDialog).toBe(true);
+  });
+});

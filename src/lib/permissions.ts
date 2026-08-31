@@ -60,5 +60,6 @@ export function hasPermission(
   required: PermissionCode | PermissionCode[],
 ): boolean {
   const requiredList = Array.isArray(required) ? required : [required];
-  return requiredList.every((p) => userPermissions.includes(p));
+  // Array = any of (OR). Single code = must have that permission.
+  return requiredList.some((p) => userPermissions.includes(p));
 }

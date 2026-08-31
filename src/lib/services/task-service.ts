@@ -258,6 +258,7 @@ export async function endTask(
     version: number;
     attachmentIds?: number[];
     checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
+    checklistNote?: string;
   },
   correlationId: string,
 ) {
@@ -281,14 +282,44 @@ export async function endTask(
       where: { subProcessId: task.subProcessId, active: true },
     });
     if (requiredChecklist.length > 0) {
-      const submitted = new Map((input.checklist ?? []).map((c) => [c.itemId, c.result]));
+      const submitted = new Map(
+        (input.checklist ?? []).map((c) => [c.itemId, c] as const),
+      );
+      const sharedNote = input.checklistNote?.trim() || "";
+      let passedCount = 0;
+      let failedCount = 0;
+
       for (const item of requiredChecklist) {
-        if (!submitted.has(item.id)) {
+        const entry = submitted.get(item.id);
+        if (!entry) {
           throw new ApiError(`Checklist item "${item.name}" is required`, 422);
         }
-        if (submitted.get(item.id) === false) {
-          throw new ApiError(`Checklist item "${item.name}" must pass`, 422);
+        if (entry.result) {
+          passedCount += 1;
+          continue;
         }
+        failedCount += 1;
+        const itemNote = entry.remark?.trim() || sharedNote;
+        if (!itemNote) {
+          throw new ApiError(
+            `Checklist item "${item.name}" must pass, or include a note explaining why it did not`,
+            422,
+          );
+        }
+      }
+
+      if (passedCount === 0) {
+        throw new ApiError(
+          "Mark at least one checklist item as passed before completing the task",
+          422,
+        );
+      }
+
+      // Attach shared note onto failed entries for persistence
+      if (failedCount > 0 && sharedNote && input.checklist) {
+        input.checklist = input.checklist.map((c) =>
+          c.result ? c : { ...c, remark: c.remark?.trim() || sharedNote },
+        );
       }
     }
 

@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 type ModalProps = {
   open: boolean;
@@ -9,46 +17,54 @@ type ModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   size?: "sm" | "md" | "lg";
+  description?: string;
 };
 
-export function Modal({ open, title, onClose, children, footer, size = "md" }: ModalProps) {
-  const dialogRef = useRef<HTMLDivElement>(null);
+const sizeClasses = {
+  sm: "sm:max-w-sm",
+  md: "sm:max-w-md",
+  lg: "sm:max-w-lg",
+};
 
-  useEffect(() => {
-    if (!open) return;
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    dialogRef.current?.focus();
-
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
+/**
+ * Accessible dialog wrapper: Esc closes, Tab focus trap, outside click does NOT dismiss.
+ */
+export function Modal({
+  open,
+  title,
+  onClose,
+  children,
+  footer,
+  size = "md",
+  description,
+}: ModalProps) {
   return (
-    <div className="modal-overlay" onClick={onClose} role="presentation">
-      <div
-        ref={dialogRef}
-        className={`modal modal--${size}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-title"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+      disablePointerDismissal
+      modal="trap-focus"
+    >
+      <DialogContent
+        className={cn(sizeClasses[size], "gap-0 p-0 sm:max-w-md")}
+        showCloseButton
+        aria-describedby={description ? "modal-description" : undefined}
       >
-        <div className="modal-header">
-          <h2 id="modal-title">{title}</h2>
-          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        </div>
-        <div className="modal-body">{children}</div>
-        {footer && <div className="modal-footer">{footer}</div>}
-      </div>
-    </div>
+        <DialogHeader className="border-b px-4 py-3">
+          <DialogTitle>{title}</DialogTitle>
+          {description && (
+            <p id="modal-description" className="text-sm text-muted-foreground">
+              {description}
+            </p>
+          )}
+        </DialogHeader>
+        <div className="px-4 py-3">{children}</div>
+        {footer && (
+          <DialogFooter className="border-t bg-muted/30 px-4 py-3">{footer}</DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

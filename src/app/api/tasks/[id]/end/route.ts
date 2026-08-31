@@ -8,8 +8,15 @@ const schema = z.object({
   outputRemark: z.string().min(1),
   attachmentIds: z.array(z.number()).optional(),
   checklist: z
-    .array(z.object({ itemId: z.number(), result: z.boolean() }))
+    .array(
+      z.object({
+        itemId: z.number(),
+        result: z.boolean(),
+        remark: z.string().optional(),
+      }),
+    )
     .optional(),
+  checklistNote: z.string().optional(),
   version: z.number().int().positive(),
 });
 
@@ -29,6 +36,7 @@ export async function POST(
         version: body.version,
         attachmentIds: body.attachmentIds,
         checklist: body.checklist,
+        checklistNote: body.checklistNote,
       },
       ctx.correlationId,
     );

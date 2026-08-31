@@ -100,3 +100,19 @@ export function useProcessMasters(enabled = true) {
     staleTime: 5 * 60_000,
   });
 }
+
+export type MasterEmployee = {
+  id: number;
+  name: string;
+  employeeCode: string;
+  active: boolean;
+};
+
+export function useMasterEmployees(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.masters.employees,
+    queryFn: () => apiGet<MasterEmployee[]>("/api/masters/employees"),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}

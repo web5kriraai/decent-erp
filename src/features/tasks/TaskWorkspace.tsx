@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
-import { Modal } from "@/components/ui/Modal";
 import { TimerWidget } from "@/components/TimerWidget";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
+import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
+import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
+import { useTaskHasFiles } from "@/components/tasks/TaskArtifactPanel";
+import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks, useTaskMutations } from "@/hooks/use-tasks";
-import { useHoldReasons } from "@/hooks/use-masters";
+import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
 import { computeElapsedSeconds } from "@/lib/types/api";
@@ -22,6 +25,7 @@ export function TaskWorkspace() {
 
   const tasksQuery = useMyTasks(permissions.includes(PERMISSIONS.TASK_EXECUTE));
   const holdReasons = useHoldReasons(permissions.includes(PERMISSIONS.TASK_EXECUTE));
+  const checklistQuery = useChecklistItems(permissions.includes(PERMISSIONS.TASK_EXECUTE));
   const { start, hold, resume, end, closeWorkday, isPending } = useTaskMutations();
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -31,7 +35,8 @@ export function TaskWorkspace() {
   const [holdRemark, setHoldRemark] = useState("");
   const [endRemark, setEndRemark] = useState("");
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
-  const [, tick] = useState(0);
+  const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
+  const [checklistNote, setChecklistNote] = useState("");
 
   const tasks = tasksQuery.data ?? [];
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
@@ -39,18 +44,17 @@ export function TaskWorkspace() {
   const onHoldTask = tasks.find((t) => t.status === "ON_HOLD");
   const activeTask = runningTask ?? onHoldTask ?? selectedTask;
 
+  const { hasFiles } = useTaskHasFiles(
+    activeTask?.id ?? "",
+    activeTask?.design.id ?? "",
+    !!activeTask,
+  );
+
+  // Snapshot from server events; TimerWidget ticks live while RUNNING.
   const elapsedSeconds = useMemo(() => {
     if (!activeTask?.timeEvents) return 0;
     return computeElapsedSeconds(activeTask.timeEvents);
   }, [activeTask?.timeEvents, activeTask?.status]);
-
-  // Refresh timer display every second when running
-  useEffect(() => {
-    if (runningTask) {
-      const id = setInterval(() => tick((n) => n + 1), 1000);
-      return () => clearInterval(id);
-    }
-  }, [runningTask]);
 
   const tasksByStatus = useMemo(() => {
     const groups: Record<string, DesignTask[]> = {
@@ -66,6 +70,9 @@ export function TaskWorkspace() {
     }
     return groups;
   }, [tasks]);
+
+  const taskChecklistItems =
+    checklistQuery.data?.filter((item) => item.subProcessId === activeTask?.subProcess?.id) ?? [];
 
   if (!permissions.includes(PERMISSIONS.TASK_EXECUTE)) {
     return (
@@ -93,15 +100,40 @@ export function TaskWorkspace() {
 
   async function handleEndSubmit() {
     if (!activeTask || !endRemark.trim()) return;
+    const checklist = taskChecklistItems.map((item) => ({
+      itemId: item.id,
+      result: checklistResults[item.id] ?? false,
+    }));
+    const passed = checklist.filter((c) => c.result).length;
+    const failed = checklist.length - passed;
+    if (checklist.length > 0 && passed === 0) return;
+    if (failed > 0 && !checklistNote.trim()) return;
+
+    const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
       taskId: activeTask.id,
       version: activeTask.version,
       outputRemark: endRemark.trim(),
       completionStatus: endStatus,
+      checklist: checklist.length
+        ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
+        : undefined,
+      checklistNote: note,
     });
     setEndModalOpen(false);
     setEndRemark("");
+    setChecklistResults({});
+    setChecklistNote("");
     setSelectedTaskId(null);
+  }
+
+  function handleTaskCardKeyDown(e: React.KeyboardEvent, task: DesignTask) {
+    if (e.key === "Enter" && task.status === "ASSIGNED" && !runningTask) {
+      e.preventDefault();
+      void handleStart(task);
+    } else if (e.key === "Enter") {
+      setSelectedTaskId(task.id);
+    }
   }
 
   return (
@@ -110,15 +142,16 @@ export function TaskWorkspace() {
         title="My Tasks"
         subtitle="Server-authoritative timer - all state changes are stamped on the server"
         actions={
-          <button
+          <Button
             type="button"
-            className="btn btn-secondary btn-sm"
+            variant="secondary"
+            size="sm"
             onClick={() => closeWorkday.mutate()}
             disabled={closeWorkday.isPending || !!runningTask}
             title={runningTask ? "Stop running task before closing workday" : undefined}
           >
             Close Workday
-          </button>
+          </Button>
         }
       />
 
@@ -162,6 +195,7 @@ export function TaskWorkspace() {
                 ? () => {
                     setEndModalOpen(true);
                     setEndRemark("");
+                    setChecklistNote("");
                   }
                 : undefined
             }
@@ -189,9 +223,10 @@ export function TaskWorkspace() {
                       key={task.id}
                       className={`task-card ${selectedTaskId === task.id ? "task-card--selected" : ""}`}
                       onClick={() => setSelectedTaskId(task.id)}
-                      onKeyDown={(e) => e.key === "Enter" && setSelectedTaskId(task.id)}
+                      onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
                       role="button"
                       tabIndex={0}
+                      aria-label={`${task.design.ideaRef} ${task.subProcess.name}`}
                     >
                       <p className="task-card-ref">
                         <Link
@@ -215,17 +250,17 @@ export function TaskWorkspace() {
                       <div className="task-card-meta">
                         <StatusBadge status={task.status} />
                         {status === "ASSIGNED" && !runningTask && (
-                          <button
+                          <Button
                             type="button"
-                            className="btn btn-primary btn-sm"
+                            size="sm"
                             disabled={isPending}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleStart(task);
+                              void handleStart(task);
                             }}
                           >
                             Start
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </article>
@@ -238,109 +273,49 @@ export function TaskWorkspace() {
             ))}
           </div>
         </div>
+
+        {activeTask && (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Selected:{" "}
+            <Link href={ROUTES.work.taskDetail(activeTask.id)} className="data-table-link">
+              {activeTask.design.ideaRef} · {activeTask.subProcess.name}
+            </Link>
+            {" — "}
+            open task detail to upload files before completion.
+          </p>
+        )}
       </QueryState>
 
-      <Modal
+      <TaskHoldDialog
         open={holdModalOpen}
-        title="Hold Task"
         onClose={() => setHoldModalOpen(false)}
-        footer={
-          <>
-            <button type="button" className="btn btn-secondary" onClick={() => setHoldModalOpen(false)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={!holdReasonId || hold.isPending}
-              onClick={handleHoldSubmit}
-            >
-              Confirm Hold
-            </button>
-          </>
-        }
-      >
-        <div className="form-group">
-          <label className="form-label" htmlFor="holdReason">
-            Hold Reason *
-          </label>
-          <select
-            id="holdReason"
-            className="form-select"
-            value={holdReasonId}
-            onChange={(e) => setHoldReasonId(e.target.value ? Number(e.target.value) : "")}
-          >
-            <option value="">Select reason…</option>
-            {holdReasons.data?.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group" style={{ marginTop: "1rem" }}>
-          <label className="form-label" htmlFor="holdRemark">
-            Remark
-          </label>
-          <textarea
-            id="holdRemark"
-            className="form-textarea"
-            rows={2}
-            value={holdRemark}
-            onChange={(e) => setHoldRemark(e.target.value)}
-            placeholder="Optional note…"
-          />
-        </div>
-      </Modal>
+        holdReasons={holdReasons.data ?? []}
+        holdReasonId={holdReasonId}
+        onHoldReasonChange={setHoldReasonId}
+        holdRemark={holdRemark}
+        onHoldRemarkChange={setHoldRemark}
+        onSubmit={handleHoldSubmit}
+        isPending={hold.isPending}
+      />
 
-      <Modal
+      <TaskEndDialog
         open={endModalOpen}
-        title="Complete Task"
         onClose={() => setEndModalOpen(false)}
-        footer={
-          <>
-            <button type="button" className="btn btn-secondary" onClick={() => setEndModalOpen(false)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={!endRemark.trim() || end.isPending}
-              onClick={handleEndSubmit}
-            >
-              Submit Completion
-            </button>
-          </>
+        endStatus={endStatus}
+        onEndStatusChange={setEndStatus}
+        endRemark={endRemark}
+        onEndRemarkChange={setEndRemark}
+        checklistItems={taskChecklistItems}
+        checklistResults={checklistResults}
+        onChecklistChange={(itemId, checked) =>
+          setChecklistResults((prev) => ({ ...prev, [itemId]: checked }))
         }
-      >
-        <div className="form-group">
-          <label className="form-label" htmlFor="endStatus">
-            Completion Status
-          </label>
-          <select
-            id="endStatus"
-            className="form-select"
-            value={endStatus}
-            onChange={(e) => setEndStatus(e.target.value as "CHECKING" | "COMPLETED")}
-          >
-            <option value="CHECKING">Send for Checking</option>
-            <option value="COMPLETED">Mark Completed</option>
-          </select>
-        </div>
-        <div className="form-group" style={{ marginTop: "1rem" }}>
-          <label className="form-label" htmlFor="endRemark">
-            Output Remark *
-          </label>
-          <textarea
-            id="endRemark"
-            className="form-textarea"
-            rows={3}
-            value={endRemark}
-            onChange={(e) => setEndRemark(e.target.value)}
-            placeholder="Describe work completed…"
-          />
-        </div>
-      </Modal>
+        checklistNote={checklistNote}
+        onChecklistNoteChange={setChecklistNote}
+        hasUploadedFiles={hasFiles}
+        onSubmit={handleEndSubmit}
+        isPending={end.isPending}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
   getVisibleNavSections,
@@ -10,7 +11,12 @@ import {
 import { formatRoleLabel, getRoleDefinition } from "@/config/roles";
 import { useRouteMeta } from "@/hooks/use-route-meta";
 import { useSidebarState } from "@/components/layout/SidebarProvider";
+import {
+  GlobalSearchCommand,
+  useGlobalSearchShortcut,
+} from "@/components/layout/GlobalSearchCommand";
 import { IconSearch, IconLogout } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 
 function getInitials(name: string) {
   return name
@@ -120,6 +126,9 @@ export function TopBar() {
   const { toggleMobile } = useSidebarState();
   const name = session?.user?.name ?? "User";
   const role = session?.user?.roleCode ?? "employee";
+  const [searchOpen, setSearchOpen] = useState(false);
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+  useGlobalSearchShortcut(openSearch);
 
   return (
     <header className="topbar">
@@ -146,16 +155,22 @@ export function TopBar() {
       </nav>
 
       <div className="topbar-search topbar-search--desktop">
-        <span className="toolbar-search-icon">
+        <Button
+          type="button"
+          variant="outline"
+          className="topbar-search-trigger h-8 w-full justify-start gap-2 px-2.5 font-normal text-muted-foreground"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Open global search"
+        >
           <IconSearch size={16} />
-        </span>
-        <input
-          type="search"
-          placeholder="Search designs, tasks…"
-          aria-label="Global search"
-          className="form-input"
-        />
+          <span>Search designs…</span>
+          <kbd className="ml-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium sm:inline">
+            Ctrl K
+          </kbd>
+        </Button>
       </div>
+
+      <GlobalSearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
 
       <div className="topbar-actions">
         <div className="topbar-user">

@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Geist } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/AppProviders";
+import { APP_DEFAULT_DESCRIPTION, APP_NAME } from "@/config/page-metadata";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 const inter = Inter({
   subsets: ["latin"],
@@ -9,13 +13,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Decent ERP - Design Management",
-  description: "End-to-end product design lifecycle for textile and garment products",
+  title: {
+    default: `${APP_NAME} — Design Management`,
+    template: `%s · ${APP_NAME}`,
+  },
+  description: APP_DEFAULT_DESCRIPTION,
+  applicationName: APP_NAME,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="en" className={cn("h-full", inter.variable, "font-sans", geist.variable)}>
       <body className="min-h-full antialiased">
         <AppProviders>{children}</AppProviders>
       </body>

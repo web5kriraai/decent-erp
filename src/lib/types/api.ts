@@ -261,6 +261,7 @@ export type ManualDesignTask = {
   subProcessId: number;
   expectedMinutes: number;
   sequence?: number;
+  assignedEmployeeId?: number;
 };
 
 export type CreateDesignPayload = {

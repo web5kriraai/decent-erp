@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconDesigns, IconPlus, IconTasks, IconClock } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -52,7 +53,7 @@ export default function DashboardPage() {
         breadcrumbs={[{ label: "Overview" }]}
         actions={
           canViewDesigns ? (
-            <Link href={ROUTES.designs.new} className="btn btn-primary">
+            <Link href={ROUTES.designs.new} className="btn btn-primary inline-flex items-center gap-1.5">
               <IconPlus size={16} />
               New Design
             </Link>
@@ -130,13 +131,14 @@ export default function DashboardPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1rem" }}>
           {canViewDesigns && (
-            <div className="card card--flat">
-              <div className="card-header">
-                <span className="card-title">Recent Designs</span>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle>Recent Designs</CardTitle>
                 <Link href={ROUTES.designs.list} className="btn btn-ghost btn-sm">
                   View all
                 </Link>
-              </div>
+              </CardHeader>
+              <CardContent>
               {designs && designs.items.length > 0 ? (
                 <ul className="detail-task-list">
                   {designs.items.slice(0, 5).map((d) => (
@@ -162,15 +164,16 @@ export default function DashboardPage() {
                   </Link>
                 </div>
               )}
-            </div>
+              </CardContent>
+            </Card>
           )}
 
           {canViewTasks && (
-            <div className="card card--flat">
-              <div className="card-header">
-                <span className="card-title">Quick Actions</span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
                 <Link href={ROUTES.work.myTime} className="card card--interactive" style={{ padding: "1rem", textDecoration: "none", color: "inherit" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                     <IconClock size={20} style={{ color: "var(--color-primary)" }} />
@@ -208,8 +211,8 @@ export default function DashboardPage() {
                     </div>
                   </Link>
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       </QueryState>

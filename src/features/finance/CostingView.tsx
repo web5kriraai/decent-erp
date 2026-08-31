@@ -56,23 +56,25 @@ export function CostingView() {
         subtitle="Development cost, standard cost, and margin review per design"
       />
 
-      <div className="form-group" style={{ marginBottom: "1.5rem", maxWidth: 420 }}>
-        <label className="form-label" htmlFor="costDesign">
-          Select Design
-        </label>
-        <select
-          id="costDesign"
-          className="form-select"
-          value={selectedDesignId}
-          onChange={(e) => setSelectedDesignId(e.target.value)}
-        >
-          <option value="">Choose a design…</option>
-          {designsQuery.data?.items.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.ideaRef} - {d.collectionName}
-            </option>
-          ))}
-        </select>
+      <div className="page-filters">
+        <div className="form-group">
+          <label className="form-label" htmlFor="costDesign">
+            Select Design
+          </label>
+          <select
+            id="costDesign"
+            className="form-select"
+            value={selectedDesignId}
+            onChange={(e) => setSelectedDesignId(e.target.value)}
+          >
+            <option value="">Choose a design…</option>
+            {designsQuery.data?.items.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.ideaRef} - {d.collectionName}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {selectedDesignId && (
@@ -91,7 +93,33 @@ export function CostingView() {
             />
           </div>
 
-          <div className="card" style={{ marginBottom: "1.5rem" }}>
+          {summary && summary.entryCount > 0 && (
+            <div className="card" style={{ marginBottom: "1.5rem" }}>
+              <div className="card-header">
+                <span className="card-title">Cost Breakdown & Margin Review</span>
+              </div>
+              <div className="stat-grid" style={{ marginTop: "1rem" }}>
+                {Object.entries(summary.byType).map(([type, amount]) => (
+                  <StatCard
+                    key={type}
+                    label={type.replace("_", " ")}
+                    value={`₹${Number(amount).toFixed(2)}`}
+                    trend={
+                      summary.totalDevCost > 0
+                        ? `${((Number(amount) / summary.totalDevCost) * 100).toFixed(0)}% of total`
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+              <p style={{ margin: "1rem 0 0", fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
+                Compare actual development cost (₹{summary.totalDevCost.toFixed(2)}) against your
+                approved estimate or standard cost before final approval.
+              </p>
+            </div>
+          )}
+
+          <div className="card form-card" style={{ marginBottom: "1.5rem" }}>
             <span className="card-title">Add Cost Entry</span>
             <form onSubmit={handleAddCost} style={{ marginTop: "1rem" }}>
               <div className="form-grid form-grid--2">

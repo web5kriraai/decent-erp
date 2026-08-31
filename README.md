@@ -45,12 +45,25 @@ npm run worker
 
 ### Production build (local)
 
-Stop `dev`, `start`, and `worker` first - on Windows a running server can lock `.next/standalone` and cause `EBUSY` during build.
+On Windows, a running `dev` server locks Prisma's query engine DLL and causes `EPERM` during build. `npm run build` runs `prebuild`, which stops ports **3000** and **3001** automatically. You can also stop manually:
 
-```bash
+**PowerShell / CMD**
+
+```powershell
+npm run dev:stop
 npm run build
 npm run start
 ```
+
+**Git Bash / macOS / Linux**
+
+```bash
+npm run dev:stop
+npm run build
+npm run start
+```
+
+Also stop `worker` if it is running before building.
 
 ---
 
@@ -214,7 +227,11 @@ flowchart LR
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Next.js dev server |
-| `npm run build` | Prisma generate + production build + standalone prep |
+| `npm run dev:stop` | Stop processes on ports 3000/3001 (fixes Windows EPERM on build) |
+| `npm run build` | Stop dev servers + Prisma generate + production build + standalone prep |
+| `npm run test:e2e:full` | Seed DB, production build, run Playwright acceptance tests |
+| `npm run test:e2e:reuse` | Run e2e against an already-running server on port 3000 |
+| `npm run test:e2e:install` | Download Playwright Chromium (run once; no trailing comments in CMD) |
 | `npm run start` | Run standalone server (`node .next/standalone/server.js`) |
 | `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
 | `npm run db:migrate:dev` | Create/apply migrations in development |

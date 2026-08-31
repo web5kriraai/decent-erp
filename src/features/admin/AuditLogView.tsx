@@ -53,24 +53,26 @@ export function AuditLogView() {
         subtitle="Compliance trail of all system changes"
       />
 
-      <div className="form-group" style={{ maxWidth: 320, marginBottom: "1rem" }}>
-        <label className="form-label" htmlFor="auditFilter">
-          Filter by entity type
-        </label>
-        <select
-          id="auditFilter"
-          className="form-select"
-          value={entityType}
-          onChange={(e) => setEntityType(e.target.value)}
-        >
-          <option value="">All</option>
-          <option value="DesignConcept">Design</option>
-          <option value="DesignTask">Task</option>
-          <option value="DesignCorrection">Correction</option>
-          <option value="DesignApproval">Approval</option>
-          <option value="DesignCost">Cost</option>
-          <option value="Employee">Employee</option>
-        </select>
+      <div className="page-filters">
+        <div className="form-group">
+          <label className="form-label" htmlFor="auditFilter">
+            Filter by entity type
+          </label>
+          <select
+            id="auditFilter"
+            className="form-select"
+            value={entityType}
+            onChange={(e) => setEntityType(e.target.value)}
+          >
+            <option value="">All</option>
+            <option value="DesignConcept">Design</option>
+            <option value="DesignTask">Task</option>
+            <option value="DesignCorrection">Correction</option>
+            <option value="DesignApproval">Approval</option>
+            <option value="DesignCost">Cost</option>
+            <option value="Employee">Employee</option>
+          </select>
+        </div>
       </div>
 
       <QueryState

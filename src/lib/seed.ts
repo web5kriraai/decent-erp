@@ -193,6 +193,17 @@ export async function seedDatabase() {
     where: { ideaRef: "IDEA-SAMPLE-001" },
   });
 
+  const designHead = await prisma.employee.findUniqueOrThrow({
+    where: { email: "designhead@decent-erp.local" },
+  });
+  const sketchEmployee = await prisma.employee.findUniqueOrThrow({
+    where: { email: "sketch@decent-erp.local" },
+  });
+
+  if (process.env.SEED_SKIP_SAMPLE === "1") {
+    return;
+  }
+
   if (!existingSample) {
     const bodyComponent = await prisma.componentType.findUniqueOrThrow({ where: { code: "BODY" } });
     const design = await prisma.designConcept.create({
@@ -202,7 +213,7 @@ export async function seedDatabase() {
         productTypeId: sareeType.id,
         collectionName: "Royal Festive 2026",
         seasonId: festiveSeason.id,
-        designHeadEmployeeId: admin.id,
+        designHeadEmployeeId: designHead.id,
         priority: "HIGH",
         conceptNote: "Premium zari + thread concept for festive collection",
         workflowPatternId: pattern.id,
@@ -222,19 +233,33 @@ export async function seedDatabase() {
       },
     });
 
-    const firstTask = workflowTasks[0];
     await prisma.designTask.createMany({
       data: workflowTasks.slice(0, 2).map((t, i) => ({
         designId: design.id,
         processId: t.processId,
         subProcessId: t.subProcessId,
         assignedRoleId: t.defaultRoleId,
-        assignedEmployeeId: i === 0 ? admin.id : undefined,
-        status: i === 0 ? "ASSIGNED" : "PENDING",
+        assignedEmployeeId:
+          i === 0 ? designHead.id : i === 1 ? sketchEmployee.id : undefined,
+        status: i <= 1 ? "ASSIGNED" : "PENDING",
         priority: t.priority,
         expectedMinutes: t.expectedMinutes,
         sequence: t.sequence,
       })),
+    });
+  } else {
+    const sketchSub = subIndex.SKETCH;
+    await prisma.designTask.updateMany({
+      where: {
+        designId: existingSample.id,
+        subProcessId: sketchSub.id,
+        status: { in: ["PENDING", "ASSIGNED"] },
+      },
+      data: {
+        assignedEmployeeId: sketchEmployee.id,
+        assignedRoleId: roles[ROLE_CODES.SKETCH_DESIGNER].id,
+        status: "ASSIGNED",
+      },
     });
   }
 }

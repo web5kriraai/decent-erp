@@ -16,7 +16,13 @@ import { DesignEditModal } from "@/features/designs/DesignEditModal";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
 
-export function DesignDetailView({ designId }: { designId: string }) {
+export function DesignDetailView({
+  designId,
+  showConceptSetup = false,
+}: {
+  designId: string;
+  showConceptSetup?: boolean;
+}) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const designQuery = useDesign(designId);
@@ -70,6 +76,20 @@ export function DesignDetailView({ designId }: { designId: string }) {
                 </>
               }
             />
+
+            {showConceptSetup && (
+              <div
+                className="alert alert-info"
+                style={{ marginBottom: "1rem" }}
+                role="status"
+                id="concept-setup"
+              >
+                <strong>Step 2 — Attach references</strong>
+                <p style={{ margin: "0.25rem 0 0" }}>
+                  Upload product and reference images below. Mark one image as primary when ready.
+                </p>
+              </div>
+            )}
 
             <div
               style={{

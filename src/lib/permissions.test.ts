@@ -2,16 +2,22 @@ import { describe, expect, it } from "vitest";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 describe("permissions", () => {
-  it("grants access when user has all required permissions", () => {
+  it("grants access when user has any of the required permissions", () => {
     const userPerms = Object.values(PERMISSIONS);
     expect(hasPermission(userPerms, PERMISSIONS.TASK_EXECUTE)).toBe(true);
     expect(hasPermission(userPerms, [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.DESIGN_CREATE])).toBe(
       true,
     );
+    expect(hasPermission([PERMISSIONS.TASK_EXECUTE], [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.DESIGN_CREATE])).toBe(
+      true,
+    );
   });
 
-  it("denies access when a required permission is missing", () => {
+  it("denies access when none of the required permissions are present", () => {
     expect(hasPermission([PERMISSIONS.TASK_EXECUTE], PERMISSIONS.MASTER_ADMIN)).toBe(false);
+    expect(
+      hasPermission([PERMISSIONS.TASK_EXECUTE], [PERMISSIONS.MASTER_ADMIN, PERMISSIONS.DESIGN_CREATE]),
+    ).toBe(false);
   });
 });
 
