@@ -1,16 +1,47 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { useCreateDesign } from "@/hooks/use-designs";
-import { useProductTypes, useSeasons, useWorkflowPatterns } from "@/hooks/use-masters";
+import {
+  useComponentTypes,
+  useProcessMasters,
+  useProductTypes,
+  useSeasons,
+  useWorkflowPatterns,
+} from "@/hooks/use-masters";
 import { getFieldErrors, ApiClientError } from "@/lib/api-client";
-import type { Priority } from "@/lib/types/api";
+import type { Priority, WorkType } from "@/lib/types/api";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ROUTES } from "@/config/routes";
+
+type AssignmentMode = "AUTOMATIC" | "MANUAL";
+
+type ManualTaskDraft = {
+  id: string;
+  processId: number | "";
+  subProcessId: number | "";
+  expectedMinutes: string;
+};
+
+function emptyManualTask(index: number): ManualTaskDraft {
+  return {
+    id: `manual-task-${index}-${Date.now()}`,
+    processId: "",
+    subProcessId: "",
+    expectedMinutes: "60",
+  };
+}
+
+const WORK_TYPE_OPTIONS: { value: WorkType; label: string }[] = [
+  { value: "NEW_DESIGN", label: "New Design" },
+  { value: "REPEAT", label: "Repeat" },
+  { value: "REVIVAL", label: "Revival" },
+  { value: "CUSTOM", label: "Custom" },
+];
 
 export function DesignCreateForm() {
   const router = useRouter();
@@ -19,23 +50,82 @@ export function DesignCreateForm() {
   const productTypes = useProductTypes();
   const seasons = useSeasons();
   const patterns = useWorkflowPatterns();
+  const componentTypes = useComponentTypes();
+  const processes = useProcessMasters();
 
   const [collectionName, setCollectionName] = useState("");
+  const [styleName, setStyleName] = useState("");
   const [conceptNote, setConceptNote] = useState("");
+  const [workType, setWorkType] = useState<WorkType | "">("");
+  const [trendReference, setTrendReference] = useState("");
+  const [celebrityReference, setCelebrityReference] = useState("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [productTypeId, setProductTypeId] = useState<number | "">("");
   const [seasonId, setSeasonId] = useState<number | "">("");
+  const [componentTypeIds, setComponentTypeIds] = useState<number[]>([]);
+  const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>("AUTOMATIC");
   const [workflowPatternId, setWorkflowPatternId] = useState<number | "">("");
+  const [manualTasks, setManualTasks] = useState<ManualTaskDraft[]>(() => [emptyManualTask(0)]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   const mastersLoading =
-    productTypes.isLoading || seasons.isLoading || patterns.isLoading;
+    productTypes.isLoading ||
+    seasons.isLoading ||
+    patterns.isLoading ||
+    componentTypes.isLoading ||
+    processes.isLoading;
+
+  const availableComponentTypes = useMemo(() => {
+    const types = componentTypes.data ?? [];
+    if (!productTypeId) return types;
+    return types.filter(
+      (ct) => ct.productTypeId == null || ct.productTypeId === productTypeId,
+    );
+  }, [componentTypes.data, productTypeId]);
 
   const validationErrors: Record<string, string> = {};
   if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
-  if (!workflowPatternId) validationErrors.workflowPatternId = "Workflow pattern is required";
+  if (assignmentMode === "AUTOMATIC" && !workflowPatternId) {
+    validationErrors.workflowPatternId = "Workflow pattern is required";
+  }
+  if (assignmentMode === "MANUAL") {
+    const incomplete = manualTasks.some(
+      (task) =>
+        !task.processId ||
+        !task.subProcessId ||
+        !Number(task.expectedMinutes) ||
+        Number(task.expectedMinutes) <= 0,
+    );
+    if (manualTasks.length === 0 || incomplete) {
+      validationErrors.manualTasks = "Add at least one complete task (process, sub-process, minutes)";
+    }
+  }
+
+  function toggleComponentType(id: number) {
+    setComponentTypeIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function updateManualTask(id: string, patch: Partial<ManualTaskDraft>) {
+    setManualTasks((prev) =>
+      prev.map((task) => (task.id === id ? { ...task, ...patch } : task)),
+    );
+  }
+
+  function handleManualProcessChange(task: ManualTaskDraft, processId: number | "") {
+    updateManualTask(task.id, { processId, subProcessId: "" });
+  }
+
+  function addManualTaskRow() {
+    setManualTasks((prev) => [...prev, emptyManualTask(prev.length)]);
+  }
+
+  function removeManualTaskRow(id: string) {
+    setManualTasks((prev) => (prev.length <= 1 ? prev : prev.filter((task) => task.id !== id)));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,10 +138,25 @@ export function DesignCreateForm() {
         productTypeId: Number(productTypeId),
         seasonId: Number(seasonId),
         collectionName: collectionName.trim(),
+        styleName: styleName.trim() || undefined,
         conceptNote: conceptNote.trim() || undefined,
+        workType: workType || undefined,
+        trendReference: trendReference.trim() || undefined,
+        celebrityReference: celebrityReference.trim() || undefined,
         priority,
-        assignmentMode: "AUTOMATIC",
-        workflowPatternId: Number(workflowPatternId),
+        componentTypeIds: componentTypeIds.length > 0 ? componentTypeIds : undefined,
+        assignmentMode,
+        workflowPatternId:
+          assignmentMode === "AUTOMATIC" ? Number(workflowPatternId) : undefined,
+        manualTasks:
+          assignmentMode === "MANUAL"
+            ? manualTasks.map((task, index) => ({
+                processId: Number(task.processId),
+                subProcessId: Number(task.subProcessId),
+                expectedMinutes: Number(task.expectedMinutes),
+                sequence: index + 1,
+              }))
+            : undefined,
       });
       router.push(ROUTES.designs.detail(design.id));
     } catch (error) {
@@ -60,6 +165,8 @@ export function DesignCreateForm() {
       }
     }
   }
+
+  const processList = processes.data ?? [];
 
   return (
     <div className="page-shell">
@@ -75,12 +182,26 @@ export function DesignCreateForm() {
 
       <QueryState
         isLoading={mastersLoading}
-        isError={productTypes.isError || seasons.isError || patterns.isError}
-        error={productTypes.error ?? seasons.error ?? patterns.error}
+        isError={
+          productTypes.isError ||
+          seasons.isError ||
+          patterns.isError ||
+          componentTypes.isError ||
+          processes.isError
+        }
+        error={
+          productTypes.error ??
+          seasons.error ??
+          patterns.error ??
+          componentTypes.error ??
+          processes.error
+        }
         onRetry={() => {
           productTypes.refetch();
           seasons.refetch();
           patterns.refetch();
+          componentTypes.refetch();
+          processes.refetch();
         }}
         skeletonVariant="table"
       >
@@ -113,6 +234,40 @@ export function DesignCreateForm() {
               )}
             </div>
 
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="styleName">
+                  Style Name
+                </label>
+                <input
+                  id="styleName"
+                  className="form-input"
+                  value={styleName}
+                  onChange={(e) => setStyleName(e.target.value)}
+                  placeholder="e.g. Anarkali Set A"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="workType">
+                  Work Type
+                </label>
+                <select
+                  id="workType"
+                  className="form-select"
+                  value={workType}
+                  onChange={(e) => setWorkType(e.target.value as WorkType | "")}
+                >
+                  <option value="">Select work type…</option>
+                  {WORK_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="form-group">
               <label className="form-label" htmlFor="concept">
                 Concept Note
@@ -129,6 +284,34 @@ export function DesignCreateForm() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="form-group">
+                <label className="form-label" htmlFor="trendReference">
+                  Trend Reference
+                </label>
+                <input
+                  id="trendReference"
+                  className="form-input"
+                  value={trendReference}
+                  onChange={(e) => setTrendReference(e.target.value)}
+                  placeholder="e.g. Minimal bridal, pastel tones"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="celebrityReference">
+                  Celebrity Reference
+                </label>
+                <input
+                  id="celebrityReference"
+                  className="form-input"
+                  value={celebrityReference}
+                  onChange={(e) => setCelebrityReference(e.target.value)}
+                  placeholder="e.g. Celebrity look from event X"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="form-group">
                 <label className="form-label" htmlFor="productType">
                   Product Type *
                 </label>
@@ -136,7 +319,18 @@ export function DesignCreateForm() {
                   id="productType"
                   className="form-select"
                   value={productTypeId}
-                  onChange={(e) => setProductTypeId(e.target.value ? Number(e.target.value) : "")}
+                  onChange={(e) => {
+                    const next = e.target.value ? Number(e.target.value) : "";
+                    setProductTypeId(next);
+                    if (next) {
+                      setComponentTypeIds((prev) =>
+                        prev.filter((id) => {
+                          const ct = componentTypes.data?.find((c) => c.id === id);
+                          return !ct || ct.productTypeId == null || ct.productTypeId === next;
+                        }),
+                      );
+                    }
+                  }}
                 >
                   <option value="">Select type…</option>
                   {productTypes.data?.map((pt) => (
@@ -173,6 +367,32 @@ export function DesignCreateForm() {
               </div>
             </div>
 
+            <div className="form-group">
+              <span className="form-label">Component Types</span>
+              {availableComponentTypes.length === 0 ? (
+                <p className="form-hint">No component types available.</p>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                    gap: "0.25rem 1rem",
+                  }}
+                >
+                  {availableComponentTypes.map((ct) => (
+                    <label key={ct.id} className="form-checkbox-row" style={{ margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={componentTypeIds.includes(ct.id)}
+                        onChange={() => toggleComponentType(ct.id)}
+                      />
+                      <span>{ct.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div className="form-group">
                 <label className="form-label" htmlFor="priority">
@@ -192,6 +412,23 @@ export function DesignCreateForm() {
               </div>
 
               <div className="form-group">
+                <label className="form-label" htmlFor="assignmentMode">
+                  Task Assignment
+                </label>
+                <select
+                  id="assignmentMode"
+                  className="form-select"
+                  value={assignmentMode}
+                  onChange={(e) => setAssignmentMode(e.target.value as AssignmentMode)}
+                >
+                  <option value="AUTOMATIC">Automatic (workflow pattern)</option>
+                  <option value="MANUAL">Manual (custom task list)</option>
+                </select>
+              </div>
+            </div>
+
+            {assignmentMode === "AUTOMATIC" && (
+              <div className="form-group">
                 <label className="form-label" htmlFor="pattern">
                   Workflow Pattern *
                 </label>
@@ -210,11 +447,134 @@ export function DesignCreateForm() {
                     </option>
                   ))}
                 </select>
-                {validationErrors.workflowPatternId && (
-                  <span className="form-error">{validationErrors.workflowPatternId}</span>
+                {(validationErrors.workflowPatternId || fieldErrors.workflowPatternId) && (
+                  <span className="form-error">
+                    {validationErrors.workflowPatternId ??
+                      fieldErrors.workflowPatternId?.[0]}
+                  </span>
                 )}
               </div>
-            </div>
+            )}
+
+            {assignmentMode === "MANUAL" && (
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <span className="form-label">Manual Tasks *</span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={addManualTaskRow}
+                  >
+                    Add Task
+                  </button>
+                </div>
+
+                {(validationErrors.manualTasks || fieldErrors.manualTasks) && (
+                  <span className="form-error" style={{ display: "block", marginBottom: "0.5rem" }}>
+                    {validationErrors.manualTasks ?? fieldErrors.manualTasks?.[0]}
+                  </span>
+                )}
+
+                <div style={{ display: "grid", gap: "0.75rem" }}>
+                  {manualTasks.map((task, index) => {
+                    const process = processList.find((p) => p.id === task.processId);
+                    const subProcesses = process?.subProcesses ?? [];
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="card"
+                        style={{ padding: "0.75rem", display: "grid", gap: "0.5rem" }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <strong>Task {index + 1}</strong>
+                          {manualTasks.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => removeManualTaskRow(task.id)}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+
+                        <div
+                          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}
+                        >
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label className="form-label">Process</label>
+                            <select
+                              className="form-select"
+                              value={task.processId}
+                              onChange={(e) =>
+                                handleManualProcessChange(
+                                  task,
+                                  e.target.value ? Number(e.target.value) : "",
+                                )
+                              }
+                            >
+                              <option value="">Select process…</option>
+                              {processList.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label className="form-label">Sub-process</label>
+                            <select
+                              className="form-select"
+                              value={task.subProcessId}
+                              disabled={!task.processId}
+                              onChange={(e) =>
+                                updateManualTask(task.id, {
+                                  subProcessId: e.target.value ? Number(e.target.value) : "",
+                                })
+                              }
+                            >
+                              <option value="">Select sub-process…</option>
+                              {subProcesses.map((sp) => (
+                                <option key={sp.id} value={sp.id}>
+                                  {sp.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="form-group" style={{ margin: 0, maxWidth: 160 }}>
+                          <label className="form-label">Expected Minutes</label>
+                          <input
+                            type="number"
+                            min={1}
+                            className="form-input"
+                            value={task.expectedMinutes}
+                            onChange={(e) =>
+                              updateManualTask(task.id, { expectedMinutes: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <p className="form-hint">
               First task is auto-assigned to you as Design Head. Timer and KPI events are

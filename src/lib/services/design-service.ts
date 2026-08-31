@@ -2,9 +2,14 @@ import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { ApiError } from "@/lib/api-utils";
-import type { Priority } from "@prisma/client";
-
-export type AssignmentMode = "AUTOMATIC" | "MANUAL";
+import type { AssignmentMode, Priority, WorkType } from "@prisma/client";
+import {
+  buildTasksFromPatternTasks,
+  createDesignComponents,
+  createDesignProcessInstances,
+  generateDesignNumber,
+  type TaskCreateRow,
+} from "@/lib/services/task-generation-service";
 
 export type CreateDesignInput = {
   productTypeId: number;
@@ -13,6 +18,10 @@ export type CreateDesignInput = {
   designHeadEmployeeId: number;
   priority: Priority;
   conceptNote?: string;
+  styleName?: string;
+  workType?: WorkType;
+  trendReference?: string;
+  celebrityReference?: string;
   processId?: number;
   subProcessId?: number;
   assignmentMode: AssignmentMode;
@@ -22,8 +31,9 @@ export type CreateDesignInput = {
     subProcessId: number;
     assignedEmployeeId?: number;
     expectedMinutes: number;
+    sequence?: number;
   }>;
-  componentIds?: number[];
+  componentTypeIds?: number[];
 };
 
 function generateIdeaRef() {
@@ -38,15 +48,22 @@ export async function createDesignWithTasks(
   correlationId: string,
 ) {
   return prisma.$transaction(async (tx) => {
+    const ideaRef = generateIdeaRef();
     const design = await tx.designConcept.create({
       data: {
-        ideaRef: generateIdeaRef(),
+        ideaRef,
+        designNumber: generateDesignNumber(ideaRef),
         productTypeId: input.productTypeId,
         collectionName: input.collectionName,
         seasonId: input.seasonId,
         designHeadEmployeeId: input.designHeadEmployeeId,
         priority: input.priority,
         conceptNote: input.conceptNote,
+        styleName: input.styleName,
+        workType: input.workType,
+        trendReference: input.trendReference,
+        celebrityReference: input.celebrityReference,
+        assignmentMode: input.assignmentMode,
         workflowPatternId: input.workflowPatternId,
         createdById,
         status: "DRAFT",
@@ -54,41 +71,26 @@ export async function createDesignWithTasks(
       },
     });
 
-    const tasksToCreate: Array<{
-      designId: bigint;
-      processId: number;
-      subProcessId: number;
-      assignedEmployeeId?: number;
-      assignedRoleId: number;
-      expectedMinutes: number;
-      priority: Priority;
-      status: "PENDING" | "ASSIGNED";
-    }> = [];
+    let tasksToCreate: TaskCreateRow[] = [];
 
     if (input.assignmentMode === "AUTOMATIC" && input.workflowPatternId) {
       const patternTasks = await tx.workflowPatternTask.findMany({
         where: { workflowPatternId: input.workflowPatternId },
         orderBy: { sequence: "asc" },
       });
-
-      for (const pt of patternTasks) {
-        tasksToCreate.push({
-          designId: design.id,
-          processId: pt.processId,
-          subProcessId: pt.subProcessId,
-          assignedRoleId: pt.defaultRoleId,
-          expectedMinutes: pt.expectedMinutes,
-          priority: pt.priority,
-          status: "PENDING",
-        });
-      }
+      tasksToCreate = await buildTasksFromPatternTasks(design.id, patternTasks, {
+        firstAssigneeId: input.designHeadEmployeeId,
+      });
     }
 
     if (input.manualTasks?.length) {
-      for (const mt of input.manualTasks) {
+      const base = new Date();
+      for (let i = 0; i < input.manualTasks.length; i++) {
+        const mt = input.manualTasks[i];
         const subProcess = await tx.designSubProcessMaster.findUniqueOrThrow({
           where: { id: mt.subProcessId },
         });
+        const seq = mt.sequence ?? i + 1;
         tasksToCreate.push({
           designId: design.id,
           processId: mt.processId,
@@ -97,7 +99,10 @@ export async function createDesignWithTasks(
           assignedRoleId: subProcess.defaultRoleId ?? 1,
           expectedMinutes: mt.expectedMinutes,
           priority: input.priority,
-          status: mt.assignedEmployeeId ? "ASSIGNED" : "PENDING",
+          sequence: seq,
+          plannedStart: base,
+          dueAt: new Date(base.getTime() + mt.expectedMinutes * 60_000),
+          status: mt.assignedEmployeeId ? ("ASSIGNED" as const) : ("PENDING" as const),
         });
       }
     }
@@ -106,12 +111,11 @@ export async function createDesignWithTasks(
       throw new ApiError("No tasks generated from workflow pattern or manual tasks", 422);
     }
 
-    // Assign first task to design head so workflow can begin immediately
-    if (tasksToCreate.length > 0) {
-      tasksToCreate[0].assignedEmployeeId = input.designHeadEmployeeId;
-      tasksToCreate[0].status = "ASSIGNED";
+    if (input.componentTypeIds?.length) {
+      await createDesignComponents(tx, design.id, input.componentTypeIds);
     }
 
+    await createDesignProcessInstances(tx, design.id, tasksToCreate);
     await tx.designTask.createMany({ data: tasksToCreate });
 
     await writeAuditLog(tx, {
@@ -154,6 +158,7 @@ export async function listDesigns(filters: {
           OR: [
             { ideaRef: { contains: filters.search, mode: "insensitive" as const } },
             { collectionName: { contains: filters.search, mode: "insensitive" as const } },
+            { designNumber: { contains: filters.search, mode: "insensitive" as const } },
           ],
         }
       : {}),
@@ -184,9 +189,10 @@ export async function getDesignById(id: bigint) {
       productType: true,
       season: true,
       designHead: { select: { id: true, name: true } },
-      components: true,
+      components: { include: { componentType: true } },
       images: true,
       tasks: {
+        orderBy: { sequence: "asc" },
         include: {
           assignedEmployee: { select: { id: true, name: true } },
           process: true,
@@ -195,6 +201,7 @@ export async function getDesignById(id: bigint) {
       },
       corrections: true,
       approvals: true,
+      productionHandoffs: { orderBy: { releasedAtUtc: "desc" }, take: 5 },
     },
   });
 
@@ -204,7 +211,16 @@ export async function getDesignById(id: bigint) {
 
 export async function updateDesign(
   id: bigint,
-  data: { collectionName?: string; conceptNote?: string; priority?: Priority; version: number },
+  data: {
+    collectionName?: string;
+    conceptNote?: string;
+    priority?: Priority;
+    styleName?: string;
+    workType?: WorkType;
+    trendReference?: string;
+    celebrityReference?: string;
+    version: number;
+  },
   userId: number,
   correlationId: string,
 ) {
@@ -221,6 +237,10 @@ export async function updateDesign(
         collectionName: data.collectionName,
         conceptNote: data.conceptNote,
         priority: data.priority,
+        styleName: data.styleName,
+        workType: data.workType,
+        trendReference: data.trendReference,
+        celebrityReference: data.celebrityReference,
         version: { increment: 1 },
       },
     });
@@ -258,17 +278,12 @@ export async function generateTasksFromPattern(
       throw new ApiError("Workflow pattern has no tasks", 422);
     }
 
-    await tx.designTask.createMany({
-      data: patternTasks.map((pt) => ({
-        designId,
-        processId: pt.processId,
-        subProcessId: pt.subProcessId,
-        assignedRoleId: pt.defaultRoleId,
-        expectedMinutes: pt.expectedMinutes,
-        priority: pt.priority,
-        status: "PENDING" as const,
-      })),
+    const tasksToCreate = await buildTasksFromPatternTasks(designId, patternTasks, {
+      firstAssigneeId: design.designHeadEmployeeId,
     });
+
+    await createDesignProcessInstances(tx, designId, tasksToCreate);
+    await tx.designTask.createMany({ data: tasksToCreate });
 
     await writeAuditLog(tx, {
       entityType: "DesignConcept",

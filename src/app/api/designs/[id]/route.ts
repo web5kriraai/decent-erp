@@ -12,6 +12,10 @@ const patchSchema = z.object({
   collectionName: z.string().min(1).optional(),
   conceptNote: z.string().optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+  styleName: z.string().optional(),
+  workType: z.enum(["NEW_DESIGN", "REPEAT", "REVIVAL", "CUSTOM"]).optional(),
+  trendReference: z.string().optional(),
+  celebrityReference: z.string().optional(),
   version: z.number().int().positive(),
 });
 

@@ -145,3 +145,34 @@ export async function createWorkflowPattern(
 
   return pattern;
 }
+
+export async function updateWorkflowPattern(
+  id: number,
+  input: { name?: string; active?: boolean; versionNo?: number },
+  userId: number,
+  correlationId: string,
+) {
+  const existing = await prisma.workflowPattern.findUnique({ where: { id } });
+  if (!existing) throw new ApiError("Workflow pattern not found", 404);
+
+  const pattern = await prisma.workflowPattern.update({
+    where: { id },
+    data: input,
+    include: {
+      tasks: { orderBy: { sequence: "asc" } },
+      productType: { select: { id: true, code: true, name: true } },
+    },
+  });
+
+  await writeAuditLogDirect({
+    entityType: "WorkflowPattern",
+    entityId: String(id),
+    action: "UPDATE",
+    userId,
+    correlationId,
+    before: existing,
+    after: pattern,
+  });
+
+  return pattern;
+}

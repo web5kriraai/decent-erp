@@ -21,6 +21,8 @@ export const queryKeys = {
     holdReasons: ["masters", "hold-reasons"] as const,
     productTypes: ["masters", "product-types"] as const,
     seasons: ["masters", "seasons"] as const,
+    componentTypes: ["masters", "component-types"] as const,
+    checklistItems: ["masters", "checklist-items"] as const,
     employees: ["masters", "employees"] as const,
   },
   kpi: {
@@ -41,11 +43,13 @@ export const queryKeys = {
   },
   production: {
     approved: ["production", "approved"] as const,
+    released: ["production", "released"] as const,
   },
   audit: {
     list: (filters?: Record<string, string>) => ["audit", filters] as const,
   },
   admin: {
+    dashboard: ["admin", "dashboard"] as const,
     employees: ["admin", "employees"] as const,
     roles: ["admin", "roles"] as const,
     suggestCode: ["admin", "employees", "suggest-code"] as const,

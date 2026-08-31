@@ -41,6 +41,43 @@ export function useSeasons(enabled = true) {
   });
 }
 
+export type ComponentTypeMaster = {
+  id: number;
+  code: string;
+  name: string;
+  productTypeId?: number | null;
+  sequence: number;
+  active: boolean;
+};
+
+export function useComponentTypes(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.masters.componentTypes,
+    queryFn: () => apiGet<ComponentTypeMaster[]>("/api/masters/component-types"),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
+}
+
+export type ChecklistItemMaster = {
+  id: number;
+  code: string;
+  name: string;
+  sequence: number;
+  active: boolean;
+  subProcessId?: number | null;
+  subProcess?: { id: number; code: string; name: string } | null;
+};
+
+export function useChecklistItems(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.masters.checklistItems,
+    queryFn: () => apiGet<ChecklistItemMaster[]>("/api/masters/checklist"),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
+}
+
 type ProcessMaster = {
   id: number;
   code: string;
@@ -50,6 +87,7 @@ type ProcessMaster = {
     id: number;
     name: string;
     code: string;
+    sequence: number;
     defaultRoleId?: number | null;
   }>;
 };

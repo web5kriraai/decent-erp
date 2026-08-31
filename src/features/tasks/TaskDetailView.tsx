@@ -14,7 +14,7 @@ import { TaskTimeTimeline } from "@/components/time/TaskTimeTimeline";
 import { ROUTES } from "@/config/routes";
 import { useTaskTimeDetail } from "@/hooks/use-time";
 import { useTaskMutations } from "@/hooks/use-tasks";
-import { useHoldReasons } from "@/hooks/use-masters";
+import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
 
@@ -32,6 +32,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   const detailQuery = useTaskTimeDetail(taskId, enabled);
   const holdReasons = useHoldReasons(canExecute && enabled);
+  const checklistQuery = useChecklistItems(canExecute && enabled);
   const { start, hold, resume, end, isPending } = useTaskMutations();
 
   const [holdModalOpen, setHoldModalOpen] = useState(false);
@@ -40,6 +41,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const [holdRemark, setHoldRemark] = useState("");
   const [endRemark, setEndRemark] = useState("");
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
+  const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [, tick] = useState(0);
 
   const task = detailQuery.data;
@@ -88,16 +90,25 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     setHoldRemark("");
   }
 
+  const taskChecklistItems =
+    checklistQuery.data?.filter((item) => item.subProcessId === task?.subProcess?.id) ?? [];
+
   async function handleEndSubmit() {
     if (!task || !endRemark.trim()) return;
+    const checklist = taskChecklistItems.map((item) => ({
+      itemId: item.id,
+      result: checklistResults[item.id] ?? false,
+    }));
     await end.mutateAsync({
       taskId: task.id,
       version: task.version,
       outputRemark: endRemark.trim(),
       completionStatus: endStatus,
+      checklist: checklist.length ? checklist : undefined,
     });
     setEndModalOpen(false);
     setEndRemark("");
+    setChecklistResults({});
   }
 
   return (
@@ -341,6 +352,25 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                 placeholder="Describe work completed…"
               />
             </div>
+            {taskChecklistItems.length > 0 && (
+              <div className="form-group" style={{ marginTop: "1rem" }}>
+                <span className="form-label">Quality Checklist *</span>
+                <div style={{ display: "grid", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  {taskChecklistItems.map((item) => (
+                    <label key={item.id} className="form-checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={checklistResults[item.id] ?? false}
+                        onChange={(e) =>
+                          setChecklistResults((prev) => ({ ...prev, [item.id]: e.target.checked }))
+                        }
+                      />
+                      {item.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </Modal>
         </>
       )}

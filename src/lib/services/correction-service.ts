@@ -3,6 +3,13 @@ import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { ApiError } from "@/lib/api-utils";
 import type { CorrectionType, CorrectionStatus } from "@prisma/client";
+import { MISTAKE_CORRECTION_TYPES } from "@/lib/kpi-metrics";
+
+function ratingImpactForType(type: CorrectionType): number {
+  return MISTAKE_CORRECTION_TYPES.includes(type as (typeof MISTAKE_CORRECTION_TYPES)[number])
+    ? -5
+    : 0;
+}
 
 const correctionInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true } },
@@ -44,6 +51,8 @@ export async function createCorrection(
     rootCause?: string;
     extraMinutes?: number;
     extraCost?: number;
+    beforeImageId?: bigint;
+    afterImageId?: bigint;
   },
   raisedById: number,
   correlationId: string,
@@ -54,6 +63,7 @@ export async function createCorrection(
         ...input,
         raisedById,
         status: "OPEN",
+        ratingImpact: ratingImpactForType(input.correctionType),
       },
     });
 

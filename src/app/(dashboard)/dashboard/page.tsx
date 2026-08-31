@@ -12,6 +12,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useMyTimeSummary } from "@/hooks/use-time";
+import { useAdminDashboardStats } from "@/hooks/use-admin-dashboard";
 import { formatDuration } from "@/lib/services/time-calculation";
 import { RoleOverviewCard } from "@/components/roles/RoleOverviewCard";
 
@@ -20,10 +21,12 @@ export default function DashboardPage() {
   const permissions = session?.user?.permissions ?? [];
   const canViewDesigns = permissions.includes(PERMISSIONS.DESIGN_CREATE);
   const canViewTasks = permissions.includes(PERMISSIONS.TASK_EXECUTE);
+  const isMasterAdmin = permissions.includes(PERMISSIONS.MASTER_ADMIN);
 
   const designsQuery = useDesignsList(canViewDesigns);
   const tasksQuery = useMyTasks(canViewTasks);
   const timeQuery = useMyTimeSummary(canViewTasks);
+  const adminDashboardQuery = useAdminDashboardStats(isMasterAdmin);
 
   const designs = designsQuery.data;
   const tasks = tasksQuery.data;
@@ -33,8 +36,13 @@ export default function DashboardPage() {
   const pendingTasks = tasks?.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status)).length ?? 0;
   const runningTasks = tasks?.filter((t) => t.status === "RUNNING").length ?? 0;
 
-  const isLoading = designsQuery.isLoading || tasksQuery.isLoading || timeQuery.isLoading;
+  const isLoading =
+    designsQuery.isLoading ||
+    tasksQuery.isLoading ||
+    timeQuery.isLoading ||
+    (isMasterAdmin && adminDashboardQuery.isLoading);
   const timeSummary = timeQuery.data;
+  const adminStats = adminDashboardQuery.data;
 
   return (
     <div className="page-shell">
@@ -54,11 +62,16 @@ export default function DashboardPage() {
 
       <QueryState
         isLoading={isLoading}
-        isError={designsQuery.isError || tasksQuery.isError}
-        error={designsQuery.error ?? tasksQuery.error}
+        isError={
+          designsQuery.isError ||
+          tasksQuery.isError ||
+          (isMasterAdmin && adminDashboardQuery.isError)
+        }
+        error={designsQuery.error ?? tasksQuery.error ?? adminDashboardQuery.error}
         onRetry={() => {
           designsQuery.refetch();
           tasksQuery.refetch();
+          if (isMasterAdmin) adminDashboardQuery.refetch();
         }}
         skeletonVariant="stats"
       >
@@ -67,6 +80,21 @@ export default function DashboardPage() {
             <RoleOverviewCard
               roleCode={session.user.roleCode}
               permissions={permissions}
+            />
+          </div>
+        )}
+
+        {isMasterAdmin && adminStats && (
+          <div className="stat-grid" style={{ marginBottom: "1.5rem" }}>
+            <StatCard label="Total Ideas" value={adminStats.totalIdeas} accent />
+            <StatCard label="Under Development" value={adminStats.underDevelopment} />
+            <StatCard label="Open Corrections" value={adminStats.correctionsOpen} />
+            <StatCard label="Approved" value={adminStats.approved} />
+            <StatCard label="Released" value={adminStats.released} />
+            <StatCard
+              label="Avg Lead Time"
+              value={`${adminStats.averageLeadTimeDays}d`}
+              trend="Approved → released pipeline"
             />
           </div>
         )}

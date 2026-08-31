@@ -83,11 +83,13 @@ export function useTaskMutations() {
       version: number;
       outputRemark: string;
       completionStatus: "COMPLETED" | "CHECKING";
+      checklist?: Array<{ itemId: number; result: boolean }>;
     }) =>
       apiPost<DesignTask>(`/api/tasks/${taskId}/end`, {
         version,
         outputRemark,
         completionStatus,
+        checklist,
       }),
     onSuccess: () => {
       invalidate();

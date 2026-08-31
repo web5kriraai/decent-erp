@@ -1,17 +1,25 @@
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
+export type WorkType = "NEW_DESIGN" | "REPEAT" | "REVIVAL" | "CUSTOM";
+
 export type DesignSummary = {
   id: string;
   ideaRef: string;
+  designNumber?: string | null;
   collectionName: string;
   status: string;
   priority: Priority;
   conceptNote?: string | null;
+  styleName?: string | null;
+  workType?: WorkType | null;
+  trendReference?: string | null;
+  celebrityReference?: string | null;
   currentStage?: string | null;
   version?: number;
   productType?: { id: number; name: string; code: string };
   season?: { id: number; name: string; code: string };
   designHead?: { id: number; name: string };
+  components?: Array<{ id: string; componentType?: { name: string; code: string }; specification?: string | null }>;
   tasks?: DesignTask[];
   corrections?: unknown[];
   approvals?: unknown[];
@@ -248,15 +256,29 @@ export type DesignCostSummary = {
   hasCosting: boolean;
 };
 
+export type WorkType = "NEW_DESIGN" | "REPEAT" | "REVIVAL" | "CUSTOM";
+
+export type ManualDesignTask = {
+  processId: number;
+  subProcessId: number;
+  expectedMinutes: number;
+  sequence?: number;
+};
+
 export type CreateDesignPayload = {
   productTypeId: number;
   collectionName: string;
   seasonId: number;
   priority: Priority;
   conceptNote?: string;
+  styleName?: string;
+  workType?: WorkType;
+  trendReference?: string;
+  celebrityReference?: string;
+  componentTypeIds?: number[];
   assignmentMode: "AUTOMATIC" | "MANUAL";
   workflowPatternId?: number;
-  manualTasks?: unknown[];
+  manualTasks?: ManualDesignTask[];
 };
 
 export function computeElapsedSeconds(events: TaskTimeEvent[]): number {

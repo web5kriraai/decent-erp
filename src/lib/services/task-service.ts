@@ -257,6 +257,7 @@ export async function endTask(
     outputRemark: string;
     version: number;
     attachmentIds?: number[];
+    checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
   },
   correlationId: string,
 ) {
@@ -274,6 +275,21 @@ export async function endTask(
     }
     if (!["RUNNING", "ON_HOLD"].includes(task.status)) {
       throw new ApiError(`Cannot end task in status ${task.status}`, 409);
+    }
+
+    const requiredChecklist = await tx.qualityChecklistItem.findMany({
+      where: { subProcessId: task.subProcessId, active: true },
+    });
+    if (requiredChecklist.length > 0) {
+      const submitted = new Map((input.checklist ?? []).map((c) => [c.itemId, c.result]));
+      for (const item of requiredChecklist) {
+        if (!submitted.has(item.id)) {
+          throw new ApiError(`Checklist item "${item.name}" is required`, 422);
+        }
+        if (submitted.get(item.id) === false) {
+          throw new ApiError(`Checklist item "${item.name}" must pass`, 422);
+        }
+      }
     }
 
     if (task.subProcess.isFileRequired) {
@@ -298,6 +314,21 @@ export async function endTask(
         createdById: employeeId,
       },
     });
+
+    if (input.checklist?.length) {
+      for (const entry of input.checklist) {
+        await tx.taskChecklistResult.upsert({
+          where: { taskId_itemId: { taskId, itemId: entry.itemId } },
+          update: { result: entry.result, remark: entry.remark },
+          create: {
+            taskId,
+            itemId: entry.itemId,
+            result: entry.result,
+            remark: entry.remark,
+          },
+        });
+      }
+    }
 
     const updated = await tx.designTask.update({
       where: { id: taskId },
@@ -332,4 +363,38 @@ export async function endTask(
 export async function closeWorkday(employeeId: number, correlationId: string) {
   const { persistWorkdayClose } = await import("@/lib/services/time-service");
   return persistWorkdayClose(employeeId, correlationId);
+}
+
+export async function adminAdjustTaskTime(
+  taskId: bigint,
+  adminId: number,
+  remark: string,
+  adjustActiveSeconds: number,
+  correlationId: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    const task = await tx.designTask.findUnique({ where: { id: taskId } });
+    if (!task) throw new ApiError("Task not found", 404);
+
+    const event = await tx.taskTimeEvent.create({
+      data: {
+        taskId,
+        employeeId: task.assignedEmployeeId ?? adminId,
+        eventType: "ADMIN_ADJUSTMENT",
+        remark: `${remark} (adjust: ${adjustActiveSeconds}s)`,
+        createdById: adminId,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      entityType: "TaskTimeEvent",
+      entityId: event.id.toString(),
+      action: "ADMIN_ADJUSTMENT",
+      userId: adminId,
+      correlationId,
+      after: { adjustActiveSeconds, remark },
+    });
+
+    return event;
+  });
 }

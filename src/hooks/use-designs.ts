@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignListResponse, DesignSummary, CreateDesignPayload } from "@/lib/types/api";
 import { useApiToast } from "@/components/ui/ToastProvider";
@@ -35,5 +35,33 @@ export function useCreateDesign() {
       toast.success("Design created", `${data.ideaRef} with tasks generated`);
     },
     onError: (error) => toast.errorFromApi(error, "Failed to create design"),
+  });
+}
+
+export function useUpdateDesign() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: ({
+      designId,
+      ...payload
+    }: {
+      designId: string;
+      version: number;
+      collectionName?: string;
+      conceptNote?: string;
+      styleName?: string;
+      workType?: string;
+      trendReference?: string;
+      celebrityReference?: string;
+      priority?: string;
+    }) => apiPatch<DesignSummary>(`/api/designs/${designId}`, payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(data.id) });
+      toast.success("Design updated");
+    },
+    onError: (error) => toast.errorFromApi(error, "Failed to update design"),
   });
 }

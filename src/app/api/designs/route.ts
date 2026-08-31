@@ -14,14 +14,21 @@ const createDesignSchema = z.object({
   seasonId: z.number().int().positive(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
   conceptNote: z.string().optional(),
+  styleName: z.string().optional(),
+  workType: z.enum(["NEW_DESIGN", "REPEAT", "REVIVAL", "CUSTOM"]).optional(),
+  trendReference: z.string().optional(),
+  celebrityReference: z.string().optional(),
   assignmentMode: z.enum(["AUTOMATIC", "MANUAL"]),
   workflowPatternId: z.number().int().optional(),
+  componentTypeIds: z.array(z.number().int().positive()).optional(),
   manualTasks: z
     .array(
       z.object({
         processId: z.number().int(),
         subProcessId: z.number().int(),
         expectedMinutes: z.number().int().positive(),
+        assignedEmployeeId: z.number().int().optional(),
+        sequence: z.number().int().optional(),
       }),
     )
     .optional(),

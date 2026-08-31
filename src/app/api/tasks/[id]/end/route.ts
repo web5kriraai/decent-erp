@@ -28,6 +28,7 @@ export async function POST(
         outputRemark: body.outputRemark,
         version: body.version,
         attachmentIds: body.attachmentIds,
+        checklist: body.checklist,
       },
       ctx.correlationId,
     );

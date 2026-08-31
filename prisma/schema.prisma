@@ -77,6 +77,21 @@ enum AssignmentMode {
   MANUAL
 }
 
+enum TaskArtifactType {
+  SKETCH_VERSION
+  PUNCHING_FILE
+  SAMPLE_OUTPUT
+  AUDIO_NOTE
+  VIDEO_REF
+}
+
+enum WorkType {
+  NEW_DESIGN
+  REPEAT
+  REVIVAL
+  CUSTOM
+}
+
 // --- Auth & RBAC ---
 
 model Employee {
@@ -108,6 +123,8 @@ model Employee {
   workdaySessions      WorkdaySession[] @relation("WorkdayEmployee")
   closedWorkdaySessions WorkdaySession[] @relation("WorkdayClosedBy")
   enteredCosts         DesignCost[]
+  taskArtifacts        TaskArtifact[]
+  productionHandoffs   ProductionHandoff[]
 
   @@map("employees")
 }
@@ -197,6 +214,7 @@ model ProductType {
   designConcepts    DesignConcept[]
   workflowPatterns  WorkflowPattern[]
   processMappings   ProductProcessMapping[]
+  componentTypes    ComponentType[]
 
   @@map("product_types")
 }
@@ -210,6 +228,20 @@ model Season {
   designConcepts DesignConcept[]
 
   @@map("seasons")
+}
+
+model ComponentType {
+  id            Int     @id @default(autoincrement()) @map("component_type_id")
+  code          String  @unique
+  name          String
+  productTypeId Int?    @map("product_type_id")
+  sequence      Int     @default(0)
+  active        Boolean @default(true)
+
+  productType ProductType?    @relation(fields: [productTypeId], references: [id])
+  components  DesignComponent[]
+
+  @@map("component_types")
 }
 
 model DesignProcessMaster {
@@ -245,6 +277,7 @@ model DesignSubProcessMaster {
   designSubProcesses  DesignSubProcess[]
   workflowPatternTasks WorkflowPatternTask[]
   designTasks         DesignTask[]
+  checklistItems      QualityChecklistItem[]
 
   @@unique([processId, code])
   @@map("design_sub_process_master")
@@ -330,12 +363,18 @@ model ApprovalLevel {
 model DesignConcept {
   id                   BigInt       @id @default(autoincrement()) @map("design_id")
   ideaRef              String       @unique @map("idea_ref")
+  designNumber         String?      @unique @map("design_number")
   productTypeId        Int          @map("product_type_id")
   collectionName       String       @map("collection_name")
   seasonId             Int          @map("season_id")
   designHeadEmployeeId Int          @map("design_head_employee_id")
   priority             Priority     @default(MEDIUM)
   conceptNote          String?      @map("concept_note") @db.Text
+  styleName            String?      @map("style_name")
+  workType             WorkType?    @map("work_type")
+  trendReference       String?      @map("trend_reference")
+  celebrityReference   String?      @map("celebrity_reference")
+  assignmentMode       AssignmentMode @default(AUTOMATIC) @map("assignment_mode")
   currentStage         String?      @map("current_stage")
   status               DesignStatus @default(DRAFT)
   workflowPatternId    Int?         @map("workflow_pattern_id")
@@ -350,13 +389,15 @@ model DesignConcept {
   createdBy      Employee         @relation("CreatedBy", fields: [createdById], references: [id])
   workflowPattern WorkflowPattern? @relation(fields: [workflowPatternId], references: [id])
 
-  components  DesignComponent[]
-  images      DesignImage[]
-  processes   DesignProcess[]
-  tasks       DesignTask[]
-  corrections DesignCorrection[]
-  approvals   DesignApproval[]
-  costs       DesignCost[]
+  components       DesignComponent[]
+  images           DesignImage[]
+  processes        DesignProcess[]
+  tasks            DesignTask[]
+  corrections      DesignCorrection[]
+  approvals        DesignApproval[]
+  costs            DesignCost[]
+  productionHandoffs ProductionHandoff[]
+  successMetrics   DesignSuccessMetric[]
 
   @@index([status, priority])
   @@map("design_concepts")
@@ -370,8 +411,9 @@ model DesignComponent {
   sequence          Int
   active            Boolean @default(true)
 
-  design DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
-  images DesignImage[]
+  design        DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+  componentType ComponentType @relation(fields: [componentTypeId], references: [id])
+  images        DesignImage[]
 
   @@index([designId, sequence])
   @@map("design_components")
@@ -449,6 +491,9 @@ model DesignTask {
   updatedAtUtc        DateTime   @updatedAt @map("updated_at_utc")
   version             Int        @default(1)
 
+  sequence            Int        @default(0)
+  dependencySequence  Int?       @map("dependency_sequence")
+
   design           DesignConcept          @relation(fields: [designId], references: [id], onDelete: Cascade)
   process          DesignProcessMaster    @relation(fields: [processId], references: [id])
   subProcess       DesignSubProcessMaster @relation(fields: [subProcessId], references: [id])
@@ -456,6 +501,8 @@ model DesignTask {
   timeEvents       TaskTimeEvent[]
   corrections      DesignCorrection[]
   approvals        DesignApproval[]
+  checklistResults TaskChecklistResult[]
+  artifacts        TaskArtifact[]
 
   @@index([assignedEmployeeId, status, dueAt], map: "IX_DesignTask_AssignedEmployee_Status_DueAt")
   @@index([designId, processId, subProcessId], map: "IX_DesignTask_DesignId_Process_SubProcess")
@@ -495,6 +542,8 @@ model DesignCorrection {
   extraMinutes          Int?             @map("extra_minutes")
   extraCost             Decimal?         @map("extra_cost") @db.Decimal(18, 2)
   ratingImpact          Decimal?         @map("rating_impact") @db.Decimal(5, 2)
+  beforeImageId         BigInt?          @map("before_image_id")
+  afterImageId          BigInt?          @map("after_image_id")
   status                CorrectionStatus @default(OPEN)
   createdAtUtc          DateTime         @default(now()) @map("created_at_utc")
   updatedAtUtc          DateTime         @updatedAt @map("updated_at_utc")
@@ -619,4 +668,93 @@ model NotificationOutbox {
 
   @@index([processed, createdAtUtc])
   @@map("notification_outbox")
+}
+
+model QualityChecklistItem {
+  id           Int     @id @default(autoincrement()) @map("checklist_item_id")
+  subProcessId Int?    @map("sub_process_id")
+  code         String  @unique
+  name         String
+  sequence     Int
+  active       Boolean @default(true)
+
+  subProcess DesignSubProcessMaster? @relation(fields: [subProcessId], references: [id])
+  results    TaskChecklistResult[]
+
+  @@map("quality_checklist_items")
+}
+
+model TaskChecklistResult {
+  id        BigInt  @id @default(autoincrement()) @map("checklist_result_id")
+  taskId    BigInt  @map("task_id")
+  itemId    Int     @map("item_id")
+  result    Boolean
+  remark    String? @db.Text
+
+  task DesignTask           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  item QualityChecklistItem @relation(fields: [itemId], references: [id])
+
+  @@unique([taskId, itemId])
+  @@map("task_checklist_results")
+}
+
+model TaskArtifact {
+  id            BigInt           @id @default(autoincrement()) @map("artifact_id")
+  taskId        BigInt           @map("task_id")
+  artifactType  TaskArtifactType @map("artifact_type")
+  versionNo     Int?             @map("version_no")
+  storageKey    String?          @map("storage_key")
+  fileName      String?          @map("file_name")
+  contentType   String?          @map("content_type")
+  fileSize      BigInt?          @map("file_size")
+  stitchCount   Int?             @map("stitch_count")
+  machineFormat String?          @map("machine_format")
+  sampleQty     Int?             @map("sample_qty")
+  wastageQty    Int?             @map("wastage_qty")
+  metadata      Json?
+  uploadedById  Int              @map("uploaded_by")
+  uploadedAtUtc DateTime         @default(now()) @map("uploaded_at_utc")
+
+  task       DesignTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy Employee   @relation(fields: [uploadedById], references: [id])
+
+  @@index([taskId, artifactType])
+  @@map("task_artifacts")
+}
+
+model ProductionHandoff {
+  id            BigInt   @id @default(autoincrement()) @map("handoff_id")
+  designId      BigInt   @map("design_id")
+  designNumber  String   @map("design_number")
+  erpModule     String   @map("erp_module")
+  erpReference  String?  @map("erp_reference")
+  status        String   @default("PENDING")
+  payload       Json?
+  releasedById  Int      @map("released_by")
+  releasedAtUtc DateTime @default(now()) @map("released_at_utc")
+
+  design     DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+  releasedBy Employee      @relation(fields: [releasedById], references: [id])
+
+  @@index([designId])
+  @@map("production_handoffs")
+}
+
+model DesignSuccessMetric {
+  id             BigInt   @id @default(autoincrement()) @map("success_metric_id")
+  designId       BigInt   @map("design_id")
+  periodYear     Int      @map("period_year")
+  periodMonth    Int      @map("period_month")
+  productionQty  Int      @default(0) @map("production_qty")
+  salesQty       Int      @default(0) @map("sales_qty")
+  salesValue     Decimal  @default(0) @map("sales_value") @db.Decimal(18, 2)
+  returnQty      Int      @default(0) @map("return_qty")
+  marginPercent  Decimal? @map("margin_percent") @db.Decimal(5, 2)
+  repeatOrders   Int      @default(0) @map("repeat_orders")
+  updatedAtUtc   DateTime @updatedAt @map("updated_at_utc")
+
+  design DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+
+  @@unique([designId, periodYear, periodMonth])
+  @@map("design_success_metrics")
 }

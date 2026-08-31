@@ -189,10 +189,28 @@ export async function submitApproval(
         data: { status: "ACTIVE" },
       });
       if (input.taskId) {
+        const task = await tx.designTask.findUnique({
+          where: { id: input.taskId },
+          include: { assignedEmployee: true },
+        });
         await tx.designTask.update({
           where: { id: input.taskId },
           data: { status: "CORRECTION_REQUIRED" },
         });
+        if (task?.assignedEmployeeId) {
+          await tx.designCorrection.create({
+            data: {
+              designId: input.designId,
+              taskId: input.taskId,
+              correctionType: "IMPROVEMENT",
+              responsibleEmployeeId: task.assignedEmployeeId,
+              raisedById: approverEmployeeId,
+              rootCause: input.remark ?? "Approval returned for correction",
+              status: "OPEN",
+              ratingImpact: 0,
+            },
+          });
+        }
       }
     }
 
