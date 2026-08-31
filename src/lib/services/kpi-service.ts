@@ -123,13 +123,3 @@ export async function getProcessMasters() {
     },
   });
 }
-
-export async function getWorkflowPatterns() {
-  return prisma.workflowPattern.findMany({
-    where: { active: true },
-    include: {
-      tasks: { orderBy: { sequence: "asc" } },
-      productType: true,
-    },
-  });
-}

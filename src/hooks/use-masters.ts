@@ -46,7 +46,12 @@ type ProcessMaster = {
   code: string;
   name: string;
   sequence: number;
-  subProcesses: Array<{ id: number; name: string; code: string }>;
+  subProcesses: Array<{
+    id: number;
+    name: string;
+    code: string;
+    defaultRoleId?: number | null;
+  }>;
 };
 
 export function useProcessMasters(enabled = true) {

@@ -119,11 +119,39 @@ export type HoldReason = {
   name: string;
 };
 
+export type WorkflowPatternTask = {
+  id: number;
+  sequence: number;
+  expectedMinutes: number;
+  processId: number;
+  subProcessId: number;
+  defaultRoleId: number;
+  process?: { id: number; code: string; name: string };
+  subProcess?: { id: number; code: string; name: string };
+  defaultRole?: { id: number; code: string; name: string };
+};
+
 export type WorkflowPattern = {
   id: number;
   name: string;
   versionNo: number;
-  tasks: Array<{ id: number; sequence: number; expectedMinutes: number }>;
+  active?: boolean;
+  productTypeId?: number | null;
+  productType?: { id: number; code: string; name: string } | null;
+  tasks: WorkflowPatternTask[];
+};
+
+export type CreateWorkflowPatternPayload = {
+  name: string;
+  productTypeId?: number | null;
+  versionNo?: number;
+  tasks: Array<{
+    processId: number;
+    subProcessId: number;
+    defaultRoleId: number;
+    expectedMinutes: number;
+    sequence: number;
+  }>;
 };
 
 export type ProductType = { id: number; code: string; name: string };
