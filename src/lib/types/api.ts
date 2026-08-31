@@ -256,8 +256,6 @@ export type DesignCostSummary = {
   hasCosting: boolean;
 };
 
-export type WorkType = "NEW_DESIGN" | "REPEAT" | "REVIVAL" | "CUSTOM";
-
 export type ManualDesignTask = {
   processId: number;
   subProcessId: number;

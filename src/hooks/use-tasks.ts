@@ -78,6 +78,7 @@ export function useTaskMutations() {
       version,
       outputRemark,
       completionStatus,
+      checklist,
     }: {
       taskId: string;
       version: number;

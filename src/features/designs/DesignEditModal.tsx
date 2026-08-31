@@ -23,7 +23,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
   async function handleSave() {
     await updateDesign.mutateAsync({
       designId: design.id,
-      version: design.version,
+      version: design.version ?? 1,
       collectionName: collectionName.trim(),
       conceptNote: conceptNote.trim() || undefined,
       styleName: styleName.trim() || undefined,
