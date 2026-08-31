@@ -32,7 +32,7 @@ export function AdminTimeLiveView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Live Team Time"
-        subtitle="Who is working now — server-tracked timers across all employees"
+        subtitle="Who is working now - server-tracked timers across all employees"
         actions={
           <Link href={ROUTES.analytics.timeReport} className="btn btn-secondary btn-sm">
             Time reports
@@ -100,15 +100,15 @@ export function AdminTimeLiveView() {
                             </div>
                           </>
                         ) : (
-                          "—"
+                          "-"
                         )}
                       </td>
-                      <td>{row.task ? formatDuration(row.task.activeSeconds) : "—"}</td>
-                      <td>{row.task ? formatDuration(row.task.holdSeconds) : "—"}</td>
+                      <td>{row.task ? formatDuration(row.task.activeSeconds) : "-"}</td>
+                      <td>{row.task ? formatDuration(row.task.holdSeconds) : "-"}</td>
                       <td>
                         {row.task?.dueAt
                           ? new Date(row.task.dueAt).toLocaleDateString()
-                          : "—"}
+                          : "-"}
                       </td>
                     </tr>
                   ))}

@@ -107,7 +107,7 @@ export function EmployeeTimeReportView() {
                     <td>
                       {row.holdByReason[0]
                         ? `${row.holdByReason[0].name} (${formatDuration(row.holdByReason[0].seconds)})`
-                        : "—"}
+                        : "-"}
                     </td>
                   </tr>
                 ))}

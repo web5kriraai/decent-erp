@@ -189,7 +189,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   <h3 style={{ marginTop: 0 }}>Time summary</h3>
                   {!isAssignee && canViewTeam && (
                     <p style={{ color: "var(--color-neutral-500)", marginTop: 0, marginBottom: "0.75rem" }}>
-                      Read-only view — you are not the assignee for this task.
+                      Read-only view - you are not the assignee for this task.
                     </p>
                   )}
                   {!isAssignee && !canViewTeam && (

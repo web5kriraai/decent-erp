@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { ApiClientError } from "@/lib/api-client";
 
-/** Shared QueryClient — tuned for ERP data (memory + stale cache) */
+/** Shared QueryClient - tuned for ERP data (memory + stale cache) */
 export function createQueryClient() {
   return new QueryClient({
     defaultOptions: {

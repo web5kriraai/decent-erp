@@ -69,7 +69,7 @@ export function CostingView() {
           <option value="">Choose a design…</option>
           {designsQuery.data?.items.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.ideaRef} — {d.collectionName}
+              {d.ideaRef} - {d.collectionName}
             </option>
           ))}
         </select>
@@ -80,7 +80,7 @@ export function CostingView() {
           <div className="stat-grid" style={{ marginBottom: "1.5rem" }}>
             <StatCard
               label="Total Dev Cost"
-              value={summary ? `₹${summary.totalDevCost.toFixed(2)}` : "—"}
+              value={summary ? `₹${summary.totalDevCost.toFixed(2)}` : "-"}
               accent
             />
             <StatCard label="Cost Entries" value={String(summary?.entryCount ?? 0)} />
@@ -154,7 +154,7 @@ export function CostingView() {
               <DataTable
                 columns={[
                   { key: "costType", header: "Type" },
-                  { key: "description", header: "Description", render: (r) => r.description ?? "—" },
+                  { key: "description", header: "Description", render: (r) => r.description ?? "-" },
                   {
                     key: "amount",
                     header: "Amount",

@@ -66,7 +66,7 @@ export function FileUploader({ designId, onUploaded, disabled }: FileUploaderPro
         onChange={(e) => handleFiles(e.target.files)}
       />
       <p style={{ margin: "0 0 0.75rem", color: "var(--color-neutral-600)" }}>
-        Drag & drop or browse — JPG, PNG, PDF, EMB, DST (max 20MB)
+        Drag & drop or browse - JPG, PNG, PDF, EMB, DST (max 20MB)
       </p>
       <button
         type="button"

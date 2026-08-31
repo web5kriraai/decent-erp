@@ -93,7 +93,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
   [ROLE_CODES.SAMPLE_CHECKER]: {
     code: ROLE_CODES.SAMPLE_CHECKER,
     displayName: "Sample Checker",
-    summary: "Quality gate for samples — checklist, approve, reject, or re-sample.",
+    summary: "Quality gate for samples - checklist, approve, reject, or re-sample.",
     responsibilities: [
       "Execute checking tasks with structured checklist",
       "Approve, reject, or request re-sample",
@@ -159,14 +159,14 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
   [ROLE_CODES.MANAGEMENT]: {
     code: ROLE_CODES.MANAGEMENT,
     displayName: "Management",
-    summary: "Executive oversight — approvals, analytics, and release decisions.",
+    summary: "Executive oversight - approvals, analytics, and release decisions.",
     responsibilities: [
       "Final approval on critical design stages",
       "View KPI, team time reports, and costing summaries",
       "Authorize production release at management level",
     ],
     restrictions: [
-      "Operational edits restricted — read and approve focus",
+      "Operational edits restricted - read and approve focus",
       "No process master configuration",
     ],
     permissions: [

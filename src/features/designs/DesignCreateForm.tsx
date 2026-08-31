@@ -65,7 +65,7 @@ export function DesignCreateForm() {
     <div className="page-shell">
       <PageHeader
         title="Create Design Concept"
-        subtitle="Design + tasks saved in one transaction — identity from your session"
+        subtitle="Design + tasks saved in one transaction - identity from your session"
         actions={
           <Link href={ROUTES.designs.list} className="btn btn-secondary">
             Cancel

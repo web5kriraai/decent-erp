@@ -91,7 +91,7 @@ export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCo
           <option value="">Select design…</option>
           {designsQuery.data?.items.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.ideaRef} — {d.collectionName}
+              {d.ideaRef} - {d.collectionName}
             </option>
           ))}
         </select>

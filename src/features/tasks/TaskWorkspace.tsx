@@ -108,7 +108,7 @@ export function TaskWorkspace() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="My Tasks"
-        subtitle="Server-authoritative timer — all state changes are stamped on the server"
+        subtitle="Server-authoritative timer - all state changes are stamped on the server"
         actions={
           <button
             type="button"

@@ -95,7 +95,7 @@ export function AuditLogView() {
               {
                 key: "correlationId",
                 header: "Correlation",
-                render: (r) => r.correlationId ?? "—",
+                render: (r) => r.correlationId ?? "-",
               },
             ]}
             rows={auditQuery.data ?? []}

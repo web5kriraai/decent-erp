@@ -89,7 +89,7 @@ export function ApprovalsView() {
                 render: (row) =>
                   row.task
                     ? `${row.task.process.name} → ${row.task.subProcess.name}`
-                    : "—",
+                    : "-",
               },
               {
                 key: "actions",

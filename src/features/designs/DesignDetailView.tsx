@@ -73,11 +73,11 @@ export function DesignDetailView({ designId }: { designId: string }) {
               <div className="card">
                 <h3 style={{ marginBottom: "1rem" }}>Concept</h3>
                 <dl className="detail-list">
-                  <DetailItem label="Product Type" value={designQuery.data.productType?.name ?? "—"} />
-                  <DetailItem label="Season" value={designQuery.data.season?.name ?? "—"} />
-                  <DetailItem label="Design Head" value={designQuery.data.designHead?.name ?? "—"} />
-                  <DetailItem label="Stage" value={designQuery.data.currentStage ?? "—"} />
-                  <DetailItem label="Concept Note" value={designQuery.data.conceptNote ?? "—"} />
+                  <DetailItem label="Product Type" value={designQuery.data.productType?.name ?? "-"} />
+                  <DetailItem label="Season" value={designQuery.data.season?.name ?? "-"} />
+                  <DetailItem label="Design Head" value={designQuery.data.designHead?.name ?? "-"} />
+                  <DetailItem label="Stage" value={designQuery.data.currentStage ?? "-"} />
+                  <DetailItem label="Concept Note" value={designQuery.data.conceptNote ?? "-"} />
                 </dl>
               </div>
 

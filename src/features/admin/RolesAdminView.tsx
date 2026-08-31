@@ -22,7 +22,7 @@ export function RolesAdminView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Roles & Responsibilities"
-        subtitle="Review all 9 system roles — permissions, duties, and sidebar access"
+        subtitle="Review all 9 system roles - permissions, duties, and sidebar access"
       />
       <RoleCatalogList />
     </div>

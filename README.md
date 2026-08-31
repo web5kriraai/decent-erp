@@ -1,6 +1,6 @@
-# Decent ERP — Design Management
+# Decent ERP - Design Management
 
-Production-ready Next.js full-stack application for textile design operations: concepts, task workflows, time tracking, approvals, costing, production release, KPI, and admin masters — with PostgreSQL, Redis, MinIO, and RBAC.
+Production-ready Next.js full-stack application for textile design operations: concepts, task workflows, time tracking, approvals, costing, production release, KPI, and admin masters - with PostgreSQL, Redis, MinIO, and RBAC.
 
 ## Stack
 
@@ -19,7 +19,7 @@ Production-ready Next.js full-stack application for textile design operations: c
 
 ## Quick start (local)
 
-If ports **5432**, **6379**, or **9000** are already in use, the default `.env.example` uses **5433**, **6380**, and **9002** — no changes needed.
+If ports **5432**, **6379**, or **9000** are already in use, the default `.env.example` uses **5433**, **6380**, and **9002** - no changes needed.
 
 ```bash
 cp .env.example .env
@@ -45,7 +45,7 @@ npm run worker
 
 ### Production build (local)
 
-Stop `dev`, `start`, and `worker` first — on Windows a running server can lock `.next/standalone` and cause `EBUSY` during build.
+Stop `dev`, `start`, and `worker` first - on Windows a running server can lock `.next/standalone` and cause `EBUSY` during build.
 
 ```bash
 npm run build
@@ -136,37 +136,37 @@ Change all passwords before production. After an admin changes a user's role, th
 
 ### Design pipeline
 
-- **New Concept** — product type, season, workflow pattern, optional manual tasks; auto-generates task chain from pattern
-- **Design detail** — task list, assign/reassign, request approval, image gallery (MinIO), regenerate tasks from pattern
-- **Task execution** — server-authoritative timer: start → hold (with reason) → resume → end; file required enforced where sub-process marks `isFileRequired`
+- **New Concept** - product type, season, workflow pattern, optional manual tasks; auto-generates task chain from pattern
+- **Design detail** - task list, assign/reassign, request approval, image gallery (MinIO), regenerate tasks from pattern
+- **Task execution** - server-authoritative timer: start → hold (with reason) → resume → end; file required enforced where sub-process marks `isFileRequired`
 
 ### Quality
 
-- **Corrections** — list, raise, track status
-- **Approvals** — pending queue; multi-level chain (Checker → Design Head → Management); final approval gated on costing completeness
+- **Corrections** - list, raise, track status
+- **Approvals** - pending queue; multi-level chain (Checker → Design Head → Management); final approval gated on costing completeness
 
 ### Finance and production
 
-- **Costing** — per-design development / standard cost lines with margin view
-- **Production release** — queue of approved designs; accept or hold release
+- **Costing** - per-design development / standard cost lines with margin view
+- **Production release** - queue of approved designs; accept or hold release
 
 ### Team and analytics
 
-- **My Time Today** — personal active/hold breakdown
-- **Live Team Time** / **Time Report** — supervisors see team activity
-- **Performance KPI** — monthly metrics with charts; employee and design-head drill-downs; `POST /api/kpi/recompute` for refresh
+- **My Time Today** - personal active/hold breakdown
+- **Live Team Time** / **Time Report** - supervisors see team activity
+- **Performance KPI** - monthly metrics with charts; employee and design-head drill-downs; `POST /api/kpi/recompute` for refresh
 
 ### System admin
 
-- **Employees** — create, edit, activate/deactivate, assign role, reset password
-- **Roles & Access** — read-only role catalog with permission matrix
-- **Process Masters** — create processes; hold reasons and approval levels via API
-- **Workflow Patterns** — **read-only list** (one pattern seeded: *Standard Saree Development*)
-- **Audit Log** — filterable admin action history
+- **Employees** - create, edit, activate/deactivate, assign role, reset password
+- **Roles & Access** - read-only role catalog with permission matrix
+- **Process Masters** - create processes; hold reasons and approval levels via API
+- **Workflow Patterns** - **read-only list** (one pattern seeded: *Standard Saree Development*)
+- **Audit Log** - filterable admin action history
 
 ### Infrastructure
 
-- REST API under `/api/` — see `.cursor/rules/30-api-surface.mdc`
+- REST API under `/api/` - see `.cursor/rules/30-api-surface.mdc`
 - Notification worker (`npm run worker`) + Docker `worker` service
 - CI: lint, migrate, test, build on push/PR (`.github/workflows/ci.yml`)
 
@@ -194,19 +194,19 @@ flowchart LR
   H --> I[Production Head: release]
 ```
 
-1. **Design Head** — **Design Pipeline → New Concept**, pick workflow pattern, submit.
-2. **Designer** — **My Tasks**, open task, **Start**, work, upload files if prompted, **End**.
-3. **Design Head** — on design detail, **Assign** tasks if needed; **Request Approval** when stage is ready.
-4. **Checker / Management** — **Quality → Approvals**, approve or reject (multi-level).
-5. **Costing** — **Finance → Costing**, enter costs for the design.
-6. **Management** — final approval after costing is complete.
-7. **Production Head** — **Production → Production Release**, accept handoff.
+1. **Design Head** - **Design Pipeline → New Concept**, pick workflow pattern, submit.
+2. **Designer** - **My Tasks**, open task, **Start**, work, upload files if prompted, **End**.
+3. **Design Head** - on design detail, **Assign** tasks if needed; **Request Approval** when stage is ready.
+4. **Checker / Management** - **Quality → Approvals**, approve or reject (multi-level).
+5. **Costing** - **Finance → Costing**, enter costs for the design.
+6. **Management** - final approval after costing is complete.
+7. **Production Head** - **Production → Production Release**, accept handoff.
 
 ### Admin setup (first time)
 
 1. Run migrate + seed (roles, permissions, demo users, processes, hold reasons, approval levels, sample pattern and design).
 2. Sign in as admin → **Employees** to add real staff and assign roles.
-3. **Process Masters** — add/adjust main processes and sub-processes before new patterns are needed.
+3. **Process Masters** - add/adjust main processes and sub-processes before new patterns are needed.
 4. For new workflow templates today: extend `src/lib/seed.ts` or insert into DB (UI/API for pattern CRUD coming later).
 
 ### Developer commands
@@ -268,7 +268,7 @@ decent-erp/
 
 ## Security notes
 
-- Never commit `.env` — use `.env.example` as template.
+- Never commit `.env` - use `.env.example` as template.
 - Rotate `NEXTAUTH_SECRET` / `AUTH_SECRET` in production.
 - System Admin actions are written to the audit log.
 - Task times are server-authoritative; client clock is not trusted for duration.
@@ -277,4 +277,4 @@ decent-erp/
 
 ## License
 
-Private — Decent ERP design management module.
+Private - Decent ERP design management module.
