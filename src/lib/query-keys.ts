@@ -40,7 +40,10 @@ export const queryKeys = {
   },
   approvals: {
     pending: ["approvals", "pending"] as const,
+    stage: ["approvals", "stage"] as const,
+    ready: ["approvals", "ready"] as const,
     levels: ["approvals", "levels"] as const,
+    all: ["approvals"] as const,
   },
   costs: {
     list: (designId: string) => ["costs", designId] as const,

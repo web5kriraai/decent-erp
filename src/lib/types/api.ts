@@ -242,6 +242,44 @@ export type ApprovalLevel = {
   code: string;
   name: string;
   sequence: number;
+  requiredRoleId?: number | null;
+};
+
+export type PendingApprovalQueueItem = {
+  designId: string;
+  design: {
+    id: string;
+    ideaRef: string;
+    collectionName: string;
+    status: string;
+    priority?: string;
+  };
+  currentLevel: ApprovalLevel;
+  task: {
+    id: string;
+    process: { name: string };
+    subProcess: { name: string };
+  } | null;
+  existingApprovalId: string | null;
+};
+
+export type ReadyForSignOffItem = {
+  designId: string;
+  ideaRef: string;
+  collectionName: string;
+  completedAt: string | null;
+};
+
+export type StageApprovalQueueItem = {
+  taskId: string;
+  designId: string;
+  ideaRef: string;
+  collectionName: string;
+  stageName: string;
+  stageCode: string;
+  status: string;
+  assigneeName: string | null;
+  workStageName: string | null;
 };
 
 export type PendingApproval = {

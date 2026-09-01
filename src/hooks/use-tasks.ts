@@ -192,6 +192,8 @@ export function useCompleteStageApproval() {
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.designHead });
       queryClient.invalidateQueries({ queryKey: queryKeys.time.mySummary });
       queryClient.invalidateQueries({ queryKey: queryKeys.time.live });
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });

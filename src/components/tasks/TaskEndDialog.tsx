@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Modal,
   ModalAlert,
@@ -69,9 +69,10 @@ export function TaskEndDialog({
 }: TaskEndDialogProps) {
   const [isUploading, setIsUploading] = useState(false);
 
-  useEffect(() => {
-    if (!open) setIsUploading(false);
-  }, [open]);
+  function handleClose() {
+    setIsUploading(false);
+    onClose();
+  }
 
   const { hasFiles, isLoading: filesLoading } = useTaskHasFiles(
     taskId ?? "",
@@ -135,11 +136,11 @@ export function TaskEndDialog({
       open={open}
       title="Complete Task"
       description={completionDescription}
-      onClose={onClose}
+      onClose={handleClose}
       size={showFileUpload ? "xl" : "lg"}
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={onClose} disabled={isPending || isUploading}>
+          <Button type="button" variant="outline" onClick={handleClose} disabled={isPending || isUploading}>
             Cancel
           </Button>
           <Button type="button" disabled={!canSubmit} onClick={onSubmit}>

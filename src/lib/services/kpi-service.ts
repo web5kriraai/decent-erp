@@ -149,7 +149,7 @@ export async function calculateMonthlyKpi(year: number, month: number) {
       },
       include: { costs: true },
     });
-    let costScores: number[] = [];
+    const costScores: number[] = [];
     for (const d of designs) {
       const actual = d.costs.reduce((s, c) => s + Number(c.amount), 0);
       const baseline =

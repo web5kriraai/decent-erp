@@ -52,25 +52,29 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
     [canSearchDesigns],
   );
 
-  useEffect(() => {
-    if (!open) {
+  function handleOpenChange(next: boolean) {
+    if (!next) {
       setQuery("");
       setResults([]);
-      return;
     }
+    onOpenChange(next);
+  }
+
+  useEffect(() => {
+    if (!open) return;
     const timer = setTimeout(() => void search(query), 250);
     return () => clearTimeout(timer);
   }, [open, query, search]);
 
   function navigate(href: string) {
-    onOpenChange(false);
+    handleOpenChange(false);
     router.push(href);
   }
 
   return (
     <CommandDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title="Search Decent ERP"
       description="Search designs by idea reference or collection name"
       shouldFilter={false}

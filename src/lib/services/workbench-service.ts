@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
 import { listStageApprovalQueue } from "@/lib/services/stage-approval-queue";
+import {
+  listDesignsReadyForSignOff,
+  listPendingApprovalsForEmployee,
+} from "@/lib/services/approval-service";
 
 export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
   const now = new Date();
@@ -12,6 +16,7 @@ export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
     activeDesigns,
     openCorrections,
     stageApprovals,
+    readyForSignOff,
   ] = await Promise.all([
     prisma.designTask.count({
       where: {
@@ -72,6 +77,7 @@ export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
       },
     }),
     listStageApprovalQueue(designHeadId),
+    listDesignsReadyForSignOff(designHeadId),
   ]);
 
   return {
@@ -83,10 +89,12 @@ export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
     activeDesigns,
     openCorrections,
     stageApprovals,
+    readyForSignOff: readyForSignOff.length,
+    readyForSignOffDesigns: readyForSignOff.slice(0, 8),
   };
 }
 
-export async function getManagementWorkbenchSummary() {
+export async function getManagementWorkbenchSummary(employeeId: number) {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
 
@@ -94,20 +102,17 @@ export async function getManagementWorkbenchSummary() {
     where: { code: "MANAGEMENT_APPROVAL", active: true },
   });
 
+  const actionableApprovals = await listPendingApprovalsForEmployee(employeeId);
+
+  const actionableDesignIds = new Set(actionableApprovals.map((item) => item.designId));
+
   const [
-    approvalPending,
-    highPriorityPending,
     blockedInApproval,
     approvedCount,
     releasedCount,
     underDevelopment,
-    recentApprovalQueue,
     liveReviewTasks,
   ] = await Promise.all([
-    prisma.designConcept.count({ where: { status: "APPROVAL_PENDING" } }),
-    prisma.designConcept.count({
-      where: { status: "APPROVAL_PENDING", priority: { in: ["HIGH", "URGENT"] } },
-    }),
     prisma.designConcept.count({
       where: {
         status: "APPROVAL_PENDING",
@@ -118,19 +123,6 @@ export async function getManagementWorkbenchSummary() {
     prisma.designConcept.count({ where: { status: "PRODUCTION_RELEASED" } }),
     prisma.designConcept.count({
       where: { status: { in: ["ACTIVE", "APPROVAL_PENDING", "ON_HOLD"] } },
-    }),
-    prisma.designConcept.findMany({
-      where: { status: "APPROVAL_PENDING" },
-      orderBy: [{ priority: "desc" }, { updatedAtUtc: "asc" }],
-      take: 8,
-      select: {
-        id: true,
-        ideaRef: true,
-        collectionName: true,
-        status: true,
-        priority: true,
-        updatedAtUtc: true,
-      },
     }),
     prisma.designTask.findMany({
       where: {
@@ -147,9 +139,34 @@ export async function getManagementWorkbenchSummary() {
     }),
   ]);
 
+  const highPriorityActionable =
+    actionableDesignIds.size === 0
+      ? 0
+      : await prisma.designConcept.count({
+          where: {
+            status: "APPROVAL_PENDING",
+            priority: { in: ["HIGH", "URGENT"] },
+            id: { in: [...actionableDesignIds].map((id) => BigInt(id)) },
+          },
+        });
+
+  const priorityByDesignId = new Map(
+    actionableApprovals.map((item) => [item.designId, item.design.priority ?? "MEDIUM"]),
+  );
+
+  const recentApprovalQueue = actionableApprovals.slice(0, 8).map((item) => ({
+    id: item.designId,
+    ideaRef: item.design.ideaRef,
+    collectionName: item.design.collectionName,
+    status: item.design.status,
+    priority: priorityByDesignId.get(item.designId) ?? "MEDIUM",
+    updatedAtUtc: new Date().toISOString(),
+    currentLevelName: item.currentLevel.name,
+  }));
+
   return {
-    approvalPending,
-    highPriorityPending,
+    approvalPending: actionableApprovals.length,
+    highPriorityPending: highPriorityActionable,
     blockedInApproval,
     approvedCount,
     releasedCount,

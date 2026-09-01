@@ -3,9 +3,11 @@ import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-ut
 import { PERMISSIONS } from "@/lib/permissions";
 import {
   getApprovalLevels,
-  listPendingApprovals,
+  listDesignsReadyForSignOff,
+  listPendingApprovalsForEmployee,
   submitApproval,
 } from "@/lib/services/approval-service";
+import { listStageApprovalQueue } from "@/lib/services/stage-approval-queue";
 
 const schema = z.object({
   designId: z.string(),
@@ -26,8 +28,22 @@ export async function GET(request: Request) {
     });
   }
 
+  if (view === "stage") {
+    return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
+      const stage = await listStageApprovalQueue(ctx.employeeId);
+      return jsonOk(stage, ctx.correlationId);
+    });
+  }
+
+  if (view === "ready") {
+    return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
+      const ready = await listDesignsReadyForSignOff(ctx.employeeId);
+      return jsonOk(ready, ctx.correlationId);
+    });
+  }
+
   return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
-    const pending = await listPendingApprovals();
+    const pending = await listPendingApprovalsForEmployee(ctx.employeeId);
     return jsonOk(serializeBigInt(pending), ctx.correlationId);
   });
 }

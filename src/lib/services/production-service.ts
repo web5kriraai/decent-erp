@@ -102,12 +102,12 @@ export async function releaseToProduction(
       },
     });
 
-    for (const module of ERP_HANDOFF_MODULES) {
+    for (const erpModule of ERP_HANDOFF_MODULES) {
       await tx.productionHandoff.create({
         data: {
           designId,
           designNumber,
-          erpModule: module,
+          erpModule,
           status: "QUEUED",
           releasedById: actorId,
           payload: {

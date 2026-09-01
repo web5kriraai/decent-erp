@@ -36,7 +36,6 @@ export function WorkbenchShell({
       <PageHeader
         title={title ?? `Welcome back, ${firstName}`}
         subtitle={subtitle}
-        breadcrumbs={[{ label: "Overview" }]}
         actions={actions}
       />
       <QueryState

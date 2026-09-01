@@ -53,7 +53,7 @@ function getBackend(): StorageBackend {
   return activeBackend;
 }
 
-function useLocalBackend(reason?: unknown) {
+function switchToLocalBackend(reason?: unknown) {
   if (activeBackend !== "local") {
     activeBackend = "local";
     const detail =
@@ -119,7 +119,7 @@ export async function uploadObject(
         error,
       );
     }
-    useLocalBackend(error);
+    switchToLocalBackend(error);
     await uploadToLocal(key, body, contentType);
     return key;
   }
@@ -144,7 +144,7 @@ export async function getPresignedDownloadUrl(key: string, expiresIn = 3600) {
     if (storageDriver === "s3" || !isConnectionError(error)) {
       throw new StorageError("Could not create download URL for stored file.", error);
     }
-    useLocalBackend(error);
+    switchToLocalBackend(error);
     return localDownloadPath(key);
   }
 }
@@ -168,7 +168,7 @@ export async function deleteObject(key: string) {
     if (storageDriver === "s3" || !isConnectionError(error)) {
       throw new StorageError("Could not delete stored file.", error);
     }
-    useLocalBackend(error);
+    switchToLocalBackend(error);
     await deleteFromLocal(key);
   }
 }

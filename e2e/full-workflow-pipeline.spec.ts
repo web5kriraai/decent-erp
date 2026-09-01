@@ -11,15 +11,35 @@ import {
 } from "./helpers/auth";
 import {
   assignTaskToEmployee,
-  completeAssignedTask,
-  completeStageApproval,
+  completeTaskForUser,
+  finalizeDevelopmentForSignOff,
   getDesign,
   getDesignTaskByCode,
-  listMyTasks,
+  requestDesignApproval,
+  runWorkOrderThroughSampleReceive,
   submitManagementApprovals,
 } from "./helpers/workflow";
 
 const DEMO = "Demo@123";
+
+const BASE_ROLE_MAP: Record<string, string> = {
+  CONCEPT_REVIEW: USERS.designHead.email,
+  SKETCH: USERS.sketch.email,
+  SKETCH_APPROVAL: USERS.designHead.email,
+  PUNCH: USERS.punch.email,
+  PUNCH_CHECK: USERS.checker.email,
+  MAT_REQ: USERS.designHead.email,
+  FABRIC_ISSUE: USERS.production.email,
+  MACHINE_SAMPLE: USERS.machine.email,
+  SAMPLE_RECEIVE: USERS.machine.email,
+  SAMPLE_CHECK: USERS.checker.email,
+  COSTING: USERS.costing.email,
+  FINAL_APPROVAL: USERS.designHead.email,
+  PROD_HANDOFF: USERS.designHead.email,
+  PROD_INSTRUCTION: USERS.production.email,
+  PROD_RELEASE: USERS.production.email,
+  LIVE_REVIEW: USERS.management.email,
+};
 
 async function employeeIdFor(page: Page, email: string) {
   await login(page, USERS.admin.email, USERS.admin.password);
@@ -32,111 +52,75 @@ async function employeeIdFor(page: Page, email: string) {
   return row.id;
 }
 
-async function assignAllPending(page: Page, designId: string, map: Record<string, string>) {
-  await login(page, USERS.designHead.email, DEMO);
-  const design = await getDesign(page, designId);
-  for (const task of design.tasks) {
-    const code = task.subProcess.code ?? "";
-    const email = map[code];
-    if (!email) continue;
-    if (!["PENDING", "ASSIGNED"].includes(task.status)) continue;
-    const id = await employeeIdFor(page, email);
-    await assignTaskToEmployee(page, task.id, id);
-  }
+async function advanceThroughSampleCheck(page: Page, designId: string) {
+  await runWorkOrderThroughSampleReceive(page, designId, BASE_ROLE_MAP, employeeIdFor);
+  const sampleDone = await completeTaskForUser(
+    page,
+    USERS.checker.email,
+    designId,
+    "SAMPLE_CHECK",
+    { sampleOutcome: "APPROVE" },
+  );
+  expect(sampleDone).toBe(true);
 }
 
-async function completeTaskForUser(
-  page: Page,
-  email: string,
-  designId: string,
-  code: string,
-  extra?: Parameters<typeof completeAssignedTask>[3],
-) {
-  await login(page, email, DEMO);
-  const tasks = await listMyTasks(page);
-  const mine = tasks.find(
-    (t) => t.design.id === designId && t.subProcess.code === code && t.status === "ASSIGNED",
-  );
-  if (!mine) return false;
-  await completeAssignedTask(page, mine.id, `E2E ${code}`, extra);
-  return true;
+async function finalizeForProduction(page: Page, designId: string) {
+  await finalizeDevelopmentForSignOff(page, designId, employeeIdFor, {
+    costAmount: 1200,
+    costDescription: "Pipeline E2E costing",
+  });
+}
+
+async function submitManagementChain(page: Page, designId: string) {
+  await login(page, USERS.designHead.email, DEMO);
+  await requestDesignApproval(page, designId);
+  await submitManagementApprovals(page, designId);
 }
 
 test.describe("Full workflow pipeline", () => {
   test("concept through LIVE", async ({ page }) => {
     test.setTimeout(300_000);
 
-    const roleMap: Record<string, string> = {
-      CONCEPT_REVIEW: USERS.designHead.email,
-      SKETCH: USERS.sketch.email,
-      SKETCH_APPROVAL: USERS.designHead.email,
-      PUNCH: USERS.punch.email,
-      PUNCH_CHECK: USERS.checker.email,
-      MAT_REQ: USERS.designHead.email,
-      FABRIC_ISSUE: USERS.production.email,
-      MACHINE_SAMPLE: USERS.machine.email,
-      SAMPLE_RECEIVE: USERS.machine.email,
-      SAMPLE_CHECK: USERS.checker.email,
-      COSTING: USERS.costing.email,
-      FINAL_APPROVAL: USERS.designHead.email,
-      PROD_HANDOFF: USERS.designHead.email,
-      PROD_INSTRUCTION: USERS.production.email,
-      PROD_RELEASE: USERS.production.email,
-      LIVE_REVIEW: USERS.management.email,
-    };
-
     await login(page, USERS.designHead.email, DEMO);
     const design = await createDesignViaApi(page, `Pipeline ${Date.now()}`);
-    await assignAllPending(page, design.id, roleMap);
 
-    const workOrder = [
-      "CONCEPT_REVIEW",
-      "SKETCH",
-      "PUNCH",
-      "MAT_REQ",
-      "FABRIC_ISSUE",
-      "MACHINE_SAMPLE",
-      "SAMPLE_RECEIVE",
-    ] as const;
+    await advanceThroughSampleCheck(page, design.id);
+    await finalizeForProduction(page, design.id);
 
-    for (const code of workOrder) {
-      await completeTaskForUser(page, roleMap[code], design.id, code);
-      if (code === "SKETCH") {
-        await login(page, USERS.designHead.email, DEMO);
-        const approval = await getDesignTaskByCode(page, design.id, "SKETCH_APPROVAL");
-        if (approval?.status === "ASSIGNED") {
-          await completeStageApproval(page, approval.id);
-        }
-      }
-      if (code === "PUNCH") {
-        await login(page, USERS.checker.email, DEMO);
-        const punchCheck = await getDesignTaskByCode(page, design.id, "PUNCH_CHECK");
-        if (punchCheck?.status === "ASSIGNED") {
-          await completeStageApproval(page, punchCheck.id);
-        }
-      }
-    }
+    const readyQueue = await apiGetJson<Array<{ designId: string }>>(
+      page,
+      "/api/approvals?view=ready",
+    );
+    expect(readyQueue.some((row) => row.designId === design.id)).toBe(true);
 
-    const checklist = await apiGetJson<Array<{ id: number }>>(page, "/api/masters/checklist");
-    await completeTaskForUser(page, USERS.checker.email, design.id, "SAMPLE_CHECK", {
-      sampleOutcome: "APPROVE",
-      checklist: checklist.slice(0, 2).map((item) => ({ itemId: item.id, result: true })),
-    });
-
-    await login(page, USERS.costing.email, DEMO);
-    await apiPostJson(page, `/api/designs/${design.id}/costs`, {
-      costType: "MATERIAL",
-      description: "Pipeline E2E costing",
-      amount: 1200,
-    });
+    await page.goto(`/quality/approvals?tab=ready`);
+    await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
+    await expect(page.getByText(design.ideaRef)).toBeVisible();
 
     await login(page, USERS.designHead.email, DEMO);
-    const finalApproval = await getDesignTaskByCode(page, design.id, "FINAL_APPROVAL");
-    if (finalApproval?.status === "ASSIGNED") {
-      await completeStageApproval(page, finalApproval.id);
-    }
+    await requestDesignApproval(page, design.id);
+
+    await login(page, USERS.checker.email, DEMO);
+    const checkerQueueAfterRequest = await apiGetJson<Array<{ designId: string }>>(
+      page,
+      "/api/approvals",
+    );
+    expect(checkerQueueAfterRequest.some((row) => row.designId === design.id)).toBe(true);
+
+    await login(page, USERS.designHead.email, DEMO);
+    const designHeadQueueAfterRequest = await apiGetJson<Array<{ designId: string }>>(
+      page,
+      "/api/approvals",
+    );
+    expect(designHeadQueueAfterRequest.some((row) => row.designId === design.id)).toBe(false);
 
     await submitManagementApprovals(page, design.id);
+
+    const managementQueue = await apiGetJson<Array<{ designId: string }>>(
+      page,
+      "/api/approvals",
+    );
+    expect(managementQueue.some((row) => row.designId === design.id)).toBe(false);
 
     await completeTaskForUser(page, USERS.designHead.email, design.id, "PROD_HANDOFF");
 
@@ -183,53 +167,12 @@ test.describe("Sample reject and re-sample", () => {
   test("sample REJECT creates correction routed to machine sample", async ({ page }) => {
     test.setTimeout(180_000);
 
-    const roleMap: Record<string, string> = {
-      CONCEPT_REVIEW: USERS.designHead.email,
-      SKETCH: USERS.sketch.email,
-      SKETCH_APPROVAL: USERS.designHead.email,
-      PUNCH: USERS.punch.email,
-      PUNCH_CHECK: USERS.checker.email,
-      MAT_REQ: USERS.designHead.email,
-      FABRIC_ISSUE: USERS.production.email,
-      MACHINE_SAMPLE: USERS.machine.email,
-      SAMPLE_RECEIVE: USERS.machine.email,
-      SAMPLE_CHECK: USERS.checker.email,
-    };
-
     await login(page, USERS.designHead.email, DEMO);
     const design = await createDesignViaApi(page, `Reject path ${Date.now()}`);
-    await assignAllPending(page, design.id, roleMap);
+    await runWorkOrderThroughSampleReceive(page, design.id, BASE_ROLE_MAP, employeeIdFor);
 
-    for (const code of [
-      "CONCEPT_REVIEW",
-      "SKETCH",
-      "PUNCH",
-      "MAT_REQ",
-      "FABRIC_ISSUE",
-      "MACHINE_SAMPLE",
-      "SAMPLE_RECEIVE",
-    ] as const) {
-      await completeTaskForUser(page, roleMap[code], design.id, code);
-      if (code === "SKETCH") {
-        await login(page, USERS.designHead.email, DEMO);
-        const approval = await getDesignTaskByCode(page, design.id, "SKETCH_APPROVAL");
-        if (approval?.status === "ASSIGNED") await completeStageApproval(page, approval.id);
-      }
-      if (code === "PUNCH") {
-        await login(page, USERS.checker.email, DEMO);
-        const punchCheck = await getDesignTaskByCode(page, design.id, "PUNCH_CHECK");
-        if (punchCheck?.status === "ASSIGNED") await completeStageApproval(page, punchCheck.id);
-      }
-    }
-
-    const checklist = await apiGetJson<Array<{ id: number }>>(page, "/api/masters/checklist");
     await completeTaskForUser(page, USERS.checker.email, design.id, "SAMPLE_CHECK", {
       sampleOutcome: "REJECT",
-      checklist: checklist.slice(0, 2).map((item, index) => ({
-        itemId: item.id,
-        result: index === 0,
-        remark: index === 0 ? undefined : "Fit issue",
-      })),
     });
 
     const sampleCheck = await getDesignTaskByCode(page, design.id, "SAMPLE_CHECK");
@@ -247,49 +190,12 @@ test.describe("Sample reject and re-sample", () => {
   test("sample RESAMPLE spawns rework task", async ({ page }) => {
     test.setTimeout(180_000);
 
-    const roleMap: Record<string, string> = {
-      CONCEPT_REVIEW: USERS.designHead.email,
-      SKETCH: USERS.sketch.email,
-      SKETCH_APPROVAL: USERS.designHead.email,
-      PUNCH: USERS.punch.email,
-      PUNCH_CHECK: USERS.checker.email,
-      MAT_REQ: USERS.designHead.email,
-      FABRIC_ISSUE: USERS.production.email,
-      MACHINE_SAMPLE: USERS.machine.email,
-      SAMPLE_RECEIVE: USERS.machine.email,
-      SAMPLE_CHECK: USERS.checker.email,
-    };
-
     await login(page, USERS.designHead.email, DEMO);
     const design = await createDesignViaApi(page, `Resample path ${Date.now()}`);
-    await assignAllPending(page, design.id, roleMap);
+    await runWorkOrderThroughSampleReceive(page, design.id, BASE_ROLE_MAP, employeeIdFor);
 
-    for (const code of [
-      "CONCEPT_REVIEW",
-      "SKETCH",
-      "PUNCH",
-      "MAT_REQ",
-      "FABRIC_ISSUE",
-      "MACHINE_SAMPLE",
-      "SAMPLE_RECEIVE",
-    ] as const) {
-      await completeTaskForUser(page, roleMap[code], design.id, code);
-      if (code === "SKETCH") {
-        await login(page, USERS.designHead.email, DEMO);
-        const approval = await getDesignTaskByCode(page, design.id, "SKETCH_APPROVAL");
-        if (approval?.status === "ASSIGNED") await completeStageApproval(page, approval.id);
-      }
-      if (code === "PUNCH") {
-        await login(page, USERS.checker.email, DEMO);
-        const punchCheck = await getDesignTaskByCode(page, design.id, "PUNCH_CHECK");
-        if (punchCheck?.status === "ASSIGNED") await completeStageApproval(page, punchCheck.id);
-      }
-    }
-
-    const checklist = await apiGetJson<Array<{ id: number }>>(page, "/api/masters/checklist");
     await completeTaskForUser(page, USERS.checker.email, design.id, "SAMPLE_CHECK", {
       sampleOutcome: "RESAMPLE",
-      checklist: checklist.slice(0, 2).map((item) => ({ itemId: item.id, result: true })),
     });
 
     const after = await getDesign(page, design.id);
@@ -307,23 +213,15 @@ test.describe("Sample reject and re-sample", () => {
 
 test.describe("Production return happy path", () => {
   test("return creates correction and appears in returned inbox", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
 
     await login(page, USERS.designHead.email, DEMO);
     const design = await createDesignViaApi(page, `Return happy ${Date.now()}`);
 
-    await login(page, USERS.costing.email, DEMO);
-    await apiPostJson(page, `/api/designs/${design.id}/costs`, {
-      costType: "MATERIAL",
-      description: "Return test costing",
-      amount: 800,
-    });
+    await advanceThroughSampleCheck(page, design.id);
+    await finalizeForProduction(page, design.id);
+    await submitManagementChain(page, design.id);
 
-    await login(page, USERS.admin.email, USERS.admin.password);
-    await submitManagementApprovals(page, design.id);
-
-    await login(page, USERS.designHead.email, DEMO);
-    await assignAllPending(page, design.id, { PROD_HANDOFF: USERS.designHead.email });
     await completeTaskForUser(page, USERS.designHead.email, design.id, "PROD_HANDOFF");
 
     await login(page, USERS.production.email, DEMO);

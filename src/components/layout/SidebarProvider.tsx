@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -23,17 +22,15 @@ type SidebarContextValue = {
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "true") setCollapsed(true);
+      return localStorage.getItem(STORAGE_KEY) === "true";
     } catch {
-      /* ignore */
+      return false;
     }
-  }, []);
+  });
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {

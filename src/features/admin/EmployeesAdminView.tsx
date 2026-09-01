@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { DataTable } from "@/components/DataTable";
 import {
@@ -64,18 +64,20 @@ export function EmployeesAdminView() {
   const currentEmployeeId = session?.user?.employeeId;
   const defaultRoleCode = roles[0]?.code ?? ROLE_CODES.SKETCH_DESIGNER;
 
-  useEffect(() => {
-    if (createOpen && suggestCodeQuery.data?.employeeCode) {
-      setCreateForm((prev) => ({
-        ...prev,
-        employeeCode: suggestCodeQuery.data!.employeeCode,
-        roleCode: prev.roleCode || defaultRoleCode,
-      }));
-    }
-  }, [createOpen, suggestCodeQuery.data, defaultRoleCode]);
+  const suggestedCode = suggestCodeQuery.data?.employeeCode;
+  if (createOpen && suggestedCode && !createForm.employeeCode) {
+    setCreateForm((prev) => ({
+      ...prev,
+      employeeCode: suggestedCode,
+      roleCode: prev.roleCode || defaultRoleCode,
+    }));
+  }
 
   function openCreateModal() {
-    setCreateForm(emptyForm(defaultRoleCode));
+    setCreateForm({
+      ...emptyForm(defaultRoleCode),
+      employeeCode: suggestedCode ?? "",
+    });
     setCreateOpen(true);
   }
 

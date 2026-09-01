@@ -156,7 +156,7 @@ export function ExecutorWorkbench() {
     shortcuts.push({
       id: "approvals",
       label: "Approvals",
-      href: ROUTES.quality.approvals,
+      href: `${ROUTES.quality.approvals}?tab=management`,
       description: `${approvals.length} waiting`,
       icon: IconApprovals,
       badge: approvals.length,
@@ -245,7 +245,6 @@ export function ExecutorWorkbench() {
       <PageHeader
         title={`Welcome back, ${firstName}`}
         subtitle="Your work for today"
-        breadcrumbs={[{ label: "Overview" }]}
         actions={
           canCreateDesign ? (
             <Link href={ROUTES.designs.new} className="btn btn-primary inline-flex items-center gap-1.5">
@@ -426,7 +425,7 @@ export function ExecutorWorkbench() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Management approvals</CardTitle>
-                  <Link href={ROUTES.quality.approvals} className="btn btn-ghost btn-sm">
+                  <Link href={`${ROUTES.quality.approvals}?tab=management`} className="btn btn-ghost btn-sm">
                     Review all
                   </Link>
                 </CardHeader>
@@ -439,7 +438,7 @@ export function ExecutorWorkbench() {
                         <li key={`${item.designId}-${item.currentLevel.id}`}>
                           <div>
                             <Link
-                              href={ROUTES.quality.approvals}
+                              href={`${ROUTES.quality.approvals}?tab=management`}
                               className="data-table-link"
                             >
                               {item.design.ideaRef}

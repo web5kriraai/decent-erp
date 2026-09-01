@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
@@ -110,29 +110,23 @@ export function DesignCreateForm() {
     [patterns.data, productTypeId],
   );
 
-  // Keep selection valid + auto-pick when exactly one pattern matches the product type.
-  useEffect(() => {
-    if (assignmentMode !== "AUTOMATIC") return;
+  const effectiveWorkflowPatternId = useMemo(() => {
+    if (assignmentMode !== "AUTOMATIC") return workflowPatternId;
     if (
       workflowPatternId &&
       availablePatterns.some((pattern) => pattern.id === workflowPatternId)
     ) {
-      return;
+      return workflowPatternId;
     }
-    if (availablePatterns.length === 1) {
-      setWorkflowPatternId(availablePatterns[0].id);
-      return;
-    }
-    if (workflowPatternId) {
-      setWorkflowPatternId("");
-    }
-  }, [assignmentMode, availablePatterns, workflowPatternId]);
+    if (availablePatterns.length === 1) return availablePatterns[0].id;
+    return "";
+  }, [assignmentMode, workflowPatternId, availablePatterns]);
 
   const validationErrors: Record<string, string> = {};
   if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
-  if (assignmentMode === "AUTOMATIC" && !workflowPatternId) {
+  if (assignmentMode === "AUTOMATIC" && !effectiveWorkflowPatternId) {
     validationErrors.workflowPatternId =
       availablePatterns.length === 0
         ? "No workflow pattern for this product type — switch to Manual or ask Admin to create one"
@@ -212,7 +206,7 @@ export function DesignCreateForm() {
         componentTypeIds: componentTypeIds.length > 0 ? componentTypeIds : undefined,
         assignmentMode,
         workflowPatternId:
-          assignmentMode === "AUTOMATIC" ? Number(workflowPatternId) : undefined,
+          assignmentMode === "AUTOMATIC" ? Number(effectiveWorkflowPatternId) : undefined,
         manualTasks:
           assignmentMode === "MANUAL"
             ? manualTasks.map((task, index) => ({
@@ -540,7 +534,7 @@ export function DesignCreateForm() {
                     <select
                       id="pattern"
                       className="form-select"
-                      value={workflowPatternId}
+                      value={effectiveWorkflowPatternId || workflowPatternId}
                       onChange={(e) =>
                         setWorkflowPatternId(e.target.value ? Number(e.target.value) : "")
                       }

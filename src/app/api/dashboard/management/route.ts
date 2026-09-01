@@ -4,7 +4,7 @@ import { getManagementWorkbenchSummary } from "@/lib/services/workbench-service"
 
 export async function GET() {
   return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
-    const summary = await getManagementWorkbenchSummary();
+    const summary = await getManagementWorkbenchSummary(ctx.employeeId);
     return jsonOk(summary, ctx.correlationId);
   });
 }

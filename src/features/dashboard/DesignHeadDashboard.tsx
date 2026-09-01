@@ -91,6 +91,7 @@ export function DesignHeadDashboard() {
         <div className="stat-grid workbench-pulse">
           <StatCard label="My open tasks" value={summary?.myOpenTasks ?? openTasks.length} accent />
           <StatCard label="Stage approvals" value={summary?.stageApprovals?.length ?? 0} />
+          <StatCard label="Ready for sign-off" value={summary?.readyForSignOff ?? 0} />
           <StatCard label="Management approvals" value={approvals.length} />
           <StatCard label="Open corrections" value={summary?.openCorrections ?? corrections.length} />
           <StatCard label="Handoff pending" value={summary?.handoffPending ?? 0} />
@@ -130,8 +131,8 @@ export function DesignHeadDashboard() {
 
           <WorkbenchQueueCard
             title="Stage approvals"
-            href={ROUTES.work.tasks}
-            linkLabel="Action center"
+            href={`${ROUTES.quality.approvals}?tab=stage`}
+            linkLabel="Open approvals"
             emptyMessage="No workflow stage approvals waiting on you."
           >
             {!summary?.stageApprovals?.length ? (
@@ -156,8 +157,30 @@ export function DesignHeadDashboard() {
           </WorkbenchQueueCard>
 
           <WorkbenchQueueCard
+            title="Ready for sign-off"
+            href={`${ROUTES.quality.approvals}?tab=ready`}
+            linkLabel="Submit for approval"
+            emptyMessage="No designs ready for management sign-off."
+          >
+            {!summary?.readyForSignOffDesigns?.length ? (
+              <WorkbenchEmpty message="When all workflow stages finish, designs appear here for one-click submission to the management chain." />
+            ) : (
+              <ul className="detail-task-list">
+                {summary.readyForSignOffDesigns.map((item) => (
+                  <WorkbenchListItem
+                    key={item.designId}
+                    primaryHref={`${ROUTES.quality.approvals}?tab=ready`}
+                    primaryLabel={item.ideaRef}
+                    meta={item.collectionName}
+                  />
+                ))}
+              </ul>
+            )}
+          </WorkbenchQueueCard>
+
+          <WorkbenchQueueCard
             title="Management approvals"
-            href={ROUTES.quality.approvals}
+            href={`${ROUTES.quality.approvals}?tab=management`}
             linkLabel="Review all"
             emptyMessage="Nothing waiting on management approval."
           >
@@ -168,7 +191,7 @@ export function DesignHeadDashboard() {
                 {approvals.slice(0, 6).map((item) => (
                   <WorkbenchListItem
                     key={`${item.designId}-${item.currentLevel.id}`}
-                    primaryHref={ROUTES.quality.approvals}
+                    primaryHref={`${ROUTES.quality.approvals}?tab=management`}
                     primaryLabel={item.design.ideaRef}
                     meta={`${item.currentLevel.name} · ${item.design.collectionName}`}
                     trailing={<StatusBadge status={item.design.status} />}

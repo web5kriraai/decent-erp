@@ -19,7 +19,7 @@ type UnlockCandidate = {
   dependencySequence: number | null;
   sequence: number;
   status: string;
-  subProcess?: { code: string } | null;
+  subProcess?: { code: string; isApproval?: boolean } | null;
 };
 
 /**
@@ -60,7 +60,7 @@ export async function unlockNextDependentTasks(
       dependencySequence: true,
       sequence: true,
       status: true,
-      subProcess: { select: { code: true } },
+      subProcess: { select: { code: true, isApproval: true } },
     },
   })) as UnlockCandidate[];
 
@@ -93,7 +93,11 @@ export async function unlockNextDependentTasks(
     if (assigneeId != null) {
       await enqueueOutboxAndNotify(
         "TASK_ASSIGNED",
-        { taskId: peer.id.toString(), employeeId: assigneeId },
+        {
+          taskId: peer.id.toString(),
+          employeeId: assigneeId,
+          isStageApproval: peer.subProcess?.isApproval === true,
+        },
         correlationId,
       );
     }

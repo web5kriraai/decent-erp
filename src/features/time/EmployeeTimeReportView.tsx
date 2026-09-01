@@ -74,7 +74,15 @@ export function EmployeeTimeReportView() {
         error={reportQuery.error}
         onRetry={() => reportQuery.refetch()}
       >
-        {reportQuery.data && (
+        {reportQuery.data && reportQuery.data.rows.length === 0 ? (
+          <div className="card">
+            <p className="text-muted-foreground" style={{ margin: 0 }}>
+              No time records found for the selected date range. Try widening the range or confirm
+              employees have logged task time during this period.
+            </p>
+          </div>
+        ) : (
+          reportQuery.data && (
           <div className="data-table-wrap">
             <table className="data-table">
               <thead>
@@ -114,6 +122,7 @@ export function EmployeeTimeReportView() {
               </tbody>
             </table>
           </div>
+          )
         )}
       </QueryState>
     </div>

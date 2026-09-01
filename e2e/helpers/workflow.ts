@@ -2,7 +2,7 @@
  * E2E workflow helpers — complete assigned tasks via API.
  */
 import type { Page } from "@playwright/test";
-import { apiGetJson, apiPatchJson, apiPostJson } from "./auth";
+import { apiGetJson, apiPatchJson, apiPostJson, login, USERS } from "./auth";
 
 export type WorkflowTask = {
   id: string;
@@ -55,6 +55,237 @@ export async function addTaskArtifact(
   });
 }
 
+export async function getChecklistForSubProcessCode(
+  page: Page,
+  subProcessCode: string,
+) {
+  const allChecklist = await apiGetJson<
+    Array<{ id: number; subProcessId?: number | null; subProcess?: { code: string } | null }>
+  >(page, "/api/masters/checklist");
+  return allChecklist.filter((item) => item.subProcess?.code === subProcessCode);
+}
+
+export async function buildSampleCheckChecklist(
+  page: Page,
+  options?: {
+    approveAll?: boolean;
+    rejectSecond?: boolean;
+  },
+) {
+  const items = await getChecklistForSubProcessCode(page, "SAMPLE_CHECK");
+  if (items.length === 0) {
+    throw new Error("No checklist items configured for SAMPLE_CHECK");
+  }
+  if (options?.rejectSecond) {
+    return items.map((item, index) => ({
+      itemId: item.id,
+      result: index === 0,
+      remark: index === 0 ? undefined : "Fit issue",
+    }));
+  }
+  return items.map((item) => ({ itemId: item.id, result: options?.approveAll !== false }));
+}
+
+/** End or resume+end any RUNNING/ON_HOLD tasks so a new task can start. */
+export async function clearStaleRunningTasks(page: Page, exceptTaskId?: string) {
+  const tasks = await listMyTasks(page);
+  const blockers = tasks.filter(
+    (t) =>
+      t.id !== exceptTaskId &&
+      (t.status === "RUNNING" || t.status === "ON_HOLD"),
+  );
+
+  for (const task of blockers) {
+    if (task.status === "ON_HOLD") {
+      await apiPostJson(page, `/api/tasks/${task.id}/resume`, {});
+    }
+    const detail = await apiGetJson<{
+      version: number;
+      status: string;
+      subProcess: { id?: number; code?: string; isFileRequired?: boolean };
+    }>(page, `/api/tasks/${task.id}`);
+
+    if (detail.subProcess.isFileRequired) {
+      const type =
+        detail.subProcess.code === "SKETCH"
+          ? "SKETCH_VERSION"
+          : detail.subProcess.code === "PUNCH"
+            ? "PUNCHING_FILE"
+            : "SAMPLE_OUTPUT";
+      await addTaskArtifact(page, task.id, type);
+    }
+
+    let checklist: Array<{ itemId: number; result: boolean }> | undefined;
+    if (detail.subProcess.code === "SAMPLE_CHECK") {
+      checklist = await buildSampleCheckChecklist(page);
+    } else if (detail.subProcess.id) {
+      const forSubProcess = await getChecklistForSubProcessCode(
+        page,
+        detail.subProcess.code ?? "",
+      );
+      if (forSubProcess.length > 0) {
+        checklist = forSubProcess.map((item) => ({ itemId: item.id, result: true }));
+      }
+    }
+
+    await apiPostJson(page, `/api/tasks/${task.id}/end`, {
+      version: detail.version,
+      outputRemark: "E2E cleanup — end stale running task",
+      completionStatus: "COMPLETED",
+      sampleOutcome: detail.subProcess.code === "SAMPLE_CHECK" ? "APPROVE" : undefined,
+      checklist,
+    });
+  }
+}
+
+export async function assignAllPendingTasks(
+  page: Page,
+  designId: string,
+  roleMap: Record<string, string>,
+  resolveEmployeeId: (page: Page, email: string) => Promise<number>,
+) {
+  await login(page, USERS.designHead.email, USERS.designHead.password);
+  const design = await getDesign(page, designId);
+  for (const task of design.tasks) {
+    const code = task.subProcess.code ?? "";
+    const email = roleMap[code];
+    if (!email) continue;
+    if (!["PENDING", "ASSIGNED"].includes(task.status)) continue;
+    const employeeId = await resolveEmployeeId(page, email);
+    await assignTaskToEmployee(page, task.id, employeeId);
+  }
+}
+
+export async function completeTaskForUser(
+  page: Page,
+  email: string,
+  designId: string,
+  code: string,
+  extra?: Parameters<typeof completeAssignedTask>[3],
+) {
+  const userEntry = Object.values(USERS).find((u) => u.email === email);
+  if (!userEntry) throw new Error(`Unknown user email ${email}`);
+  await login(page, email, userEntry.password);
+
+  const tasks = await listMyTasks(page);
+  const mine = tasks.find(
+    (t) => t.design.id === designId && t.subProcess.code === code && t.status === "ASSIGNED",
+  );
+  if (!mine) return false;
+
+  let payload = extra;
+  if (code === "SAMPLE_CHECK" && !extra?.checklist) {
+    payload = {
+      ...extra,
+      sampleOutcome: extra?.sampleOutcome ?? "APPROVE",
+      checklist:
+        extra?.sampleOutcome === "REJECT"
+          ? await buildSampleCheckChecklist(page, { rejectSecond: true })
+          : await buildSampleCheckChecklist(page),
+    };
+  }
+
+  await completeAssignedTask(page, mine.id, `E2E ${code}`, payload);
+  return true;
+}
+
+export async function runWorkOrderThroughSampleReceive(
+  page: Page,
+  designId: string,
+  roleMap: Record<string, string>,
+  resolveEmployeeId: (page: Page, email: string) => Promise<number>,
+  options?: { fromCode?: string; assignFirst?: boolean },
+) {
+  if (options?.assignFirst !== false) {
+    await assignAllPendingTasks(page, designId, roleMap, resolveEmployeeId);
+  }
+
+  const workOrder = [
+    "CONCEPT_REVIEW",
+    "SKETCH",
+    "PUNCH",
+    "MAT_REQ",
+    "FABRIC_ISSUE",
+    "MACHINE_SAMPLE",
+    "SAMPLE_RECEIVE",
+  ] as const;
+
+  const startIndex = options?.fromCode
+    ? Math.max(0, workOrder.indexOf(options.fromCode as (typeof workOrder)[number]))
+    : 0;
+
+  for (const code of workOrder.slice(startIndex)) {
+    await completeTaskForUser(page, roleMap[code], designId, code);
+    if (code === "SKETCH") {
+      await login(page, USERS.designHead.email, USERS.designHead.password);
+      const approval = await getDesignTaskByCode(page, designId, "SKETCH_APPROVAL");
+      if (approval?.status === "ASSIGNED") {
+        await completeStageApproval(page, approval.id);
+      }
+    }
+    if (code === "PUNCH") {
+      await login(page, USERS.checker.email, USERS.checker.password);
+      const punchCheck = await getDesignTaskByCode(page, designId, "PUNCH_CHECK");
+      if (punchCheck?.status === "ASSIGNED") {
+        await completeStageApproval(page, punchCheck.id);
+      }
+    }
+  }
+}
+
+async function ensureTaskAssigned(
+  page: Page,
+  designId: string,
+  code: string,
+  assigneeEmail: string,
+  resolveEmployeeId: (page: Page, email: string) => Promise<number>,
+) {
+  await login(page, USERS.designHead.email, USERS.designHead.password);
+  const task = await getDesignTaskByCode(page, designId, code);
+  if (!task || !["PENDING", "ASSIGNED"].includes(task.status)) return task;
+
+  const employeeId = await resolveEmployeeId(page, assigneeEmail);
+  if (task.status === "PENDING" || task.assignedEmployeeId !== employeeId) {
+    await assignTaskToEmployee(page, task.id, employeeId);
+  }
+  return task;
+}
+
+export async function finalizeDevelopmentForSignOff(
+  page: Page,
+  designId: string,
+  resolveEmployeeId: (page: Page, email: string) => Promise<number>,
+  options?: { costAmount?: number; costDescription?: string },
+) {
+  await ensureTaskAssigned(page, designId, "COSTING", USERS.costing.email, resolveEmployeeId);
+
+  await login(page, USERS.costing.email, USERS.costing.password);
+  await apiPostJson(page, `/api/designs/${designId}/costs`, {
+    costType: "MATERIAL",
+    description: options?.costDescription ?? "E2E development costing",
+    amount: options?.costAmount ?? 1200,
+  });
+
+  const costingDone = await completeTaskForUser(page, USERS.costing.email, designId, "COSTING");
+  if (!costingDone) {
+    throw new Error(`COSTING task was not completed for design ${designId}`);
+  }
+
+  await ensureTaskAssigned(
+    page,
+    designId,
+    "FINAL_APPROVAL",
+    USERS.designHead.email,
+    resolveEmployeeId,
+  );
+
+  await login(page, USERS.designHead.email, USERS.designHead.password);
+  const finalApproval = await getDesignTaskByCode(page, designId, "FINAL_APPROVAL");
+  if (finalApproval?.status === "ASSIGNED") {
+    await completeStageApproval(page, finalApproval.id);
+  }
+}
+
 export async function completeAssignedTask(
   page: Page,
   taskId: string,
@@ -65,7 +296,13 @@ export async function completeAssignedTask(
     checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
   },
 ) {
-  await apiPostJson(page, `/api/tasks/${taskId}/start`, {});
+  await clearStaleRunningTasks(page, taskId);
+
+  const current = await apiGetJson<{ status: string }>(page, `/api/tasks/${taskId}`);
+  if (current.status === "ASSIGNED") {
+    await apiPostJson(page, `/api/tasks/${taskId}/start`, {});
+  }
+
   const detail = await apiGetJson<{
     version: number;
     subProcess: { id?: number; code?: string; isFileRequired?: boolean };
@@ -82,12 +319,16 @@ export async function completeAssignedTask(
   }
 
   let checklist = extra?.checklist;
-  if (!checklist && detail.subProcess.id) {
-    const allChecklist = await apiGetJson<Array<{ id: number; subProcessId?: number | null }>>(
+  if (!checklist && detail.subProcess.code === "SAMPLE_CHECK") {
+    checklist =
+      extra?.sampleOutcome === "REJECT"
+        ? await buildSampleCheckChecklist(page, { rejectSecond: true })
+        : await buildSampleCheckChecklist(page);
+  } else if (!checklist && detail.subProcess.id) {
+    const forSubProcess = await getChecklistForSubProcessCode(
       page,
-      "/api/masters/checklist",
+      detail.subProcess.code ?? "",
     );
-    const forSubProcess = allChecklist.filter((c) => c.subProcessId === detail.subProcess.id);
     if (forSubProcess.length > 0) {
       checklist = forSubProcess.map((item) => ({ itemId: item.id, result: true }));
     }
@@ -193,21 +434,57 @@ export async function advanceOpenTasksForDesign(
   }
 }
 
-export async function submitManagementApprovals(page: Page, designId: string) {
-  await apiPostJson(page, `/api/designs/${designId}/request-approval`, {});
+export type ApprovalLevelRow = {
+  id: number;
+  code: string;
+  sequence: number;
+  name: string;
+};
 
-  const levels = await apiGetJson<Array<{ id: number; sequence: number }>>(
-    page,
-    "/api/approvals?view=levels",
-  );
+const APPROVAL_LEVEL_ACTOR: Record<string, keyof typeof USERS> = {
+  CHECKER_APPROVAL: "checker",
+  DESIGN_HEAD_APPROVAL: "designHead",
+  MANAGEMENT_APPROVAL: "management",
+};
+
+export async function requestDesignApproval(page: Page, designId: string) {
+  return apiPostJson(page, `/api/designs/${designId}/request-approval`, {});
+}
+
+export async function requestDesignApprovalIfNeeded(page: Page, designId: string) {
+  const design = await getDesign(page, designId);
+  if (design.status === "APPROVAL_PENDING") return design;
+  await login(page, USERS.designHead.email, USERS.designHead.password);
+  return requestDesignApproval(page, designId);
+}
+
+export async function submitApprovalAtLevel(
+  page: Page,
+  designId: string,
+  level: ApprovalLevelRow,
+  decision: "APPROVED" | "REJECTED" | "CORRECTION_REQUIRED" = "APPROVED",
+) {
+  const actorKey = APPROVAL_LEVEL_ACTOR[level.code];
+  if (!actorKey) {
+    throw new Error(`No E2E actor mapped for approval level ${level.code}`);
+  }
+  const actor = USERS[actorKey];
+  await login(page, actor.email, actor.password);
+  return apiPostJson(page, "/api/approvals", {
+    designId,
+    approvalLevelId: level.id,
+    decision,
+    remark: `E2E ${level.code} ${decision}`,
+  });
+}
+
+export async function submitManagementApprovals(page: Page, designId: string) {
+  await requestDesignApprovalIfNeeded(page, designId);
+
+  const levels = await apiGetJson<ApprovalLevelRow[]>(page, "/api/approvals?view=levels");
 
   for (const level of levels.sort((a, b) => a.sequence - b.sequence)) {
-    await apiPostJson(page, "/api/approvals", {
-      designId,
-      approvalLevelId: level.id,
-      decision: "APPROVED",
-      remark: "E2E pipeline approval",
-    });
+    await submitApprovalAtLevel(page, designId, level, "APPROVED");
   }
 }
 

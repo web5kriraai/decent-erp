@@ -27,11 +27,12 @@ const BreadcrumbContext = createContext<BreadcrumbContextValue | null>(null);
 export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [replacements, setReplacements] = useState<BreadcrumbReplacements>({});
+  const [trackedPathname, setTrackedPathname] = useState(pathname);
 
-  // Drop page-specific labels when the route changes.
-  useEffect(() => {
+  if (pathname !== trackedPathname) {
+    setTrackedPathname(pathname);
     setReplacements({});
-  }, [pathname]);
+  }
 
   const setReplacement = useCallback((fromLabel: string, toLabel: string) => {
     setReplacements((prev) => {

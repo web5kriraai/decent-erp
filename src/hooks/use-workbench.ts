@@ -35,6 +35,13 @@ export type DesignHeadWorkbenchSummary = {
     assigneeName: string | null;
     workStageName: string | null;
   }>;
+  readyForSignOff: number;
+  readyForSignOffDesigns: Array<{
+    designId: string;
+    ideaRef: string;
+    collectionName: string;
+    completedAt: string | null;
+  }>;
 };
 
 export type ManagementWorkbenchSummary = {
@@ -59,6 +66,7 @@ export type ManagementWorkbenchSummary = {
     status: string;
     priority: string;
     updatedAtUtc: string;
+    currentLevelName?: string;
   }>;
 };
 

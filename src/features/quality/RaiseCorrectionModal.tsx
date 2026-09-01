@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Modal,
   ModalFooterActions,
@@ -34,6 +34,16 @@ const CORRECTION_TYPE_OPTIONS: {
   { value: "OTHER", label: "Other" },
 ];
 
+function buildInitialState(defaultDesignId?: string, defaultTaskId?: string) {
+  return {
+    designId: defaultDesignId ?? "",
+    taskId: defaultTaskId ?? "",
+    correctionType: "IMPROVEMENT" as RaiseCorrectionPayload["correctionType"],
+    responsibleEmployeeId: "" as number | "",
+    rootCause: "",
+  };
+}
+
 export function RaiseCorrectionModal({
   open,
   onClose,
@@ -45,6 +55,8 @@ export function RaiseCorrectionModal({
   const employeesQuery = useEmployeeOptions(open);
   const raiseCorrection = useRaiseCorrection();
 
+  const openKey = open ? `${defaultDesignId ?? ""}:${defaultTaskId ?? ""}` : "closed";
+  const [loadedKey, setLoadedKey] = useState("closed");
   const [designId, setDesignId] = useState(defaultDesignId ?? "");
   const [taskId, setTaskId] = useState(defaultTaskId ?? "");
   const [correctionType, setCorrectionType] =
@@ -52,31 +64,31 @@ export function RaiseCorrectionModal({
   const [responsibleEmployeeId, setResponsibleEmployeeId] = useState<number | "">("");
   const [rootCause, setRootCause] = useState("");
 
+  if (openKey !== loadedKey) {
+    setLoadedKey(openKey);
+    const initial = buildInitialState(defaultDesignId, defaultTaskId);
+    setDesignId(initial.designId);
+    setTaskId(initial.taskId);
+    setCorrectionType(initial.correctionType);
+    setResponsibleEmployeeId(initial.responsibleEmployeeId);
+    setRootCause(initial.rootCause);
+  }
+
   const designQuery = useDesign(designId, open && !!designId && !isPrefilled);
   const tasks = designQuery.data?.tasks ?? [];
   const isMistake = correctionType === "MISTAKE";
 
-  useEffect(() => {
-    if (open && defaultDesignId) setDesignId(defaultDesignId);
-  }, [open, defaultDesignId]);
+  function handleClose() {
+    setLoadedKey("closed");
+    onClose();
+  }
 
-  useEffect(() => {
-    if (open && defaultTaskId) setTaskId(defaultTaskId);
-  }, [open, defaultTaskId]);
-
-  useEffect(() => {
-    if (!open) {
-      setRootCause("");
-      if (!defaultDesignId) setDesignId("");
-      if (!defaultTaskId) setTaskId("");
-      setCorrectionType("IMPROVEMENT");
+  function handleCorrectionTypeChange(value: RaiseCorrectionPayload["correctionType"]) {
+    setCorrectionType(value);
+    if (value !== "MISTAKE") {
       setResponsibleEmployeeId("");
     }
-  }, [open, defaultDesignId, defaultTaskId]);
-
-  useEffect(() => {
-    if (!isMistake) setResponsibleEmployeeId("");
-  }, [isMistake]);
+  }
 
   async function handleSubmit() {
     if (!designId || !taskId || !rootCause.trim()) return;
@@ -88,7 +100,7 @@ export function RaiseCorrectionModal({
       responsibleEmployeeId: responsibleEmployeeId ? Number(responsibleEmployeeId) : null,
       rootCause: rootCause.trim(),
     });
-    onClose();
+    handleClose();
   }
 
   const canSubmit =
@@ -103,11 +115,11 @@ export function RaiseCorrectionModal({
       open={open}
       title="Raise Correction"
       description="Send work back with a clear reason so the responsible person can fix it."
-      onClose={onClose}
+      onClose={handleClose}
       size="lg"
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
           </Button>
           <Button type="button" disabled={!canSubmit} onClick={handleSubmit}>
@@ -155,7 +167,7 @@ export function RaiseCorrectionModal({
             required
             value={correctionType}
             onValueChange={(v) =>
-              setCorrectionType(v as RaiseCorrectionPayload["correctionType"])
+              handleCorrectionTypeChange(v as RaiseCorrectionPayload["correctionType"])
             }
             options={CORRECTION_TYPE_OPTIONS}
           />

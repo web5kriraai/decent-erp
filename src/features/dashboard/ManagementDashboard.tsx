@@ -67,7 +67,7 @@ export function ManagementDashboard() {
         <div className="workbench-queue-grid">
           <WorkbenchQueueCard
             title="Final approvals"
-            href={ROUTES.quality.approvals}
+            href={`${ROUTES.quality.approvals}?tab=management`}
             linkLabel="Open approvals"
             emptyMessage="No designs waiting for approval."
           >
@@ -78,7 +78,7 @@ export function ManagementDashboard() {
                 {approvals.slice(0, 8).map((item) => (
                   <WorkbenchListItem
                     key={`${item.designId}-${item.currentLevel.id}`}
-                    primaryHref={ROUTES.quality.approvals}
+                    primaryHref={`${ROUTES.quality.approvals}?tab=management`}
                     primaryLabel={item.design.ideaRef}
                     meta={`${item.currentLevel.name} · ${item.design.collectionName}`}
                     trailing={<StatusBadge status={item.design.status} />}
@@ -90,7 +90,7 @@ export function ManagementDashboard() {
 
           <WorkbenchQueueCard
             title="High priority decisions"
-            href={ROUTES.quality.approvals}
+            href={`${ROUTES.quality.approvals}?tab=management`}
             linkLabel="Review"
             emptyMessage="No urgent approval decisions."
           >

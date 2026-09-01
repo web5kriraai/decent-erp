@@ -84,7 +84,14 @@ export function CostingView() {
         </div>
       </div>
 
-      {selectedDesignId && (
+      {!selectedDesignId ? (
+        <div className="card">
+          <p className="text-muted-foreground" style={{ margin: 0 }}>
+            Select a design from the dropdown above to view costing entries, margin review, and add
+            new cost lines.
+          </p>
+        </div>
+      ) : (
         <>
           <div className="card contextual-actions-wrap" style={{ marginBottom: "1.5rem" }}>
             <ContextualActionsPanel title="Costing actions" actions={costingActions} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Modal, ModalFooterActions, ModalForm } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
@@ -32,23 +32,21 @@ export function ProductionReturnModal({
   const [remark, setRemark] = useState("");
 
   const options = optionsQuery.data;
-  const routeOptions = options?.routeOptions ?? [];
+  const routeOptions = useMemo(() => options?.routeOptions ?? [], [options?.routeOptions]);
 
-  useEffect(() => {
-    if (!open) {
-      setReasonCode("");
-      setRouteToSubProcessId("");
-      setRemark("");
-    }
-  }, [open]);
+  function handleClose() {
+    setReasonCode("");
+    setRouteToSubProcessId("");
+    setRemark("");
+    onClose();
+  }
 
-  useEffect(() => {
-    if (!reasonCode || routeOptions.length === 0) return;
-    const suggested = suggestedRouteCodeForReason(reasonCode);
-    if (!suggested) return;
+  function handleReasonChange(code: string) {
+    setReasonCode(code);
+    const suggested = suggestedRouteCodeForReason(code);
     const match = routeOptions.find((r) => r.code === suggested);
-    if (match) setRouteToSubProcessId(String(match.id));
-  }, [reasonCode, routeOptions]);
+    setRouteToSubProcessId(match ? String(match.id) : "");
+  }
 
   const canSubmit = useMemo(
     () => reasonCode && routeToSubProcessId && options?.canReturn,
@@ -63,13 +61,13 @@ export function ProductionReturnModal({
       routeToSubProcessId: Number(routeToSubProcessId),
       remark: remark.trim() || undefined,
     });
-    onClose();
+    handleClose();
   }
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title="Return for clarification"
       description={
         ideaRef
@@ -79,7 +77,7 @@ export function ProductionReturnModal({
       size="lg"
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
           </Button>
           <Button
@@ -108,7 +106,7 @@ export function ProductionReturnModal({
               label="Reason"
               required
               value={reasonCode || null}
-              onValueChange={setReasonCode}
+              onValueChange={handleReasonChange}
               options={options.reasons.map((reason) => ({
                 value: reason.code,
                 label: reason.label,

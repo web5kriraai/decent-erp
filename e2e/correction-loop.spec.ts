@@ -117,7 +117,7 @@ test.describe("Stage correction loops", () => {
     await completeTaskForUser(page, USERS.sketch.email, design.id, "SKETCH");
 
     await login(page, USERS.designHead.email, DEMO);
-    let approval = await getDesignTaskByCode(page, design.id, "SKETCH_APPROVAL");
+    const approval = await getDesignTaskByCode(page, design.id, "SKETCH_APPROVAL");
     if (approval?.status === "ASSIGNED") {
       await completeStageApproval(page, approval.id);
     }

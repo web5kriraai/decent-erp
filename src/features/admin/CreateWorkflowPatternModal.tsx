@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Modal,
   ModalAlert,
@@ -69,12 +69,23 @@ export function CreateWorkflowPatternModal({
   const processes = processesQuery.data ?? [];
   const roles = rolesQuery.data ?? [];
 
-  useEffect(() => {
-    if (!open) {
-      resetForm();
-      return;
-    }
-    if (editPattern) {
+  function resetForm() {
+    setName("");
+    setProductTypeId("");
+    setVersionNo("1");
+    setTasks([emptyTask(0)]);
+    setFormError(null);
+  }
+
+  const formMode = open ? (editPattern ? `edit-${editPattern.id}` : "create") : "closed";
+  const [loadedMode, setLoadedMode] = useState("closed");
+
+  if (formMode !== loadedMode) {
+    setLoadedMode(formMode);
+    if (editPattern && formMode.startsWith("edit-")) {
+      setName(editPattern.name);
+      setProductTypeId(editPattern.productTypeId ?? "");
+      setVersionNo(String(editPattern.versionNo));
       setTasks(
         editPattern.tasks.map((task, index) => ({
           id: `edit-${task.id}-${index}`,
@@ -84,8 +95,13 @@ export function CreateWorkflowPatternModal({
           expectedMinutes: String(task.expectedMinutes),
         })),
       );
+      setFormError(null);
+    } else if (formMode === "create") {
+      resetForm();
+    } else {
+      resetForm();
     }
-  }, [open, editPattern]);
+  }
 
   const canSubmit = useMemo(() => {
     if (editPattern) {
@@ -108,14 +124,6 @@ export function CreateWorkflowPatternModal({
         Number(task.expectedMinutes) > 0,
     );
   }, [name, tasks, editPattern]);
-
-  function resetForm() {
-    setName("");
-    setProductTypeId("");
-    setVersionNo("1");
-    setTasks([emptyTask(0)]);
-    setFormError(null);
-  }
 
   function handleClose() {
     resetForm();

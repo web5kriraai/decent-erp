@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,13 +66,15 @@ export function TaskMachineOutputPanel({
     [artifactsQuery.data],
   );
 
-  useEffect(() => {
-    if (!machineArtifact) return;
-    setStitchCount(machineArtifact.stitchCount != null ? String(machineArtifact.stitchCount) : "");
-    setMachineFormat(machineArtifact.machineFormat);
-    setSampleQty(machineArtifact.sampleQty != null ? String(machineArtifact.sampleQty) : "");
-    setWastageQty(machineArtifact.wastageQty != null ? String(machineArtifact.wastageQty) : "");
-  }, [machineArtifact]);
+  const artifactSeed = machineArtifact?.id ?? "none";
+  const [syncedArtifactSeed, setSyncedArtifactSeed] = useState(artifactSeed);
+  if (artifactSeed !== syncedArtifactSeed) {
+    setSyncedArtifactSeed(artifactSeed);
+    setStitchCount(machineArtifact?.stitchCount != null ? String(machineArtifact.stitchCount) : "");
+    setMachineFormat(machineArtifact?.machineFormat ?? null);
+    setSampleQty(machineArtifact?.sampleQty != null ? String(machineArtifact.sampleQty) : "");
+    setWastageQty(machineArtifact?.wastageQty != null ? String(machineArtifact.wastageQty) : "");
+  }
 
   async function handleSave() {
     if (!canEdit || saving) return;

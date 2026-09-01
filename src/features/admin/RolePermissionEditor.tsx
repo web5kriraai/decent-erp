@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { QueryState } from "@/components/ui/QueryState";
 import {
   useRolePermissionMatrix,
@@ -21,16 +21,20 @@ export function RolePermissionEditor({ roleId, roleCode, roleName }: Props) {
   const updatePermissions = useUpdateRolePermissions();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
+  const [syncedAt, setSyncedAt] = useState(0);
 
-  useEffect(() => {
-    if (matrixQuery.data) {
-      const assigned = new Set(
-        matrixQuery.data.permissions.filter((p) => p.assigned).map((p) => p.code),
-      );
-      setSelected(assigned);
-      setDirty(false);
-    }
-  }, [matrixQuery.data]);
+  const serverSelected = useMemo(
+    () =>
+      new Set(
+        matrixQuery.data?.permissions.filter((p) => p.assigned).map((p) => p.code) ?? [],
+      ),
+    [matrixQuery.data],
+  );
+
+  if (!dirty && matrixQuery.data && matrixQuery.dataUpdatedAt !== syncedAt) {
+    setSyncedAt(matrixQuery.dataUpdatedAt);
+    setSelected(serverSelected);
+  }
 
   function toggle(code: string) {
     setSelected((prev) => {

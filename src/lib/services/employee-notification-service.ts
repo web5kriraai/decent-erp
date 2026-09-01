@@ -7,10 +7,15 @@ function resolveNotificationHref(
   payload: Record<string, unknown>,
 ): string | null {
   if (typeof payload.taskId === "string") {
+    if (payload.isStageApproval === true) {
+      return `${ROUTES.quality.approvals}?tab=stage`;
+    }
     return ROUTES.work.taskDetail(payload.taskId);
   }
   if (typeof payload.designId === "string") {
-    if (eventType === "APPROVAL_PENDING") return ROUTES.quality.approvals;
+    if (eventType === "APPROVAL_PENDING") {
+      return `${ROUTES.quality.approvals}?tab=management`;
+    }
     return ROUTES.designs.detail(payload.designId);
   }
   if (eventType === "CORRECTION_RAISED") return ROUTES.quality.corrections;

@@ -1,17 +1,9 @@
 import { prisma } from "@/lib/db";
 import { isTaskReady } from "@/lib/services/task-dependency";
 
-export type StageApprovalQueueItem = {
-  taskId: string;
-  designId: string;
-  ideaRef: string;
-  collectionName: string;
-  stageName: string;
-  stageCode: string;
-  status: string;
-  assigneeName: string | null;
-  workStageName: string | null;
-};
+import type { StageApprovalQueueItem } from "@/lib/types/api";
+
+export type { StageApprovalQueueItem };
 
 const OPEN_APPROVAL_STATUSES = ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"] as const;
 

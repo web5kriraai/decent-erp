@@ -29,19 +29,23 @@ export function TimerWidget({
   onResume,
   onEnd,
 }: TimerWidgetProps) {
-  const [displaySeconds, setDisplaySeconds] = useState(elapsedSeconds);
+  const [runningOffset, setRunningOffset] = useState(0);
 
   useEffect(() => {
-    setDisplaySeconds(elapsedSeconds);
     if (status !== "RUNNING") return;
 
     const startedAt = Date.now();
-    const base = elapsedSeconds;
     const id = window.setInterval(() => {
-      setDisplaySeconds(base + Math.floor((Date.now() - startedAt) / 1000));
+      setRunningOffset(Math.floor((Date.now() - startedAt) / 1000));
     }, 1000);
-    return () => window.clearInterval(id);
+    return () => {
+      window.clearInterval(id);
+      setRunningOffset(0);
+    };
   }, [elapsedSeconds, status]);
+
+  const displaySeconds =
+    status === "RUNNING" ? elapsedSeconds + runningOffset : elapsedSeconds;
 
   const isActive = status === "RUNNING" || status === "ON_HOLD";
 

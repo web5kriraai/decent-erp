@@ -5,6 +5,18 @@ import { ApiError } from "@/lib/api-utils";
 import { designHasCosting } from "@/lib/services/costing-service";
 import type { ApprovalDecision } from "@prisma/client";
 import { unlockProductionHandoffTask } from "@/lib/services/production-handoff-unlock";
+import {
+  buildPendingApprovalItems,
+  canEmployeeActOnApprovalLevel,
+  isDesignReadyForSignOff,
+  readyForSignOffScopeFilter,
+} from "@/lib/services/approval-queue-utils";
+import type {
+  PendingApprovalQueueItem,
+  ReadyForSignOffItem,
+} from "@/lib/types/api";
+
+export type { PendingApprovalQueueItem, ReadyForSignOffItem } from "@/lib/types/api";
 
 const approvalInclude = {
   design: {
@@ -28,7 +40,11 @@ export async function getApprovalLevels() {
   });
 }
 
-export async function listPendingApprovals() {
+export { canEmployeeActOnApprovalLevel, isDesignReadyForSignOff } from "@/lib/services/approval-queue-utils";
+
+const SATISFIED_TASK = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
+
+export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]> {
   const levels = await getApprovalLevels();
   const designs = await prisma.designConcept.findMany({
     where: { status: "APPROVAL_PENDING" },
@@ -46,40 +62,84 @@ export async function listPendingApprovals() {
     orderBy: { updatedAtUtc: "desc" },
   });
 
-  return designs.flatMap((design) => {
-    const passedLevelIds = new Set(
-      design.approvals
-        .filter((a) => a.decision === "APPROVED" || a.decision === "SKIPPED")
-        .map((a) => a.approvalLevelId),
-    );
-    const nextLevel = levels.find((l) => !passedLevelIds.has(l.id));
-    if (!nextLevel) return [];
+  return buildPendingApprovalItems(
+    designs.map((d) => ({
+      id: d.id,
+      ideaRef: d.ideaRef,
+      collectionName: d.collectionName,
+      status: d.status,
+      priority: d.priority,
+      approvals: d.approvals,
+      tasks: d.tasks,
+    })),
+    levels,
+  ) as PendingApprovalQueueItem[];
+}
 
-    const existingPending = design.approvals.find(
-      (a) => a.approvalLevelId === nextLevel.id && a.decision === "PENDING",
-    );
-
-    return [
-      {
-        designId: design.id.toString(),
-        design: {
-          id: design.id.toString(),
-          ideaRef: design.ideaRef,
-          collectionName: design.collectionName,
-          status: design.status,
-        },
-        currentLevel: nextLevel,
-        task: design.tasks[0]
-          ? {
-              id: design.tasks[0].id.toString(),
-              process: design.tasks[0].process,
-              subProcess: design.tasks[0].subProcess,
-            }
-          : null,
-        existingApprovalId: existingPending?.id.toString() ?? null,
-      },
-    ];
+export async function listPendingApprovalsForEmployee(
+  employeeId: number,
+): Promise<PendingApprovalQueueItem[]> {
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    include: { role: true },
   });
+  if (!employee) return [];
+
+  const allPending = await listPendingApprovals();
+  return allPending.filter((item) =>
+    canEmployeeActOnApprovalLevel(item.currentLevel, employee.roleId, employee.role?.code),
+  );
+}
+
+export async function listDesignsReadyForSignOff(
+  employeeId: number,
+): Promise<ReadyForSignOffItem[]> {
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    include: { role: true },
+  });
+  if (!employee) return [];
+
+  const portfolioFilter = readyForSignOffScopeFilter(employeeId, employee.role?.code);
+
+  const designs = await prisma.designConcept.findMany({
+    where: {
+      status: { in: ["DRAFT", "ACTIVE"] },
+      ...portfolioFilter,
+    },
+    include: {
+      tasks: {
+        select: {
+          status: true,
+          updatedAtUtc: true,
+          subProcess: { select: { code: true, isApproval: true } },
+        },
+      },
+    },
+    orderBy: { updatedAtUtc: "desc" },
+  });
+
+  return designs
+    .filter((design) => design.tasks.length > 0 && isDesignReadyForSignOff(design.tasks))
+    .map((design) => {
+      const completedTasks = design.tasks.filter((t) => SATISFIED_TASK.has(t.status));
+      const latestCompleted = completedTasks.reduce<Date | null>((latest, task) => {
+        if (!latest || task.updatedAtUtc > latest) return task.updatedAtUtc;
+        return latest;
+      }, null);
+
+      return {
+        designId: design.id.toString(),
+        ideaRef: design.ideaRef,
+        collectionName: design.collectionName,
+        completedAt: latestCompleted?.toISOString() ?? null,
+      };
+    });
+}
+
+export async function countPendingApprovalsForEmployee(employeeId: number): Promise<number> {
+  const items = await listPendingApprovalsForEmployee(employeeId);
+  return items.length;
 }
 
 export async function requestDesignApproval(
