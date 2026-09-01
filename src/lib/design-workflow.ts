@@ -1,4 +1,21 @@
 import { isTaskReady } from "@/lib/services/task-dependency";
+import {
+  buildBlockedContext,
+  findDependencyBlocker,
+  findNextOpenTask,
+} from "@/lib/services/action-center";
+import {
+  findStageApprovalGate,
+  isWorkflowStepAssignable,
+  resolveEffectiveTaskStatus,
+  type StageGateSibling,
+} from "@/lib/services/workflow-stage-gate";
+import { PERMISSIONS } from "@/lib/permissions";
+import {
+  resolveDesignContextActions,
+  WORKFLOW_ACTION_CODES,
+  type ResolvedWorkflowAction,
+} from "@/lib/workflow-actions";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 
 const SATISFIED_STATUSES = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
@@ -10,6 +27,8 @@ const ACTIONABLE_STATUSES = new Set([
   "PENDING",
 ]);
 
+export { isWorkflowStepAssignable };
+
 export type WorkflowStep = {
   task: DesignTask;
   sequence: number;
@@ -18,6 +37,10 @@ export type WorkflowStep = {
   status: string;
   isApproval: boolean;
   isCurrent: boolean;
+  isUpcoming: boolean;
+  isDone: boolean;
+  canReassign: boolean;
+  displayStatus: string;
   assigneeName?: string | null;
 };
 
@@ -50,27 +73,121 @@ function toDepSeqTasks(tasks: DesignTask[]): Array<{
   }));
 }
 
-export function buildWorkflowSteps(tasks: DesignTask[] | undefined): WorkflowStep[] {
-  const ordered = sortTasks(tasks);
-  const firstOpenIdx = ordered.findIndex((t) => !SATISFIED_STATUSES.has(t.status));
-
-  return ordered.map((task, index) => ({
-    task,
-    sequence: task.sequence,
-    label: task.subProcess?.name ?? "Task",
-    code: task.subProcess?.code ?? "",
-    status: task.status,
-    isApproval: !!task.subProcess?.isApproval,
-    isCurrent:
-      firstOpenIdx === -1
-        ? index === ordered.length - 1
-        : index === firstOpenIdx ||
-          (SATISFIED_STATUSES.has(task.status) && index === firstOpenIdx - 1),
-    assigneeName: task.assignedEmployee?.name ?? null,
+function toStageGateSiblings(tasks: DesignTask[]): StageGateSibling[] {
+  return tasks.map((t) => ({
+    id: t.id,
+    dependencySequence: t.dependencySequence ?? null,
+    sequence: t.sequence,
+    status: t.status,
+    assignedEmployeeId: t.assignedEmployeeId ?? null,
+    subProcess: t.subProcess,
+    assignedEmployee: t.assignedEmployee,
   }));
 }
 
-function findNextActionableTask(
+function findCurrentStepIndex(ordered: DesignTask[], siblings: StageGateSibling[]): number {
+  const effective = ordered.map((t) =>
+    resolveEffectiveTaskStatus(
+      {
+        id: t.id,
+        dependencySequence: t.dependencySequence ?? null,
+        sequence: t.sequence,
+        status: t.status,
+        subProcess: t.subProcess,
+      },
+      siblings,
+    ),
+  );
+
+  const runningIdx = ordered.findIndex((t) => t.status === "RUNNING" || t.status === "ON_HOLD");
+  if (runningIdx >= 0) return runningIdx;
+
+  const correctionIdx = ordered.findIndex((t) => t.status === "CORRECTION_REQUIRED");
+  if (correctionIdx >= 0) return correctionIdx;
+
+  const firstOpenIdx = effective.findIndex(
+    (status) => status !== "COMPLETED" && status !== "CANCELLED",
+  );
+  return firstOpenIdx >= 0 ? firstOpenIdx : Math.max(0, ordered.length - 1);
+}
+
+function workflowDisplayStatus(
+  effectiveStatus: string,
+  isCurrent: boolean,
+  isUpcoming: boolean,
+): string {
+  if (isUpcoming) return "UPCOMING";
+  if (effectiveStatus === "COMPLETED") return "COMPLETED";
+  if (isCurrent && (effectiveStatus === "RUNNING" || effectiveStatus === "ON_HOLD")) {
+    return "IN_PROGRESS";
+  }
+  if (isCurrent && effectiveStatus === "ASSIGNED") return "IN_PROGRESS";
+  return effectiveStatus;
+}
+
+export function buildWorkflowSteps(tasks: DesignTask[] | undefined): WorkflowStep[] {
+  const ordered = sortTasks(tasks);
+  const siblings = toStageGateSiblings(ordered);
+  const currentIdx = findCurrentStepIndex(ordered, siblings);
+
+  return ordered.map((task, index) => {
+    const effectiveStatus = resolveEffectiveTaskStatus(
+      {
+        id: task.id,
+        dependencySequence: task.dependencySequence ?? null,
+        sequence: task.sequence,
+        status: task.status,
+        subProcess: task.subProcess,
+      },
+      siblings,
+    );
+    const isDone = effectiveStatus === "COMPLETED";
+    const isUpcoming = task.status === "PENDING" && index > currentIdx;
+    const isCurrent = index === currentIdx && !isDone && !isUpcoming;
+    const hasLaterOpenWork = ordered.slice(index + 1).some((t) => {
+      const laterEffective = resolveEffectiveTaskStatus(
+        {
+          id: t.id,
+          dependencySequence: t.dependencySequence ?? null,
+          sequence: t.sequence,
+          status: t.status,
+          subProcess: t.subProcess,
+        },
+        siblings,
+      );
+      return (
+        t.status !== "PENDING" &&
+        laterEffective !== "COMPLETED" &&
+        laterEffective !== "CANCELLED"
+      );
+    });
+    const canReassign =
+      !isUpcoming &&
+      !isDone &&
+      isWorkflowStepAssignable(task.status) &&
+      (isCurrent ||
+        (index < currentIdx &&
+          ["ASSIGNED", "RUNNING", "ON_HOLD"].includes(task.status) &&
+          hasLaterOpenWork));
+
+    return {
+      task,
+      sequence: task.sequence,
+      label: task.subProcess?.name ?? "Task",
+      code: task.subProcess?.code ?? "",
+      status: task.status,
+      isApproval: !!task.subProcess?.isApproval,
+      isCurrent,
+      isUpcoming,
+      isDone,
+      canReassign,
+      displayStatus: workflowDisplayStatus(effectiveStatus, isCurrent, isUpcoming),
+      assigneeName: task.assignedEmployee?.name ?? null,
+    };
+  });
+}
+
+export function findNextActionableTask(
   tasks: DesignTask[],
   employeeId?: number,
   canApprove = false,
@@ -180,6 +297,59 @@ export function getPendingStageApproval(input: {
   return null;
 }
 
+function mapResolvedToLegacyAction(
+  action: ResolvedWorkflowAction,
+  emphasis: "primary" | "secondary",
+): DesignWorkflowAction {
+  if (action.code === WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE && action.href) {
+    return {
+      id: "approvals-queue",
+      kind: "approvals_queue",
+      href: action.href,
+      label: action.label,
+      description: action.description ?? "",
+      emphasis,
+    };
+  }
+  if (action.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL) {
+    return {
+      id: "request-approval",
+      kind: "request_approval",
+      label: action.label,
+      description: action.description ?? "",
+      emphasis,
+    };
+  }
+  return {
+    id: action.taskId ? `task-${action.taskId}` : action.code,
+    kind: "task",
+    taskId: action.taskId,
+    label: action.label,
+    description: action.description ?? "",
+    emphasis,
+  };
+}
+
+export function getDesignContextActions(input: {
+  design: DesignSummary;
+  employeeId?: number;
+  canApprove: boolean;
+  canExecute: boolean;
+  canAssign?: boolean;
+  approvalsQueueHref: string;
+}): ResolvedWorkflowAction[] {
+  const permissions: string[] = [];
+  if (input.canApprove) permissions.push(PERMISSIONS.DESIGN_APPROVE);
+  if (input.canExecute) permissions.push(PERMISSIONS.TASK_EXECUTE);
+  if (input.canAssign) permissions.push(PERMISSIONS.DESIGN_ASSIGN);
+  return resolveDesignContextActions({
+    design: input.design,
+    employeeId: input.employeeId,
+    permissions,
+    approvalsQueueHref: input.approvalsQueueHref,
+  });
+}
+
 export function getDesignWorkflowActions(input: {
   design: DesignSummary;
   employeeId?: number;
@@ -187,67 +357,228 @@ export function getDesignWorkflowActions(input: {
   canExecute: boolean;
   approvalsQueueHref: string;
 }): DesignWorkflowAction[] {
-  const { design, employeeId, canApprove, canExecute, approvalsQueueHref } = input;
-  const tasks = sortTasks(design.tasks);
-  const actions: DesignWorkflowAction[] = [];
-
-  const nextTask = findNextActionableTask(tasks, employeeId, canApprove);
-
-  if (nextTask && (canExecute || (canApprove && !!nextTask.subProcess?.isApproval))) {
-    if (!nextTask.subProcess?.isApproval) {
-      actions.push({
-        id: `task-${nextTask.id}`,
-        kind: "task",
-        taskId: nextTask.id,
-        label: `Open ${nextTask.subProcess?.name ?? "Task"}`,
-        description: `Continue ${nextTask.subProcess?.name ?? "the current task"} for this design.`,
-        emphasis: "primary",
-      });
-    }
-  }
-
-  if (canApprove && design.status === "APPROVAL_PENDING") {
-    actions.push({
-      id: "approvals-queue",
-      kind: "approvals_queue",
-      href: approvalsQueueHref,
-      label: "Open Approvals Queue",
-      description: "This design is in the approval queue. Review and record your decision.",
-      emphasis: actions.length === 0 ? "primary" : "secondary",
-    });
-  } else if (canApprove && ["DRAFT", "ACTIVE"].includes(design.status) && !nextTask) {
-    actions.push({
-      id: "request-approval",
-      kind: "request_approval",
-      label: "Request Final Approval",
-      description:
-        "Send the full design into the approval chain after all stage work is complete.",
-      emphasis: actions.length === 0 ? "primary" : "secondary",
-    });
-  }
-
-  return actions;
+  const resolved = getDesignContextActions(input);
+  return resolved
+    .filter((action) => action.enabled)
+    .map((action, index) => mapResolvedToLegacyAction(action, index === 0 ? "primary" : "secondary"));
 }
 
 export function getWorkflowStatusMessage(
   steps: WorkflowStep[],
   designStatus: string,
 ): string | null {
-  const sketchStep = steps.find((s) => s.code === "SKETCH");
-  const sketchApproval = steps.find((s) => s.code === "SKETCH_APPROVAL");
+  return getDesignWorkflowContext({ status: designStatus, tasks: steps.map((s) => s.task) }).summary;
+}
 
-  if (sketchStep?.status === "CHECKING" && sketchApproval?.status === "ASSIGNED") {
-    return "Sketch work is submitted for checking. Design Head can start Sketch Approval.";
+export type DesignWorkflowContext = {
+  summary: string | null;
+  currentStage: string | null;
+  currentStatus: string | null;
+  currentOwner: string | null;
+  nextAction: string | null;
+  nextOwner: string | null;
+  blockingLabel: string | null;
+  blockingOwner: string | null;
+  waitingMessage: string | null;
+  nextActionHint: string | null;
+};
+
+export function getDesignWorkflowContext(input: {
+  status: string;
+  tasks?: DesignTask[];
+}): DesignWorkflowContext {
+  const tasks = sortTasks(input.tasks);
+  const steps = buildWorkflowSteps(tasks);
+  const siblings = toStageGateSiblings(tasks);
+
+  const waitingForApproval = tasks.find((task) => {
+    if (task.status !== "CHECKING" || task.subProcess?.isApproval) return false;
+    const gate = findStageApprovalGate(
+      {
+        id: task.id,
+        dependencySequence: task.dependencySequence ?? null,
+        sequence: task.sequence,
+        subProcess: task.subProcess,
+      },
+      siblings,
+    );
+    return gate != null && ["ASSIGNED", "PENDING", "RUNNING", "ON_HOLD"].includes(gate.status);
+  });
+
+  if (waitingForApproval) {
+    const workStep = steps.find((s) => s.task.id === waitingForApproval.id);
+    const gate = findStageApprovalGate(
+      {
+        id: waitingForApproval.id,
+        dependencySequence: waitingForApproval.dependencySequence ?? null,
+        sequence: waitingForApproval.sequence,
+        subProcess: waitingForApproval.subProcess,
+      },
+      siblings,
+    );
+    return {
+      summary: `${workStep?.label ?? "Work"} submitted — waiting for review.`,
+      currentStage: workStep?.label ?? null,
+      currentStatus: "checking",
+      currentOwner: workStep?.assigneeName ?? null,
+      nextAction: gate?.subProcess?.name ?? "Stage approval",
+      nextOwner: gate?.assignedEmployee?.name ?? null,
+      blockingLabel: null,
+      blockingOwner: null,
+      waitingMessage: `Waiting for ${gate?.assignedEmployee?.name ?? "approver"}: ${gate?.subProcess?.name ?? "stage approval"}.`,
+      nextActionHint: null,
+    };
   }
-  if (sketchStep?.status === "CHECKING" && sketchApproval?.status === "PENDING") {
-    return "Sketch work is submitted for checking. Sketch Approval will unlock momentarily.";
+
+  const empty: DesignWorkflowContext = {
+    summary: null,
+    currentStage: null,
+    currentStatus: null,
+    currentOwner: null,
+    nextAction: null,
+    nextOwner: null,
+    blockingLabel: null,
+    blockingOwner: null,
+    waitingMessage: null,
+    nextActionHint: null,
+  };
+
+  if (input.status === "APPROVAL_PENDING") {
+    return {
+      ...empty,
+      summary: "This design is in the final approval queue.",
+      currentStage: "Final approval chain",
+      currentStatus: "approval pending",
+      nextAction: "Management / approver decision",
+      waitingMessage: "Waiting for the next approver in the approval chain.",
+    };
   }
-  if (designStatus === "APPROVAL_PENDING") {
-    return "This design is waiting in the final approval queue.";
+
+  if (input.status === "APPROVED") {
+    const handoff = tasks.find((t) => t.subProcess?.code === "PROD_HANDOFF");
+    const instruction = tasks.find((t) => t.subProcess?.code === "PROD_INSTRUCTION");
+    if (handoff && handoff.status !== "COMPLETED") {
+      return {
+        ...empty,
+        summary: "Approved — Design Head must complete production handoff.",
+        currentStage: handoff.subProcess?.name ?? "Production Handoff",
+        currentStatus: handoff.status.replace(/_/g, " ").toLowerCase(),
+        currentOwner: handoff.assignedEmployee?.name ?? "Design Head",
+        nextAction: "Send to production",
+        nextOwner: handoff.assignedEmployee?.name ?? "Design Head",
+      };
+    }
+    if (instruction && instruction.status !== "COMPLETED") {
+      return {
+        ...empty,
+        summary: "Production Head must complete instruction and release on My Tasks.",
+        currentStage: instruction.subProcess?.name ?? "Production Instruction",
+        currentStatus: instruction.status.replace(/_/g, " ").toLowerCase(),
+        currentOwner: instruction.assignedEmployee?.name ?? "Production Head",
+        nextAction: "Production instruction → release",
+        nextOwner: instruction.assignedEmployee?.name ?? "Production Head",
+      };
+    }
+    return {
+      ...empty,
+      summary: "Approved and ready for production workflow completion.",
+      currentStage: "Production",
+      currentStatus: "approved",
+    };
   }
-  const current = steps.find((s) => s.isCurrent);
-  if (current) {
-    return `Current stage: ${current.label} (${current.status.replace(/_/g, " ").toLowerCase()}).`;
+
+  if (input.status === "PRODUCTION_RELEASED") {
+    return {
+      ...empty,
+      summary: "Released to production. ERP handoff modules are processing.",
+      currentStage: "Production released",
+      currentStatus: "production released",
+    };
   }
-  return null;
+
+  const currentStep = steps.find((s) => s.isCurrent);
+  const firstOpen = tasks.find((t) => {
+    const effective = resolveEffectiveTaskStatus(
+      {
+        id: t.id,
+        dependencySequence: t.dependencySequence ?? null,
+        sequence: t.sequence,
+        status: t.status,
+        subProcess: t.subProcess,
+      },
+      siblings,
+    );
+    return effective !== "COMPLETED" && effective !== "CANCELLED";
+  });
+
+  if (!firstOpen) {
+    return {
+      ...empty,
+      summary: "All workflow stages are complete for this design.",
+      currentStage: currentStep?.label ?? null,
+      currentStatus: currentStep?.status.replace(/_/g, " ").toLowerCase() ?? null,
+    };
+  }
+
+  const openRow = {
+    id: firstOpen.id,
+    status: firstOpen.status,
+    dependencySequence: firstOpen.dependencySequence ?? null,
+    sequence: firstOpen.sequence,
+    subProcess: firstOpen.subProcess,
+    assignedEmployeeId: firstOpen.assignedEmployeeId ?? null,
+  };
+
+  const ready = isTaskReady(
+    {
+      id: firstOpen.id,
+      dependencySequence: firstOpen.dependencySequence ?? null,
+      sequence: firstOpen.sequence,
+      status: firstOpen.status,
+    },
+    siblings,
+  );
+
+  if (!ready) {
+    const blocker = findDependencyBlocker(openRow, siblings);
+    const blocked = buildBlockedContext(openRow, siblings);
+    return {
+      summary: `${firstOpen.subProcess?.name ?? "This stage"} cannot start yet.`,
+      currentStage: firstOpen.subProcess?.name ?? null,
+      currentStatus: firstOpen.status.replace(/_/g, " ").toLowerCase(),
+      currentOwner: firstOpen.assignedEmployee?.name ?? null,
+      nextAction: blocker?.subProcess?.name ?? blocked.blockedBy,
+      nextOwner: blocked.blockedOwner ?? blocker?.assignedEmployee?.name ?? null,
+      blockingLabel: blocked.blockedBy,
+      blockingOwner: blocked.blockedOwner ?? null,
+      waitingMessage: `Blocked by ${blocked.blockedBy}${blocked.blockedOwner ? ` (${blocked.blockedOwner})` : ""}.`,
+      nextActionHint: null,
+    };
+  }
+
+  const nextAfterCurrent = findNextOpenTask(siblings, firstOpen.sequence);
+  const sampleCheck = tasks.find((t) => t.subProcess?.code === "SAMPLE_CHECK");
+  let nextActionHint: string | null = null;
+  if (sampleCheck && ["RUNNING", "ASSIGNED", "ON_HOLD"].includes(sampleCheck.status)) {
+    nextActionHint =
+      "Review sample and provide decision: Approve / Request Re-sample / Raise Correction";
+  } else if (firstOpen.subProcess?.code === "SAMPLE_CHECK") {
+    nextActionHint =
+      "Review sample and provide decision: Approve / Request Re-sample / Raise Correction";
+  }
+
+  return {
+    summary: currentStep
+      ? `Current stage: ${currentStep.label} (${currentStep.displayStatus.replace(/_/g, " ").toLowerCase()}).`
+      : null,
+    currentStage: firstOpen.subProcess?.name ?? currentStep?.label ?? null,
+    currentStatus: (currentStep?.displayStatus ?? firstOpen.status).replace(/_/g, " ").toLowerCase(),
+    currentOwner: firstOpen.assignedEmployee?.name ?? null,
+    nextAction: nextAfterCurrent?.subProcess?.name ?? null,
+    nextOwner: nextAfterCurrent?.assignedEmployee?.name ?? null,
+    blockingLabel: null,
+    blockingOwner: null,
+    waitingMessage: null,
+    nextActionHint,
+  };
 }

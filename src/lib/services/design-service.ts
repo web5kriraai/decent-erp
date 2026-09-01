@@ -275,6 +275,7 @@ async function reconcileStuckWorkflowTasks(designId: bigint): Promise<void> {
           designId: task.designId,
           dependencySequence: task.dependencySequence,
           sequence: task.sequence,
+          subProcessCode: task.subProcess?.code,
         },
         correlationId,
       );

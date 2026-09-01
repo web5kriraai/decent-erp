@@ -15,7 +15,13 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
+import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { ROUTES } from "@/config/routes";
+import {
+  resolveApprovalContextActions,
+  WORKFLOW_ACTION_CODES,
+  type ResolvedWorkflowAction,
+} from "@/lib/workflow-actions";
 import {
   usePendingApprovals,
   useSubmitApproval,
@@ -57,6 +63,19 @@ export function ApprovalsView() {
     setSelected(null);
     setRemark("");
   }
+
+  function handleApprovalAction(action: ResolvedWorkflowAction) {
+    if (!selected) return;
+    if (action.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL) setDecision("APPROVED");
+    if (action.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL) setDecision("REJECTED");
+    if (action.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL_CORRECTION) {
+      setDecision("CORRECTION_REQUIRED");
+    }
+  }
+
+  const approvalActions = selected
+    ? resolveApprovalContextActions({ item: selected, permissions })
+    : [];
 
   return (
     <div className="page-shell">
@@ -151,6 +170,12 @@ export function ApprovalsView() {
       >
         {selected && (
           <ModalForm>
+            <ContextualActionsPanel
+              title="Decision actions"
+              actions={approvalActions}
+              onAction={handleApprovalAction}
+              showDisabled={false}
+            />
             <FormSelect
               id="approvalDecision"
               label="Decision"

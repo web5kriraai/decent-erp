@@ -19,6 +19,7 @@ const STATUS_TOKENS: Record<string, { bg: string; text: string; dot: string }> =
   CANCELLED: { bg: "var(--color-neutral-100)", text: "var(--color-neutral-500)", dot: "var(--color-neutral-400)" },
   OPEN: { bg: "var(--color-warning-bg)", text: "var(--color-warning)", dot: "var(--color-warning)" },
   IN_PROGRESS: { bg: "var(--color-primary-light)", text: "var(--color-primary)", dot: "var(--color-primary)" },
+  UPCOMING: { bg: "var(--color-neutral-100)", text: "var(--color-neutral-500)", dot: "var(--color-neutral-400)" },
   DONE: { bg: "var(--color-success-bg)", text: "var(--color-success)", dot: "var(--color-success)" },
   SYNCED: { bg: "var(--color-success-bg)", text: "var(--color-success)", dot: "var(--color-success)" },
   QUEUED: { bg: "var(--color-info-bg)", text: "var(--color-info)", dot: "var(--color-info)" },

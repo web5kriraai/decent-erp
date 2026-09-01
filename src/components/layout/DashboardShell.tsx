@@ -15,8 +15,10 @@ import {
   GlobalSearchCommand,
   useGlobalSearchShortcut,
 } from "@/components/layout/GlobalSearchCommand";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { IconSearch, IconLogout } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 function getInitials(name: string) {
   return name
@@ -141,18 +143,7 @@ export function TopBar() {
         ☰
       </button>
 
-      <nav className="topbar-breadcrumbs breadcrumbs" aria-label="Breadcrumb">
-        {breadcrumbs.map((crumb, i) => (
-          <span key={`${crumb.label}-${i}`} className="breadcrumb-item">
-            {i > 0 && <span className="breadcrumbs-sep">/</span>}
-            {crumb.href ? (
-              <Link href={crumb.href}>{crumb.label}</Link>
-            ) : (
-              <span className="breadcrumbs-current">{crumb.label}</span>
-            )}
-          </span>
-        ))}
-      </nav>
+      <Breadcrumbs items={breadcrumbs} variant="topbar" className="topbar-breadcrumbs" />
 
       <div className="topbar-search topbar-search--desktop">
         <Button
@@ -173,6 +164,7 @@ export function TopBar() {
       <GlobalSearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
 
       <div className="topbar-actions">
+        <NotificationBell />
         <div className="topbar-user">
           <div className="topbar-avatar" aria-hidden>
             {getInitials(name)}

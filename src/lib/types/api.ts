@@ -116,6 +116,10 @@ export type TaskTimeDetail = {
   id: string;
   designId: string;
   status: string;
+  /** Resolved status for display (CHECKING → COMPLETED when approval gate is done). */
+  effectiveStatus: string;
+  sequence: number;
+  dependencySequence: number | null;
   priority: Priority;
   expectedMinutes: number;
   version: number;
@@ -127,6 +131,16 @@ export type TaskTimeDetail = {
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
   timeSummary: TimeSummary;
   timeline: TaskTimeEvent[];
+  workflowPeers: Array<{
+    id: string;
+    sequence: number;
+    dependencySequence: number | null;
+    status: string;
+    assignedEmployeeId: number | null;
+    subProcess: { name: string; code: string; isApproval?: boolean };
+    assignedEmployee?: { name: string } | null;
+  }>;
+  assigneeHasRunningTask: boolean;
 };
 
 export type HoldReason = {
@@ -244,6 +258,8 @@ export type DesignImageRecord = {
   contentType: string;
   fileSize: string;
   isPrimary: boolean;
+  reviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  reviewNote?: string | null;
   uploadedAtUtc: string;
   downloadUrl: string;
 };

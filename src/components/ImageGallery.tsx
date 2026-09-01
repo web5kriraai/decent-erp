@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertCircleIcon } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignImageRecord } from "@/lib/types/api";
@@ -30,7 +31,7 @@ export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) 
     const res = await fetch(`/api/designs/${designId}/images?imageId=${imageId}`, {
       method: "PATCH",
     });
-            if (!res.ok) {
+    if (!res.ok) {
       const json = await res.json().catch(() => ({}));
       toast.errorFromApi(
         new Error(typeof json.error === "string" ? json.error : "Could not set primary image"),
@@ -48,38 +49,53 @@ export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) 
         <FileUploader designId={designId} onUploaded={() => imagesQuery.refetch()} />
       )}
       <div className="image-gallery" style={{ marginTop: "1rem" }}>
-        {(imagesQuery.data ?? []).map((image) => (
-          <div key={image.id} className="image-gallery-item">
-            {image.contentType.startsWith("image/") ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={image.downloadUrl} alt={image.fileName} className="image-gallery-thumb" />
-            ) : (
-              <div className="image-gallery-file">{image.fileName}</div>
-            )}
-            <div className="image-gallery-meta">
-              <span>{image.fileName}</span>
-              {image.isPrimary && <span className="badge">Primary</span>}
-              {canUpload && !image.isPrimary && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => void handleSetPrimary(image.id)}
-                >
-                  Set primary
-                </button>
+        {(imagesQuery.data ?? []).map((image) => {
+          const isRejected = image.reviewStatus === "REJECTED";
+          return (
+            <div
+              key={image.id}
+              className={`image-gallery-item${isRejected ? " image-gallery-item--rejected" : ""}`}
+            >
+              {isRejected ? (
+                <div className="image-gallery-rejected">
+                  <AlertCircleIcon className="image-gallery-rejected-icon" aria-hidden />
+                  <p className="image-gallery-rejected-name">{image.fileName}</p>
+                  <p className="image-gallery-rejected-label">Image not approved</p>
+                  <p className="image-gallery-rejected-hint">
+                    {image.reviewNote ?? "Click to view error"}
+                  </p>
+                </div>
+              ) : image.contentType.startsWith("image/") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={image.downloadUrl} alt={image.fileName} className="image-gallery-thumb" />
+              ) : (
+                <div className="image-gallery-file">{image.fileName}</div>
               )}
-              {canUpload && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => handleDelete(image.id)}
-                >
-                  Remove
-                </button>
-              )}
+              <div className="image-gallery-meta">
+                {!isRejected ? <span>{image.fileName}</span> : null}
+                {image.isPrimary && <span className="badge">Primary</span>}
+                {canUpload && !image.isPrimary && !isRejected && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => void handleSetPrimary(image.id)}
+                  >
+                    Set primary
+                  </button>
+                )}
+                {canUpload && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => handleDelete(image.id)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {!imagesQuery.isLoading && (imagesQuery.data?.length ?? 0) === 0 && (
           <p style={{ color: "var(--color-neutral-500)", margin: 0 }}>No files uploaded yet</p>
         )}

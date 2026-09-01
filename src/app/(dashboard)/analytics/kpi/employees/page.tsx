@@ -1,8 +1,6 @@
-import { KpiDashboardView } from "@/features/analytics/KpiDashboardView";
-import { pageMetadata } from "@/config/page-metadata";
-
-export const metadata = pageMetadata("kpiEmployees");
+import { redirect } from "next/navigation";
+import { ROUTES } from "@/config/routes";
 
 export default function KpiEmployeesPage() {
-  return <KpiDashboardView />;
+  redirect(ROUTES.analytics.kpi);
 }

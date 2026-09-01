@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import { ApiError } from "@/lib/api-utils";
+import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
+import { createAppError, notFound, conflict } from "@/lib/errors/create-app-error";
 import { PERMISSIONS } from "@/lib/permissions";
 import {
   computeTimeSummary,
@@ -8,6 +9,10 @@ import {
   type TimeEventRecord,
 } from "@/lib/services/time-calculation";
 import { MY_TASKS_VISIBLE_STATUSES } from "@/lib/services/task-dependency";
+import {
+  resolveEffectiveTaskStatus,
+  type StageGateSibling,
+} from "@/lib/services/workflow-stage-gate";
 
 const taskTimeInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true } },
@@ -279,22 +284,68 @@ export async function getTaskTimeDetail(
     include: taskTimeInclude,
   });
 
-  if (!task) throw new ApiError("Task not found", 404);
+  if (!task) throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
 
   const isAssignee = task.assignedEmployeeId === viewerEmployeeId;
   const canViewTeam = viewerPermissions.includes(PERMISSIONS.TIME_VIEW_TEAM);
 
   if (!isAssignee && !canViewTeam) {
-    throw new ApiError("Permission denied", 403);
+    throw createAppError(APP_ERROR_CODES.TASK_NOT_ASSIGNED, 403);
   }
+
+  const peerTasks = await prisma.designTask.findMany({
+    where: { designId: task.designId },
+    orderBy: [{ sequence: "asc" }],
+    select: {
+      id: true,
+      sequence: true,
+      dependencySequence: true,
+      status: true,
+      assignedEmployeeId: true,
+      subProcess: { select: { name: true, code: true, isApproval: true } },
+      assignedEmployee: { select: { name: true } },
+    },
+  });
+
+  const runningTask =
+    isAssignee
+      ? await prisma.designTask.findFirst({
+          where: { assignedEmployeeId: viewerEmployeeId, status: "RUNNING" },
+          select: { id: true },
+        })
+      : null;
 
   const now = new Date();
   const summary = computeTimeSummary(mapEvents(task.timeEvents), now);
+
+  const stageSiblings: StageGateSibling[] = peerTasks.map((peer) => ({
+    id: peer.id.toString(),
+    dependencySequence: peer.dependencySequence,
+    sequence: peer.sequence,
+    status: peer.status,
+    assignedEmployeeId: peer.assignedEmployeeId,
+    subProcess: peer.subProcess,
+    assignedEmployee: peer.assignedEmployee,
+  }));
+
+  const effectiveStatus = resolveEffectiveTaskStatus(
+    {
+      id: task.id.toString(),
+      dependencySequence: task.dependencySequence,
+      sequence: task.sequence,
+      status: task.status,
+      subProcess: task.subProcess,
+    },
+    stageSiblings,
+  );
 
   return {
     id: task.id.toString(),
     designId: task.designId.toString(),
     status: task.status,
+    effectiveStatus,
+    sequence: task.sequence,
+    dependencySequence: task.dependencySequence,
     priority: task.priority,
     expectedMinutes: task.expectedMinutes,
     version: task.version,
@@ -317,6 +368,17 @@ export async function getTaskTimeDetail(
       remark: e.remark,
       employeeId: e.employeeId,
     })),
+    workflowPeers: peerTasks.map((peer) => ({
+      id: peer.id.toString(),
+      sequence: peer.sequence,
+      dependencySequence: peer.dependencySequence,
+      status: peer.status,
+      assignedEmployeeId: peer.assignedEmployeeId,
+      subProcess: peer.subProcess,
+      assignedEmployee: peer.assignedEmployee,
+    })),
+    assigneeHasRunningTask:
+      runningTask != null && runningTask.id !== task.id,
   };
 }
 
@@ -325,9 +387,9 @@ export async function persistWorkdayClose(employeeId: number, correlationId: str
     where: { assignedEmployeeId: employeeId, status: "RUNNING" },
   });
   if (running) {
-    throw new ApiError("Cannot close workday while a task is running", 409, {
+    throw conflict(APP_ERROR_CODES.TASK_ALREADY_RUNNING, {
       taskId: running.id.toString(),
-    });
+    }, "End your running task before closing the workday.");
   }
 
   const now = new Date();

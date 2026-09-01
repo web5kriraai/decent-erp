@@ -19,10 +19,7 @@ const createSchema = z
     taskId: z.string(),
     correctionType: z.enum(CORRECTION_TYPES),
     responsibleEmployeeId: z.number().int().positive().optional().nullable(),
-    routeToSubProcessId: z.number().int().positive().optional().nullable(),
-    rootCause: z.string().optional(),
-    extraMinutes: z.number().int().optional(),
-    extraCost: z.number().optional(),
+    rootCause: z.string().min(1),
   })
   .superRefine((body, ctx) => {
     if (body.correctionType === "MISTAKE" && !body.responsibleEmployeeId) {
@@ -64,10 +61,7 @@ export async function POST(request: Request) {
         taskId: BigInt(body.taskId),
         correctionType: body.correctionType,
         responsibleEmployeeId: body.responsibleEmployeeId,
-        routeToSubProcessId: body.routeToSubProcessId,
         rootCause: body.rootCause,
-        extraMinutes: body.extraMinutes,
-        extraCost: body.extraCost,
       },
       ctx.employeeId,
       ctx.correlationId,

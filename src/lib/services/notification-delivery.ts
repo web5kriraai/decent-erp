@@ -1,12 +1,41 @@
 import { prisma } from "@/lib/db";
 import { sendEmail, isSmtpConfigured } from "@/lib/email/smtp";
 import { buildNotificationMessage } from "@/lib/notifications/messages";
+import { createEmployeeNotification } from "@/lib/services/employee-notification-service";
 
 export async function deliverNotification(
   eventType: string,
   payload: Record<string, unknown>,
 ): Promise<{ inApp: boolean; emailSent: boolean; emailTo?: string }> {
   const { subject, text, html } = buildNotificationMessage(eventType, payload);
+
+  let inApp = false;
+
+  const employeeId =
+    typeof payload.employeeId === "number"
+      ? payload.employeeId
+      : typeof payload.responsibleEmployeeId === "number"
+        ? payload.responsibleEmployeeId
+        : typeof payload.designHeadId === "number"
+          ? payload.designHeadId
+          : null;
+
+  if (employeeId != null) {
+    try {
+      await createEmployeeNotification(employeeId, eventType, payload);
+      inApp = true;
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "Failed to persist in-app notification",
+          eventType,
+          employeeId,
+          error: String(error),
+        }),
+      );
+    }
+  }
 
   console.log(
     JSON.stringify({
@@ -22,16 +51,16 @@ export async function deliverNotification(
   let emailSent = false;
   let emailTo: string | undefined;
 
-  const employeeId =
+  const notifyEmployeeId =
     typeof payload.employeeId === "number"
       ? payload.employeeId
       : typeof payload.responsibleEmployeeId === "number"
         ? payload.responsibleEmployeeId
         : null;
 
-  if (employeeId && isSmtpConfigured()) {
+  if (notifyEmployeeId && isSmtpConfigured()) {
     const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
+      where: { id: notifyEmployeeId },
       select: { email: true, active: true },
     });
     if (employee?.active && employee.email) {
@@ -50,5 +79,5 @@ export async function deliverNotification(
     emailTo = process.env.SMTP_NOTIFY_EMAIL;
   }
 
-  return { inApp: true, emailSent, emailTo };
+  return { inApp: inApp || true, emailSent, emailTo };
 }

@@ -1,9 +1,18 @@
 import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
-import { ApiError } from "@/lib/api-utils";
+import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
+import {
+  businessRule,
+  createAppError,
+  notFound,
+} from "@/lib/errors/create-app-error";
 import { designHasCosting } from "@/lib/services/costing-service";
 import { ERP_HANDOFF_MODULES } from "@/lib/kpi-metrics";
+import {
+  validateProductionReleaseReadiness,
+} from "@/lib/services/production-release-readiness";
+import { formatProductionReleaseMissing } from "@/lib/services/production-workflow";
 
 export async function listApprovedDesigns() {
   return prisma.designConcept.findMany({
@@ -24,16 +33,31 @@ export async function releaseToProduction(
   actorId: number,
   correlationId: string,
 ) {
+  const readiness = await validateProductionReleaseReadiness(designId);
+  if (!readiness.ok) {
+    throw businessRule(
+      APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
+      readiness.missing,
+      formatProductionReleaseMissing(readiness.missing),
+    );
+  }
+
   return prisma.$transaction(async (tx) => {
     const design = await tx.designConcept.findUnique({ where: { id: designId } });
-    if (!design) throw new ApiError("Design not found", 404);
+    if (!design) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
     if (design.status !== "APPROVED") {
-      throw new ApiError("Only approved designs can be released to production", 422);
+      throw businessRule(
+        APP_ERROR_CODES.DESIGN_STATUS_INVALID,
+        undefined,
+        "Only approved designs can be released to production. Complete the production workflow tasks first.",
+      );
     }
 
-    const hasCosting = await designHasCosting(designId);
-    if (!hasCosting) {
-      throw new ApiError("Costing must be complete before production release", 422);
+    const prodRelease = await tx.designTask.findFirst({
+      where: { designId, subProcess: { code: "PROD_RELEASE" } },
+    });
+    if (prodRelease && prodRelease.status !== "COMPLETED") {
+      throw businessRule(APP_ERROR_CODES.PRODUCTION_RELEASE_TASK_REQUIRED);
     }
 
     const designNumber = design.designNumber ?? `DN-${design.ideaRef.replace(/^IDEA-/, "")}`;
@@ -89,10 +113,26 @@ export async function releaseToProduction(
 export async function markDesignLive(designId: bigint, actorId: number, correlationId: string) {
   return prisma.$transaction(async (tx) => {
     const design = await tx.designConcept.findUnique({ where: { id: designId } });
-    if (!design) throw new ApiError("Design not found", 404);
+    if (!design) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
     if (design.status !== "PRODUCTION_RELEASED") {
-      throw new ApiError("Only production-released designs can go live", 422);
+      throw businessRule(
+        APP_ERROR_CODES.DESIGN_STATUS_INVALID,
+        undefined,
+        "Only production-released designs can be marked live.",
+      );
     }
+
+    const liveReview = await tx.designTask.findFirst({
+      where: { designId, subProcess: { code: "LIVE_REVIEW" } },
+    });
+    if (liveReview && liveReview.status !== "COMPLETED") {
+      throw businessRule(
+        APP_ERROR_CODES.WORKFLOW_NOT_READY,
+        undefined,
+        "Management live design review must be completed before marking live.",
+      );
+    }
+
     const updated = await tx.designConcept.update({
       where: { id: designId },
       data: { status: "LIVE" },

@@ -17,10 +17,7 @@ export type RaiseCorrectionPayload = {
     | "MATERIAL"
     | "OTHER";
   responsibleEmployeeId?: number | null;
-  routeToSubProcessId?: number | null;
-  rootCause?: string;
-  extraMinutes?: number;
-  extraCost?: number;
+  rootCause: string;
 };
 
 export function useCorrections(

@@ -6,14 +6,9 @@ import { writeAuditLogDirect } from "@/lib/audit";
 import type { TaskArtifactType } from "@prisma/client";
 
 const schema = z.object({
-  artifactType: z.enum(["SKETCH_VERSION", "PUNCHING_FILE", "SAMPLE_OUTPUT", "AUDIO_NOTE", "VIDEO_REF"]),
-  versionNo: z.number().int().positive().optional(),
+  artifactType: z.enum(["SKETCH_VERSION", "PUNCHING_FILE", "SAMPLE_OUTPUT"]),
   fileName: z.string().optional(),
   storageKey: z.string().optional(),
-  stitchCount: z.number().int().optional(),
-  machineFormat: z.string().optional(),
-  sampleQty: z.number().int().optional(),
-  wastageQty: z.number().int().optional(),
 });
 
 export async function POST(
@@ -29,13 +24,8 @@ export async function POST(
       data: {
         taskId,
         artifactType: body.artifactType as TaskArtifactType,
-        versionNo: body.versionNo,
         fileName: body.fileName,
         storageKey: body.storageKey,
-        stitchCount: body.stitchCount,
-        machineFormat: body.machineFormat,
-        sampleQty: body.sampleQty,
-        wastageQty: body.wastageQty,
         uploadedById: ctx.employeeId,
       },
     });

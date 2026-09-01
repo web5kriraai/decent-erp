@@ -49,28 +49,47 @@ export const PROCESS_SEED = [
     subProcesses: [
       { code: "COSTING", name: "Costing", sequence: 1, role: ROLE_CODES.COSTING_TEAM },
       { code: "FINAL_APPROVAL", name: "Final Approval", sequence: 2, role: ROLE_CODES.DESIGN_HEAD, isApproval: true },
-      { code: "PROD_INSTRUCTION", name: "Production Instruction", sequence: 3, role: ROLE_CODES.PRODUCTION_HEAD },
-      { code: "PROD_RELEASE", name: "Production Release", sequence: 4, role: ROLE_CODES.PRODUCTION_HEAD },
-      { code: "LIVE_REVIEW", name: "Live Design Review", sequence: 5, role: ROLE_CODES.MANAGEMENT, isApproval: true },
+      { code: "PROD_HANDOFF", name: "Production Handoff", sequence: 3, role: ROLE_CODES.DESIGN_HEAD },
+      { code: "PROD_INSTRUCTION", name: "Production Instruction", sequence: 4, role: ROLE_CODES.PRODUCTION_HEAD },
+      { code: "PROD_RELEASE", name: "Production Release", sequence: 5, role: ROLE_CODES.PRODUCTION_HEAD },
+      { code: "LIVE_REVIEW", name: "Live Design Review", sequence: 6, role: ROLE_CODES.MANAGEMENT, isApproval: true },
     ],
   },
 ] as const;
 
-/** Spec §6.2 — 8-step automatic workflow example */
+/** Spec §6.2 — full master workflow chain */
 export function buildStandardWorkflowTasks(
   roles: RoleLookup,
   subs: Record<string, { id: number; processId: number }>,
 ) {
-  return [
-    { processId: subs.CONCEPT_REVIEW.processId, subProcessId: subs.CONCEPT_REVIEW.id, defaultRoleId: roles[ROLE_CODES.DESIGN_HEAD].id, expectedMinutes: 120, dayOffset: 0, priority: "HIGH" as const, sequence: 1 },
-    { processId: subs.SKETCH.processId, subProcessId: subs.SKETCH.id, defaultRoleId: roles[ROLE_CODES.SKETCH_DESIGNER].id, expectedMinutes: 480, dayOffset: 1, priority: "HIGH" as const, sequence: 2 },
-    { processId: subs.SKETCH_APPROVAL.processId, subProcessId: subs.SKETCH_APPROVAL.id, defaultRoleId: roles[ROLE_CODES.DESIGN_HEAD].id, expectedMinutes: 120, dayOffset: 2, priority: "HIGH" as const, sequence: 3 },
-    { processId: subs.PUNCH.processId, subProcessId: subs.PUNCH.id, defaultRoleId: roles[ROLE_CODES.PUNCHING_DESIGNER].id, expectedMinutes: 720, dayOffset: 3, priority: "HIGH" as const, sequence: 4 },
-    { processId: subs.MACHINE_SAMPLE.processId, subProcessId: subs.MACHINE_SAMPLE.id, defaultRoleId: roles[ROLE_CODES.MACHINE_OPERATOR].id, expectedMinutes: 360, dayOffset: 5, priority: "MEDIUM" as const, sequence: 5 },
-    { processId: subs.SAMPLE_CHECK.processId, subProcessId: subs.SAMPLE_CHECK.id, defaultRoleId: roles[ROLE_CODES.SAMPLE_CHECKER].id, expectedMinutes: 180, dayOffset: 6, priority: "HIGH" as const, sequence: 6 },
-    { processId: subs.COSTING.processId, subProcessId: subs.COSTING.id, defaultRoleId: roles[ROLE_CODES.COSTING_TEAM].id, expectedMinutes: 120, dayOffset: 7, priority: "MEDIUM" as const, sequence: 7 },
-    { processId: subs.FINAL_APPROVAL.processId, subProcessId: subs.FINAL_APPROVAL.id, defaultRoleId: roles[ROLE_CODES.DESIGN_HEAD].id, expectedMinutes: 120, dayOffset: 8, priority: "HIGH" as const, sequence: 8 },
+  const rows = [
+    { code: "CONCEPT_REVIEW", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 0, priority: "HIGH" as const },
+    { code: "SKETCH", role: ROLE_CODES.SKETCH_DESIGNER, expectedMinutes: 480, dayOffset: 1, priority: "HIGH" as const },
+    { code: "SKETCH_APPROVAL", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 2, priority: "HIGH" as const },
+    { code: "PUNCH", role: ROLE_CODES.PUNCHING_DESIGNER, expectedMinutes: 720, dayOffset: 3, priority: "HIGH" as const },
+    { code: "PUNCH_CHECK", role: ROLE_CODES.SAMPLE_CHECKER, expectedMinutes: 180, dayOffset: 4, priority: "HIGH" as const },
+    { code: "MAT_REQ", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 4, priority: "MEDIUM" as const },
+    { code: "FABRIC_ISSUE", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 120, dayOffset: 5, priority: "MEDIUM" as const },
+    { code: "MACHINE_SAMPLE", role: ROLE_CODES.MACHINE_OPERATOR, expectedMinutes: 360, dayOffset: 5, priority: "MEDIUM" as const },
+    { code: "SAMPLE_RECEIVE", role: ROLE_CODES.MACHINE_OPERATOR, expectedMinutes: 60, dayOffset: 6, priority: "MEDIUM" as const },
+    { code: "SAMPLE_CHECK", role: ROLE_CODES.SAMPLE_CHECKER, expectedMinutes: 180, dayOffset: 6, priority: "HIGH" as const },
+    { code: "COSTING", role: ROLE_CODES.COSTING_TEAM, expectedMinutes: 120, dayOffset: 7, priority: "MEDIUM" as const },
+    { code: "FINAL_APPROVAL", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 8, priority: "HIGH" as const },
+    { code: "PROD_HANDOFF", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 60, dayOffset: 9, priority: "HIGH" as const },
+    { code: "PROD_INSTRUCTION", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 120, dayOffset: 10, priority: "HIGH" as const },
+    { code: "PROD_RELEASE", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 60, dayOffset: 11, priority: "HIGH" as const },
+    { code: "LIVE_REVIEW", role: ROLE_CODES.MANAGEMENT, expectedMinutes: 60, dayOffset: 12, priority: "HIGH" as const },
   ];
+
+  return rows.map((row, index) => ({
+    processId: subs[row.code].processId,
+    subProcessId: subs[row.code].id,
+    defaultRoleId: roles[row.role].id,
+    expectedMinutes: row.expectedMinutes,
+    dayOffset: row.dayOffset,
+    priority: row.priority,
+    sequence: index + 1,
+  }));
 }
 
 export const CHECKLIST_SEED = [

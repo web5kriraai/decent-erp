@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { ZodError, type ZodSchema } from "zod";
+import {
+  APP_ERROR_CODES,
+  formatZodFieldSummary,
+  messageForCode,
+} from "@/lib/errors/app-errors";
 import { requirePermission, requireSession } from "./auth";
 import type { PermissionCode } from "./permissions";
 
@@ -19,9 +24,10 @@ export function jsonError(
   status: number,
   correlationId: string,
   details?: unknown,
+  code?: string,
 ) {
   return NextResponse.json(
-    { error: message, correlationId, details },
+    { error: message, code, correlationId, details },
     { status },
   );
 }
@@ -35,14 +41,26 @@ export async function withApiHandler<T>(
   try {
     const session = await requireSession();
     if (!session) {
-      return jsonError("Not authenticated", 401, correlationId);
+      return jsonError(
+        messageForCode(APP_ERROR_CODES.NOT_AUTHENTICATED),
+        401,
+        correlationId,
+        undefined,
+        APP_ERROR_CODES.NOT_AUTHENTICATED,
+      );
     }
 
     if (
       permission &&
       !requirePermission(session.user.permissions, permission)
     ) {
-      return jsonError("Permission denied", 403, correlationId);
+      return jsonError(
+        messageForCode(APP_ERROR_CODES.PERMISSION_DENIED),
+        403,
+        correlationId,
+        undefined,
+        APP_ERROR_CODES.PERMISSION_DENIED,
+      );
     }
 
     return await handler({
@@ -52,10 +70,24 @@ export async function withApiHandler<T>(
     });
   } catch (error) {
     if (error instanceof ZodError) {
-      return jsonError("Validation error", 400, correlationId, error.flatten());
+      const flattened = error.flatten();
+      const fieldSummary = formatZodFieldSummary(flattened);
+      return jsonError(
+        fieldSummary ?? messageForCode(APP_ERROR_CODES.VALIDATION_FAILED),
+        400,
+        correlationId,
+        flattened,
+        APP_ERROR_CODES.VALIDATION_FAILED,
+      );
     }
     if (error instanceof ApiError) {
-      return jsonError(error.message, error.status, correlationId, error.details);
+      return jsonError(
+        error.message,
+        error.status,
+        correlationId,
+        error.details,
+        error.code,
+      );
     }
     console.error(
       JSON.stringify({
@@ -63,7 +95,13 @@ export async function withApiHandler<T>(
         error: formatErrorMessage(error),
       }),
     );
-    return jsonError("Unexpected server error", 500, correlationId);
+    return jsonError(
+      messageForCode(APP_ERROR_CODES.INTERNAL_ERROR),
+      500,
+      correlationId,
+      undefined,
+      APP_ERROR_CODES.INTERNAL_ERROR,
+    );
   }
 }
 
@@ -81,6 +119,7 @@ export class ApiError extends Error {
     message: string,
     public status: number,
     public details?: unknown,
+    public code?: string,
   ) {
     super(message);
   }

@@ -1,12 +1,10 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-
-type Breadcrumb = { label: string; href?: string };
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/ui/Breadcrumbs";
 
 type PageHeaderProps = {
   title: string;
   subtitle?: string;
-  breadcrumbs?: Breadcrumb[];
+  breadcrumbs?: BreadcrumbItem[];
   actions?: ReactNode;
 };
 
@@ -14,20 +12,9 @@ export function PageHeader({ title, subtitle, breadcrumbs, actions }: PageHeader
   return (
     <header className="page-header">
       <div className="page-header-text">
-        {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav className="breadcrumbs" aria-label="Breadcrumb">
-            {breadcrumbs.map((crumb, i) => (
-              <span key={crumb.label} className="flex items-center gap-1.5">
-                {i > 0 && <span className="breadcrumbs-sep">/</span>}
-                {crumb.href ? (
-                  <Link href={crumb.href}>{crumb.label}</Link>
-                ) : (
-                  <span className="breadcrumbs-current">{crumb.label}</span>
-                )}
-              </span>
-            ))}
-          </nav>
-        )}
+        {breadcrumbs && breadcrumbs.length > 0 ? (
+          <Breadcrumbs items={breadcrumbs} variant="page" />
+        ) : null}
         <h1>{title}</h1>
         {subtitle && <p className="page-header-subtitle">{subtitle}</p>}
       </div>

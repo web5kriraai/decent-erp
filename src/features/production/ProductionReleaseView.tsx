@@ -6,15 +6,16 @@ import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
+import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   useApprovedDesigns,
   useMarkDesignLive,
   useProductionHandoffs,
   useReleasedDesigns,
-  useReleaseToProduction,
   useRetryHandoffSync,
 } from "@/hooks/use-production";
+import { resolveProductionContextActions } from "@/lib/workflow-actions";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -25,10 +26,14 @@ export function ProductionReleaseView() {
 
   const designsQuery = useApprovedDesigns(canRelease);
   const releasedQuery = useReleasedDesigns(canRelease);
-  const release = useReleaseToProduction();
   const markLive = useMarkDesignLive();
   const handoffsQuery = useProductionHandoffs(canRelease);
   const retrySync = useRetryHandoffSync();
+
+  const productionActions = resolveProductionContextActions({
+    permissions,
+    designStatus: releasedQuery.data?.[0]?.status,
+  });
 
   if (!canRelease) {
     return (
@@ -41,9 +46,29 @@ export function ProductionReleaseView() {
   return (
     <div className="page-shell">
       <PageHeader
-        title="Production Release"
-        subtitle="Review approved designs and authorize handoff to production"
+        title="Production Desk"
+        subtitle="Complete production instruction and release via My Tasks. ERP module sync runs after release."
       />
+
+      <div className="card contextual-actions-wrap" style={{ marginBottom: "1.5rem" }}>
+        <ContextualActionsPanel title="Production desk actions" actions={productionActions} />
+      </div>
+
+      <div className="card" style={{ marginBottom: "1.5rem" }}>
+        <div className="card-header">
+          <span className="card-title">How release works</span>
+        </div>
+        <div className="card-body" style={{ padding: "1rem 1.25rem" }}>
+          <ol style={{ margin: 0, paddingLeft: "1.25rem", lineHeight: 1.6 }}>
+            <li>Design Head completes <strong>Production Handoff</strong> after management approval.</li>
+            <li>Production Head completes <strong>Production Instruction</strong> on My Tasks.</li>
+            <li>Production Head completes <strong>Production Release</strong> on My Tasks — this triggers ERP handoff.</li>
+          </ol>
+          <p style={{ margin: "0.75rem 0 0" }}>
+            <Link href={ROUTES.work.tasks} className="data-table-link">Open My Tasks</Link>
+          </p>
+        </div>
+      </div>
 
       <QueryState
         isLoading={designsQuery.isLoading}
@@ -54,7 +79,7 @@ export function ProductionReleaseView() {
       >
         <div className="card" style={{ marginBottom: "1.5rem" }}>
           <div className="card-header">
-            <span className="card-title">Awaiting Release</span>
+            <span className="card-title">Approved — production workflow</span>
           </div>
           <DataTable
             columns={[
@@ -77,24 +102,19 @@ export function ProductionReleaseView() {
               },
               {
                 key: "actions",
-                header: "",
+                header: "Next step",
                 align: "right",
-                render: (row) => (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={release.isPending || row.costs.length === 0}
-                    onClick={() => release.mutate(row.id)}
-                  >
-                    Release
-                  </button>
+                render: () => (
+                  <Link href={ROUTES.work.tasks} className="btn btn-ghost btn-sm">
+                    My Tasks
+                  </Link>
                 ),
               },
             ]}
             rows={designsQuery.data ?? []}
             getRowKey={(r) => r.id}
-            emptyTitle="No designs awaiting release"
-            emptyDescription="Approved designs with completed costing will appear here."
+            emptyTitle="No approved designs in production queue"
+            emptyDescription="Designs appear here after management approval. Release is completed on My Tasks."
           />
         </div>
       </QueryState>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Sidebar, TopBar } from "@/components/layout/DashboardShell";
+import { BreadcrumbProvider } from "@/components/layout/BreadcrumbProvider";
 import { SidebarProvider, useSidebarState } from "@/components/layout/SidebarProvider";
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
@@ -25,7 +26,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 export function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <DashboardShellInner>{children}</DashboardShellInner>
+      <BreadcrumbProvider>
+        <DashboardShellInner>{children}</DashboardShellInner>
+      </BreadcrumbProvider>
     </SidebarProvider>
   );
 }

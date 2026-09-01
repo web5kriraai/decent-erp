@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useBreadcrumbReplacement } from "@/components/layout/BreadcrumbProvider";
 import { QueryState } from "@/components/ui/QueryState";
 import { TimerWidget } from "@/components/TimerWidget";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -12,9 +13,15 @@ import { SkeletonRows } from "@/components/SkeletonRows";
 import { TaskTimeTimeline } from "@/components/time/TaskTimeTimeline";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
-import { Button } from "@/components/ui/button";
+import { TaskQualityContextPanel } from "@/components/tasks/TaskQualityContextPanel";
+import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ROUTES } from "@/config/routes";
+import {
+  resolveTaskContextActions,
+  WORKFLOW_ACTION_CODES,
+  type ResolvedWorkflowAction,
+} from "@/lib/workflow-actions";
 import { useTaskTimeDetail } from "@/hooks/use-time";
 import { useTaskMutations } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
@@ -51,6 +58,10 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   );
 
   const task = detailQuery.data;
+  useBreadcrumbReplacement(
+    taskId,
+    task ? `${task.design.ideaRef} · ${task.subProcess.name}` : undefined,
+  );
   const isAssignee = task?.assignedEmployeeId === session?.user?.employeeId;
   const canControl = canExecute && isAssignee;
   const isRunning = task?.status === "RUNNING";
@@ -65,6 +76,44 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   const fileRequired = !!task?.subProcess?.isFileRequired;
   const isSampleCheck = task?.subProcess?.code === "SAMPLE_CHECK";
+
+  const taskContextActions = useMemo(() => {
+    if (!task || !canControl) return [];
+    return resolveTaskContextActions({
+      task: {
+        id: task.id,
+        designId: task.designId,
+        status: task.status,
+        sequence: task.sequence,
+        dependencySequence: task.dependencySequence,
+        assignedEmployeeId: task.assignedEmployeeId,
+        workflowPeers: task.workflowPeers,
+        assigneeHasRunningTask: task.assigneeHasRunningTask,
+      },
+      isAssignee: true,
+      permissions,
+    });
+  }, [task, canControl, permissions]);
+
+  function handleTaskContextAction(action: ResolvedWorkflowAction) {
+    if (!task) return;
+    switch (action.code) {
+      case WORKFLOW_ACTION_CODES.START_TASK:
+        start.mutate(task.id);
+        break;
+      case WORKFLOW_ACTION_CODES.HOLD_TASK:
+        setHoldModalOpen(true);
+        break;
+      case WORKFLOW_ACTION_CODES.RESUME_TASK:
+        resume.mutate(task.id);
+        break;
+      case WORKFLOW_ACTION_CODES.END_TASK:
+        setEndModalOpen(true);
+        break;
+      default:
+        break;
+    }
+  }
 
   if (sessionStatus === "loading") {
     return (
@@ -165,7 +214,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
               subtitle={task.design.collectionName}
               actions={
                 <>
-                  <StatusBadge status={task.status} />
+                  <StatusBadge status={task.effectiveStatus ?? task.status} />
                   {task.assignedEmployee ? (
                     <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
                       {task.assignedEmployee.name}
@@ -183,6 +232,11 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   </Link>
                 </>
               }
+            />
+
+            <TaskQualityContextPanel
+              designId={task.design.id}
+              subProcessCode={task.subProcess.code}
             />
 
             <div
@@ -256,16 +310,14 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                     <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
                     <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
                   </dl>
-                  {canControl && task.status === "ASSIGNED" && (
-                    <Button
-                      type="button"
+                  {canControl && taskContextActions.length > 0 ? (
+                    <ContextualActionsPanel
+                      title="Task actions"
                       className="mt-4"
-                      disabled={isPending}
-                      onClick={() => start.mutate(task.id)}
-                    >
-                      Start Task
-                    </Button>
-                  )}
+                      actions={taskContextActions}
+                      onAction={handleTaskContextAction}
+                    />
+                  ) : null}
                 </CardContent>
               </Card>
             </div>

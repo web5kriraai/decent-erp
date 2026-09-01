@@ -148,7 +148,9 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
     expect(releaseRes.status()).toBe(422);
   });
 
-  test("TC-12: production release creates ERP handoffs", async ({ page }) => {
+  test("TC-12: production release requires PROD_RELEASE task (not direct API shortcut)", async ({
+    page,
+  }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
     const design = await createDesignViaApi(page, `TC12 Release ${Date.now()}`, {
       priority: "HIGH",
@@ -167,17 +169,13 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
     });
 
     await login(page, USERS.production.email, USERS.production.password);
-    await apiPostJson(page, "/api/production/release", { designId: design.id });
-
-    const handoffs = await apiGetJson<Array<{ erpModule: string; status: string; design: { id: string } }>>(
-      page,
-      `/api/production/handoffs?designId=${design.id}`,
-    );
-    const primary = handoffs.filter((h) =>
-      ["GREY_MATERIAL", "CUTTING", "SALES"].includes(h.erpModule),
-    );
-    expect(primary).toHaveLength(3);
-    expect(primary.every((h) => h.status === "SYNCED")).toBe(true);
+    const releaseRes = await page.request.post("/api/production/release", {
+      data: { designId: design.id },
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(releaseRes.status()).toBe(422);
+    const body = await releaseRes.json();
+    expect(body.error).toMatch(/production release|not available|workflow/i);
   });
 
   test("TC-13: kanban board loads pipeline columns", async ({ page }) => {

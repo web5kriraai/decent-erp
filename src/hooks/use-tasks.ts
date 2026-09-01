@@ -7,6 +7,47 @@ import type { DesignTask } from "@/lib/types/api";
 import { ApiClientError } from "@/lib/api-client";
 import { useApiToast } from "@/components/ui/ToastProvider";
 
+export type ActionCenterWaitingItem = {
+  taskId: string;
+  design: { id: string; ideaRef: string; collectionName: string };
+  myStage: string;
+  myStatus: string;
+  waitingFor: string;
+  nextAction: string;
+  nextTaskId?: string;
+};
+
+export type ActionCenterBlockedItem = {
+  taskId: string;
+  design: { id: string; ideaRef: string; collectionName: string };
+  stage: string;
+  status: string;
+  blockedBy: string;
+  blockedOwner?: string;
+  blockedMessage: string;
+};
+
+export type ActionCenterData = {
+  actionRequired: DesignTask[];
+  waitingForOthers: ActionCenterWaitingItem[];
+  blocked: ActionCenterBlockedItem[];
+  upcoming: DesignTask[];
+  completed: DesignTask[];
+};
+
+export function useActionCenter(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.tasks.actionCenter,
+    queryFn: () => apiGet<ActionCenterData>("/api/tasks/action-center"),
+    enabled,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasRunning = data?.actionRequired?.some((t) => t.status === "RUNNING");
+      return hasRunning ? 15_000 : false;
+    },
+  });
+}
+
 export function useMyTasks(enabled = true) {
   return useQuery({
     queryKey: queryKeys.tasks.my,
@@ -26,6 +67,7 @@ export function useTaskMutations() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
     queryClient.invalidateQueries({ queryKey: ["tasks", "detail"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
     queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
@@ -143,6 +185,7 @@ export function useCompleteStageApproval() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
@@ -167,6 +210,7 @@ export function useAssignTask() {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
       toast.success("Task assigned", data.assignedEmployee?.name ?? "Employee updated");
     },
     onError: (error) => toast.errorFromApi(error, "Could not assign task"),

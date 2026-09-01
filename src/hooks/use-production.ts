@@ -92,6 +92,75 @@ export function useProductionHandoffs(enabled = true) {
   });
 }
 
+export type ProductionReturnOptions = {
+  designId: string;
+  ideaRef: string;
+  canReturn: boolean;
+  reasons: Array<{ code: string; label: string }>;
+  routeOptions: Array<{ id: number; code: string; name: string }>;
+  instructionStatus: string | null;
+};
+
+export function useProductionReturnOptions(designId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.production.returnOptions(designId),
+    queryFn: () =>
+      apiGet<ProductionReturnOptions>(
+        `/api/production/return?designId=${encodeURIComponent(designId)}`,
+      ),
+    enabled: enabled && !!designId,
+  });
+}
+
+export function useProductionReturn() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: (body: {
+      designId: string;
+      reasonCode: string;
+      routeToSubProcessId: number;
+      remark?: string;
+    }) => apiPost<{ correctionId: string }>("/api/production/return", body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.inbox });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.approved });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
+      queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      toast.success("Returned for clarification", "Design team has been notified.");
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not return design"),
+  });
+}
+
+export function useAcceptProductionHandoff() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: (designId: string) =>
+      apiPost<{ designId: string; instructionTaskId: string }>(
+        "/api/production/accept-handoff",
+        { designId },
+      ),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.inbox });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      toast.success(
+        "Production handoff accepted",
+        "Production instruction is ready on My Tasks.",
+      );
+      return data;
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not accept production handoff"),
+  });
+}
+
 export function useRetryHandoffSync() {
   const queryClient = useQueryClient();
   const toast = useApiToast();

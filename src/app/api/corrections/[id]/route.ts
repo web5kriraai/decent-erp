@@ -8,8 +8,6 @@ const schema = z.object({
     .enum(["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING", "DONE", "REJECTED"])
     .optional(),
   rootCause: z.string().optional(),
-  extraMinutes: z.number().int().optional(),
-  extraCost: z.number().optional(),
 });
 
 export async function PATCH(

@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiClientError } from "@/lib/api-client";
+import { humanizeApiError } from "@/lib/humanize-api-error";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangleIcon,
@@ -121,25 +122,13 @@ export function useApiToast() {
     info: (title: string, message?: string) =>
       showToast({ type: "info", title, message }),
     errorFromApi: (error: unknown, fallback = "Something went wrong") => {
-      if (error instanceof ApiClientError) {
-        showToast({
-          type: "error",
-          title: error.message || fallback,
-          message:
-            error.isConflict
-              ? "Refresh the page and try again."
-              : error.isValidationError
-                ? "Check the form fields and retry."
-                : undefined,
-          correlationId: error.correlationId,
-        });
-        return;
-      }
-      if (error instanceof Error && error.message && error.message !== fallback) {
-        showToast({ type: "error", title: fallback, message: error.message });
-        return;
-      }
-      showToast({ type: "error", title: fallback });
+      const humanized = humanizeApiError(error, fallback);
+      showToast({
+        type: "error",
+        title: humanized.title,
+        message: humanized.hint,
+        correlationId: humanized.correlationId,
+      });
     },
   };
 }

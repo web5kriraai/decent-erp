@@ -94,6 +94,12 @@ enum WorkType {
   CUSTOM
 }
 
+enum ImageReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // --- Auth & RBAC ---
 
 model Employee {
@@ -127,6 +133,7 @@ model Employee {
   enteredCosts         DesignCost[]
   taskArtifacts        TaskArtifact[]
   productionHandoffs   ProductionHandoff[]
+  notifications        EmployeeNotification[]
 
   @@map("employees")
 }
@@ -429,16 +436,18 @@ model DesignComponent {
 }
 
 model DesignImage {
-  id                BigInt   @id @default(autoincrement()) @map("image_id")
-  designId          BigInt   @map("design_id")
-  designComponentId BigInt?  @map("design_component_id")
-  storageKey        String   @map("storage_key")
-  fileName          String   @map("file_name")
-  contentType       String   @map("content_type")
-  fileSize          BigInt   @map("file_size")
-  isPrimary         Boolean  @default(false) @map("is_primary")
-  uploadedById      Int      @map("uploaded_by")
-  uploadedAtUtc     DateTime @default(now()) @map("uploaded_at_utc")
+  id                BigInt             @id @default(autoincrement()) @map("image_id")
+  designId          BigInt             @map("design_id")
+  designComponentId BigInt?            @map("design_component_id")
+  storageKey        String             @map("storage_key")
+  fileName          String             @map("file_name")
+  contentType       String             @map("content_type")
+  fileSize          BigInt             @map("file_size")
+  isPrimary         Boolean            @default(false) @map("is_primary")
+  reviewStatus      ImageReviewStatus  @default(PENDING) @map("review_status")
+  reviewNote        String?            @map("review_note") @db.Text
+  uploadedById      Int                @map("uploaded_by")
+  uploadedAtUtc     DateTime           @default(now()) @map("uploaded_at_utc")
 
   design    DesignConcept    @relation(fields: [designId], references: [id], onDelete: Cascade)
   component DesignComponent? @relation(fields: [designComponentId], references: [id])
@@ -680,6 +689,22 @@ model NotificationOutbox {
 
   @@index([processed, createdAtUtc])
   @@map("notification_outbox")
+}
+
+model EmployeeNotification {
+  id           BigInt   @id @default(autoincrement())
+  employeeId   Int      @map("employee_id")
+  eventType    String   @map("event_type")
+  title        String
+  body         String   @db.Text
+  href         String?
+  readAtUtc    DateTime? @map("read_at_utc")
+  createdAtUtc DateTime @default(now()) @map("created_at_utc")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, readAtUtc, createdAtUtc], map: "IX_EmployeeNotification_Employee_Read")
+  @@map("employee_notifications")
 }
 
 model QualityChecklistItem {

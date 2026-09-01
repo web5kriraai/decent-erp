@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatCard } from "@/components/ui/StatCard";
+import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
+import { resolveCostingContextActions } from "@/lib/workflow-actions";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useAddCostEntry, useDesignCosts } from "@/hooks/use-costing";
 import { ROUTES } from "@/config/routes";
@@ -48,6 +50,11 @@ export function CostingView() {
   }
 
   const summary = costsQuery.data?.summary;
+  const costingActions = resolveCostingContextActions({
+    designId: selectedDesignId || undefined,
+    hasCosting: summary?.hasCosting,
+    permissions,
+  });
 
   return (
     <div className="page-shell">
@@ -79,6 +86,10 @@ export function CostingView() {
 
       {selectedDesignId && (
         <>
+          <div className="card contextual-actions-wrap" style={{ marginBottom: "1.5rem" }}>
+            <ContextualActionsPanel title="Costing actions" actions={costingActions} />
+          </div>
+
           <div className="stat-grid" style={{ marginBottom: "1.5rem" }}>
             <StatCard
               label="Total Dev Cost"
@@ -135,9 +146,7 @@ export function CostingView() {
                 Actual development cost ₹{summary.totalDevCost.toFixed(2)}
                 {summary.estimatedCost != null
                   ? ` vs estimate ₹${summary.estimatedCost.toFixed(2)}`
-                  : summary.standardCost != null
-                    ? ` vs standard ₹${summary.standardCost.toFixed(2)}`
-                    : " — set an estimate on the design for margin %"}
+                  : " — set an estimate on the design for margin %"}
                 .
               </p>
             </div>

@@ -9,12 +9,10 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
-import { FormTextField } from "@/components/ui/form-text-field";
 import { Button } from "@/components/ui/button";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useDesign } from "@/hooks/use-designs";
 import { useEmployeeOptions, useRaiseCorrection } from "@/hooks/use-corrections";
-import { useProcessMasters } from "@/hooks/use-masters";
 import type { RaiseCorrectionPayload } from "@/hooks/use-corrections";
 
 type RaiseCorrectionModalProps = {
@@ -42,61 +40,53 @@ export function RaiseCorrectionModal({
   defaultDesignId,
   defaultTaskId,
 }: RaiseCorrectionModalProps) {
-  const designsQuery = useDesignsList(open);
+  const isPrefilled = !!(defaultDesignId && defaultTaskId);
+  const designsQuery = useDesignsList(open && !isPrefilled);
   const employeesQuery = useEmployeeOptions(open);
-  const processesQuery = useProcessMasters(open);
   const raiseCorrection = useRaiseCorrection();
 
   const [designId, setDesignId] = useState(defaultDesignId ?? "");
-  const [taskId, setTaskId] = useState("");
+  const [taskId, setTaskId] = useState(defaultTaskId ?? "");
   const [correctionType, setCorrectionType] =
-    useState<RaiseCorrectionPayload["correctionType"]>("MISTAKE");
+    useState<RaiseCorrectionPayload["correctionType"]>("IMPROVEMENT");
   const [responsibleEmployeeId, setResponsibleEmployeeId] = useState<number | "">("");
-  const [routeToSubProcessId, setRouteToSubProcessId] = useState<number | "">("");
   const [rootCause, setRootCause] = useState("");
-  const [extraMinutes, setExtraMinutes] = useState("");
-  const [extraCost, setExtraCost] = useState("");
 
-  const designQuery = useDesign(designId, open && !!designId);
+  const designQuery = useDesign(designId, open && !!designId && !isPrefilled);
   const tasks = designQuery.data?.tasks ?? [];
   const isMistake = correctionType === "MISTAKE";
-
-  const subProcessOptions =
-    processesQuery.data?.flatMap((p) =>
-      (p.subProcesses ?? []).map((sp) => ({
-        id: sp.id,
-        label: `${p.name} → ${sp.name}`,
-      })),
-    ) ?? [];
 
   useEffect(() => {
     if (open && defaultDesignId) setDesignId(defaultDesignId);
   }, [open, defaultDesignId]);
 
   useEffect(() => {
-    if (open && defaultTaskId) {
-      setTaskId(defaultTaskId);
-      return;
+    if (open && defaultTaskId) setTaskId(defaultTaskId);
+  }, [open, defaultTaskId]);
+
+  useEffect(() => {
+    if (!open) {
+      setRootCause("");
+      if (!defaultDesignId) setDesignId("");
+      if (!defaultTaskId) setTaskId("");
+      setCorrectionType("IMPROVEMENT");
+      setResponsibleEmployeeId("");
     }
-    if (!defaultDesignId) setTaskId("");
-  }, [designId, defaultDesignId, defaultTaskId, open]);
+  }, [open, defaultDesignId, defaultTaskId]);
 
   useEffect(() => {
     if (!isMistake) setResponsibleEmployeeId("");
   }, [isMistake]);
 
   async function handleSubmit() {
-    if (!designId || !taskId) return;
+    if (!designId || !taskId || !rootCause.trim()) return;
     if (isMistake && !responsibleEmployeeId) return;
     await raiseCorrection.mutateAsync({
       designId,
       taskId,
       correctionType,
       responsibleEmployeeId: responsibleEmployeeId ? Number(responsibleEmployeeId) : null,
-      routeToSubProcessId: routeToSubProcessId ? Number(routeToSubProcessId) : null,
-      rootCause: rootCause.trim() || undefined,
-      extraMinutes: extraMinutes ? Number(extraMinutes) : undefined,
-      extraCost: extraCost ? Number(extraCost) : undefined,
+      rootCause: rootCause.trim(),
     });
     onClose();
   }
@@ -104,6 +94,7 @@ export function RaiseCorrectionModal({
   const canSubmit =
     !!designId &&
     !!taskId &&
+    !!rootCause.trim() &&
     (!isMistake || !!responsibleEmployeeId) &&
     !raiseCorrection.isPending;
 
@@ -111,7 +102,7 @@ export function RaiseCorrectionModal({
     <Modal
       open={open}
       title="Raise Correction"
-      description="Record a correction against a design task and route it back through the workflow if needed."
+      description="Send work back with a clear reason so the responsible person can fix it."
       onClose={onClose}
       size="lg"
       footer={
@@ -126,32 +117,36 @@ export function RaiseCorrectionModal({
       }
     >
       <ModalForm>
-        <FormSelect
-          id="corrDesign"
-          label="Design"
-          required
-          value={designId || null}
-          onValueChange={setDesignId}
-          options={(designsQuery.data?.items ?? []).map((d) => ({
-            value: d.id,
-            label: `${d.ideaRef} - ${d.collectionName}`,
-          }))}
-          placeholder="Select design…"
-        />
+        {!isPrefilled ? (
+          <>
+            <FormSelect
+              id="corrDesign"
+              label="Design"
+              required
+              value={designId || null}
+              onValueChange={setDesignId}
+              options={(designsQuery.data?.items ?? []).map((d) => ({
+                value: d.id,
+                label: `${d.ideaRef} - ${d.collectionName}`,
+              }))}
+              placeholder="Select design…"
+            />
 
-        <FormSelect
-          id="corrTask"
-          label="Task"
-          required
-          value={taskId || null}
-          onValueChange={setTaskId}
-          options={tasks.map((t) => ({
-            value: t.id,
-            label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
-          }))}
-          placeholder="Select task…"
-          disabled={!designId || designQuery.isLoading}
-        />
+            <FormSelect
+              id="corrTask"
+              label="Task"
+              required
+              value={taskId || null}
+              onValueChange={setTaskId}
+              options={tasks.map((t) => ({
+                value: t.id,
+                label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
+              }))}
+              placeholder="Select task…"
+              disabled={!designId || designQuery.isLoading}
+            />
+          </>
+        ) : null}
 
         <ModalFormGrid>
           <FormSelect
@@ -169,9 +164,7 @@ export function RaiseCorrectionModal({
             label="Responsible Employee"
             required={isMistake}
             value={responsibleEmployeeId === "" ? null : String(responsibleEmployeeId)}
-            onValueChange={(v) =>
-              setResponsibleEmployeeId(v ? Number(v) : "")
-            }
+            onValueChange={(v) => setResponsibleEmployeeId(v ? Number(v) : "")}
             options={(employeesQuery.data ?? []).map((e) => ({
               value: String(e.id),
               label: `${e.name} (${e.employeeCode})`,
@@ -181,45 +174,15 @@ export function RaiseCorrectionModal({
           />
         </ModalFormGrid>
 
-        <FormSelect
-          id="corrRoute"
-          label="Route back to sub-process"
-          value={routeToSubProcessId === "" ? null : String(routeToSubProcessId)}
-          onValueChange={(v) => setRouteToSubProcessId(v ? Number(v) : "")}
-          options={subProcessOptions.map((sp) => ({
-            value: String(sp.id),
-            label: sp.label,
-          }))}
-          placeholder="Same task (restore on close)"
-        />
-
         <FormTextArea
           id="corrRootCause"
-          label="Root Cause"
-          rows={2}
+          label="Reason / feedback"
+          required
+          rows={3}
           value={rootCause}
           onChange={(e) => setRootCause(e.target.value)}
+          placeholder="Describe what needs to be fixed…"
         />
-
-        <ModalFormGrid>
-          <FormTextField
-            id="corrMinutes"
-            label="Extra Minutes"
-            type="number"
-            min={0}
-            value={extraMinutes}
-            onChange={(e) => setExtraMinutes(e.target.value)}
-          />
-          <FormTextField
-            id="corrCost"
-            label="Extra Cost"
-            type="number"
-            min={0}
-            step="0.01"
-            value={extraCost}
-            onChange={(e) => setExtraCost(e.target.value)}
-          />
-        </ModalFormGrid>
       </ModalForm>
     </Modal>
   );

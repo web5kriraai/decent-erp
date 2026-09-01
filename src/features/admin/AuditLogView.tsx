@@ -94,11 +94,6 @@ export function AuditLogView() {
               { key: "entityId", header: "Entity ID" },
               { key: "action", header: "Action" },
               { key: "user", header: "User", render: (r) => r.user.name },
-              {
-                key: "correlationId",
-                header: "Correlation",
-                render: (r) => r.correlationId ?? "-",
-              },
             ]}
             rows={auditQuery.data ?? []}
             getRowKey={(r) => r.id}

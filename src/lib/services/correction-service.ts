@@ -34,7 +34,7 @@ const correctionInclude = {
 
 type Tx = Prisma.TransactionClient;
 
-async function createOrReopenRoutedTask(
+export async function createOrReopenRoutedTask(
   tx: Tx,
   input: {
     designId: bigint;
@@ -137,19 +137,84 @@ export async function listCorrections(filters: {
   });
 }
 
+export type RaiseCorrectionInput = {
+  designId: bigint;
+  taskId: bigint;
+  correctionType: CorrectionType;
+  responsibleEmployeeId?: number | null;
+  routeToSubProcessId?: number | null;
+  rootCause?: string;
+  extraMinutes?: number;
+  extraCost?: number;
+  beforeImageId?: bigint;
+  afterImageId?: bigint;
+};
+
+export async function raiseCorrectionInTransaction(
+  tx: Tx,
+  input: RaiseCorrectionInput,
+  raisedById: number,
+  correlationId: string,
+) {
+  if (input.correctionType === "MISTAKE" && !input.responsibleEmployeeId) {
+    throw new ApiError("Responsible employee is required for mistake corrections", 422);
+  }
+
+  const task = await tx.designTask.findUnique({ where: { id: input.taskId } });
+  if (!task) throw new ApiError("Task not found", 404);
+  if (task.designId !== input.designId) {
+    throw new ApiError("Task does not belong to design", 422);
+  }
+
+  let routedTaskId: bigint | null = null;
+  if (input.routeToSubProcessId) {
+    const routed = await createOrReopenRoutedTask(tx, {
+      designId: input.designId,
+      routeToSubProcessId: input.routeToSubProcessId,
+      responsibleEmployeeId: input.responsibleEmployeeId,
+      sourceTaskId: input.taskId,
+    });
+    routedTaskId = routed.id;
+  }
+
+  const correction = await tx.designCorrection.create({
+    data: {
+      designId: input.designId,
+      taskId: input.taskId,
+      correctionType: input.correctionType,
+      responsibleEmployeeId: input.responsibleEmployeeId ?? null,
+      routeToSubProcessId: input.routeToSubProcessId ?? null,
+      routedTaskId,
+      raisedById,
+      rootCause: input.rootCause,
+      extraMinutes: input.extraMinutes,
+      extraCost: input.extraCost,
+      beforeImageId: input.beforeImageId,
+      afterImageId: input.afterImageId,
+      status: "OPEN",
+      ratingImpact: ratingImpactForType(input.correctionType),
+    },
+  });
+
+  await tx.designTask.update({
+    where: { id: input.taskId },
+    data: { status: "CORRECTION_REQUIRED", version: { increment: 1 } },
+  });
+
+  await writeAuditLog(tx, {
+    entityType: "DesignCorrection",
+    entityId: correction.id.toString(),
+    action: "CREATE",
+    userId: raisedById,
+    correlationId,
+    after: correction,
+  });
+
+  return correction;
+}
+
 export async function createCorrection(
-  input: {
-    designId: bigint;
-    taskId: bigint;
-    correctionType: CorrectionType;
-    responsibleEmployeeId?: number | null;
-    routeToSubProcessId?: number | null;
-    rootCause?: string;
-    extraMinutes?: number;
-    extraCost?: number;
-    beforeImageId?: bigint;
-    afterImageId?: bigint;
-  },
+  input: RaiseCorrectionInput,
   raisedById: number,
   correlationId: string,
 ) {
@@ -158,56 +223,7 @@ export async function createCorrection(
   }
 
   return prisma.$transaction(async (tx) => {
-    const task = await tx.designTask.findUnique({ where: { id: input.taskId } });
-    if (!task) throw new ApiError("Task not found", 404);
-    if (task.designId !== input.designId) {
-      throw new ApiError("Task does not belong to design", 422);
-    }
-
-    let routedTaskId: bigint | null = null;
-    if (input.routeToSubProcessId) {
-      const routed = await createOrReopenRoutedTask(tx, {
-        designId: input.designId,
-        routeToSubProcessId: input.routeToSubProcessId,
-        responsibleEmployeeId: input.responsibleEmployeeId,
-        sourceTaskId: input.taskId,
-      });
-      routedTaskId = routed.id;
-    }
-
-    const correction = await tx.designCorrection.create({
-      data: {
-        designId: input.designId,
-        taskId: input.taskId,
-        correctionType: input.correctionType,
-        responsibleEmployeeId: input.responsibleEmployeeId ?? null,
-        routeToSubProcessId: input.routeToSubProcessId ?? null,
-        routedTaskId,
-        raisedById,
-        rootCause: input.rootCause,
-        extraMinutes: input.extraMinutes,
-        extraCost: input.extraCost,
-        beforeImageId: input.beforeImageId,
-        afterImageId: input.afterImageId,
-        status: "OPEN",
-        ratingImpact: ratingImpactForType(input.correctionType),
-      },
-    });
-
-    await tx.designTask.update({
-      where: { id: input.taskId },
-      data: { status: "CORRECTION_REQUIRED", version: { increment: 1 } },
-    });
-
-    await writeAuditLog(tx, {
-      entityType: "DesignCorrection",
-      entityId: correction.id.toString(),
-      action: "CREATE",
-      userId: raisedById,
-      correlationId,
-      after: correction,
-    });
-
+    const correction = await raiseCorrectionInTransaction(tx, input, raisedById, correlationId);
     return tx.designCorrection.findUniqueOrThrow({
       where: { id: correction.id },
       include: correctionInclude,
@@ -249,7 +265,10 @@ export async function updateCorrection(
     });
 
     if (input.status === "DONE" && existing.status !== "DONE") {
-      const sourceTask = await tx.designTask.findUnique({ where: { id: existing.taskId } });
+      const sourceTask = await tx.designTask.findUnique({
+        where: { id: existing.taskId },
+        include: { subProcess: { select: { code: true } } },
+      });
       if (sourceTask && sourceTask.status === "CORRECTION_REQUIRED") {
         // If work was routed elsewhere, close the source check task; otherwise restore for rework
         const nextStatus = existing.routedTaskId ? "COMPLETED" : "ASSIGNED";
@@ -269,6 +288,7 @@ export async function updateCorrection(
               designId: sourceTask.designId,
               dependencySequence: sourceTask.dependencySequence,
               sequence: sourceTask.sequence,
+              subProcessCode: sourceTask.subProcess.code,
             },
             correlationId,
           );

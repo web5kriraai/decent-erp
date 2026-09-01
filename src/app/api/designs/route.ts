@@ -21,7 +21,6 @@ const createDesignSchema = z
     celebrityReference: z.string().optional(),
     targetGrade: z.string().optional(),
     estimatedCost: z.number().nonnegative().optional(),
-    standardCost: z.number().nonnegative().optional(),
     assignmentMode: z.enum(["AUTOMATIC", "MANUAL"]),
     workflowPatternId: z.number().int().optional(),
     componentTypeIds: z.array(z.number().int().positive()).optional(),

@@ -10,6 +10,7 @@ export const queryKeys = {
   tasks: {
     all: ["tasks"] as const,
     my: ["tasks", "my"] as const,
+    actionCenter: ["tasks", "action-center"] as const,
     detail: (id: string) => ["tasks", "detail", id] as const,
   },
   time: {
@@ -47,9 +48,18 @@ export const queryKeys = {
     approved: ["production", "approved"] as const,
     released: ["production", "released"] as const,
     handoffs: (designId?: string) => ["production", "handoffs", designId] as const,
+    inbox: ["production", "inbox"] as const,
+    returnOptions: (designId: string) => ["production", "return-options", designId] as const,
   },
   audit: {
     list: (filters?: Record<string, string>) => ["audit", filters] as const,
+  },
+  dashboard: {
+    designHead: ["dashboard", "design-head"] as const,
+    management: ["dashboard", "management"] as const,
+  },
+  notifications: {
+    list: ["notifications"] as const,
   },
   admin: {
     dashboard: ["admin", "dashboard"] as const,

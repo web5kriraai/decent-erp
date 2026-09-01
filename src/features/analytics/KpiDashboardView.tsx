@@ -80,9 +80,6 @@ export function KpiDashboardView() {
         subtitle="Weighted employee scores by role and period"
         actions={
           <>
-            <Link href={ROUTES.analytics.kpiEmployees} className="btn btn-secondary btn-sm">
-              Employee Detail
-            </Link>
             <Link href={ROUTES.analytics.kpiDesignHead} className="btn btn-secondary btn-sm">
               Design Head
             </Link>

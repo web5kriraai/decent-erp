@@ -161,7 +161,8 @@ Change all passwords before production. After an admin changes a user's role, th
 ### Finance and production
 
 - **Costing** - per-design development / standard cost lines with margin view
-- **Production release** - queue of approved designs; accept or hold release
+- **Production release** - task-based handoff → instruction → release on My Tasks; ERP sync after release
+- **Production return** - Production Head can return for clarification with structured reasons; routes correction without erasing history
 
 ### Team and analytics
 
@@ -197,23 +198,30 @@ Change all passwords before production. After an admin changes a user's role, th
 
 ```mermaid
 flowchart LR
-  A[Design Head: New Concept] --> B[Tasks generated from pattern]
-  B --> C[Designer: Start / Hold / End task]
-  C --> D[Upload files if required]
-  D --> E[Request approval on design]
-  E --> F[Checker / DH / Mgmt approve chain]
-  F --> G[Costing team enters costs]
-  G --> H[Final approval with costing gate]
-  H --> I[Production Head: release]
+  A[Concept Review] --> B[Sketch + Approval]
+  B --> C[Punch + Punch Check]
+  C --> D[Material + Fabric Issue]
+  D --> E[Machine Sample + Receive]
+  E --> F[Sample Checking]
+  F --> G[Costing + Final Approval]
+  G --> H[Mgmt Approval Chain]
+  H --> I[Prod Handoff]
+  I --> J[Prod Head Accept]
+  J --> K[Instruction + Release]
+  K --> L[Live Review + Mark Live]
 ```
 
-1. **Design Head** - **Design Pipeline → New Concept**, pick workflow pattern, submit.
-2. **Designer** - **My Tasks**, open task, **Start**, work, upload files if prompted, **End**.
-3. **Design Head** - on design detail, **Assign** tasks if needed; **Request Approval** when stage is ready.
-4. **Checker / Management** - **Quality → Approvals**, approve or reject (multi-level).
-5. **Costing** - **Finance → Costing**, enter costs for the design.
-6. **Management** - final approval after costing is complete.
-7. **Production Head** - **Production → Production Release**, accept handoff.
+1. **Design Head** — create concept; workflow generates the full master chain (16 steps including punch check, material, sample receive, live review).
+2. **Role executors** — complete tasks on **My Action Center** (start / hold / end); quality checkers see **Quality context** on task detail.
+3. **Design Head** — assign/reassign, request final approval when stages are complete; compact **primary actions** on design detail.
+4. **Checker / Management** — **Quality → Approvals** multi-level chain; management **Live design review** queue after production release.
+5. **Costing** — enter costs before management final approval completes.
+6. **Production Head** — **Accept production handoff** on production desk → instruction → release (ERP handoff); **Returned / clarification** inbox for production returns.
+7. **Notifications** — in-app bell in the top bar; background worker still handles email when SMTP is configured.
+
+After changing workflow pattern in seed, run `npm run db:seed` and `node scripts/repair-missing-workflow-tasks.mjs` for in-flight designs.
+
+E2E: `npm run test:e2e:reuse -- e2e/full-workflow-pipeline.spec.ts`
 
 ### Admin setup (first time)
 

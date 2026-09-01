@@ -5,6 +5,8 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { SkeletonRows } from "@/components/SkeletonRows";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ApiClientError } from "@/lib/api-client";
+import { humanizeApiError } from "@/lib/humanize-api-error";
+import { messageForCode, APP_ERROR_CODES } from "@/lib/errors/app-errors";
 
 type QueryStateProps = {
   isLoading: boolean;
@@ -36,26 +38,21 @@ export function QueryState({
   }
 
   if (isError) {
+    const humanized = humanizeApiError(error, "Failed to load data");
     const correlationId =
-      error instanceof ApiClientError ? error.correlationId : undefined;
-    const message =
-      error instanceof ApiClientError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "Failed to load data";
+      error instanceof ApiClientError ? error.correlationId : humanized.correlationId;
 
     if (error instanceof ApiClientError && error.isForbidden) {
       return (
         <div className="alert alert-warning" role="alert">
-          You do not have permission to view this data.
+          {messageForCode(APP_ERROR_CODES.PERMISSION_DENIED)}
         </div>
       );
     }
 
     return (
       <ErrorBanner
-        message={message}
+        message={humanized.title}
         correlationId={correlationId}
         onRetry={onRetry}
       />

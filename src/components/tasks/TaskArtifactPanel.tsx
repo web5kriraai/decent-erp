@@ -1,44 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { FormSelect } from "@/components/ui/form-select";
-import { FormTextField } from "@/components/ui/form-text-field";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { FileIcon, Loader2Icon, UploadCloudIcon } from "lucide-react";
 
-type TaskArtifactType =
-  | "SKETCH_VERSION"
-  | "PUNCHING_FILE"
-  | "SAMPLE_OUTPUT"
-  | "AUDIO_NOTE"
-  | "VIDEO_REF";
+type TaskArtifactType = "SKETCH_VERSION" | "PUNCHING_FILE" | "SAMPLE_OUTPUT";
 
 type TaskArtifact = {
   id: string;
   artifactType: TaskArtifactType;
   fileName?: string | null;
   storageKey?: string | null;
-  stitchCount?: number | null;
-  machineFormat?: string | null;
-  versionNo?: number | null;
   uploadedAtUtc: string;
 };
 
-const ARTIFACT_TYPE_OPTIONS: { value: TaskArtifactType; label: string }[] = [
-  { value: "SKETCH_VERSION", label: "Sketch Version" },
-  { value: "PUNCHING_FILE", label: "Punching / EMB / DST" },
-  { value: "SAMPLE_OUTPUT", label: "Sample Output" },
-  { value: "AUDIO_NOTE", label: "Audio Note" },
-  { value: "VIDEO_REF", label: "Video Reference" },
-];
+const ARTIFACT_TYPE_LABELS: Record<TaskArtifactType, string> = {
+  SKETCH_VERSION: "Sketch Version",
+  PUNCHING_FILE: "Punching / EMB / DST",
+  SAMPLE_OUTPUT: "Sample Output",
+};
 
 const ACCEPTED_FILE_TYPES =
   ".jpg,.jpeg,.png,.webp,.pdf,.emb,.dst,image/*,application/pdf";
+
+function resolveArtifactType(subProcessCode?: string): TaskArtifactType {
+  const code = subProcessCode?.toUpperCase() ?? "";
+  if (code.includes("PUNCH")) return "PUNCHING_FILE";
+  if (code.includes("SAMPLE") || code.includes("MACHINE")) return "SAMPLE_OUTPUT";
+  return "SKETCH_VERSION";
+}
 
 type TaskArtifactPanelProps = {
   taskId: string;
@@ -63,17 +58,11 @@ export function TaskArtifactPanel({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [activeFileName, setActiveFileName] = useState<string | null>(null);
-  const [artifactType, setArtifactType] = useState<TaskArtifactType>(
-    subProcessCode?.includes("PUNCH")
-      ? "PUNCHING_FILE"
-      : subProcessCode?.includes("SAMPLE") || subProcessCode?.includes("MACHINE")
-        ? "SAMPLE_OUTPUT"
-        : "SKETCH_VERSION",
+
+  const artifactType = useMemo(
+    () => resolveArtifactType(subProcessCode),
+    [subProcessCode],
   );
-  const [stitchCount, setStitchCount] = useState("");
-  const [machineFormat, setMachineFormat] = useState("");
-  const [sampleQty, setSampleQty] = useState("");
-  const [wastageQty, setWastageQty] = useState("");
 
   const artifactsQuery = useQuery({
     queryKey: ["tasks", taskId, "artifacts"],
@@ -114,10 +103,6 @@ export function TaskArtifactPanel({
           artifactType,
           fileName,
           storageKey,
-          stitchCount: stitchCount ? Number(stitchCount) : undefined,
-          machineFormat: machineFormat.trim() || undefined,
-          sampleQty: sampleQty ? Number(sampleQty) : undefined,
-          wastageQty: wastageQty ? Number(wastageQty) : undefined,
         });
 
         toast.success("File uploaded", `${fileName} is linked to this task.`);
@@ -132,17 +117,7 @@ export function TaskArtifactPanel({
         setUploading(false);
       }
     },
-    [
-      artifactType,
-      designId,
-      machineFormat,
-      queryClient,
-      sampleQty,
-      stitchCount,
-      taskId,
-      toast,
-      wastageQty,
-    ],
+    [artifactType, designId, queryClient, taskId, toast],
   );
 
   function handleFiles(files: FileList | null) {
@@ -156,133 +131,68 @@ export function TaskArtifactPanel({
   return (
     <div className={cn("space-y-4", compact && "space-y-3")}>
       {canUpload ? (
-        <div className="space-y-4">
-          <div
-            className={cn(
-              "grid gap-3",
-              compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2",
-            )}
-          >
-            <FormSelect
-              id="artifactType"
-              label="File Type"
-              value={artifactType}
-              onValueChange={(v) => setArtifactType(v as TaskArtifactType)}
-              options={ARTIFACT_TYPE_OPTIONS}
-              disabled={uploading}
-            />
-
-            {artifactType === "PUNCHING_FILE" ? (
-              <>
-                <FormTextField
-                  id="stitchCount"
-                  label="Stitch Count"
-                  type="number"
-                  min={0}
-                  value={stitchCount}
-                  onChange={(e) => setStitchCount(e.target.value)}
-                  placeholder="e.g. 125000"
-                  disabled={uploading}
-                />
-                <FormTextField
-                  id="machineFormat"
-                  label="Machine Format"
-                  value={machineFormat}
-                  onChange={(e) => setMachineFormat(e.target.value)}
-                  placeholder="e.g. Tajima / Wilcom"
-                  disabled={uploading}
-                  fieldClassName="sm:col-span-2"
-                />
-              </>
-            ) : null}
-
-            {artifactType === "SAMPLE_OUTPUT" ? (
-              <>
-                <FormTextField
-                  id="sampleQty"
-                  label="Sample Qty"
-                  type="number"
-                  min={0}
-                  value={sampleQty}
-                  onChange={(e) => setSampleQty(e.target.value)}
-                  disabled={uploading}
-                />
-                <FormTextField
-                  id="wastageQty"
-                  label="Wastage Qty"
-                  type="number"
-                  min={0}
-                  value={wastageQty}
-                  onChange={(e) => setWastageQty(e.target.value)}
-                  disabled={uploading}
-                />
-              </>
-            ) : null}
-          </div>
-
-          <div
-            className={cn(
-              "flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-background px-4 py-5 text-center transition-colors",
-              dragOver && "border-primary bg-primary/5",
-              uploading && "border-primary/40 bg-primary/5",
-              compact && "py-4",
-            )}
-            onDragOver={(e) => {
-              e.preventDefault();
-              if (!uploading) setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              handleFiles(e.dataTransfer.files);
-            }}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept={ACCEPTED_FILE_TYPES}
-              hidden
-              disabled={!canUpload || uploading}
-              onChange={(e) => handleFiles(e.target.files)}
-            />
-            {uploading ? (
-              <>
-                <Loader2Icon className="size-8 animate-spin text-primary" aria-hidden />
-                <div className="flex max-w-md items-center gap-2 text-sm">
-                  <FileIcon className="size-4 shrink-0 text-primary" aria-hidden />
-                  <span className="truncate font-medium">
-                    Uploading {activeFileName ?? "file"}…
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Please wait — submit will unlock once the upload finishes.
-                </p>
-              </>
-            ) : (
-              <>
-                <UploadCloudIcon
-                  className={cn("size-8 text-muted-foreground", dragOver && "text-primary")}
-                  aria-hidden
-                />
-                <p className="text-sm text-muted-foreground">
-                  Drag & drop a file here, or browse to upload
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  JPG, PNG, PDF, EMB, DST — max 20 MB. Files upload automatically.
-                </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={!canUpload}
-                  onClick={() => inputRef.current?.click()}
-                >
-                  Browse Files
-                </Button>
-              </>
-            )}
-          </div>
+        <div
+          className={cn(
+            "flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-background px-4 py-5 text-center transition-colors",
+            dragOver && "border-primary bg-primary/5",
+            uploading && "border-primary/40 bg-primary/5",
+            compact && "py-4",
+          )}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!uploading) setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            handleFiles(e.dataTransfer.files);
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept={ACCEPTED_FILE_TYPES}
+            hidden
+            disabled={!canUpload || uploading}
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+          {uploading ? (
+            <>
+              <Loader2Icon className="size-8 animate-spin text-primary" aria-hidden />
+              <div className="flex max-w-md items-center gap-2 text-sm">
+                <FileIcon className="size-4 shrink-0 text-primary" aria-hidden />
+                <span className="truncate font-medium">
+                  Uploading {activeFileName ?? "file"}…
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Please wait — submit will unlock once the upload finishes.
+              </p>
+            </>
+          ) : (
+            <>
+              <UploadCloudIcon
+                className={cn("size-8 text-muted-foreground", dragOver && "text-primary")}
+                aria-hidden
+              />
+              <p className="text-sm text-muted-foreground">
+                Drag & drop a file here, or browse to upload
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {ARTIFACT_TYPE_LABELS[artifactType]} · JPG, PNG, PDF, EMB, DST — max 20 MB
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!canUpload}
+                onClick={() => inputRef.current?.click()}
+              >
+                Browse Files
+              </Button>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -305,9 +215,7 @@ export function TaskArtifactPanel({
                     {artifact.fileName ?? "Unnamed file"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {ARTIFACT_TYPE_OPTIONS.find((o) => o.value === artifact.artifactType)?.label ??
-                      artifact.artifactType}
-                    {artifact.stitchCount != null ? ` · ${artifact.stitchCount} stitches` : ""}
+                    {ARTIFACT_TYPE_LABELS[artifact.artifactType] ?? artifact.artifactType}
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-muted-foreground">

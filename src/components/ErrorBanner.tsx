@@ -11,7 +11,7 @@ export function ErrorBanner({ message, correlationId, onRetry }: ErrorBannerProp
         <p style={{ margin: 0, fontWeight: 500 }}>{message}</p>
         {correlationId && (
           <p style={{ margin: "0.25rem 0 0", fontSize: "var(--font-size-caption)", opacity: 0.85 }}>
-            Correlation ID: <code>{correlationId}</code>
+            Reference: <code>{correlationId}</code>
           </p>
         )}
       </div>

@@ -4,6 +4,7 @@ import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { ApiError } from "@/lib/api-utils";
 import { designHasCosting } from "@/lib/services/costing-service";
 import type { ApprovalDecision } from "@prisma/client";
+import { unlockProductionHandoffTask } from "@/lib/services/production-handoff-unlock";
 
 const approvalInclude = {
   design: {
@@ -197,6 +198,7 @@ export async function submitApproval(
           where: { id: input.designId },
           data: { status: "APPROVED" },
         });
+        await unlockProductionHandoffTask(tx, input.designId, correlationId);
       }
     } else if (input.decision === "CORRECTION_REQUIRED") {
       await tx.designConcept.update({

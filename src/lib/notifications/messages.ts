@@ -6,6 +6,8 @@ export function buildNotificationMessage(
     TASK_ASSIGNED: "Task assigned to you",
     CORRECTION_RAISED: "Correction raised",
     PRODUCTION_RELEASED: "Design released to production",
+    PRODUCTION_HANDOFF_ACCEPTED: "Production handoff accepted",
+    PRODUCTION_RETURN_CLARIFICATION: "Production return for clarification",
     TASK_COMPLETED: "Task completed",
     DESIGN_CREATED: "New design created",
     TASK_DUE_SOON: "Task due soon",

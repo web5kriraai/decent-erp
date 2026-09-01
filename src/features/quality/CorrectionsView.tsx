@@ -12,6 +12,8 @@ import {
   useCorrections,
   useUpdateCorrectionStatus,
 } from "@/hooks/use-corrections";
+import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
+import { resolveCorrectionContextActions } from "@/lib/workflow-actions";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { CorrectionRecord } from "@/lib/types/api";
@@ -43,6 +45,8 @@ export function CorrectionsView() {
     await updateStatus.mutateAsync({ id: row.id, status: status as never });
   }
 
+  const correctionActions = resolveCorrectionContextActions({ permissions });
+
   return (
     <div className="page-shell">
       <PageHeader
@@ -54,6 +58,16 @@ export function CorrectionsView() {
           </button>
         }
       />
+
+      <div className="card contextual-actions-wrap">
+        <ContextualActionsPanel
+          title="Correction actions"
+          actions={correctionActions}
+          onAction={(action) => {
+            if (action.enabled && action.code === "RAISE_CORRECTION") setRaiseOpen(true);
+          }}
+        />
+      </div>
 
       <div className="toolbar" style={{ marginBottom: "1rem" }}>
         <button
@@ -129,11 +143,6 @@ export function CorrectionsView() {
                     )}
                   </select>
                 ),
-              },
-              {
-                key: "createdAtUtc",
-                header: "Raised",
-                render: (row) => new Date(row.createdAtUtc).toLocaleDateString(),
               },
             ]}
             rows={correctionsQuery.data ?? []}

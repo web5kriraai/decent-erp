@@ -4,6 +4,7 @@ export class ApiClientError extends Error {
     public status: number,
     public correlationId?: string,
     public details?: unknown,
+    public code?: string,
   ) {
     super(message);
     this.name = "ApiClientError";
@@ -41,6 +42,7 @@ export type ApiSuccess<T> = {
 
 export type ApiFailure = {
   error: string;
+  code?: string;
   correlationId?: string;
   details?: unknown;
 };
@@ -54,6 +56,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
       res.status,
       json.correlationId,
       json.details,
+      json.code,
     );
   }
 
