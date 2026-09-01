@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
@@ -24,12 +24,8 @@ export function CorrectionsView() {
   const canRaise = permissions.includes(PERMISSIONS.CORRECTION_RAISE);
 
   const [raiseOpen, setRaiseOpen] = useState(false);
-  const [filter, setFilter] = useState<"all" | "mine">("all");
 
-  const correctionsQuery = useCorrections(
-    { mine: filter === "mine" },
-    canRaise,
-  );
+  const correctionsQuery = useCorrections(undefined, canRaise);
   const updateStatus = useUpdateCorrectionStatus();
 
   if (!canRaise) {
@@ -51,7 +47,7 @@ export function CorrectionsView() {
     <div className="page-shell">
       <PageHeader
         title="Corrections"
-        subtitle="Track mistakes, improvements, and rework responsibility"
+        subtitle="Corrections you raised, own on a task, or are responsible for fixing"
         actions={
           <button type="button" className="btn btn-primary" onClick={() => setRaiseOpen(true)}>
             Raise Correction
@@ -59,7 +55,7 @@ export function CorrectionsView() {
         }
       />
 
-      <div className="card contextual-actions-wrap">
+      <div className="card contextual-actions-wrap stack-section">
         <ContextualActionsPanel
           title="Correction actions"
           actions={correctionActions}
@@ -67,23 +63,6 @@ export function CorrectionsView() {
             if (action.enabled && action.code === "RAISE_CORRECTION") setRaiseOpen(true);
           }}
         />
-      </div>
-
-      <div className="toolbar" style={{ marginBottom: "1rem" }}>
-        <button
-          type="button"
-          className={`btn btn-sm ${filter === "all" ? "btn-primary" : "btn-secondary"}`}
-          onClick={() => setFilter("all")}
-        >
-          All
-        </button>
-        <button
-          type="button"
-          className={`btn btn-sm ${filter === "mine" ? "btn-primary" : "btn-secondary"}`}
-          onClick={() => setFilter("mine")}
-        >
-          My Responsibility
-        </button>
       </div>
 
       <QueryState
@@ -148,7 +127,7 @@ export function CorrectionsView() {
             rows={correctionsQuery.data ?? []}
             getRowKey={(row) => row.id}
             emptyTitle="No corrections"
-            emptyDescription="Raise a correction when rework is needed on a task."
+            emptyDescription="When you raise a correction or one is assigned to you, it appears here."
             emptyAction={
               <button type="button" className="btn btn-primary" onClick={() => setRaiseOpen(true)}>
                 Raise Correction

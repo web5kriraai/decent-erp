@@ -27,7 +27,7 @@ export function TaskTimeTimeline({ events, summary }: TaskTimeTimelineProps) {
   return (
     <div className="time-timeline-wrap">
       {summary && (
-        <div className="time-metric-grid" style={{ marginBottom: "1rem" }}>
+        <div className="time-metric-grid stack-section-sm">
           <TimeMetric label="Active work" value={formatDuration(summary.activeSeconds)} accent />
           <TimeMetric label="Hold time" value={formatDuration(summary.holdSeconds)} />
           <TimeMetric label="Total elapsed" value={formatDuration(summary.totalElapsedSeconds)} />

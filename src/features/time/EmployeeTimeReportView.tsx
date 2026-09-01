@@ -45,7 +45,7 @@ export function EmployeeTimeReportView() {
         subtitle="Active vs hold time aggregated from TaskTimeEvent records"
       />
 
-      <div className="card card--flat" style={{ marginBottom: "1rem" }}>
+      <div className="card card--flat stack-section-sm">
         <div className="toolbar" style={{ borderBottom: "none", paddingTop: 0 }}>
           <label className="form-group" style={{ margin: 0 }}>
             <span className="form-label">From</span>

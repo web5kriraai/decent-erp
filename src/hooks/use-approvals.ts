@@ -24,6 +24,21 @@ export type SubmitApprovalPayload = {
 
 export type PendingApprovalItem = PendingApprovalQueueItem;
 
+export type ApprovalsHubData = {
+  stageApprovals: StageApprovalQueueItem[];
+  managementApprovals: PendingApprovalItem[];
+  readyForSignOff: ReadyForSignOffItem[];
+};
+
+export function useApprovalsHub(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.approvals.hub,
+    queryFn: () => apiGet<ApprovalsHubData>("/api/approvals?view=hub"),
+    enabled,
+    refetchInterval: APPROVALS_REFETCH_MS,
+  });
+}
+
 export function usePendingApprovals(enabled = true) {
   return useQuery({
     queryKey: queryKeys.approvals.pending,

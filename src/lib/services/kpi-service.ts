@@ -5,6 +5,7 @@ import {
   SPEC_KPI_METRICS,
 } from "@/lib/kpi-metrics";
 import { computeTimeSummary } from "@/lib/services/time-calculation";
+import { countOpenCorrectionsForEmployee } from "@/lib/services/correction-service";
 
 export async function getEmployeeKpiDashboard(employeeId?: number) {
   const where = employeeId ? { employeeId } : {};
@@ -238,11 +239,11 @@ export async function getProcessMasters() {
   });
 }
 
-export async function getAdminDashboardStats() {
+export async function getAdminDashboardStats(employeeId: number) {
   const [
     totalIdeas,
     underDevelopment,
-    correctionsOpen,
+    myOpenCorrections,
     approved,
     released,
     avgLeadTime,
@@ -251,7 +252,7 @@ export async function getAdminDashboardStats() {
     prisma.designConcept.count({
       where: { status: { in: ["ACTIVE", "APPROVAL_PENDING", "ON_HOLD"] } },
     }),
-    prisma.designCorrection.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
+    countOpenCorrectionsForEmployee(employeeId),
     prisma.designConcept.count({ where: { status: "APPROVED" } }),
     prisma.designConcept.count({ where: { status: "PRODUCTION_RELEASED" } }),
     prisma.designConcept.findMany({
@@ -271,7 +272,7 @@ export async function getAdminDashboardStats() {
   return {
     totalIdeas,
     underDevelopment,
-    correctionsOpen,
+    correctionsOpen: myOpenCorrections,
     approved,
     released,
     averageLeadTimeDays: Math.round(leadDays * 10) / 10,

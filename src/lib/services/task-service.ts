@@ -253,6 +253,11 @@ async function getTaskForEmployee(taskId: bigint, employeeId: number) {
   return task;
 }
 
+/** Ensures the task exists and is assigned to the employee (for API route guards). */
+export async function assertTaskAssignedToEmployee(taskId: bigint, employeeId: number) {
+  return getTaskForEmployee(taskId, employeeId);
+}
+
 export async function startTask(taskId: bigint, employeeId: number, correlationId: string) {
   return prisma.$transaction(async (tx) => {
     const { startOfUtcDay } = await import("@/lib/services/time-calculation");
@@ -319,6 +324,11 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
 
     let activeTask = task;
     if (task.status === "PENDING") {
+      activeTask = await tx.designTask.update({
+        where: { id: taskId },
+        data: { status: "ASSIGNED", version: { increment: 1 } },
+      });
+    } else if (task.status === "CORRECTION_REQUIRED") {
       activeTask = await tx.designTask.update({
         where: { id: taskId },
         data: { status: "ASSIGNED", version: { increment: 1 } },

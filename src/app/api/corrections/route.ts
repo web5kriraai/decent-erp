@@ -37,12 +37,11 @@ export async function GET(request: Request) {
   return withApiHandler(PERMISSIONS.CORRECTION_RAISE, async (ctx) => {
     const url = new URL(request.url);
     const designId = url.searchParams.get("designId");
-    const mine = url.searchParams.get("mine") === "1";
     const status = url.searchParams.get("status") as CorrectionStatus | null;
 
     const corrections = await listCorrections({
+      employeeId: ctx.employeeId,
       designId: designId ? BigInt(designId) : undefined,
-      responsibleEmployeeId: mine ? ctx.employeeId : undefined,
       status: status && STATUS_VALUES.includes(status as (typeof STATUS_VALUES)[number])
         ? status
         : undefined,

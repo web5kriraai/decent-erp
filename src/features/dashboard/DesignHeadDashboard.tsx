@@ -19,7 +19,7 @@ import {
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 
-const DONE_TASK = new Set(["COMPLETED", "CANCELLED"]);
+import { isDashboardOpenTask } from "@/lib/task-list-filters";
 const CLOSED_DESIGN = new Set(["CLOSED", "REJECTED", "PRODUCTION_RELEASED", "LIVE"]);
 
 export function DesignHeadDashboard() {
@@ -32,12 +32,7 @@ export function DesignHeadDashboard() {
 
   const summary = summaryQuery.data;
   const tasks = tasksQuery.data ?? [];
-  const openTasks = tasks.filter((t) => {
-    if (DONE_TASK.has(t.status)) return false;
-    if (t.effectiveStatus === "COMPLETED") return false;
-    if (t.isWaitingOnOthers) return false;
-    return true;
-  });
+  const openTasks = tasks.filter(isDashboardOpenTask);
   const approvals = approvalsQuery.data ?? [];
   const corrections = (correctionsQuery.data ?? []).filter((c) =>
     ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"].includes(c.status),
@@ -93,7 +88,7 @@ export function DesignHeadDashboard() {
           <StatCard label="Stage approvals" value={summary?.stageApprovals?.length ?? 0} />
           <StatCard label="Ready for sign-off" value={summary?.readyForSignOff ?? 0} />
           <StatCard label="Management approvals" value={approvals.length} />
-          <StatCard label="Open corrections" value={summary?.openCorrections ?? corrections.length} />
+          <StatCard label="My open corrections" value={summary?.openCorrections ?? corrections.length} />
           <StatCard label="Handoff pending" value={summary?.handoffPending ?? 0} />
           <StatCard label="Blocked designs" value={summary?.blockedDesigns.length ?? 0} />
           <StatCard label="Active pipeline" value={summary?.activeDesigns ?? activeDesigns.length} />
@@ -253,9 +248,9 @@ export function DesignHeadDashboard() {
           </WorkbenchQueueCard>
 
           <WorkbenchQueueCard
-            title="Open corrections"
+            title="My corrections"
             href={ROUTES.quality.corrections}
-            linkLabel="View all"
+            linkLabel="My corrections"
             emptyMessage="No open corrections."
           >
             {corrections.length === 0 ? (

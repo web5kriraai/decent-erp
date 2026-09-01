@@ -11,6 +11,7 @@ import { ProductionReturnModal } from "@/features/production/ProductionReturnMod
 import { useAcceptProductionHandoff } from "@/hooks/use-production";
 import { useProductionInbox } from "@/hooks/use-workbench";
 import { useMyTasks } from "@/hooks/use-tasks";
+import { isDashboardOpenTask } from "@/lib/task-list-filters";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -96,7 +97,7 @@ export function ProductionHeadDashboard() {
   const [acceptingDesignId, setAcceptingDesignId] = useState<string | null>(null);
 
   const inbox = inboxQuery.data;
-  const openTasks = (tasksQuery.data ?? []).filter((t) => t.status !== "COMPLETED");
+  const openTasks = (tasksQuery.data ?? []).filter(isDashboardOpenTask);
   const firstName = session?.user?.name?.split(" ")[0] ?? "there";
 
   const counts = inbox?.counts;
@@ -168,16 +169,14 @@ export function ProductionHeadDashboard() {
 
           <WorkbenchQueueCard
             title="Returned / clarification"
-            href={ROUTES.quality.corrections}
-            linkLabel="Corrections"
+            href={ROUTES.production.release}
+            linkLabel="Production release"
             emptyMessage="No designs returned for clarification."
           >
             <InboxList
               items={inbox?.returnedClarification ?? []}
-              emptyMessage="Production returns routed to design corrections appear here."
-              taskLink={(item) =>
-                item.correctionId ? ROUTES.quality.corrections : ROUTES.designs.detail(item.designId)
-              }
+              emptyMessage="Production returns you initiated appear here until design closes them."
+              taskLink={(item) => ROUTES.designs.detail(item.designId)}
             />
           </WorkbenchQueueCard>
 

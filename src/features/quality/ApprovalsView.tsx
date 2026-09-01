@@ -26,10 +26,8 @@ import {
   type ResolvedWorkflowAction,
 } from "@/lib/workflow-actions";
 import {
-  usePendingApprovals,
-  useReadyForSignOff,
+  useApprovalsHub,
   useRequestDesignApproval,
-  useStageApprovals,
   useSubmitApproval,
   type PendingApprovalItem,
 } from "@/hooks/use-approvals";
@@ -46,7 +44,7 @@ function isApprovalTab(value: string | null): value is ApprovalTab {
 function TabCountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--color-primary)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+    <span className="tab-count-badge">
       {count}
     </span>
   );
@@ -68,9 +66,7 @@ export function ApprovalsView() {
   const permissions = session?.user?.permissions ?? [];
   const canApprove = permissions.includes(PERMISSIONS.DESIGN_APPROVE);
 
-  const stageQuery = useStageApprovals(canApprove);
-  const readyQuery = useReadyForSignOff(canApprove);
-  const pendingQuery = usePendingApprovals(canApprove);
+  const hubQuery = useApprovalsHub(canApprove);
   const submitApproval = useSubmitApproval();
   const requestApproval = useRequestDesignApproval();
 
@@ -81,9 +77,9 @@ export function ApprovalsView() {
   const [remark, setRemark] = useState("");
   const [requestingDesignId, setRequestingDesignId] = useState<string | null>(null);
 
-  const stageItems = stageQuery.data ?? [];
-  const readyItems = readyQuery.data ?? [];
-  const managementItems = pendingQuery.data ?? [];
+  const stageItems = hubQuery.data?.stageApprovals ?? [];
+  const readyItems = hubQuery.data?.readyForSignOff ?? [];
+  const managementItems = hubQuery.data?.managementApprovals ?? [];
 
   const defaultTab = useMemo<ApprovalTab>(() => {
     if (stageItems.length > 0) return "stage";
@@ -149,14 +145,12 @@ export function ApprovalsView() {
     ? resolveApprovalContextActions({ item: selected, permissions })
     : [];
 
-  const isLoading = stageQuery.isLoading || readyQuery.isLoading || pendingQuery.isLoading;
-  const isError = stageQuery.isError || readyQuery.isError || pendingQuery.isError;
-  const error = stageQuery.error ?? readyQuery.error ?? pendingQuery.error;
+  const isLoading = hubQuery.isLoading;
+  const isError = hubQuery.isError;
+  const error = hubQuery.error;
 
   function retryAll() {
-    stageQuery.refetch();
-    readyQuery.refetch();
-    pendingQuery.refetch();
+    hubQuery.refetch();
   }
 
   return (

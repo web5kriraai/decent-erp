@@ -121,18 +121,12 @@ export function DesignKanbanView() {
                       </Link>
                       <p className="task-card-title">{design.collectionName}</p>
                       <div className="task-card-meta">
-                        <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
+                        <span className="text-caption-muted">
                           {design.productType.name}
                         </span>
                         <PriorityBadge priority={design.priority} />
                       </div>
-                      <p
-                        style={{
-                          margin: "0.5rem 0 0",
-                          fontSize: "var(--font-size-caption)",
-                          color: "var(--color-neutral-500)",
-                        }}
-                      >
+                      <p className="text-caption-muted" style={{ margin: "0.5rem 0 0" }}>
                         {design.designHead.name}
                       </p>
                     </article>

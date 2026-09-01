@@ -88,12 +88,7 @@ export function DesignDetailView({
             />
 
             {showConceptSetup && (
-              <div
-                className="alert alert-info"
-                style={{ marginBottom: "1rem" }}
-                role="status"
-                id="concept-setup"
-              >
+              <div className="alert alert-info stack-section" role="status" id="concept-setup">
                 <strong>Step 2 — Attach references</strong>
                 <p style={{ margin: "0.25rem 0 0" }}>
                   Upload product and reference images below. Mark one image as primary when ready.
@@ -146,7 +141,7 @@ export function DesignDetailView({
 
             {showDesignFiles ? (
               <section className="card">
-                <h3 style={{ marginBottom: "1rem" }}>Design Files</h3>
+                <h3 className="card-title stack-section-sm">Design Files</h3>
                 <ImageGallery designId={designId} canUpload={canUploadFiles} />
               </section>
             ) : null}

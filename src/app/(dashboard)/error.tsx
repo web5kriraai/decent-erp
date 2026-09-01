@@ -16,12 +16,12 @@ export default function DashboardError({
 
   return (
     <div className="page-shell">
-      <div className="card" style={{ maxWidth: 480, margin: "2rem auto", textAlign: "center" }}>
-        <h1 style={{ marginBottom: "0.5rem" }}>Something went wrong</h1>
-        <p style={{ color: "var(--color-neutral-500)", marginBottom: "1.5rem" }}>
+      <div className="card error-state-card">
+        <h1>Something went wrong</h1>
+        <p className="text-muted-inline stack-section-sm">
           {error.message || "This page could not load. Try refreshing or return to the dashboard."}
         </p>
-        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", flexWrap: "wrap" }}>
+        <div className="form-actions form-actions--end">
           <button type="button" className="btn btn-primary" onClick={() => reset()}>
             Try again
           </button>

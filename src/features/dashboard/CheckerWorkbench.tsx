@@ -8,6 +8,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useCorrections } from "@/hooks/use-corrections";
+import { usePendingApprovals } from "@/hooks/use-approvals";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -39,10 +40,12 @@ export function CheckerWorkbench() {
   const { data: session } = useSession();
   const firstName = session?.user?.name?.split(" ")[0] ?? "there";
   const tasksQuery = useMyTasks(true);
-  const correctionsQuery = useCorrections({ mine: true }, true);
+  const correctionsQuery = useCorrections(undefined, true);
+  const approvalsQuery = usePendingApprovals(true);
 
   const tasks = (tasksQuery.data ?? []) as CheckerTask[];
   const corrections = (correctionsQuery.data ?? []).filter((c) => OPEN_CORRECTION.has(c.status));
+  const managementApprovals = approvalsQuery.data ?? [];
 
   const queues = useMemo(() => {
     const actionable = tasks.filter((t) => {
@@ -75,12 +78,13 @@ export function CheckerWorkbench() {
           My Action Center
         </Link>
       }
-      isLoading={tasksQuery.isLoading || correctionsQuery.isLoading}
-      isError={tasksQuery.isError || correctionsQuery.isError}
-      error={tasksQuery.error ?? correctionsQuery.error}
+      isLoading={tasksQuery.isLoading || correctionsQuery.isLoading || approvalsQuery.isLoading}
+      isError={tasksQuery.isError || correctionsQuery.isError || approvalsQuery.isError}
+      error={tasksQuery.error ?? correctionsQuery.error ?? approvalsQuery.error}
       onRetry={() => {
         tasksQuery.refetch();
         correctionsQuery.refetch();
+        approvalsQuery.refetch();
       }}
     >
       <div className="workbench-overview">
@@ -92,12 +96,36 @@ export function CheckerWorkbench() {
             label="Completed checks"
             value={queues.completedPunch.length + queues.completedSample.length}
           />
+          <StatCard label="Management sign-off" value={managementApprovals.length} />
         </div>
       </div>
 
       <section className="workbench-queues" aria-label="Checker queues">
         <h2 className="workbench-section-title">Quality queues</h2>
         <div className="workbench-queue-grid">
+          <WorkbenchQueueCard
+            title="Management sign-off"
+            href={`${ROUTES.quality.approvals}?tab=management`}
+            linkLabel="Open approvals"
+            emptyMessage="No designs waiting for checker sign-off."
+          >
+            {managementApprovals.length === 0 ? (
+              <WorkbenchEmpty message="When a design is submitted for final approval, your level appears here first." />
+            ) : (
+              <ul className="detail-task-list">
+                {managementApprovals.slice(0, 6).map((item) => (
+                  <WorkbenchListItem
+                    key={`${item.designId}-${item.currentLevel.id}`}
+                    primaryHref={`${ROUTES.quality.approvals}?tab=management`}
+                    primaryLabel={item.design.ideaRef}
+                    meta={`${item.currentLevel.name} · ${item.design.collectionName}`}
+                    trailing={<StatusBadge status={item.design.status} />}
+                  />
+                ))}
+              </ul>
+            )}
+          </WorkbenchQueueCard>
+
           <WorkbenchQueueCard
             title="Pending punching checks"
             href={ROUTES.work.tasks}

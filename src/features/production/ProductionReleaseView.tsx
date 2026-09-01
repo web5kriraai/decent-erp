@@ -51,11 +51,11 @@ export function ProductionReleaseView() {
         subtitle="Complete production instruction and release via My Tasks. ERP module sync runs after release."
       />
 
-      <div className="card contextual-actions-wrap" style={{ marginBottom: "1.5rem" }}>
+      <div className="card contextual-actions-wrap stack-section">
         <ContextualActionsPanel title="Production desk actions" actions={productionActions} />
       </div>
 
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
+      <div className="card stack-section">
         <div className="card-header">
           <span className="card-title">How release works</span>
         </div>
@@ -78,7 +78,7 @@ export function ProductionReleaseView() {
         onRetry={() => designsQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
+        <div className="card stack-section">
           <div className="card-header">
             <span className="card-title">Approved — production workflow</span>
           </div>
@@ -212,7 +212,7 @@ export function ProductionReleaseView() {
         onRetry={() => handoffsQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="card" style={{ marginTop: "1.5rem" }}>
+        <div className="card stack-section">
           <div className="card-header">
             <span className="card-title">ERP Handoffs (Grey / Cutting / Sales)</span>
           </div>

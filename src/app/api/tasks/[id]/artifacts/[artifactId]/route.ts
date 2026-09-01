@@ -4,6 +4,7 @@ import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { businessRule, notFound } from "@/lib/errors/create-app-error";
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
+import { assertTaskAssignedToEmployee } from "@/lib/services/task-service";
 import { writeAuditLogDirect } from "@/lib/audit";
 import {
   canRecordMachineMetrics,
@@ -26,6 +27,8 @@ export async function PATCH(
     const taskId = BigInt(id);
     const body = await parseBody(request, patchSchema);
 
+    await assertTaskAssignedToEmployee(taskId, ctx.employeeId);
+
     const task = await prisma.designTask.findUnique({
       where: { id: taskId },
       select: { subProcess: { select: { code: true } } },
@@ -47,7 +50,7 @@ export async function PATCH(
       where: { id: BigInt(artifactId), taskId },
     });
     if (!existing) {
-      throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
+      throw notFound(APP_ERROR_CODES.NOT_FOUND);
     }
 
     const artifact = await prisma.taskArtifact.update({

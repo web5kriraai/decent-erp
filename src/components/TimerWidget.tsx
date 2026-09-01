@@ -9,6 +9,7 @@ type TimerWidgetProps = {
   status: "RUNNING" | "ON_HOLD" | "IDLE";
   elapsedSeconds: number;
   taskLabel?: string;
+  compact?: boolean;
   onHold?: () => void;
   onResume?: () => void;
   onEnd?: () => void;
@@ -25,6 +26,7 @@ export function TimerWidget({
   status,
   elapsedSeconds,
   taskLabel,
+  compact = false,
   onHold,
   onResume,
   onEnd,
@@ -53,6 +55,7 @@ export function TimerWidget({
     <div
       className={cn(
         "timer-widget",
+        compact && "timer-widget--compact",
         status === "RUNNING" && "timer-widget--running",
         status === "ON_HOLD" && "timer-widget--hold",
       )}

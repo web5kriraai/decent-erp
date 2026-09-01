@@ -53,7 +53,7 @@ export const PAGE_META = {
   },
   corrections: {
     title: "Corrections",
-    description: "Raise and track design quality corrections",
+    description: "Corrections you raised, own on a task, or are responsible for fixing",
   },
   approvals: {
     title: "Approvals",

@@ -42,6 +42,7 @@ export const queryKeys = {
     pending: ["approvals", "pending"] as const,
     stage: ["approvals", "stage"] as const,
     ready: ["approvals", "ready"] as const,
+    hub: ["approvals", "hub"] as const,
     levels: ["approvals", "levels"] as const,
     all: ["approvals"] as const,
   },

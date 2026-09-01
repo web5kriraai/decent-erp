@@ -4,7 +4,7 @@ import { getAdminDashboardStats } from "@/lib/services/kpi-service";
 
 export async function GET() {
   return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
-    const stats = await getAdminDashboardStats();
+    const stats = await getAdminDashboardStats(ctx.employeeId);
     return jsonOk(stats, ctx.correlationId);
   });
 }

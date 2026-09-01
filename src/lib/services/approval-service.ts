@@ -51,11 +51,13 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
     include: {
       approvals: { include: { level: true }, orderBy: { decisionAtUtc: "desc" } },
       tasks: {
-        take: 1,
-        orderBy: { id: "desc" },
-        include: {
+        orderBy: { sequence: "asc" },
+        select: {
+          id: true,
+          status: true,
+          sequence: true,
           process: { select: { name: true } },
-          subProcess: { select: { name: true } },
+          subProcess: { select: { name: true, code: true, isApproval: true } },
         },
       },
     },

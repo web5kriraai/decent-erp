@@ -10,6 +10,11 @@ import {
   initialStatusForCreate,
   isTaskReady,
 } from "@/lib/services/task-dependency";
+import {
+  buildCorrectionScopeForEmployee,
+  correctionVisibleToEmployee,
+  OPEN_CORRECTION_STATUSES,
+} from "@/lib/services/correction-queue-utils";
 import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
 
 function ratingImpactForType(type: CorrectionType): number {
@@ -119,18 +124,27 @@ export async function createOrReopenRoutedTask(
   });
 }
 
+export async function countOpenCorrectionsForEmployee(employeeId: number) {
+  return prisma.designCorrection.count({
+    where: {
+      status: { in: [...OPEN_CORRECTION_STATUSES] },
+      ...buildCorrectionScopeForEmployee(employeeId),
+    },
+  });
+}
+
 export async function listCorrections(filters: {
+  employeeId: number;
   designId?: bigint;
-  responsibleEmployeeId?: number;
   status?: CorrectionStatus;
 }) {
   return prisma.designCorrection.findMany({
     where: {
-      ...(filters.designId ? { designId: filters.designId } : {}),
-      ...(filters.responsibleEmployeeId
-        ? { responsibleEmployeeId: filters.responsibleEmployeeId }
-        : {}),
-      ...(filters.status ? { status: filters.status } : {}),
+      AND: [
+        buildCorrectionScopeForEmployee(filters.employeeId),
+        ...(filters.designId ? [{ designId: filters.designId }] : []),
+        ...(filters.status ? [{ status: filters.status }] : []),
+      ],
     },
     include: correctionInclude,
     orderBy: { createdAtUtc: "desc" },
@@ -270,8 +284,16 @@ export async function updateCorrection(
   correlationId: string,
 ) {
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.designCorrection.findUnique({ where: { id } });
+    const existing = await tx.designCorrection.findUnique({
+      where: { id },
+      include: {
+        task: { select: { assignedEmployeeId: true } },
+      },
+    });
     if (!existing) throw new ApiError("Correction not found", 404);
+    if (!correctionVisibleToEmployee(existing, userId)) {
+      throw new ApiError("You do not have access to this correction", 403);
+    }
 
     const updated = await tx.designCorrection.update({
       where: { id },

@@ -213,7 +213,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         skeletonVariant="cards"
       >
         {task && designMismatch && (
-          <div className="alert alert-warning" style={{ marginBottom: "1rem" }} role="alert">
+          <div className="alert alert-warning stack-section" role="alert">
             This task belongs to design {task.design.ideaRef}.{" "}
             <Link href={ROUTES.designs.task(task.designId, task.id)} className="data-table-link">
               Open correct task URL
@@ -230,11 +230,11 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                 <>
                   <StatusBadge status={task.effectiveStatus ?? task.status} />
                   {task.assignedEmployee ? (
-                    <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
+                    <span className="text-caption-muted">
                       {task.assignedEmployee.name}
                     </span>
                   ) : (
-                    <span style={{ fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
+                    <span className="text-caption-muted">
                       Unassigned
                     </span>
                   )}

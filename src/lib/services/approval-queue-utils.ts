@@ -61,6 +61,14 @@ type ApprovalLevelRow = {
   requiredRoleId?: number | null;
 };
 
+type PendingDesignTaskRow = {
+  id: bigint | string | number;
+  status: string;
+  sequence: number;
+  process: { name: string };
+  subProcess: { name: string; code: string; isApproval?: boolean };
+};
+
 type PendingDesignRow = {
   id: bigint | string | number;
   ideaRef: string;
@@ -72,12 +80,33 @@ type PendingDesignRow = {
     decision: string;
     id?: bigint | string | number;
   }>;
-  tasks: Array<{
-    id: bigint | string | number;
-    process: { name: string };
-    subProcess: { name: string };
-  }>;
+  tasks: PendingDesignTaskRow[];
 };
+
+/** Pick the work task most relevant to the current management approval level. */
+export function pickRelatedApprovalTask(
+  tasks: PendingDesignTaskRow[],
+  currentLevelCode?: string,
+): PendingDesignTaskRow | null {
+  if (tasks.length === 0) return null;
+
+  const sorted = [...tasks].sort((a, b) => b.sequence - a.sequence);
+
+  const completedWork = sorted.find(
+    (t) =>
+      !t.subProcess.isApproval &&
+      (t.status === "COMPLETED" || t.status === "CHECKING"),
+  );
+  if (completedWork) return completedWork;
+
+  if (currentLevelCode === "MANAGEMENT_APPROVAL") {
+    const costing = sorted.find((t) => t.subProcess.code === "COSTING");
+    if (costing) return costing;
+  }
+
+  const latestWork = sorted.find((t) => !t.subProcess.isApproval);
+  return latestWork ?? sorted[0] ?? null;
+}
 
 export type BuiltPendingApprovalItem = {
   designId: string;
@@ -128,13 +157,16 @@ export function buildPendingApprovalItems(
           priority: design.priority,
         },
         currentLevel: nextLevel,
-        task: design.tasks[0]
-          ? {
-              id: design.tasks[0].id.toString(),
-              process: design.tasks[0].process,
-              subProcess: design.tasks[0].subProcess,
-            }
-          : null,
+        task: (() => {
+          const related = pickRelatedApprovalTask(design.tasks, nextLevel.code);
+          return related
+            ? {
+                id: related.id.toString(),
+                process: related.process,
+                subProcess: related.subProcess,
+              }
+            : null;
+        })(),
         existingApprovalId: existingPending?.id?.toString() ?? null,
       },
     ];

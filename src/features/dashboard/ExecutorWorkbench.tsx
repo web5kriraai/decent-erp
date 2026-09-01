@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { QueryState } from "@/components/ui/QueryState";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  WorkbenchShell,
+} from "@/features/dashboard/workbench-shared";
 import {
   IconApprovals,
   IconClock,
@@ -30,10 +31,10 @@ import { useCorrections } from "@/hooks/use-corrections";
 import { useApprovedDesigns } from "@/hooks/use-production";
 import { useAdminDashboardStats } from "@/hooks/use-admin-dashboard";
 import { formatDuration } from "@/lib/services/time-calculation";
+import { isDashboardOpenTask } from "@/lib/task-list-filters";
 import type { ComponentType } from "react";
 
 const CLOSED_DESIGN = new Set(["CLOSED", "REJECTED", "PRODUCTION_RELEASED", "LIVE"]);
-const DONE_TASK = new Set(["COMPLETED", "CANCELLED"]);
 const OPEN_CORRECTION = new Set(["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"]);
 
 type Shortcut = {
@@ -71,10 +72,7 @@ export function ExecutorWorkbench() {
   const tasksQuery = useMyTasks(canExecute);
   const timeQuery = useMyTimeSummary(canExecute);
   const approvalsQuery = usePendingApprovals(canApprove);
-  const correctionsQuery = useCorrections(
-    canCorrections ? { mine: !canApprove && !canAssign } : undefined,
-    canCorrections,
-  );
+  const correctionsQuery = useCorrections(undefined, canCorrections);
   const releaseQuery = useApprovedDesigns(canRelease);
   const adminQuery = useAdminDashboardStats(isMasterAdmin);
 
@@ -88,12 +86,7 @@ export function ExecutorWorkbench() {
   const timeSummary = timeQuery.data;
   const adminStats = adminQuery.data;
 
-  const openTasks = tasks.filter((t) => {
-    if (DONE_TASK.has(t.status)) return false;
-    if (t.effectiveStatus === "COMPLETED") return false;
-    if (t.isWaitingOnOthers) return false;
-    return true;
-  });
+  const openTasks = tasks.filter(isDashboardOpenTask);
   const waitingTasks = tasks.filter((t) => t.isWaitingOnOthers);
   const runningTasks = openTasks.filter((t) => t.status === "RUNNING");
   const activeDesigns = designs.filter((d) => !CLOSED_DESIGN.has(d.status));
@@ -110,6 +103,7 @@ export function ExecutorWorkbench() {
   const isError =
     designsQuery.isError ||
     tasksQuery.isError ||
+    (canExecute && timeQuery.isError) ||
     approvalsQuery.isError ||
     correctionsQuery.isError ||
     releaseQuery.isError ||
@@ -241,34 +235,30 @@ export function ExecutorWorkbench() {
   const firstName = session?.user?.name?.split(" ")[0] ?? "there";
 
   return (
-    <div className="page-shell">
-      <PageHeader
-        title={`Welcome back, ${firstName}`}
-        subtitle="Your work for today"
-        actions={
-          canCreateDesign ? (
-            <Link href={ROUTES.designs.new} className="btn btn-primary inline-flex items-center gap-1.5">
-              <IconPlus size={16} />
-              New Design
-            </Link>
-          ) : undefined
-        }
-      />
-
-      <QueryState
-        isLoading={isLoading}
-        isError={isError}
-        error={
-          designsQuery.error ??
-          tasksQuery.error ??
-          approvalsQuery.error ??
-          correctionsQuery.error ??
-          releaseQuery.error ??
-          adminQuery.error
-        }
-        onRetry={refetchAll}
-        skeletonVariant="stats"
-      >
+    <WorkbenchShell
+      firstName={firstName}
+      subtitle="Your work for today"
+      actions={
+        canCreateDesign ? (
+          <Link href={ROUTES.designs.new} className="btn btn-primary inline-flex items-center gap-1.5">
+            <IconPlus size={16} />
+            New Design
+          </Link>
+        ) : undefined
+      }
+      isLoading={isLoading}
+      isError={isError}
+      error={
+        designsQuery.error ??
+        tasksQuery.error ??
+        (canExecute ? timeQuery.error : undefined) ??
+        approvalsQuery.error ??
+        correctionsQuery.error ??
+        releaseQuery.error ??
+        adminQuery.error
+      }
+      onRetry={refetchAll}
+    >
         <div className="workbench-overview">
           <div className="stat-grid workbench-pulse">
             {canExecute && (
@@ -288,7 +278,7 @@ export function ExecutorWorkbench() {
               <StatCard label="Pending Approvals" value={approvals.length} accent={!canExecute} />
             )}
             {canCorrections && (
-              <StatCard label="Open Corrections" value={corrections.length} />
+              <StatCard label="My open corrections" value={corrections.length} />
             )}
             {canViewPipeline && (
               <StatCard
@@ -303,7 +293,9 @@ export function ExecutorWorkbench() {
             {isMasterAdmin && adminStats && (
               <>
                 <StatCard label="Under Development" value={adminStats.underDevelopment} />
-                <StatCard label="Open Corrections" value={adminStats.correctionsOpen} />
+                {!canCorrections ? (
+                  <StatCard label="My open corrections" value={adminStats.correctionsOpen} />
+                ) : null}
                 <StatCard
                   label="Avg Lead Time"
                   value={`${adminStats.averageLeadTimeDays}d`}
@@ -459,14 +451,14 @@ export function ExecutorWorkbench() {
             {canCorrections && (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>Open corrections</CardTitle>
+                  <CardTitle>My corrections</CardTitle>
                   <Link href={ROUTES.quality.corrections} className="btn btn-ghost btn-sm">
                     View all
                   </Link>
                 </CardHeader>
                 <CardContent>
                   {corrections.length === 0 ? (
-                    <QueueEmpty message="No open corrections." />
+                    <QueueEmpty message="No open corrections assigned to you." />
                   ) : (
                     <ul className="detail-task-list">
                       {corrections.slice(0, 6).map((c) => (
@@ -587,7 +579,6 @@ export function ExecutorWorkbench() {
             )}
           </div>
         </section>
-      </QueryState>
-    </div>
+    </WorkbenchShell>
   );
 }

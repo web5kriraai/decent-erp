@@ -21,12 +21,11 @@ export type RaiseCorrectionPayload = {
 };
 
 export function useCorrections(
-  filters?: { designId?: string; mine?: boolean; status?: string },
+  filters?: { designId?: string; status?: string },
   enabled = true,
 ) {
   const params = new URLSearchParams();
   if (filters?.designId) params.set("designId", filters.designId);
-  if (filters?.mine) params.set("mine", "1");
   if (filters?.status) params.set("status", filters.status);
   const qs = params.toString();
 

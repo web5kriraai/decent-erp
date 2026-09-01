@@ -176,7 +176,7 @@ Change all passwords before production. After an admin changes a user's role, th
 - **Employees** - create, edit, activate/deactivate, assign role, reset password
 - **Roles & Access** - read-only role catalog with permission matrix
 - **Process Masters** - create processes; hold reasons and approval levels via API
-- **Workflow Patterns** - **read-only list** (one pattern seeded: *Standard Saree Development*)
+- **Workflow Patterns** - create patterns, rename/activate, and edit task steps (`GET/POST /api/workflow-patterns`, `PATCH /api/workflow-patterns/{id}/tasks`); one pattern seeded: *Standard Saree Development*
 - **Audit Log** - filterable admin action history
 
 ### Infrastructure
@@ -227,7 +227,7 @@ E2E: `npm run test:e2e:reuse -- e2e/full-workflow-pipeline.spec.ts`
 1. Run migrate + seed (roles, permissions, demo users, processes, hold reasons, approval levels, sample pattern and design).
 2. Sign in as admin → **Employees** to add real staff and assign roles.
 3. **Process Masters** - add/adjust main processes and sub-processes before new patterns are needed.
-4. For new workflow templates today: extend `src/lib/seed.ts` or insert into DB (UI/API for pattern CRUD coming later).
+4. For new workflow templates: use **Admin → Workflow Patterns** (create + edit steps) or extend `src/lib/seed.ts` for bulk seed changes.
 
 ### Developer commands
 

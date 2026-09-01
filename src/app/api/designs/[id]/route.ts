@@ -25,7 +25,7 @@ export async function GET(
 ) {
   return withApiHandler(null, async (ctx) => {
     const { id } = await params;
-    const design = await getDesignById(BigInt(id));
+    const design = await getDesignById(BigInt(id), { viewerEmployeeId: ctx.employeeId });
     return jsonOk(serializeBigInt(design), ctx.correlationId);
   });
 }

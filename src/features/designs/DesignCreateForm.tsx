@@ -231,7 +231,7 @@ export function DesignCreateForm() {
   const processList = processes.data ?? [];
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--narrow">
       <PageHeader
         title="Create Design Concept"
         subtitle="Design + tasks saved in one transaction - identity from your session"
@@ -260,7 +260,7 @@ export function DesignCreateForm() {
       >
         <form onSubmit={handleSubmit} className="card form-card">
           {createDesign.isError && createDesign.error instanceof ApiClientError && (
-            <div style={{ marginBottom: "1rem" }}>
+            <div className="stack-section">
               <ErrorBanner
                 message={createDesign.error.message}
                 correlationId={createDesign.error.correlationId}
@@ -457,7 +457,7 @@ export function DesignCreateForm() {
               ) : (
                 <div className="form-grid form-grid--checkboxes">
                   {availableComponentTypes.map((ct) => (
-                    <label key={ct.id} className="form-checkbox-row" style={{ margin: 0 }}>
+                    <label key={ct.id} className="form-checkbox-row form-group--flat">
                       <input
                         type="checkbox"
                         checked={componentTypeIds.includes(ct.id)}
@@ -561,14 +561,7 @@ export function DesignCreateForm() {
 
             {assignmentMode === "MANUAL" && (
               <div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "0.5rem",
-                  }}
-                >
+                <div className="form-row-header">
                   <span className="form-label">Manual Tasks *</span>
                   <button
                     type="button"
@@ -580,12 +573,12 @@ export function DesignCreateForm() {
                 </div>
 
                 {(showErrors && (validationErrors.manualTasks || fieldErrors.manualTasks)) && (
-                  <span className="form-error" style={{ display: "block", marginBottom: "0.5rem" }}>
+                  <span className="form-error form-error-block">
                     {validationErrors.manualTasks ?? fieldErrors.manualTasks?.[0]}
                   </span>
                 )}
 
-                <div className="form-grid" style={{ gap: "0.75rem" }}>
+                <div className="form-grid form-grid--relaxed">
                   {manualTasks.map((task, index) => {
                     const process = processList.find((p) => p.id === task.processId);
                     const subProcesses = process?.subProcesses ?? [];
@@ -593,18 +586,11 @@ export function DesignCreateForm() {
                     return (
                       <div
                         key={task.id}
-                        className="card"
-                        style={{ padding: "0.75rem", display: "grid", gap: "0.75rem" }}
+                        className="card manual-task-card"
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
+                        <div className="form-row-header" style={{ marginBottom: 0 }}>
                           <strong>Task {index + 1}</strong>
-                          <div style={{ display: "flex", gap: "0.25rem" }}>
+                          <div className="inline-actions" style={{ gap: "0.25rem" }}>
                             <button
                               type="button"
                               className="btn btn-ghost btn-sm"
@@ -635,8 +621,8 @@ export function DesignCreateForm() {
                           </div>
                         </div>
 
-                        <div className="form-grid form-grid--2" style={{ gap: "0.5rem" }}>
-                          <div className="form-group" style={{ margin: 0 }}>
+                        <div className="form-grid form-grid--2 form-grid--tight">
+                          <div className="form-group form-group--flat">
                             <label className="form-label">Process</label>
                             <select
                               className="form-select"
@@ -656,7 +642,7 @@ export function DesignCreateForm() {
                               ))}
                             </select>
                           </div>
-                          <div className="form-group" style={{ margin: 0 }}>
+                          <div className="form-group form-group--flat">
                             <label className="form-label">Sub-process</label>
                             <select
                               className="form-select"
@@ -678,8 +664,8 @@ export function DesignCreateForm() {
                           </div>
                         </div>
 
-                        <div className="form-grid form-grid--2" style={{ gap: "0.5rem" }}>
-                          <div className="form-group" style={{ margin: 0 }}>
+                        <div className="form-grid form-grid--2 form-grid--tight">
+                          <div className="form-group form-group--flat">
                             <label className="form-label">Expected Minutes</label>
                             <input
                               type="number"
@@ -692,7 +678,7 @@ export function DesignCreateForm() {
                             />
                           </div>
 
-                          <div className="form-group" style={{ margin: 0 }}>
+                          <div className="form-group form-group--flat">
                             <label className="form-label">Assign To</label>
                             <select
                               className="form-select"
@@ -726,7 +712,7 @@ export function DesignCreateForm() {
               server-authoritative.
             </p>
 
-            <div style={{ display: "flex", gap: "0.5rem", paddingTop: "0.5rem" }}>
+            <div className="form-actions">
               <button
                 type="submit"
                 className="btn btn-primary"

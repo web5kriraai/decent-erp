@@ -30,8 +30,8 @@ export function DesignCompletionSummaryPanel({
   const summaryQuery = useDesignCompletionSummary(designId, enabled && isComplete);
 
   return (
-    <section className="card" style={{ marginTop: "1.5rem" }}>
-      <div className="flex flex-wrap items-start justify-between gap-3" style={{ marginBottom: "1rem" }}>
+    <section className="card stack-section">
+      <div className="flex flex-wrap items-start justify-between gap-3 stack-section-sm">
         <div>
           <h2 className="text-base font-semibold text-foreground">Completion summary</h2>
           <p className="text-sm text-muted-foreground">

@@ -101,7 +101,7 @@ export function KpiDashboardView() {
         }
       />
 
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
+      <div className="card stack-section">
         <div className="card-header">
           <span className="card-title">Metric definitions (weights = 100%)</span>
         </div>
@@ -124,7 +124,7 @@ export function KpiDashboardView() {
         onRetry={() => kpiQuery.refetch()}
         skeletonVariant="stats"
       >
-        <div className="stat-grid" style={{ marginBottom: "1.5rem" }}>
+        <div className="stat-grid stack-section">
           <StatCard label="Score Records" value={data.length} accent />
           <StatCard
             label="Employees Tracked"
@@ -138,7 +138,7 @@ export function KpiDashboardView() {
         </div>
 
         {chartData.length > 0 && (
-          <div className="card" style={{ marginBottom: "1.5rem", height: 320 }}>
+          <div className="card stack-section kpi-chart-card">
             <span className="card-title">Weighted score by employee</span>
             <ResponsiveContainer width="100%" height="85%">
               <BarChart data={chartData}>

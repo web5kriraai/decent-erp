@@ -11,6 +11,7 @@ import { PermissionDenied } from "@/components/PermissionDenied";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
 import {
   useActionCenter,
@@ -26,9 +27,9 @@ import { cn } from "@/lib/utils";
 
 const KANBAN_COLUMNS = [
   ["ASSIGNED", "Ready to Start"],
+  ["CORRECTION_REQUIRED", "Rework"],
   ["RUNNING", "In Progress"],
   ["ON_HOLD", "On Hold"],
-  ["CHECKING", "Checking"],
 ] as const;
 
 type ActionTab = "actionRequired" | "waitingForOthers" | "blocked" | "upcoming" | "completed";
@@ -170,9 +171,9 @@ export function TaskWorkspace() {
   const tasksByStatus = useMemo(() => {
     const groups: Record<string, DesignTask[]> = {
       ASSIGNED: [],
+      CORRECTION_REQUIRED: [],
       RUNNING: [],
       ON_HOLD: [],
-      CHECKING: [],
     };
     for (const task of tasks) {
       if (groups[task.status]) groups[task.status].push(task);
@@ -256,7 +257,9 @@ export function TaskWorkspace() {
   }
 
   function handleTaskCardKeyDown(e: React.KeyboardEvent, task: DesignTask) {
-    if (e.key === "Enter" && task.status === "ASSIGNED" && !runningTask) {
+    const canStart =
+      (task.status === "ASSIGNED" || task.status === "CORRECTION_REQUIRED") && !runningTask;
+    if (e.key === "Enter" && canStart) {
       e.preventDefault();
       void handleStart(task);
     } else if (e.key === "Enter") {
@@ -301,159 +304,160 @@ export function TaskWorkspace() {
         skeletonVariant="cards"
         onRetry={() => centerQuery.refetch()}
       >
-        <div className="action-center-tabs" role="tablist" aria-label="Action center sections">
-          {ACTION_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              className={cn("action-center-tab", activeTab === tab.id && "action-center-tab--active")}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-              <span className="action-center-tab-count">{tabCounts[tab.id]}</span>
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as ActionTab)}
+          className="action-center-tabs-root"
+        >
+          <TabsList className="action-center-tabs-list mb-4">
+            {ACTION_TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id} className="action-center-tab-trigger">
+                {tab.label}
+                <span className="action-center-tab-count">{tabCounts[tab.id]}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        {activeTab === "actionRequired" ? (
-          <div className="task-workspace-layout">
-            <TimerWidget
-              status={runningTask ? "RUNNING" : onHoldTask ? "ON_HOLD" : "IDLE"}
-              elapsedSeconds={elapsedSeconds}
-              taskLabel={
-                activeTask && isTimerActive
-                  ? `${activeTask.design.ideaRef} · ${activeTask.subProcess.name}`
-                  : undefined
-              }
-              onHold={
-                runningTask
-                  ? () => {
-                      setHoldModalOpen(true);
-                      setHoldReasonId("");
-                    }
-                  : undefined
-              }
-              onResume={onHoldTask ? () => resume.mutate(activeTask!.id) : undefined}
-              onEnd={
-                runningTask || onHoldTask
-                  ? () => {
-                      setEndModalOpen(true);
-                      setEndRemark("");
-                      setChecklistNote("");
-                      setSampleOutcome("");
-                    }
-                  : undefined
-              }
-            />
+          <TabsContent value="actionRequired">
+            <div className="task-workspace-layout">
+              <TimerWidget
+                compact
+                status={runningTask ? "RUNNING" : onHoldTask ? "ON_HOLD" : "IDLE"}
+                elapsedSeconds={elapsedSeconds}
+                taskLabel={
+                  activeTask && isTimerActive
+                    ? `${activeTask.design.ideaRef} · ${activeTask.subProcess.name}`
+                    : undefined
+                }
+                onHold={
+                  runningTask
+                    ? () => {
+                        setHoldModalOpen(true);
+                        setHoldReasonId("");
+                      }
+                    : undefined
+                }
+                onResume={onHoldTask ? () => resume.mutate(activeTask!.id) : undefined}
+                onEnd={
+                  runningTask || onHoldTask
+                    ? () => {
+                        setEndModalOpen(true);
+                        setEndRemark("");
+                        setChecklistNote("");
+                        setSampleOutcome("");
+                      }
+                    : undefined
+                }
+              />
 
-            {tasks.length === 0 ? (
-              <p className="action-center-empty action-center-empty--inline">
-                No tasks ready for you right now. Check Waiting, Blocked, or Upcoming tabs.
-              </p>
-            ) : (
-              <div className="kanban">
-                {KANBAN_COLUMNS.map(([status, label]) => (
-                  <div key={status} className="kanban-column">
-                    <div className="kanban-column-header">
-                      {label}
-                      <span className="kanban-column-count">
-                        {tasksByStatus[status]?.length ?? 0}
-                      </span>
-                    </div>
-                    <div className="kanban-cards">
-                      {(tasksByStatus[status] ?? []).map((task) => {
-                        const isActiveCard = task.id === activeTask?.id && isTimerActive;
-                        const collectionLabel = formatCollectionLabel(task.design.collectionName);
-                        return (
-                          <article
-                            key={task.id}
-                            className={cn(
-                              "task-card",
-                              selectedTaskId === task.id && "task-card--selected",
-                              isActiveCard && "task-card--active",
-                            )}
-                            onClick={() => setSelectedTaskId(task.id)}
-                            onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`${task.design.ideaRef} ${task.subProcess.name}`}
-                            aria-current={isActiveCard ? "true" : undefined}
-                          >
-                            <p className="task-card-ref">
-                              <Link
-                                href={ROUTES.work.taskDetail(task.id)}
-                                className="data-table-link"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {task.design.ideaRef}
-                              </Link>
-                            </p>
-                            <p className="task-card-title">{task.subProcess.name}</p>
-                            {collectionLabel ? (
-                              <p className="task-card-subtitle">{collectionLabel}</p>
-                            ) : null}
-                            <div className="task-card-meta">
-                              <StatusBadge status={task.status} />
-                              {status === "ASSIGNED" && !runningTask ? (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  disabled={isPending}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void handleStart(task);
-                                  }}
+              {tasks.length === 0 ? (
+                <p className="action-center-empty action-center-empty--inline">
+                  No tasks ready for you right now. Check Waiting, Blocked, or Upcoming tabs.
+                </p>
+              ) : (
+                <div className="kanban">
+                  {KANBAN_COLUMNS.map(([status, label]) => (
+                    <div key={status} className="kanban-column">
+                      <div className="kanban-column-header">
+                        {label}
+                        <span className="kanban-column-count">
+                          {tasksByStatus[status]?.length ?? 0}
+                        </span>
+                      </div>
+                      <div className="kanban-cards">
+                        {(tasksByStatus[status] ?? []).map((task) => {
+                          const isActiveCard = task.id === activeTask?.id && isTimerActive;
+                          const collectionLabel = formatCollectionLabel(task.design.collectionName);
+                          return (
+                            <article
+                              key={task.id}
+                              className={cn(
+                                "task-card",
+                                selectedTaskId === task.id && "task-card--selected",
+                                isActiveCard && "task-card--active",
+                              )}
+                              onClick={() => setSelectedTaskId(task.id)}
+                              onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${task.design.ideaRef} ${task.subProcess.name}`}
+                              aria-current={isActiveCard ? "true" : undefined}
+                            >
+                              <p className="task-card-ref">
+                                <Link
+                                  href={ROUTES.work.taskDetail(task.id)}
+                                  className="data-table-link"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  Start
-                                </Button>
+                                  {task.design.ideaRef}
+                                </Link>
+                              </p>
+                              <p className="task-card-title">{task.subProcess.name}</p>
+                              {collectionLabel ? (
+                                <p className="task-card-subtitle">{collectionLabel}</p>
                               ) : null}
-                            </div>
-                          </article>
-                        );
-                      })}
-                      {(tasksByStatus[status] ?? []).length === 0 ? (
-                        <p className="kanban-empty">No tasks</p>
-                      ) : null}
+                              <div className="task-card-meta">
+                                <StatusBadge status={task.status} />
+                                {(status === "ASSIGNED" || status === "CORRECTION_REQUIRED") &&
+                                !runningTask ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={isPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void handleStart(task);
+                                    }}
+                                  >
+                                    {status === "CORRECTION_REQUIRED" ? "Restart" : "Start"}
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </article>
+                          );
+                        })}
+                        {(tasksByStatus[status] ?? []).length === 0 ? (
+                          <p className="kanban-empty">No tasks</p>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : null}
+                  ))}
+                </div>
+              )}
+            </div>
 
-        {activeTab === "waitingForOthers" ? (
-          <WaitingList items={center?.waitingForOthers ?? []} />
-        ) : null}
+            {selectedTask && !isTimerActive ? (
+              <p className="task-workspace-selected">
+                Selected:{" "}
+                <Link href={ROUTES.work.taskDetail(selectedTask.id)} className="data-table-link">
+                  {selectedTask.design.ideaRef} · {selectedTask.subProcess.name}
+                </Link>
+              </p>
+            ) : null}
+          </TabsContent>
 
-        {activeTab === "blocked" ? (
-          <BlockedList items={center?.blocked ?? []} />
-        ) : null}
+          <TabsContent value="waitingForOthers">
+            <WaitingList items={center?.waitingForOthers ?? []} />
+          </TabsContent>
 
-        {activeTab === "upcoming" ? (
-          <TaskList
-            tasks={center?.upcoming ?? []}
-            emptyMessage="No upcoming tasks — prior stages will unlock work for you."
-          />
-        ) : null}
+          <TabsContent value="blocked">
+            <BlockedList items={center?.blocked ?? []} />
+          </TabsContent>
 
-        {activeTab === "completed" ? (
-          <TaskList
-            tasks={center?.completed ?? []}
-            emptyMessage="No recently completed tasks."
-          />
-        ) : null}
+          <TabsContent value="upcoming">
+            <TaskList
+              tasks={center?.upcoming ?? []}
+              emptyMessage="No upcoming tasks — prior stages will unlock work for you."
+            />
+          </TabsContent>
 
-        {selectedTask && !isTimerActive && activeTab === "actionRequired" ? (
-          <p className="task-workspace-selected">
-            Selected:{" "}
-            <Link href={ROUTES.work.taskDetail(selectedTask.id)} className="data-table-link">
-              {selectedTask.design.ideaRef} · {selectedTask.subProcess.name}
-            </Link>
-          </p>
-        ) : null}
+          <TabsContent value="completed">
+            <TaskList
+              tasks={center?.completed ?? []}
+              emptyMessage="No recently completed tasks."
+            />
+          </TabsContent>
+        </Tabs>
       </QueryState>
 
       <TaskHoldDialog

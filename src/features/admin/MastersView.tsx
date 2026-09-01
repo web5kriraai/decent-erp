@@ -132,7 +132,7 @@ export function MastersView() {
         <div className="card">
           <div className="data-table-wrap">
             {processes.length === 0 ? (
-              <p style={{ margin: 0, color: "var(--color-neutral-500)" }}>
+              <p className="text-muted-inline">
                 No process masters configured. Seed workflow patterns and process masters to enable
                 task generation.
               </p>
@@ -192,7 +192,7 @@ export function MastersView() {
                             <tr>
                               <td colSpan={7} style={{ background: "var(--color-neutral-50)", padding: "0.75rem 1rem" }}>
                                 {subProcesses.length === 0 ? (
-                                  <p style={{ margin: 0, color: "var(--color-neutral-500)" }}>
+                                  <p className="text-muted-inline">
                                     No sub-processes configured for this process.
                                   </p>
                                 ) : (

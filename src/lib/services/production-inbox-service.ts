@@ -161,9 +161,12 @@ function classifyProductionDesign(
   return null;
 }
 
-async function loadReturnedClarificationDesigns(): Promise<ProductionInboxDesign[]> {
+async function loadReturnedClarificationDesigns(
+  employeeId: number,
+): Promise<ProductionInboxDesign[]> {
   const corrections = await prisma.designCorrection.findMany({
     where: {
+      raisedById: employeeId,
       status: "OPEN",
       rootCause: { startsWith: "Production return:" },
       design: { status: { in: ["APPROVED", "PRODUCTION_ACCEPTED", "ACTIVE"] } },
@@ -226,7 +229,7 @@ async function loadReturnedClarificationDesigns(): Promise<ProductionInboxDesign
 }
 
 export async function getProductionHeadInbox(
-  _employeeId: number,
+  employeeId: number,
 ): Promise<ProductionInboxResponse> {
   const [designs, returnedClarification] = await Promise.all([
     prisma.designConcept.findMany({
@@ -247,7 +250,7 @@ export async function getProductionHeadInbox(
       },
       take: 100,
     }),
-    loadReturnedClarificationDesigns(),
+    loadReturnedClarificationDesigns(employeeId),
   ]);
 
   const handoffPending: ProductionInboxDesign[] = [];

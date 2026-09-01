@@ -3,6 +3,7 @@ import {
   buildPendingApprovalItems,
   canEmployeeActOnApprovalLevel,
   isDesignReadyForSignOff,
+  pickRelatedApprovalTask,
   readyForSignOffScopeFilter,
 } from "@/lib/services/approval-queue-utils";
 
@@ -96,6 +97,100 @@ describe("buildPendingApprovalItems", () => {
       levels,
     );
     expect(items).toEqual([]);
+  });
+
+  it("picks the latest completed work task as related task", () => {
+    const items = buildPendingApprovalItems(
+      [
+        {
+          id: 102,
+          ideaRef: "IDEA-3",
+          collectionName: "Festive",
+          status: "APPROVAL_PENDING",
+          approvals: [],
+          tasks: [
+            {
+              id: 1,
+              status: "COMPLETED",
+              sequence: 1,
+              process: { name: "Design" },
+              subProcess: { name: "Sketch", code: "SKETCH", isApproval: false },
+            },
+            {
+              id: 2,
+              status: "COMPLETED",
+              sequence: 3,
+              process: { name: "Design" },
+              subProcess: { name: "Punch", code: "PUNCH", isApproval: false },
+            },
+            {
+              id: 3,
+              status: "ASSIGNED",
+              sequence: 4,
+              process: { name: "QC" },
+              subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+            },
+          ],
+        },
+      ],
+      levels,
+    );
+    expect(items[0]?.task?.subProcess.name).toBe("Punch");
+  });
+});
+
+describe("pickRelatedApprovalTask", () => {
+  it("prefers costing for management approval level", () => {
+    const tasks = [
+      {
+        id: 1,
+        status: "COMPLETED",
+        sequence: 1,
+        process: { name: "Design" },
+        subProcess: { name: "Sketch", code: "SKETCH", isApproval: false },
+      },
+      {
+        id: 2,
+        status: "COMPLETED",
+        sequence: 9,
+        process: { name: "Finance" },
+        subProcess: { name: "Costing", code: "COSTING", isApproval: false },
+      },
+    ];
+    expect(pickRelatedApprovalTask(tasks, "MANAGEMENT_APPROVAL")?.subProcess.code).toBe("COSTING");
+  });
+});
+
+describe("role-filtered pending approvals", () => {
+  const levels = [
+    { id: 1, code: "CHECKER_APPROVAL", name: "Checker", sequence: 1, requiredRoleId: 10 },
+    { id: 2, code: "DESIGN_HEAD_APPROVAL", name: "Design Head", sequence: 2, requiredRoleId: 20 },
+  ];
+
+  it("filters items to the employee role that can act on the current level", () => {
+    const items = buildPendingApprovalItems(
+      [
+        {
+          id: 200,
+          ideaRef: "IDEA-X",
+          collectionName: "Winter",
+          status: "APPROVAL_PENDING",
+          approvals: [],
+          tasks: [],
+        },
+      ],
+      levels,
+    );
+
+    const checkerItems = items.filter((item) =>
+      canEmployeeActOnApprovalLevel(item.currentLevel, 10, "SAMPLE_CHECKER"),
+    );
+    const designHeadItems = items.filter((item) =>
+      canEmployeeActOnApprovalLevel(item.currentLevel, 20, "DESIGN_HEAD"),
+    );
+
+    expect(checkerItems).toHaveLength(1);
+    expect(designHeadItems).toHaveLength(0);
   });
 });
 

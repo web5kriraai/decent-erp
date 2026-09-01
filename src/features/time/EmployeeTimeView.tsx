@@ -65,26 +65,28 @@ export function EmployeeTimeView() {
       >
         {data && (
           <>
-            <TimeMetricGrid
-              activeSeconds={data.totals.activeSeconds}
-              holdSeconds={data.totals.holdSeconds}
-              totalElapsedSeconds={data.totals.activeSeconds + data.totals.holdSeconds}
-              extra={[
-                { label: "Open tasks", value: String(data.totals.openTasks) },
-                { label: "Overdue", value: String(data.totals.overdueTasks) },
-              ]}
-            />
+            <div className="stack-section">
+              <TimeMetricGrid
+                activeSeconds={data.totals.activeSeconds}
+                holdSeconds={data.totals.holdSeconds}
+                totalElapsedSeconds={data.totals.activeSeconds + data.totals.holdSeconds}
+                extra={[
+                  { label: "Open tasks", value: String(data.totals.openTasks) },
+                  { label: "Overdue", value: String(data.totals.overdueTasks) },
+                ]}
+              />
+            </div>
 
             {data.currentTask && (
-              <div className="card" style={{ marginTop: "1rem" }}>
+              <div className="card stack-section">
                 <div className="card-header">
                   <span className="card-title">Current task</span>
                   <StatusBadge status={data.currentTask.status} />
                 </div>
-                <p style={{ margin: "0 0 0.75rem" }}>
+                <p className="workbench-row-meta">
                   {data.currentTask.ideaRef} · {data.currentTask.subProcessName}
                 </p>
-                <p style={{ margin: 0, color: "var(--color-neutral-500)" }}>
+                <p className="workbench-row-meta">
                   Active: {formatDuration(data.currentTask.activeSeconds)} · Hold:{" "}
                   {formatDuration(data.currentTask.holdSeconds)}
                 </p>
@@ -99,7 +101,7 @@ export function EmployeeTimeView() {
             )}
 
             {data.totals.holdByReason.length > 0 && (
-              <div className="card" style={{ marginTop: "1rem" }}>
+              <div className="card stack-section">
                 <span className="card-title">Hold reasons today</span>
                 <ul className="detail-task-list" style={{ marginTop: "0.75rem" }}>
                   {data.totals.holdByReason.map((h) => (
@@ -112,7 +114,7 @@ export function EmployeeTimeView() {
               </div>
             )}
 
-            <div className="card" style={{ marginTop: "1rem" }}>
+            <div className="card stack-section">
               <span className="card-title">Tasks with time logged today</span>
               {data.tasksToday.length === 0 ? (
                 <p style={{ color: "var(--color-neutral-500)", margin: "0.75rem 0 0" }}>

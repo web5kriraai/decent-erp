@@ -9,7 +9,10 @@ import {
   canRecordMachineMetrics,
   hasMachineMetricsInPayload,
 } from "@/lib/services/task-machine-output-utils";
+import { assertTaskAssignedToEmployee } from "@/lib/services/task-service";
 import type { TaskArtifactType } from "@prisma/client";
+
+const MACHINE_FORMATS = ["EMB", "DST", "OTHER"] as const;
 
 const schema = z
   .object({
@@ -17,7 +20,7 @@ const schema = z
     fileName: z.string().optional(),
     storageKey: z.string().optional(),
     stitchCount: z.number().int().min(0).optional(),
-    machineFormat: z.string().max(32).optional(),
+    machineFormat: z.enum(MACHINE_FORMATS).optional(),
     sampleQty: z.number().int().min(0).optional(),
     wastageQty: z.number().int().min(0).optional(),
   })
@@ -45,15 +48,17 @@ export async function POST(
     const taskId = BigInt(id);
     const body = await parseBody(request, schema);
 
-    const task = await prisma.designTask.findUnique({
-      where: { id: taskId },
-      select: { subProcess: { select: { code: true } } },
-    });
-    if (!task) throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
+    await assertTaskAssignedToEmployee(taskId, ctx.employeeId);
+    const subProcessCode = (
+      await prisma.designTask.findUnique({
+        where: { id: taskId },
+        select: { subProcess: { select: { code: true } } },
+      })
+    )?.subProcess.code;
 
     if (
       hasMachineMetricsInPayload(body) &&
-      !canRecordMachineMetrics(task.subProcess.code, body)
+      !canRecordMachineMetrics(subProcessCode, body)
     ) {
       throw businessRule(
         APP_ERROR_CODES.VALIDATION_FAILED,
@@ -93,10 +98,13 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return withApiHandler(null, async (ctx) => {
+  return withApiHandler(PERMISSIONS.TASK_EXECUTE, async (ctx) => {
     const { id } = await params;
+    const taskId = BigInt(id);
+    await assertTaskAssignedToEmployee(taskId, ctx.employeeId);
+
     const artifacts = await prisma.taskArtifact.findMany({
-      where: { taskId: BigInt(id) },
+      where: { taskId },
       orderBy: { uploadedAtUtc: "desc" },
     });
     return jsonOk(serializeBigInt(artifacts), ctx.correlationId);

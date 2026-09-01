@@ -36,19 +36,8 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-brand-panel">
-        <div style={{ marginBottom: "2rem" }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              background: "rgba(255,255,255,0.15)",
-              borderRadius: "var(--radius-lg)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: "1.5rem",
-            }}
-          >
+        <div className="login-brand-intro">
+          <div className="login-brand-mark">
             <IconDesigns size={28} />
           </div>
           <h1>Decent ERP</h1>
@@ -76,12 +65,10 @@ export default function LoginPage() {
       <div className="login-form-panel">
         <div className="login-form-card">
           <h2>Sign in</h2>
-          <p style={{ color: "var(--color-neutral-500)", marginBottom: "1.5rem" }}>
-            Design Management Module
-          </p>
+          <p className="login-form-subtitle">Design Management Module</p>
 
           {error && (
-            <div className="alert alert-error" style={{ marginBottom: "1rem" }} role="alert">
+            <div className="alert alert-error login-error-alert" role="alert">
               {error}
             </div>
           )}

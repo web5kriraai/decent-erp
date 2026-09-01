@@ -13,6 +13,9 @@ import { useWorkflowPatterns } from "@/hooks/use-masters";
 import { apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
+import { Modal, ModalFooterActions, ModalForm } from "@/components/ui/Modal";
+import { FormTextField } from "@/components/ui/form-text-field";
+import { Button } from "@/components/ui/button";
 import { CreateWorkflowPatternModal } from "@/features/admin/CreateWorkflowPatternModal";
 import type { CreateWorkflowPatternPayload, WorkflowPattern } from "@/lib/types/api";
 
@@ -124,7 +127,7 @@ export function WorkflowPatternsView() {
               header: "",
               align: "right",
               render: (row) => (
-                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                <div className="inline-actions">
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
@@ -185,37 +188,36 @@ export function WorkflowPatternsView() {
         isTasksPending={updatePatternTasks.isPending}
       />
 
-      {editing ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <div className="card" style={{ maxWidth: "28rem", margin: "10vh auto", padding: "1.25rem" }}>
-            <h3 className="card-title" style={{ marginBottom: "0.75rem" }}>
-              Rename pattern
-            </h3>
-            <label className="form-label" htmlFor="pattern-rename">
-              Name
-            </label>
-            <input
-              id="pattern-rename"
-              className="form-input"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-            />
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "1rem" }}>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(null)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={!editName.trim() || updatePattern.isPending}
-                onClick={() => updatePattern.mutate({ id: editing.id, name: editName.trim() })}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Modal
+        open={!!editing}
+        title="Rename pattern"
+        onClose={() => setEditing(null)}
+        size="sm"
+        footer={
+          <ModalFooterActions>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={!editName.trim() || updatePattern.isPending}
+              onClick={() => editing && updatePattern.mutate({ id: editing.id, name: editName.trim() })}
+            >
+              Save
+            </Button>
+          </ModalFooterActions>
+        }
+      >
+        <ModalForm>
+          <FormTextField
+            id="pattern-rename"
+            label="Name"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+        </ModalForm>
+      </Modal>
     </div>
   );
 }

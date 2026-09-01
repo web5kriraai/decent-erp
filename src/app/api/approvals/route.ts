@@ -42,6 +42,20 @@ export async function GET(request: Request) {
     });
   }
 
+  if (view === "hub") {
+    return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
+      const [stageApprovals, managementApprovals, readyForSignOff] = await Promise.all([
+        listStageApprovalQueue(ctx.employeeId),
+        listPendingApprovalsForEmployee(ctx.employeeId),
+        listDesignsReadyForSignOff(ctx.employeeId),
+      ]);
+      return jsonOk(
+        serializeBigInt({ stageApprovals, managementApprovals, readyForSignOff }),
+        ctx.correlationId,
+      );
+    });
+  }
+
   return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
     const pending = await listPendingApprovalsForEmployee(ctx.employeeId);
     return jsonOk(serializeBigInt(pending), ctx.correlationId);

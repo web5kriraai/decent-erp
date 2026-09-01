@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { listStageApprovalQueue } from "@/lib/services/stage-approval-queue";
+import { countOpenCorrectionsForEmployee } from "@/lib/services/correction-service";
 import {
   listDesignsReadyForSignOff,
   listPendingApprovalsForEmployee,
@@ -70,12 +71,7 @@ export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
         status: { in: ["ACTIVE", "APPROVAL_PENDING", "ON_HOLD", "DRAFT"] },
       },
     }),
-    prisma.designCorrection.count({
-      where: {
-        status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"] },
-        design: { designHeadEmployeeId: designHeadId },
-      },
-    }),
+    countOpenCorrectionsForEmployee(designHeadId),
     listStageApprovalQueue(designHeadId),
     listDesignsReadyForSignOff(designHeadId),
   ]);

@@ -15,6 +15,7 @@ import {
   isDependencySatisfiedStatus,
 } from "@/lib/services/task-dependency";
 import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
+import { buildCorrectionScopeForEmployee } from "@/lib/services/correction-queue-utils";
 
 export type CreateDesignInput = {
   productTypeId: number;
@@ -212,8 +213,13 @@ export async function listDesigns(filters: {
   return { items, total };
 }
 
-export async function getDesignById(id: bigint) {
+export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: number }) {
   await reconcileStuckWorkflowTasks(id);
+
+  const correctionScope =
+    options?.viewerEmployeeId != null
+      ? buildCorrectionScopeForEmployee(options.viewerEmployeeId)
+      : undefined;
 
   const design = await prisma.designConcept.findUnique({
     where: { id },
@@ -231,7 +237,10 @@ export async function getDesignById(id: bigint) {
           subProcess: true,
         },
       },
-      corrections: true,
+      corrections: {
+        where: correctionScope,
+        orderBy: { createdAtUtc: "desc" },
+      },
       approvals: true,
       productionHandoffs: { orderBy: { releasedAtUtc: "desc" }, take: 5 },
     },

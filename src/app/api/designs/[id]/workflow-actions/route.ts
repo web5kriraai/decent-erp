@@ -18,7 +18,9 @@ export async function GET(
       PERMISSIONS.PRODUCTION_RELEASE,
     ],
     async (ctx) => {
-      const design = serializeBigInt(await getDesignById(BigInt(id))) as unknown as DesignSummary;
+      const design = serializeBigInt(
+        await getDesignById(BigInt(id), { viewerEmployeeId: ctx.employeeId }),
+      ) as unknown as DesignSummary;
       const actions = resolveDesignContextActions({
         design,
         employeeId: ctx.employeeId,

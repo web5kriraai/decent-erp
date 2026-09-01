@@ -105,12 +105,15 @@ export async function getDesignCompletionSummary(designId: bigint) {
 
   const employeeMap = new Map<number, EmployeeRow>();
 
-  async function ensureEmployee(employeeId: number): Promise<EmployeeRow | null> {
-    const existing = employeeMap.get(employeeId);
-    if (existing) return existing;
+  const employeeIds = new Set<number>();
+  for (const task of tasks) {
+    if (task.assignedEmployeeId != null) employeeIds.add(task.assignedEmployeeId);
+    for (const event of task.timeEvents) employeeIds.add(event.employeeId);
+  }
 
-    const emp = await prisma.employee.findUnique({
-      where: { id: employeeId },
+  if (employeeIds.size > 0) {
+    const employeeRows = await prisma.employee.findMany({
+      where: { id: { in: [...employeeIds] } },
       select: {
         id: true,
         name: true,
@@ -118,28 +121,30 @@ export async function getDesignCompletionSummary(designId: bigint) {
         role: { select: { code: true, name: true } },
       },
     });
-    if (!emp) return null;
+    for (const emp of employeeRows) {
+      employeeMap.set(emp.id, {
+        employeeId: emp.id,
+        name: emp.name,
+        employeeCode: emp.employeeCode,
+        roleCode: emp.role.code,
+        roleName: emp.role.name,
+        tasksAssigned: 0,
+        tasksCompleted: 0,
+        tasksSkippedAsAssignee: 0,
+        activeSeconds: 0,
+        holdSeconds: 0,
+        totalElapsedSeconds: 0,
+      });
+    }
+  }
 
-    const row: EmployeeRow = {
-      employeeId: emp.id,
-      name: emp.name,
-      employeeCode: emp.employeeCode,
-      roleCode: emp.role.code,
-      roleName: emp.role.name,
-      tasksAssigned: 0,
-      tasksCompleted: 0,
-      tasksSkippedAsAssignee: 0,
-      activeSeconds: 0,
-      holdSeconds: 0,
-      totalElapsedSeconds: 0,
-    };
-    employeeMap.set(employeeId, row);
-    return row;
+  function getEmployeeRow(employeeId: number): EmployeeRow | null {
+    return employeeMap.get(employeeId) ?? null;
   }
 
   for (const task of tasks) {
     if (task.assignedEmployeeId != null) {
-      const row = await ensureEmployee(task.assignedEmployeeId);
+      const row = getEmployeeRow(task.assignedEmployeeId);
       if (row) {
         row.tasksAssigned += 1;
         if (task.status === "COMPLETED") row.tasksCompleted += 1;
@@ -155,7 +160,7 @@ export async function getDesignCompletionSummary(designId: bigint) {
     }
 
     for (const [employeeId, events] of eventsByEmployee) {
-      const row = await ensureEmployee(employeeId);
+      const row = getEmployeeRow(employeeId);
       if (!row) continue;
       const summary = computeTimeSummary(mapEvents(events));
       row.activeSeconds += summary.activeSeconds;

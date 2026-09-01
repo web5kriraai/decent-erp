@@ -49,7 +49,7 @@ export function AdminTimeLiveView() {
       >
         {data && (
           <>
-            <div className="stat-grid" style={{ marginBottom: "1.5rem" }}>
+            <div className="stat-grid stack-section">
               <StatCard label="Running now" value={data.runningCount} accent />
               <StatCard label="On hold" value={data.onHoldCount} />
               <StatCard label="Idle" value={data.employees.filter((e) => e.status === "IDLE").length} />

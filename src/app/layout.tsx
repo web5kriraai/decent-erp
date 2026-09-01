@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import { Inter, Geist } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/AppProviders";
 import { APP_DEFAULT_DESCRIPTION, APP_NAME } from "@/config/page-metadata";
 import { cn } from "@/lib/utils";
-
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,8 +21,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={cn("h-full", inter.variable, "font-sans", geist.variable)}>
-      <body className="min-h-full antialiased">
+    <html lang="en" className={cn("h-full", inter.variable)}>
+      <body className="min-h-full antialiased font-[family-name:var(--font-family-base)]">
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

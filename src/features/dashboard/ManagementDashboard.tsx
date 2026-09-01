@@ -122,7 +122,7 @@ export function ManagementDashboard() {
             linkLabel="Production desk"
             emptyMessage="No approved designs in production queue."
           >
-            <p className="workbench-row-meta" style={{ marginBottom: "0.75rem" }}>
+            <p className="workbench-row-meta stack-section-sm">
               {summary?.approvedCount ?? 0} approved design(s) in the production workflow.
               {summary?.releasedCount
                 ? ` ${summary.releasedCount} already released to shop floor.`

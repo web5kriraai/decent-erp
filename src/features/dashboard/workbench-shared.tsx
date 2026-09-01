@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Children } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,7 +75,13 @@ export function WorkbenchQueueCard({
           </Link>
         ) : null}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent>
+        {Children.count(children) > 0 ? (
+          children
+        ) : (
+          <WorkbenchEmpty message={emptyMessage} />
+        )}
+      </CardContent>
     </Card>
   );
 }

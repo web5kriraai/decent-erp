@@ -93,11 +93,11 @@ export function CostingView() {
         </div>
       ) : (
         <>
-          <div className="card contextual-actions-wrap" style={{ marginBottom: "1.5rem" }}>
+          <div className="card contextual-actions-wrap stack-section">
             <ContextualActionsPanel title="Costing actions" actions={costingActions} />
           </div>
 
-          <div className="stat-grid" style={{ marginBottom: "1.5rem" }}>
+          <div className="stat-grid stack-section">
             <StatCard
               label="Total Dev Cost"
               value={summary ? `₹${summary.totalDevCost.toFixed(2)}` : "-"}
@@ -131,7 +131,7 @@ export function CostingView() {
           </div>
 
           {summary && summary.entryCount > 0 && (
-            <div className="card" style={{ marginBottom: "1.5rem" }}>
+            <div className="card stack-section">
               <div className="card-header">
                 <span className="card-title">Cost Breakdown & Margin Review</span>
               </div>
@@ -159,7 +159,7 @@ export function CostingView() {
             </div>
           )}
 
-          <div className="card form-card" style={{ marginBottom: "1.5rem" }}>
+          <div className="card form-card stack-section">
             <span className="card-title">Add Cost Entry</span>
             <form onSubmit={handleAddCost} style={{ marginTop: "1rem" }}>
               <div className="form-grid form-grid--2">

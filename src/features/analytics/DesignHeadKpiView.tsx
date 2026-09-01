@@ -71,7 +71,7 @@ export function DesignHeadKpiView() {
       >
         {data && (
           <>
-            <div className="stat-grid" style={{ marginBottom: "1.5rem" }}>
+            <div className="stat-grid stack-section">
               <StatCard label="Ideas Created" value={data.ideasCreated} accent />
               <StatCard label="Approved" value={data.approvedCount} />
               <StatCard label="Released" value={data.releasedCount} />
