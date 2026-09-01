@@ -64,6 +64,55 @@ describe("design workflow actions", () => {
     expect(pending?.workTask?.id).toBe("t2");
   });
 
+  it("surfaces punch check inline when punch is submitted for checking", () => {
+    const design: DesignSummary = {
+      ...baseDesign,
+      tasks: [
+        task({
+          id: "t1",
+          sequence: 1,
+          status: "COMPLETED",
+          subProcess: { id: 1, name: "Concept Review", code: "CONCEPT_REVIEW", isApproval: true },
+        }),
+        task({
+          id: "t2",
+          sequence: 2,
+          status: "COMPLETED",
+          subProcess: { id: 2, name: "Sketch Creation", code: "SKETCH" },
+        }),
+        task({
+          id: "t3",
+          sequence: 3,
+          status: "COMPLETED",
+          subProcess: { id: 3, name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        }),
+        task({
+          id: "t4",
+          sequence: 4,
+          status: "CHECKING",
+          subProcess: { id: 4, name: "Punching / Wilcom", code: "PUNCH" },
+        }),
+        task({
+          id: "t5",
+          sequence: 5,
+          status: "ASSIGNED",
+          assignedEmployeeId: 10,
+          subProcess: { id: 5, name: "Punch Check", code: "PUNCH_CHECK", isApproval: true },
+        }),
+      ],
+    };
+
+    const pending = getPendingStageApproval({
+      design,
+      employeeId: 10,
+      canApprove: true,
+      canExecute: true,
+    });
+
+    expect(pending?.approvalTask.id).toBe("t5");
+    expect(pending?.workTask?.id).toBe("t4");
+  });
+
   it("marks only the first open stage as current in the workflow rail", () => {
     const design: DesignSummary = {
       ...baseDesign,

@@ -1,8 +1,14 @@
 import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
+import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
+import { businessRule, notFound } from "@/lib/errors/create-app-error";
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
+import {
+  canRecordMachineMetrics,
+  hasMachineMetricsInPayload,
+} from "@/lib/services/task-machine-output-utils";
 import type { TaskArtifactType } from "@prisma/client";
 
 const schema = z
@@ -38,6 +44,23 @@ export async function POST(
     const { id } = await params;
     const taskId = BigInt(id);
     const body = await parseBody(request, schema);
+
+    const task = await prisma.designTask.findUnique({
+      where: { id: taskId },
+      select: { subProcess: { select: { code: true } } },
+    });
+    if (!task) throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
+
+    if (
+      hasMachineMetricsInPayload(body) &&
+      !canRecordMachineMetrics(task.subProcess.code, body)
+    ) {
+      throw businessRule(
+        APP_ERROR_CODES.VALIDATION_FAILED,
+        undefined,
+        "Machine output metrics can only be recorded on machine sample, receive, or re-sample tasks.",
+      );
+    }
 
     const artifact = await prisma.taskArtifact.create({
       data: {

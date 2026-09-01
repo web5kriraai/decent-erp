@@ -273,6 +273,31 @@ export function getPendingStageApproval(input: {
     }
   }
 
+  const punch = tasks.find((t) => t.subProcess?.code === "PUNCH");
+  const punchCheck = tasks.find((t) => t.subProcess?.code === "PUNCH_CHECK");
+  if (
+    punch?.status === "CHECKING" &&
+    punchCheck &&
+    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"].includes(punchCheck.status)
+  ) {
+    const ready = isTaskReady(
+      {
+        id: punchCheck.id,
+        dependencySequence: punchCheck.dependencySequence ?? null,
+        sequence: punchCheck.sequence,
+        status: punchCheck.status,
+      },
+      siblings,
+    );
+    if (ready) {
+      const isMine = employeeId != null && punchCheck.assignedEmployeeId === employeeId;
+      const isUnassigned = punchCheck.assignedEmployeeId == null;
+      if (isMine || isUnassigned || canApprove) {
+        return { approvalTask: punchCheck, workTask: punch };
+      }
+    }
+  }
+
   const machineSample = tasks.find((t) => t.subProcess?.code === "MACHINE_SAMPLE");
   const sampleCheck = tasks.find((t) => t.subProcess?.code === "SAMPLE_CHECK");
   if (
@@ -350,13 +375,15 @@ export function getPendingStageApproval(input: {
     const workTask =
       code === "SKETCH_APPROVAL"
         ? tasks.find((t) => t.subProcess?.code === "SKETCH")
-        : code === "SAMPLE_CHECK"
-          ? tasks.find(
-              (t) => t.subProcess?.code === "MACHINE_SAMPLE" && t.status === "CHECKING",
-            )
-          : code === "FINAL_APPROVAL"
-            ? tasks.find((t) => t.subProcess?.code === "COSTING" && t.status === "CHECKING")
-            : undefined;
+        : code === "PUNCH_CHECK"
+          ? tasks.find((t) => t.subProcess?.code === "PUNCH" && t.status === "CHECKING")
+          : code === "SAMPLE_CHECK"
+            ? tasks.find(
+                (t) => t.subProcess?.code === "MACHINE_SAMPLE" && t.status === "CHECKING",
+              )
+            : code === "FINAL_APPROVAL"
+              ? tasks.find((t) => t.subProcess?.code === "COSTING" && t.status === "CHECKING")
+              : undefined;
 
     return { approvalTask: task, workTask };
   }

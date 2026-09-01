@@ -1,10 +1,14 @@
 import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
-import { notFound } from "@/lib/errors/create-app-error";
+import { businessRule, notFound } from "@/lib/errors/create-app-error";
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
+import {
+  canRecordMachineMetrics,
+  hasMachineMetricsInPayload,
+} from "@/lib/services/task-machine-output-utils";
 
 const patchSchema = z.object({
   stitchCount: z.number().int().min(0).optional().nullable(),
@@ -21,6 +25,23 @@ export async function PATCH(
     const { id, artifactId } = await params;
     const taskId = BigInt(id);
     const body = await parseBody(request, patchSchema);
+
+    const task = await prisma.designTask.findUnique({
+      where: { id: taskId },
+      select: { subProcess: { select: { code: true } } },
+    });
+    if (!task) throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
+
+    if (
+      hasMachineMetricsInPayload(body) &&
+      !canRecordMachineMetrics(task.subProcess.code, body)
+    ) {
+      throw businessRule(
+        APP_ERROR_CODES.VALIDATION_FAILED,
+        undefined,
+        "Machine output metrics can only be recorded on machine sample, receive, or re-sample tasks.",
+      );
+    }
 
     const existing = await prisma.taskArtifact.findFirst({
       where: { id: BigInt(artifactId), taskId },

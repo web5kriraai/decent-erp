@@ -6,6 +6,7 @@ import {
   countTerminalPhases,
   isDesignWorkflowComplete,
 } from "@/lib/services/workflow-override-utils";
+import { aggregateCompletionTotals } from "@/lib/services/design-summary-utils";
 
 function mapEvents(
   events: Array<{
@@ -222,9 +223,10 @@ export async function getDesignCompletionSummary(designId: bigint) {
     };
   });
 
-  const totalActiveSeconds = employees.reduce((sum, e) => sum + e.activeSeconds, 0);
-  const totalHoldSeconds = employees.reduce((sum, e) => sum + e.holdSeconds, 0);
-  const totalElapsedSeconds = employees.reduce((sum, e) => sum + e.totalElapsedSeconds, 0);
+  const totals = {
+    ...aggregateCompletionTotals(employees),
+    skippedPhaseCount: phaseCounts.skipped,
+  };
 
   return {
     designId: design.id.toString(),
@@ -238,12 +240,6 @@ export async function getDesignCompletionSummary(designId: bigint) {
     employees,
     phases,
     overrideHistory,
-    totals: {
-      peopleCount: employees.length,
-      totalActiveSeconds,
-      totalHoldSeconds,
-      totalElapsedSeconds,
-      skippedPhaseCount: phaseCounts.skipped,
-    },
+    totals,
   };
 }
