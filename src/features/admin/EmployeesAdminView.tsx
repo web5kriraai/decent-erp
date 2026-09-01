@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { DataTable } from "@/components/DataTable";
-import { Modal } from "@/components/ui/Modal";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+  ModalFormGrid,
+} from "@/components/ui/Modal";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextField } from "@/components/ui/form-text-field";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -313,112 +321,94 @@ function EmployeeFormModal({
     <Modal
       open={open}
       title={title}
+      description={
+        requirePassword
+          ? "Create a new employee account with login credentials."
+          : "Update employee details and access settings."
+      }
       onClose={onClose}
+      size="lg"
       footer={
-        <>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
+        <ModalFooterActions>
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn btn-primary"
             disabled={!canSubmit || isPending}
             onClick={onSubmit}
           >
-            {submitLabel}
-          </button>
-        </>
+            {isPending ? "Saving…" : submitLabel}
+          </Button>
+        </ModalFooterActions>
       }
     >
-      <div className="form-grid form-grid--2">
-        <div className="form-group">
-          <label className="form-label" htmlFor="empCode">
-            Employee Code
-          </label>
-          <input
+      <ModalForm>
+        <ModalFormGrid>
+          <FormTextField
             id="empCode"
-            className="form-input"
+            label="Employee Code"
             value={form.employeeCode}
             readOnly={codeReadOnly}
             onChange={(e) => onChange({ ...form, employeeCode: e.target.value.toUpperCase() })}
             placeholder="EMP010"
           />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="empRole">
-            Role *
-          </label>
-          <select
+          <FormSelect
             id="empRole"
-            className="form-select"
-            value={form.roleCode}
-            onChange={(e) => onChange({ ...form, roleCode: e.target.value })}
-          >
-            {roles.map((role) => (
-              <option key={role.code} value={role.code}>
-                {role.displayName}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+            label="Role"
+            required
+            value={form.roleCode || null}
+            onValueChange={(v) => onChange({ ...form, roleCode: v })}
+            options={roles.map((role) => ({
+              value: role.code,
+              label: role.displayName,
+            }))}
+          />
+        </ModalFormGrid>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="empName">
-          Full Name *
-        </label>
-        <input
+        <FormTextField
           id="empName"
-          className="form-input"
+          label="Full Name"
+          required
           value={form.name}
           onChange={(e) => onChange({ ...form, name: e.target.value })}
           placeholder="Employee name"
         />
-      </div>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="empEmail">
-          Email (login) *
-        </label>
-        <input
+        <FormTextField
           id="empEmail"
+          label="Email (login)"
+          required
           type="email"
-          className="form-input"
           value={form.email}
           onChange={(e) => onChange({ ...form, email: e.target.value })}
           placeholder="name@decent-erp.local"
         />
-      </div>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="empPassword">
-          {requirePassword ? "Password *" : "New Password"}
-        </label>
-        <input
+        <FormTextField
           id="empPassword"
+          label={requirePassword ? "Password" : "New Password"}
+          required={requirePassword}
           type="password"
-          className="form-input"
           value={form.password}
           onChange={(e) => onChange({ ...form, password: e.target.value })}
           placeholder={requirePassword ? "Minimum 8 characters" : "Leave blank to keep current"}
           autoComplete="new-password"
+          hint={!requirePassword ? "Role changes from this form also apply on next login." : undefined}
         />
-      </div>
 
-      {showActiveToggle && (
-        <label className="form-checkbox-row">
-          <input
-            type="checkbox"
-            checked={form.active}
-            onChange={(e) => onChange({ ...form, active: e.target.checked })}
-          />
-          <span>Account is active (can sign in)</span>
-        </label>
-      )}
-
-      {!requirePassword && (
-        <p className="form-hint">Role changes from this form also apply on next login.</p>
-      )}
+        {showActiveToggle && (
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-input"
+              checked={form.active}
+              onChange={(e) => onChange({ ...form, active: e.target.checked })}
+            />
+            <span>Account is active (can sign in)</span>
+          </label>
+        )}
+      </ModalForm>
     </Modal>
   );
 }

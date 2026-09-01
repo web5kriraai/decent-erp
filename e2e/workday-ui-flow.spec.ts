@@ -44,20 +44,18 @@ async function completePriorDesignHeadTasks(page: Page, designId: string) {
   const mine = tasks.filter(
     (t) =>
       t.design.id === designId &&
-      ["ASSIGNED", "PENDING"].includes(t.status) &&
-      (t.subProcess.code === "CONCEPT_REVIEW" || /concept|review|approval/i.test(t.subProcess.name)),
+      t.status === "ASSIGNED" &&
+      (t.subProcess.code === "CONCEPT_REVIEW" || /concept|review/i.test(t.subProcess.name)),
   );
 
   for (const task of mine) {
-    if (task.status === "ASSIGNED" || task.status === "PENDING") {
-      await apiPostJson(page, `/api/tasks/${task.id}/start`, {});
-      const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${task.id}`);
-      await apiPostJson(page, `/api/tasks/${task.id}/end`, {
-        version: detail.version,
-        outputRemark: "E2E prior stage complete",
-        completionStatus: "COMPLETED",
-      });
-    }
+    await apiPostJson(page, `/api/tasks/${task.id}/start`, {});
+    const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${task.id}`);
+    await apiPostJson(page, `/api/tasks/${task.id}/end`, {
+      version: detail.version,
+      outputRemark: "E2E prior stage complete",
+      completionStatus: "COMPLETED",
+    });
   }
 }
 
@@ -81,6 +79,29 @@ test.describe("Workday UI flow (end-to-end)", () => {
       conceptNote: "Playwright workday UI flow",
     });
     expect(design.id).toBeTruthy();
+
+    // Readiness: later roles must not see tasks before Concept Review ends
+    const dhTasksBefore = await apiGetJson<
+      Array<{ status: string; subProcess: { code?: string; name: string } }>
+    >(page, "/api/tasks/my");
+    expect(
+      dhTasksBefore.filter((t) => t.status === "ASSIGNED").map((t) => t.subProcess.code ?? t.subProcess.name),
+    ).toEqual(expect.arrayContaining(["CONCEPT_REVIEW"]));
+    expect(
+      dhTasksBefore.some(
+        (t) => t.subProcess.code === "SKETCH_APPROVAL" || t.subProcess.code === "FINAL_APPROVAL",
+      ),
+    ).toBe(false);
+
+    await login(page, USERS.costing.email, USERS.costing.password);
+    const costingTasks = await apiGetJson<unknown[]>(page, "/api/tasks/my");
+    expect(costingTasks).toHaveLength(0);
+
+    await login(page, USERS.punch.email, USERS.punch.password);
+    const punchTasks = await apiGetJson<unknown[]>(page, "/api/tasks/my");
+    expect(punchTasks).toHaveLength(0);
+
+    await login(page, USERS.designHead.email, USERS.designHead.password);
     await completePriorDesignHeadTasks(page, design.id);
 
     // Illegal status jump blocked by FSM
@@ -103,7 +124,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
 
     const assignedTask = tasks.find((t) => t.status === "ASSIGNED");
     if (!assignedTask) {
-      test.skip(true, "No ASSIGNED task for sketch designer after design create");
+      test.skip(true, "No ASSIGNED sketch task after Concept Review unlock");
       return;
     }
 
@@ -172,7 +193,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
       name: /Submit Completion|Submit with notes/i,
     });
     if (needsFile) {
-      await expect(endDialog.getByRole("alert")).toContainText(/requires at least one uploaded file/i);
+      await expect(endDialog.getByRole("alert")).toContainText(/uploads automatically/i);
       await expect(submitBtn).toBeDisabled();
       // Upload must be available inside Complete Task (not only behind the modal).
       await expect(endDialog.getByText(/^Task Files/i)).toBeVisible();

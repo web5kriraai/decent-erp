@@ -28,6 +28,7 @@ export function useTaskMutations() {
     queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
     queryClient.invalidateQueries({ queryKey: ["tasks", "detail"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+    queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.time.mySummary });
     queryClient.invalidateQueries({ queryKey: queryKeys.time.live });
   };
@@ -122,6 +123,39 @@ export function useTaskMutations() {
   return { start, hold, resume, end, closeWorkday, isPending: start.isPending || hold.isPending || resume.isPending || end.isPending };
 }
 
+export function useCompleteStageApproval() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      version,
+      outputRemark,
+    }: {
+      taskId: string;
+      version: number;
+      outputRemark: string;
+    }) =>
+      apiPost<DesignTask>(`/api/tasks/${taskId}/approve-stage`, {
+        version,
+        outputRemark,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      queryClient.invalidateQueries({ queryKey: ["tasks", "detail"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.time.mySummary });
+      queryClient.invalidateQueries({ queryKey: queryKeys.time.live });
+      toast.success("Stage approved");
+    },
+    onError: (error) => {
+      toast.errorFromApi(error, "Could not approve stage");
+    },
+  });
+}
+
 export function useAssignTask() {
   const queryClient = useQueryClient();
   const toast = useApiToast();
@@ -131,6 +165,7 @@ export function useAssignTask() {
       apiPatch<DesignTask>(`/api/tasks/${taskId}/assign`, { employeeId }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       toast.success("Task assigned", data.assignedEmployee?.name ?? "Employee updated");
     },

@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal } from "@/components/ui/Modal";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+  ModalFormGrid,
+} from "@/components/ui/Modal";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextArea } from "@/components/ui/form-text-area";
+import { FormTextField } from "@/components/ui/form-text-field";
+import { Button } from "@/components/ui/button";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useDesign } from "@/hooks/use-designs";
 import { useEmployeeOptions, useRaiseCorrection } from "@/hooks/use-corrections";
@@ -12,6 +21,7 @@ type RaiseCorrectionModalProps = {
   open: boolean;
   onClose: () => void;
   defaultDesignId?: string;
+  defaultTaskId?: string;
 };
 
 const CORRECTION_TYPE_OPTIONS: {
@@ -26,7 +36,12 @@ const CORRECTION_TYPE_OPTIONS: {
   { value: "OTHER", label: "Other" },
 ];
 
-export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCorrectionModalProps) {
+export function RaiseCorrectionModal({
+  open,
+  onClose,
+  defaultDesignId,
+  defaultTaskId,
+}: RaiseCorrectionModalProps) {
   const designsQuery = useDesignsList(open);
   const employeesQuery = useEmployeeOptions(open);
   const processesQuery = useProcessMasters(open);
@@ -59,8 +74,12 @@ export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCo
   }, [open, defaultDesignId]);
 
   useEffect(() => {
-    setTaskId("");
-  }, [designId]);
+    if (open && defaultTaskId) {
+      setTaskId(defaultTaskId);
+      return;
+    }
+    if (!defaultDesignId) setTaskId("");
+  }, [designId, defaultDesignId, defaultTaskId, open]);
 
   useEffect(() => {
     if (!isMistake) setResponsibleEmployeeId("");
@@ -92,167 +111,116 @@ export function RaiseCorrectionModal({ open, onClose, defaultDesignId }: RaiseCo
     <Modal
       open={open}
       title="Raise Correction"
+      description="Record a correction against a design task and route it back through the workflow if needed."
       onClose={onClose}
+      size="lg"
       footer={
-        <>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
+        <ModalFooterActions>
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={!canSubmit}
-            onClick={handleSubmit}
-          >
-            Raise Correction
-          </button>
-        </>
+          </Button>
+          <Button type="button" disabled={!canSubmit} onClick={handleSubmit}>
+            {raiseCorrection.isPending ? "Raising…" : "Raise Correction"}
+          </Button>
+        </ModalFooterActions>
       }
     >
-      <div className="form-group">
-        <label className="form-label" htmlFor="corrDesign">
-          Design *
-        </label>
-        <select
+      <ModalForm>
+        <FormSelect
           id="corrDesign"
-          className="form-select"
-          value={designId}
-          onChange={(e) => setDesignId(e.target.value)}
-        >
-          <option value="">Select design…</option>
-          {designsQuery.data?.items.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.ideaRef} - {d.collectionName}
-            </option>
-          ))}
-        </select>
-      </div>
+          label="Design"
+          required
+          value={designId || null}
+          onValueChange={setDesignId}
+          options={(designsQuery.data?.items ?? []).map((d) => ({
+            value: d.id,
+            label: `${d.ideaRef} - ${d.collectionName}`,
+          }))}
+          placeholder="Select design…"
+        />
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="corrTask">
-          Task *
-        </label>
-        <select
+        <FormSelect
           id="corrTask"
-          className="form-select"
-          value={taskId}
+          label="Task"
+          required
+          value={taskId || null}
+          onValueChange={setTaskId}
+          options={tasks.map((t) => ({
+            value: t.id,
+            label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
+          }))}
+          placeholder="Select task…"
           disabled={!designId || designQuery.isLoading}
-          onChange={(e) => setTaskId(e.target.value)}
-        >
-          <option value="">Select task…</option>
-          {tasks.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.process.name} → {t.subProcess.name} ({t.status})
-            </option>
-          ))}
-        </select>
-      </div>
+        />
 
-      <div className="form-grid form-grid--2">
-        <div className="form-group">
-          <label className="form-label" htmlFor="corrType">
-            Type *
-          </label>
-          <select
+        <ModalFormGrid>
+          <FormSelect
             id="corrType"
-            className="form-select"
+            label="Type"
+            required
             value={correctionType}
-            onChange={(e) =>
-              setCorrectionType(e.target.value as RaiseCorrectionPayload["correctionType"])
+            onValueChange={(v) =>
+              setCorrectionType(v as RaiseCorrectionPayload["correctionType"])
             }
-          >
-            {CORRECTION_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="corrResponsible">
-            Responsible Employee {isMistake ? "*" : "(optional)"}
-          </label>
-          <select
+            options={CORRECTION_TYPE_OPTIONS}
+          />
+          <FormSelect
             id="corrResponsible"
-            className="form-select"
-            value={responsibleEmployeeId}
-            onChange={(e) =>
-              setResponsibleEmployeeId(e.target.value ? Number(e.target.value) : "")
+            label="Responsible Employee"
+            required={isMistake}
+            value={responsibleEmployeeId === "" ? null : String(responsibleEmployeeId)}
+            onValueChange={(v) =>
+              setResponsibleEmployeeId(v ? Number(v) : "")
             }
-          >
-            <option value="">Select employee…</option>
-            {employeesQuery.data?.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name} ({e.employeeCode})
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+            options={(employeesQuery.data ?? []).map((e) => ({
+              value: String(e.id),
+              label: `${e.name} (${e.employeeCode})`,
+            }))}
+            placeholder="Select employee…"
+            hint={isMistake ? undefined : "Optional for non-mistake corrections"}
+          />
+        </ModalFormGrid>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="corrRoute">
-          Route back to sub-process
-        </label>
-        <select
+        <FormSelect
           id="corrRoute"
-          className="form-select"
-          value={routeToSubProcessId}
-          onChange={(e) =>
-            setRouteToSubProcessId(e.target.value ? Number(e.target.value) : "")
-          }
-        >
-          <option value="">Same task (restore on close)</option>
-          {subProcessOptions.map((sp) => (
-            <option key={sp.id} value={sp.id}>
-              {sp.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          label="Route back to sub-process"
+          value={routeToSubProcessId === "" ? null : String(routeToSubProcessId)}
+          onValueChange={(v) => setRouteToSubProcessId(v ? Number(v) : "")}
+          options={subProcessOptions.map((sp) => ({
+            value: String(sp.id),
+            label: sp.label,
+          }))}
+          placeholder="Same task (restore on close)"
+        />
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="corrRootCause">
-          Root Cause
-        </label>
-        <textarea
+        <FormTextArea
           id="corrRootCause"
-          className="form-textarea"
+          label="Root Cause"
           rows={2}
           value={rootCause}
           onChange={(e) => setRootCause(e.target.value)}
         />
-      </div>
 
-      <div className="form-grid form-grid--2">
-        <div className="form-group">
-          <label className="form-label" htmlFor="corrMinutes">
-            Extra Minutes
-          </label>
-          <input
+        <ModalFormGrid>
+          <FormTextField
             id="corrMinutes"
+            label="Extra Minutes"
             type="number"
-            className="form-input"
             min={0}
             value={extraMinutes}
             onChange={(e) => setExtraMinutes(e.target.value)}
           />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="corrCost">
-            Extra Cost
-          </label>
-          <input
+          <FormTextField
             id="corrCost"
+            label="Extra Cost"
             type="number"
-            className="form-input"
             min={0}
             step="0.01"
             value={extraCost}
             onChange={(e) => setExtraCost(e.target.value)}
           />
-        </div>
-      </div>
+        </ModalFormGrid>
+      </ModalForm>
     </Modal>
   );
 }

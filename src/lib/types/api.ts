@@ -33,6 +33,8 @@ export type DesignListResponse = {
 export type DesignTask = {
   id: string;
   status: string;
+  sequence: number;
+  dependencySequence?: number | null;
   priority: Priority;
   expectedMinutes: number;
   version: number;
@@ -41,7 +43,13 @@ export type DesignTask = {
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
   design: { id: string; ideaRef: string; collectionName: string };
   process: { id: number; name: string; code: string };
-  subProcess: { id: number; name: string; code: string; isFileRequired?: boolean };
+  subProcess: {
+    id: number;
+    name: string;
+    code: string;
+    isFileRequired?: boolean;
+    isApproval?: boolean;
+  };
   timeEvents?: TaskTimeEvent[];
 };
 

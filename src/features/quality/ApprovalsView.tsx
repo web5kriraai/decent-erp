@@ -4,7 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { DataTable } from "@/components/DataTable";
-import { Modal } from "@/components/ui/Modal";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+} from "@/components/ui/Modal";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextArea } from "@/components/ui/form-text-area";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -121,58 +128,50 @@ export function ApprovalsView() {
       <Modal
         open={!!selected}
         title={selected ? `Approve ${selected.design.ideaRef}` : "Approval"}
+        description={
+          selected
+            ? `Review and submit your decision for approval level: ${selected.currentLevel.name}.`
+            : undefined
+        }
         onClose={() => setSelected(null)}
         footer={
-          <>
-            <button type="button" className="btn btn-secondary" onClick={() => setSelected(null)}>
+          <ModalFooterActions>
+            <Button type="button" variant="outline" onClick={() => setSelected(null)}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="btn btn-primary"
               disabled={submitApproval.isPending}
               onClick={handleSubmit}
             >
-              Submit Decision
-            </button>
-          </>
+              {submitApproval.isPending ? "Submitting…" : "Submit Decision"}
+            </Button>
+          </ModalFooterActions>
         }
       >
         {selected && (
-          <>
-            <p style={{ color: "var(--color-neutral-600)", marginTop: 0 }}>
-              Level: <strong>{selected.currentLevel.name}</strong>
-            </p>
-            <div className="form-group">
-              <label className="form-label" htmlFor="approvalDecision">
-                Decision *
-              </label>
-              <select
-                id="approvalDecision"
-                className="form-select"
-                value={decision}
-                onChange={(e) =>
-                  setDecision(e.target.value as typeof decision)
-                }
-              >
-                <option value="APPROVED">Approve</option>
-                <option value="REJECTED">Reject</option>
-                <option value="CORRECTION_REQUIRED">Send for Correction</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="approvalRemark">
-                Remark
-              </label>
-              <textarea
-                id="approvalRemark"
-                className="form-textarea"
-                rows={3}
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-              />
-            </div>
-          </>
+          <ModalForm>
+            <FormSelect
+              id="approvalDecision"
+              label="Decision"
+              required
+              value={decision}
+              onValueChange={(v) => setDecision(v as typeof decision)}
+              options={[
+                { value: "APPROVED", label: "Approve" },
+                { value: "REJECTED", label: "Reject" },
+                { value: "CORRECTION_REQUIRED", label: "Send for Correction" },
+              ]}
+            />
+            <FormTextArea
+              id="approvalRemark"
+              label="Remark"
+              rows={3}
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+              placeholder="Optional notes for the design team…"
+            />
+          </ModalForm>
         )}
       </Modal>
     </div>

@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -16,14 +17,15 @@ type ModalProps = {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   description?: string;
 };
 
 const sizeClasses = {
-  sm: "sm:max-w-sm",
-  md: "sm:max-w-md",
-  lg: "sm:max-w-lg",
+  sm: "sm:max-w-md",
+  md: "sm:max-w-lg",
+  lg: "sm:max-w-2xl",
+  xl: "sm:max-w-3xl",
 };
 
 /**
@@ -48,23 +50,115 @@ export function Modal({
       modal="trap-focus"
     >
       <DialogContent
-        className={cn("gap-0 p-0", sizeClasses[size])}
-        showCloseButton
-        aria-describedby={description ? "modal-description" : undefined}
-      >
-        <DialogHeader className="border-b px-4 py-3">
-          <DialogTitle>{title}</DialogTitle>
-          {description && (
-            <p id="modal-description" className="text-sm text-muted-foreground">
-              {description}
-            </p>
-          )}
-        </DialogHeader>
-        <div className="max-h-[min(70vh,36rem)] overflow-y-auto px-4 py-3">{children}</div>
-        {footer && (
-          <DialogFooter className="border-t bg-muted/30 px-4 py-3">{footer}</DialogFooter>
+        className={cn(
+          "max-h-[min(90vh,48rem)] gap-0 p-0",
+          sizeClasses[size],
         )}
+        showCloseButton
+      >
+        <DialogHeader className="shrink-0 gap-1 border-b border-border px-5 py-4 pr-12">
+          <DialogTitle>{title}</DialogTitle>
+          {description ? <DialogDescription>{description}</DialogDescription> : null}
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-6">
+          {children}
+        </div>
+        {footer ? <DialogFooter>{footer}</DialogFooter> : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Standard vertical spacing for modal form fields. */
+export function ModalForm({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return <div className={cn("flex flex-col gap-4", className)}>{children}</div>;
+}
+
+/** Two-column form layout inside modals. */
+export function ModalFormGrid({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("grid gap-4 sm:grid-cols-2", className)}>{children}</div>
+  );
+}
+
+/** Right-aligned footer button row. */
+export function ModalFooterActions({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex w-full flex-col-reverse gap-2 sm:ml-auto sm:w-auto sm:flex-row sm:justify-end sm:gap-2">
+      {children}
+    </div>
+  );
+}
+
+type ModalAlertVariant = "warning" | "info" | "error";
+
+const alertVariants: Record<ModalAlertVariant, string> = {
+  warning: "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100",
+  info: "border-primary/20 bg-primary/5 text-foreground",
+  error: "border-destructive/30 bg-destructive/5 text-destructive",
+};
+
+export function ModalAlert({
+  variant = "warning",
+  children,
+}: {
+  variant?: ModalAlertVariant;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-md border px-3 py-2.5 text-sm leading-relaxed",
+        alertVariants[variant],
+      )}
+      role="alert"
+    >
+      {children}
+    </div>
+  );
+}
+
+export function ModalSection({
+  title,
+  description,
+  action,
+  children,
+  className,
+}: {
+  title?: string;
+  description?: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("space-y-3", className)}>
+      {title || description || action ? (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-0.5">
+            {title ? (
+              <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            ) : null}
+            {description ? (
+              <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
+            ) : null}
+          </div>
+          {action}
+        </div>
+      ) : null}
+      {children}
+    </section>
   );
 }

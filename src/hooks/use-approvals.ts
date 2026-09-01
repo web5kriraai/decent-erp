@@ -62,8 +62,9 @@ export function useRequestDesignApproval() {
   return useMutation({
     mutationFn: (designId: string) =>
       apiPost<{ id: string; status: string }>(`/api/designs/${designId}/request-approval`, {}),
-    onSuccess: () => {
+    onSuccess: (_, designId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.approvals.pending });
       toast.success("Approval requested", "Design is now pending approval");
     },

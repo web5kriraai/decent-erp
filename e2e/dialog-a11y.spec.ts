@@ -3,16 +3,40 @@
  */
 import { execSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
-import { USERS, apiGetJson, apiPostJson, login } from "./helpers/auth";
+import { USERS, apiGetJson, apiPostJson, createDesignViaApi, login } from "./helpers/auth";
 
 function resetActiveTasks() {
   execSync("npx tsx scripts/reset-e2e-task-state.mjs", { stdio: "pipe" });
 }
 
+async function ensureSketchAssignedTask(page: import("@playwright/test").Page) {
+  await login(page, USERS.designHead.email, USERS.designHead.password);
+  const design = await createDesignViaApi(page, `Dialog A11y ${Date.now()}`);
+  const dhTasks = await apiGetJson<
+    Array<{ id: string; status: string; design: { id: string }; subProcess: { code?: string } }>
+  >(page, "/api/tasks/my");
+  const concept = dhTasks.find(
+    (t) =>
+      t.design.id === design.id &&
+      t.status === "ASSIGNED" &&
+      t.subProcess.code === "CONCEPT_REVIEW",
+  );
+  if (concept) {
+    await apiPostJson(page, `/api/tasks/${concept.id}/start`, {});
+    const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${concept.id}`);
+    await apiPostJson(page, `/api/tasks/${concept.id}/end`, {
+      version: detail.version,
+      outputRemark: "E2E dialog a11y setup",
+      completionStatus: "COMPLETED",
+    });
+  }
+  await login(page, USERS.sketch.email, USERS.sketch.password);
+}
+
 test.describe("Dialog accessibility", () => {
   test.beforeEach(async ({ page }) => {
     resetActiveTasks();
-    await login(page, USERS.sketch.email, USERS.sketch.password);
+    await ensureSketchAssignedTask(page);
     const tasks = await apiGetJson<Array<{ id: string; status: string }>>(page, "/api/tasks/my");
     const running = tasks.find((t) => t.status === "RUNNING");
     const assigned = tasks.find((t) => t.status === "ASSIGNED");

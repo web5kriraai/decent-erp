@@ -59,9 +59,11 @@ export function useRaiseCorrection() {
   return useMutation({
     mutationFn: (payload: RaiseCorrectionPayload) =>
       apiPost<CorrectionRecord>("/api/corrections", payload),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(variables.designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       toast.success("Correction raised", "Responsible employee has been notified");
     },
     onError: (error) => toast.errorFromApi(error, "Could not raise correction"),

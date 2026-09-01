@@ -286,7 +286,8 @@ export async function seedDatabase() {
         assignedRoleId: t.defaultRoleId,
         assignedEmployeeId:
           i === 0 ? designHead.id : i === 1 ? sketchEmployee.id : undefined,
-        status: i <= 1 ? "ASSIGNED" : "PENDING",
+        // Only Concept Review is ready; Sketch stays PENDING until Concept Review ends
+        status: i === 0 ? "ASSIGNED" : "PENDING",
         priority: t.priority,
         expectedMinutes: t.expectedMinutes,
         sequence: t.sequence,
@@ -303,7 +304,7 @@ export async function seedDatabase() {
       data: {
         assignedEmployeeId: sketchEmployee.id,
         assignedRoleId: roles[ROLE_CODES.SKETCH_DESIGNER].id,
-        status: "ASSIGNED",
+        // Do not force ASSIGNED — readiness gate owns status
       },
     });
   }

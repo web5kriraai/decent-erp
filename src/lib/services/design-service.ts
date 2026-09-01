@@ -4,12 +4,17 @@ import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { ApiError } from "@/lib/api-utils";
 import type { AssignmentMode, Priority, WorkType } from "@prisma/client";
 import {
+  applyCreateReadiness,
   buildTasksFromPatternTasks,
   createDesignComponents,
   createDesignProcessInstances,
   generateDesignNumber,
   type TaskCreateRow,
 } from "@/lib/services/task-generation-service";
+import {
+  isDependencySatisfiedStatus,
+} from "@/lib/services/task-dependency";
+import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
 
 export type CreateDesignInput = {
   productTypeId: number;
@@ -121,9 +126,10 @@ export async function createDesignWithTasks(
           expectedMinutes: mt.expectedMinutes,
           priority: input.priority,
           sequence: seq,
+          dependencySequence: seq,
           plannedStart: base,
           dueAt: new Date(base.getTime() + mt.expectedMinutes * 60_000),
-          status: mt.assignedEmployeeId ? ("ASSIGNED" as const) : ("PENDING" as const),
+          status: "PENDING",
         });
       }
     }
@@ -131,6 +137,9 @@ export async function createDesignWithTasks(
     if (tasksToCreate.length === 0) {
       throw new ApiError("No tasks generated from workflow pattern or manual tasks", 422);
     }
+
+    // Re-apply readiness across combined automatic + manual rows
+    tasksToCreate = applyCreateReadiness(tasksToCreate);
 
     if (input.componentTypeIds?.length) {
       await createDesignComponents(tx, design.id, input.componentTypeIds);
@@ -204,6 +213,8 @@ export async function listDesigns(filters: {
 }
 
 export async function getDesignById(id: bigint) {
+  await reconcileStuckWorkflowTasks(id);
+
   const design = await prisma.designConcept.findUnique({
     where: { id },
     include: {
@@ -228,6 +239,47 @@ export async function getDesignById(id: bigint) {
 
   if (!design) throw new ApiError("Design not found", 404);
   return design;
+}
+
+/** Repair designs where a prior stage is satisfied but the next task stayed PENDING. */
+async function reconcileStuckWorkflowTasks(designId: bigint): Promise<void> {
+  const tasks = await prisma.designTask.findMany({
+    where: { designId },
+    orderBy: { sequence: "asc" },
+    select: {
+      id: true,
+      designId: true,
+      dependencySequence: true,
+      sequence: true,
+      status: true,
+      subProcess: { select: { code: true } },
+    },
+  });
+
+  const hasStuckSuccessor = tasks.some((task, index) => {
+    if (!isDependencySatisfiedStatus(task.status)) return false;
+    const next = tasks[index + 1];
+    return next?.status === "PENDING";
+  });
+
+  if (!hasStuckSuccessor) return;
+
+  const correlationId = `workflow-reconcile-${designId.toString()}`;
+  await prisma.$transaction(async (tx) => {
+    for (const task of tasks) {
+      if (!isDependencySatisfiedStatus(task.status)) continue;
+      await unlockNextDependentTasks(
+        tx,
+        {
+          id: task.id,
+          designId: task.designId,
+          dependencySequence: task.dependencySequence,
+          sequence: task.sequence,
+        },
+        correlationId,
+      );
+    }
+  });
 }
 
 export async function updateDesign(

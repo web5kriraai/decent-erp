@@ -7,6 +7,7 @@ import {
   uploadObject,
   getPresignedDownloadUrl,
   deleteObject,
+  StorageError,
 } from "@/lib/storage";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -68,7 +69,14 @@ export async function POST(
 
       const buffer = Buffer.from(await file.arrayBuffer());
       const storageKey = buildStorageKey(id, file.name);
-      await uploadObject(storageKey, buffer, file.type || "application/octet-stream");
+      try {
+        await uploadObject(storageKey, buffer, file.type || "application/octet-stream");
+      } catch (error) {
+        if (error instanceof StorageError) {
+          throw new ApiError(error.message, 503, error.cause);
+        }
+        throw error;
+      }
 
       const image = await prisma.$transaction(async (tx) => {
         if (isPrimary) {

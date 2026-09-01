@@ -1,9 +1,12 @@
 "use client";
 
-import { Modal } from "@/components/ui/Modal";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+} from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { FormTextArea } from "@/components/ui/form-text-area";
 import { Button } from "@/components/ui/button";
 import type { HoldReason } from "@/lib/types/api";
 
@@ -43,21 +46,17 @@ export function TaskHoldDialog({
       description="Active work time pauses until you resume. Choose why you are putting this task on hold."
       onClose={onClose}
       footer={
-        <>
+        <ModalFooterActions>
           <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            disabled={!holdReasonId || isPending}
-            onClick={onSubmit}
-          >
+          <Button type="button" disabled={!holdReasonId || isPending} onClick={onSubmit}>
             {isPending ? "Holding…" : "Confirm Hold"}
           </Button>
-        </>
+        </ModalFooterActions>
       }
     >
-      <div className="space-y-5">
+      <ModalForm>
         <FormSelect
           id="holdReason"
           label="Hold Reason"
@@ -74,19 +73,16 @@ export function TaskHoldDialog({
           }
         />
 
-        <div className="space-y-2">
-          <Label htmlFor="holdRemark">Remark</Label>
-          <Textarea
-            id="holdRemark"
-            rows={3}
-            value={holdRemark}
-            onChange={(e) => onHoldRemarkChange(e.target.value)}
-            placeholder="Optional note for your team…"
-            disabled={isPending}
-            className="resize-none"
-          />
-        </div>
-      </div>
+        <FormTextArea
+          id="holdRemark"
+          label="Remark"
+          rows={3}
+          value={holdRemark}
+          onChange={(e) => onHoldRemarkChange(e.target.value)}
+          placeholder="Optional note for your team…"
+          disabled={isPending}
+        />
+      </ModalForm>
     </Modal>
   );
 }

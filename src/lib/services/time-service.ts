@@ -7,6 +7,7 @@ import {
   startOfUtcDay,
   type TimeEventRecord,
 } from "@/lib/services/time-calculation";
+import { MY_TASKS_VISIBLE_STATUSES } from "@/lib/services/task-dependency";
 
 const taskTimeInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true } },
@@ -98,7 +99,7 @@ export async function getEmployeeTimeSummary(employeeId: number, date = new Date
   const overdueCount = await prisma.designTask.count({
     where: {
       assignedEmployeeId: employeeId,
-      status: { notIn: ["COMPLETED", "CANCELLED"] },
+      status: { in: [...MY_TASKS_VISIBLE_STATUSES] },
       dueAt: { lt: now },
     },
   });
@@ -106,7 +107,7 @@ export async function getEmployeeTimeSummary(employeeId: number, date = new Date
   const openCount = await prisma.designTask.count({
     where: {
       assignedEmployeeId: employeeId,
-      status: { notIn: ["COMPLETED", "CANCELLED"] },
+      status: { in: [...MY_TASKS_VISIBLE_STATUSES] },
     },
   });
 

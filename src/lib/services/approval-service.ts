@@ -150,10 +150,11 @@ export async function submitApproval(
         where: { id: approverEmployeeId },
         include: { role: true },
       });
+      const requiredRole = await tx.role.findUnique({ where: { id: level.requiredRoleId } });
       const isAdmin = approver?.role?.code === "ADMIN";
       if (!isAdmin && approver?.roleId !== level.requiredRoleId) {
         throw new ApiError(
-          `This approval level requires role ${approver?.role?.name ?? "matching"} — you are not authorized`,
+          `This approval level requires role ${requiredRole?.name ?? "with matching permissions"} — you are not authorized`,
           403,
         );
       }

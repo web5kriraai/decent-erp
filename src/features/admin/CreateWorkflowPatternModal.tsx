@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Modal } from "@/components/ui/Modal";
+import {
+  Modal,
+  ModalAlert,
+  ModalFooterActions,
+  ModalForm,
+  ModalFormGrid,
+  ModalSection,
+} from "@/components/ui/Modal";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextField } from "@/components/ui/form-text-field";
+import { Button } from "@/components/ui/button";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { useProcessMasters, useProductTypes } from "@/hooks/use-masters";
 import type { CreateWorkflowPatternPayload } from "@/lib/types/api";
@@ -137,91 +147,64 @@ export function CreateWorkflowPatternModal({
     <Modal
       open={open}
       title="Create Workflow Pattern"
+      description="Define a reusable sequence of process steps for new designs."
       onClose={handleClose}
+      size="xl"
       footer={
-        <>
-          <button type="button" className="btn btn-secondary" onClick={handleClose}>
+        <ModalFooterActions>
+          <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={!canSubmit || isPending}
-            onClick={handleSubmit}
-          >
+          </Button>
+          <Button type="button" disabled={!canSubmit || isPending} onClick={handleSubmit}>
             {isPending ? "Creating…" : "Create Pattern"}
-          </button>
-        </>
+          </Button>
+        </ModalFooterActions>
       }
     >
-      <div style={{ display: "grid", gap: "1rem" }}>
-        {formError && <p className="form-error">{formError}</p>}
+      <ModalForm>
+        {formError ? <ModalAlert variant="error">{formError}</ModalAlert> : null}
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="patternName">
-            Pattern Name *
-          </label>
-          <input
-            id="patternName"
-            className="form-input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Standard Saree Development"
+        <FormTextField
+          id="patternName"
+          label="Pattern Name"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Standard Saree Development"
+        />
+
+        <ModalFormGrid>
+          <FormSelect
+            id="patternProductType"
+            label="Product Type"
+            value={productTypeId === "" ? null : String(productTypeId)}
+            onValueChange={(v) => setProductTypeId(v ? Number(v) : "")}
+            options={(productTypesQuery.data ?? []).map((pt) => ({
+              value: String(pt.id),
+              label: pt.name,
+            }))}
+            placeholder="Any product type"
           />
-        </div>
+          <FormTextField
+            id="patternVersion"
+            label="Version"
+            type="number"
+            min={1}
+            value={versionNo}
+            onChange={(e) => setVersionNo(e.target.value)}
+          />
+        </ModalFormGrid>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "1rem" }}>
-          <div className="form-group">
-            <label className="form-label" htmlFor="patternProductType">
-              Product Type
-            </label>
-            <select
-              id="patternProductType"
-              className="form-input"
-              value={productTypeId}
-              onChange={(e) =>
-                setProductTypeId(e.target.value ? Number(e.target.value) : "")
-              }
-            >
-              <option value="">Any product type</option>
-              {(productTypesQuery.data ?? []).map((pt) => (
-                <option key={pt.id} value={pt.id}>
-                  {pt.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="patternVersion">
-              Version
-            </label>
-            <input
-              id="patternVersion"
-              type="number"
-              min={1}
-              className="form-input"
-              value={versionNo}
-              onChange={(e) => setVersionNo(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "0.5rem",
-            }}
-          >
-            <span className="form-label">Task Steps *</span>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={addTaskRow}>
+        <ModalSection
+          title="Task Steps"
+          description="Add each process step in execution order."
+          action={
+            <Button type="button" variant="outline" size="sm" onClick={addTaskRow}>
               Add Step
-            </button>
-          </div>
-
-          <div style={{ display: "grid", gap: "0.75rem" }}>
+            </Button>
+          }
+        >
+          <div className="space-y-3">
             {tasks.map((task, index) => {
               const process = processes.find((p) => p.id === task.processId);
               const subProcesses = process?.subProcesses ?? [];
@@ -229,111 +212,90 @@ export function CreateWorkflowPatternModal({
               return (
                 <div
                   key={task.id}
-                  className="card"
-                  style={{ padding: "0.75rem", display: "grid", gap: "0.5rem" }}
+                  className="space-y-3 rounded-lg border border-border bg-muted/20 p-4"
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <strong>Step {index + 1}</strong>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-foreground">Step {index + 1}</p>
                     {tasks.length > 1 && (
-                      <button
+                      <Button
                         type="button"
-                        className="btn btn-ghost btn-sm"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
                         onClick={() => removeTaskRow(task.id)}
                       >
                         Remove
-                      </button>
+                      </Button>
                     )}
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Process</label>
-                      <select
-                        className="form-input"
-                        value={task.processId}
-                        onChange={(e) =>
-                          handleProcessChange(
-                            task,
-                            e.target.value ? Number(e.target.value) : "",
-                          )
-                        }
-                      >
-                        <option value="">Select process</option>
-                        {processes.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Sub-process</label>
-                      <select
-                        className="form-input"
-                        value={task.subProcessId}
-                        disabled={!task.processId}
-                        onChange={(e) =>
-                          handleSubProcessChange(
-                            task,
-                            e.target.value ? Number(e.target.value) : "",
-                          )
-                        }
-                      >
-                        <option value="">Select sub-process</option>
-                        {subProcesses.map((sp) => (
-                          <option key={sp.id} value={sp.id}>
-                            {sp.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  <ModalFormGrid>
+                    <FormSelect
+                      id={`task-${task.id}-process`}
+                      label="Process"
+                      required
+                      value={task.processId === "" ? null : String(task.processId)}
+                      onValueChange={(v) =>
+                        handleProcessChange(task, v ? Number(v) : "")
+                      }
+                      options={processes.map((p) => ({
+                        value: String(p.id),
+                        label: p.name,
+                      }))}
+                      placeholder="Select process"
+                    />
+                    <FormSelect
+                      id={`task-${task.id}-subprocess`}
+                      label="Sub-process"
+                      required
+                      value={task.subProcessId === "" ? null : String(task.subProcessId)}
+                      onValueChange={(v) =>
+                        handleSubProcessChange(task, v ? Number(v) : "")
+                      }
+                      options={subProcesses.map((sp) => ({
+                        value: String(sp.id),
+                        label: sp.name,
+                      }))}
+                      placeholder="Select sub-process"
+                      disabled={!task.processId}
+                    />
+                  </ModalFormGrid>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.5rem" }}>
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Default Role</label>
-                      <select
-                        className="form-input"
-                        value={task.defaultRoleId}
-                        onChange={(e) =>
-                          updateTask(task.id, {
-                            defaultRoleId: e.target.value ? Number(e.target.value) : "",
-                          })
-                        }
-                      >
-                        <option value="">Select role</option>
-                        {roles.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.displayName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">Minutes</label>
-                      <input
-                        type="number"
-                        min={1}
-                        className="form-input"
-                        value={task.expectedMinutes}
-                        onChange={(e) =>
-                          updateTask(task.id, { expectedMinutes: e.target.value })
-                        }
-                      />
-                    </div>
-                  </div>
+                  <ModalFormGrid>
+                    <FormSelect
+                      id={`task-${task.id}-role`}
+                      label="Default Role"
+                      required
+                      value={task.defaultRoleId === "" ? null : String(task.defaultRoleId)}
+                      onValueChange={(v) =>
+                        updateTask(task.id, {
+                          defaultRoleId: v ? Number(v) : "",
+                        })
+                      }
+                      options={roles.map((role) => ({
+                        value: String(role.id),
+                        label: role.displayName,
+                      }))}
+                      placeholder="Select role"
+                    />
+                    <FormTextField
+                      id={`task-${task.id}-minutes`}
+                      label="Minutes"
+                      required
+                      type="number"
+                      min={1}
+                      value={task.expectedMinutes}
+                      onChange={(e) =>
+                        updateTask(task.id, { expectedMinutes: e.target.value })
+                      }
+                    />
+                  </ModalFormGrid>
                 </div>
               );
             })}
           </div>
-        </div>
-      </div>
+        </ModalSection>
+      </ModalForm>
     </Modal>
   );
 }

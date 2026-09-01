@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { PauseIcon, PlayIcon, SquareIcon } from "lucide-react";
 
 type TimerWidgetProps = {
   status: "RUNNING" | "ON_HOLD" | "IDLE";
@@ -40,66 +43,65 @@ export function TimerWidget({
     return () => window.clearInterval(id);
   }, [elapsedSeconds, status]);
 
-  const widgetClass =
-    status === "RUNNING"
-      ? "timer-widget timer-widget--running"
-      : status === "ON_HOLD"
-        ? "timer-widget timer-widget--hold"
-        : "timer-widget";
-
-  const statusColor =
-    status === "RUNNING"
-      ? "var(--color-success)"
-      : status === "ON_HOLD"
-        ? "var(--color-warning)"
-        : "var(--color-neutral-500)";
+  const isActive = status === "RUNNING" || status === "ON_HOLD";
 
   return (
-    <div className={widgetClass}>
+    <div
+      className={cn(
+        "timer-widget",
+        status === "RUNNING" && "timer-widget--running",
+        status === "ON_HOLD" && "timer-widget--hold",
+      )}
+    >
+      <p className="timer-widget-label">Active Task Timer</p>
+
       <p
-        style={{
-          margin: 0,
-          fontSize: "var(--font-size-caption)",
-          color: "var(--color-neutral-500)",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-        }}
+        className="timer-display"
+        aria-live="polite"
+        aria-label={`Elapsed ${formatTime(displaySeconds)}`}
       >
-        Active Task Timer
-      </p>
-      <p className="timer-display" aria-live="polite" aria-label={`Elapsed ${formatTime(displaySeconds)}`}>
         {formatTime(displaySeconds)}
       </p>
-      <span className="timer-status" style={{ color: statusColor }}>
-        <span className="badge-dot" style={{ background: statusColor }} />
+
+      <span
+        className={cn(
+          "timer-status",
+          status === "RUNNING" && "timer-status--running",
+          status === "ON_HOLD" && "timer-status--hold",
+        )}
+      >
+        <span className="timer-status-dot" aria-hidden />
         {status.replace("_", " ")}
       </span>
-      {taskLabel && (
-        <p style={{ margin: "0.75rem 0 0", fontSize: "var(--font-size-body)", color: "var(--color-neutral-700)" }}>
+
+      {taskLabel ? (
+        <p className="timer-task-label" title={taskLabel}>
           {taskLabel}
         </p>
-      )}
+      ) : null}
+
       <div className="timer-actions">
-        {status === "RUNNING" && onHold && (
-          <button type="button" className="btn btn-secondary" onClick={onHold} aria-label="Hold task">
+        {status === "RUNNING" && onHold ? (
+          <Button type="button" variant="outline" size="sm" onClick={onHold}>
+            <PauseIcon />
             Hold
-          </button>
-        )}
-        {status === "ON_HOLD" && onResume && (
-          <button type="button" className="btn btn-primary" onClick={onResume} aria-label="Resume task">
+          </Button>
+        ) : null}
+        {status === "ON_HOLD" && onResume ? (
+          <Button type="button" size="sm" onClick={onResume}>
+            <PlayIcon />
             Resume
-          </button>
-        )}
-        {(status === "RUNNING" || status === "ON_HOLD") && onEnd && (
-          <button type="button" className="btn btn-danger" onClick={onEnd} aria-label="End task">
+          </Button>
+        ) : null}
+        {isActive && onEnd ? (
+          <Button type="button" variant="destructive" size="sm" onClick={onEnd}>
+            <SquareIcon />
             End Task
-          </button>
-        )}
-        {status === "IDLE" && (
-          <p style={{ margin: 0, fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
-            Start a task from the list to begin tracking time
-          </p>
-        )}
+          </Button>
+        ) : null}
+        {status === "IDLE" ? (
+          <p className="timer-idle-hint">Start a task from the board to begin tracking time.</p>
+        ) : null}
       </div>
     </div>
   );

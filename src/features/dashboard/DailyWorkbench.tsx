@@ -347,7 +347,7 @@ export function DailyWorkbench() {
                 </CardHeader>
                 <CardContent>
                   {openTasks.length === 0 ? (
-                    <QueueEmpty message="No open tasks — you're clear." />
+                    <QueueEmpty message="No tasks ready yet — prior stages must finish first." />
                   ) : (
                     <ul className="detail-task-list">
                       {[...openTasks]

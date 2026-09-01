@@ -57,9 +57,23 @@ export async function withApiHandler<T>(
     if (error instanceof ApiError) {
       return jsonError(error.message, error.status, correlationId, error.details);
     }
-    console.error(JSON.stringify({ correlationId, error: String(error) }));
+    console.error(
+      JSON.stringify({
+        correlationId,
+        error: formatErrorMessage(error),
+      }),
+    );
     return jsonError("Unexpected server error", 500, correlationId);
   }
+}
+
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof AggregateError) {
+    const nested = error.errors.map(formatErrorMessage).filter(Boolean);
+    return nested.length > 0 ? nested.join("; ") : error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
 export class ApiError extends Error {

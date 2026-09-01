@@ -5,14 +5,18 @@ import { ApiError } from "@/lib/api-utils";
 import type { Priority, TaskStatus } from "@prisma/client";
 import {
   DEPENDENCY_SATISFIED_STATUSES,
+  MY_TASKS_VISIBLE_STATUSES,
   effectiveDependencySequence,
+  initialStatusForCreate,
+  isTaskReady,
 } from "@/lib/services/task-dependency";
+import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
 
 export async function getMyTasks(employeeId: number) {
   return prisma.designTask.findMany({
     where: {
       assignedEmployeeId: employeeId,
-      status: { notIn: ["COMPLETED", "CANCELLED"] },
+      status: { in: [...MY_TASKS_VISIBLE_STATUSES] },
     },
     orderBy: [{ dueAt: "asc" }, { priority: "desc" }],
     include: {
@@ -30,18 +34,43 @@ export async function assignTask(
   actorId: number,
   correlationId: string,
 ) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const task = await tx.designTask.findUnique({ where: { id: taskId } });
     if (!task) throw new ApiError("Task not found", 404);
 
     const employee = await tx.employee.findUnique({ where: { id: employeeId, active: true } });
     if (!employee) throw new ApiError("Employee not found", 404);
 
+    const siblings = await tx.designTask.findMany({
+      where: { designId: task.designId },
+      select: {
+        id: true,
+        dependencySequence: true,
+        sequence: true,
+        status: true,
+      },
+    });
+    const ready = isTaskReady(
+      {
+        id: task.id,
+        dependencySequence: task.dependencySequence,
+        sequence: task.sequence,
+        status: task.status,
+      },
+      siblings,
+    );
+
+    // Park assignee on queued stages without releasing them to My Tasks
+    let nextStatus = task.status;
+    if (task.status === "PENDING" || task.status === "ASSIGNED") {
+      nextStatus = ready ? "ASSIGNED" : "PENDING";
+    }
+
     const updated = await tx.designTask.update({
       where: { id: taskId },
       data: {
         assignedEmployeeId: employeeId,
-        status: task.status === "PENDING" ? "ASSIGNED" : task.status,
+        status: nextStatus,
         version: { increment: 1 },
       },
       include: {
@@ -61,15 +90,17 @@ export async function assignTask(
       after: updated,
     });
 
-    return updated;
-  }).then(async (task) => {
+    return { updated, notify: nextStatus === "ASSIGNED" };
+  });
+
+  if (result.notify) {
     await enqueueOutboxAndNotify(
       "TASK_ASSIGNED",
-      { taskId: task.id.toString(), employeeId },
+      { taskId: result.updated.id.toString(), employeeId },
       correlationId,
     );
-    return task;
-  });
+  }
+  return result.updated;
 }
 
 export async function createManualTask(
@@ -81,15 +112,45 @@ export async function createManualTask(
     assignedRoleId: number;
     expectedMinutes: number;
     priority: Priority;
+    sequence?: number;
+    dependencySequence?: number | null;
   },
   userId: number,
   correlationId: string,
 ) {
   return prisma.$transaction(async (tx) => {
+    const siblings = await tx.designTask.findMany({
+      where: { designId: input.designId },
+      select: { id: true, dependencySequence: true, sequence: true, status: true },
+    });
+    const maxSeq = siblings.reduce((m, s) => Math.max(m, s.sequence), 0);
+    const sequence = input.sequence ?? maxSeq + 1;
+    const dependencySequence =
+      input.dependencySequence !== undefined ? input.dependencySequence : sequence;
+    const tentative = {
+      id: "new",
+      dependencySequence,
+      sequence,
+      status: "PENDING",
+    };
+    const ready = isTaskReady(tentative, siblings);
+    const status = initialStatusForCreate({
+      hasAssignee: input.assignedEmployeeId != null,
+      isReady: ready,
+    });
+
     const task = await tx.designTask.create({
       data: {
-        ...input,
-        status: input.assignedEmployeeId ? "ASSIGNED" : "PENDING",
+        designId: input.designId,
+        processId: input.processId,
+        subProcessId: input.subProcessId,
+        assignedEmployeeId: input.assignedEmployeeId,
+        assignedRoleId: input.assignedRoleId,
+        expectedMinutes: input.expectedMinutes,
+        priority: input.priority,
+        sequence,
+        dependencySequence,
+        status,
       },
     });
 
@@ -143,7 +204,7 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
     if (task.status === "ON_HOLD") {
       throw new ApiError("Task is on hold — use resume instead of start", 409);
     }
-    if (!["PENDING", "ASSIGNED"].includes(task.status)) {
+    if (task.status !== "ASSIGNED") {
       throw new ApiError(`Cannot start task in status ${task.status}`, 409);
     }
 
@@ -446,26 +507,27 @@ export async function endTask(
       },
     });
 
+    await tx.designConcept.update({
+      where: { id: task.designId },
+      data: {
+        currentStage: task.subProcess.code,
+        ...(nextStatus === "CHECKING"
+          ? { status: "ACTIVE" as const }
+          : {}),
+      },
+    });
+
     if (nextStatus === "COMPLETED" || nextStatus === "CHECKING") {
-      const depSeq = effectiveDependencySequence(task);
-      const next = await tx.designTask.findFirst({
-        where: {
+      await unlockNextDependentTasks(
+        tx,
+        {
+          id: task.id,
           designId: task.designId,
-          status: "PENDING",
-          assignedEmployeeId: { not: null },
-          OR: [
-            { dependencySequence: { gt: depSeq } },
-            { dependencySequence: null, sequence: { gt: depSeq } },
-          ],
+          dependencySequence: task.dependencySequence,
+          sequence: task.sequence,
         },
-        orderBy: [{ dependencySequence: "asc" }, { sequence: "asc" }],
-      });
-      if (next) {
-        await tx.designTask.update({
-          where: { id: next.id },
-          data: { status: "ASSIGNED", version: { increment: 1 } },
-        });
-      }
+        correlationId,
+      );
     }
 
     await writeAuditLog(tx, {
@@ -486,6 +548,141 @@ export async function endTask(
 
     return updated;
   });
+}
+
+/** One-step approve for workflow stage approval tasks (assign → start → complete). */
+export async function completeStageApproval(
+  taskId: bigint,
+  employeeId: number,
+  input: { outputRemark: string; version: number },
+  correlationId: string,
+) {
+  const result = await prisma.$transaction(async (tx) => {
+    const task = await tx.designTask.findUnique({
+      where: { id: taskId },
+      include: { subProcess: true },
+    });
+    if (!task) throw new ApiError("Task not found", 404);
+    if (!task.subProcess.isApproval) {
+      throw new ApiError("This action is only for approval stage tasks", 422);
+    }
+    if (task.version !== input.version) {
+      throw new ApiError("Concurrency conflict - refresh and retry", 409);
+    }
+    if (task.status === "COMPLETED" || task.status === "CANCELLED") {
+      throw new ApiError(`Task already ${task.status.toLowerCase().replace(/_/g, " ")}`, 409);
+    }
+    if (task.status === "PENDING") {
+      throw new ApiError("Approval task is not ready yet", 409);
+    }
+    if (task.status === "ON_HOLD") {
+      throw new ApiError("Task is on hold — resume it before approving", 409);
+    }
+    if (
+      task.assignedEmployeeId != null &&
+      task.assignedEmployeeId !== employeeId
+    ) {
+      throw new ApiError("Task is assigned to another employee", 403);
+    }
+
+    const now = new Date();
+    let status = task.status;
+
+    if (task.assignedEmployeeId == null) {
+      await tx.designTask.update({
+        where: { id: taskId },
+        data: { assignedEmployeeId: employeeId, version: { increment: 1 } },
+      });
+    }
+
+    if (status === "ASSIGNED") {
+      await tx.taskTimeEvent.create({
+        data: {
+          taskId,
+          employeeId,
+          eventType: "START",
+          eventTimeUtc: now,
+          createdById: employeeId,
+        },
+      });
+      await tx.designTask.update({
+        where: { id: taskId },
+        data: {
+          status: "RUNNING",
+          startedAt: task.startedAt ?? now,
+          version: { increment: 1 },
+        },
+      });
+      status = "RUNNING";
+    }
+
+    if (!["RUNNING", "CHECKING"].includes(status)) {
+      throw new ApiError(`Cannot approve task in status ${status}`, 409);
+    }
+
+    await tx.taskTimeEvent.create({
+      data: {
+        taskId,
+        employeeId,
+        eventType: "END",
+        remark: input.outputRemark,
+        eventTimeUtc: now,
+        createdById: employeeId,
+      },
+    });
+
+    const updated = await tx.designTask.update({
+      where: { id: taskId },
+      data: {
+        status: "COMPLETED",
+        outputRemark: input.outputRemark,
+        completedAt: now,
+        version: { increment: 1 },
+      },
+      include: {
+        assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
+        design: { select: { id: true, ideaRef: true, collectionName: true } },
+        process: true,
+        subProcess: true,
+      },
+    });
+
+    await tx.designConcept.update({
+      where: { id: task.designId },
+      data: { currentStage: task.subProcess.code },
+    });
+
+    await unlockNextDependentTasks(
+      tx,
+      {
+        id: task.id,
+        designId: task.designId,
+        dependencySequence: task.dependencySequence,
+        sequence: task.sequence,
+      },
+      correlationId,
+    );
+
+    await writeAuditLog(tx, {
+      entityType: "DesignTask",
+      entityId: taskId.toString(),
+      action: "APPROVE_STAGE",
+      userId: employeeId,
+      correlationId,
+      before: task,
+      after: updated,
+    });
+
+    return updated;
+  });
+
+  await enqueueOutboxAndNotify(
+    "TASK_COMPLETED",
+    { taskId: taskId.toString(), designId: result.designId.toString() },
+    correlationId,
+  );
+
+  return result;
 }
 
 async function spawnResampleTask(
@@ -518,6 +715,23 @@ async function spawnResampleTask(
     where: { designId: sourceTask.designId },
     _max: { sequence: true },
   });
+  const sequence = (maxSeq._max.sequence ?? 0) + 1;
+  const dependencySequence = (sourceTask.dependencySequence ?? sourceTask.sequence) + 1;
+
+  const siblings = await tx.designTask.findMany({
+    where: { designId: sourceTask.designId },
+    select: { id: true, dependencySequence: true, sequence: true, status: true },
+  });
+  // Source is ending in this transaction — treat its dep seq as satisfied for readiness
+  const sourceSeq = effectiveDependencySequence(sourceTask);
+  const adjusted = siblings.map((s) => ({
+    ...s,
+    status: effectiveDependencySequence(s) === sourceSeq ? "COMPLETED" : s.status,
+  }));
+  const ready = isTaskReady(
+    { id: "resample", dependencySequence, sequence, status: "PENDING" },
+    adjusted,
+  );
 
   await tx.designTask.create({
     data: {
@@ -526,11 +740,11 @@ async function spawnResampleTask(
       subProcessId: resample.id,
       assignedEmployeeId: assigneeId,
       assignedRoleId: roleId,
-      status: assigneeId ? "ASSIGNED" : "PENDING",
+      status: initialStatusForCreate({ hasAssignee: !!assigneeId, isReady: ready }),
       priority: sourceTask.priority,
       expectedMinutes: sourceTask.expectedMinutes,
-      sequence: (maxSeq._max.sequence ?? 0) + 1,
-      dependencySequence: (sourceTask.dependencySequence ?? sourceTask.sequence) + 1,
+      sequence,
+      dependencySequence,
     },
   });
 }

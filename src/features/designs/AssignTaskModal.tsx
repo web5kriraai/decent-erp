@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Modal } from "@/components/ui/Modal";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+} from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { Button } from "@/components/ui/button";
 import { useEmployeeOptions } from "@/hooks/use-corrections";
@@ -30,9 +34,14 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
     <Modal
       open={open}
       title={task ? `Assign: ${task.subProcess.name}` : "Assign Task"}
+      description={
+        task
+          ? `Choose who will work on ${task.process.name} → ${task.subProcess.name}.`
+          : undefined
+      }
       onClose={onClose}
       footer={
-        <>
+        <ModalFooterActions>
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
@@ -41,23 +50,25 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
             disabled={!employeeId || assignTask.isPending}
             onClick={handleSubmit}
           >
-            Assign
+            {assignTask.isPending ? "Assigning…" : "Assign"}
           </Button>
-        </>
+        </ModalFooterActions>
       }
     >
-      <FormSelect
-        id="assignEmployee"
-        label="Employee"
-        required
-        value={employeeId}
-        onValueChange={setEmployeeId}
-        placeholder="Select employee…"
-        options={(employeesQuery.data ?? []).map((e) => ({
-          value: String(e.id),
-          label: `${e.name} (${e.role.name})`,
-        }))}
-      />
+      <ModalForm>
+        <FormSelect
+          id="assignEmployee"
+          label="Employee"
+          required
+          value={employeeId}
+          onValueChange={setEmployeeId}
+          placeholder="Select employee…"
+          options={(employeesQuery.data ?? []).map((e) => ({
+            value: String(e.id),
+            label: `${e.name} (${e.role.name})`,
+          }))}
+        />
+      </ModalForm>
     </Modal>
   );
 }

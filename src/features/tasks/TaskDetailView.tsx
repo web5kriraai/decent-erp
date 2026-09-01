@@ -12,7 +12,6 @@ import { SkeletonRows } from "@/components/SkeletonRows";
 import { TaskTimeTimeline } from "@/components/time/TaskTimeTimeline";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
-import { TaskArtifactPanel, useTaskHasFiles } from "@/components/tasks/TaskArtifactPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ROUTES } from "@/config/routes";
@@ -64,11 +63,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const backHref = designId ? ROUTES.designs.detail(designId) : ROUTES.work.tasks;
   const backLabel = designId ? "Back to Design" : "Back to My Tasks";
 
-  const { hasFiles, isLoading: filesLoading } = useTaskHasFiles(
-    taskId,
-    task?.designId ?? task?.design.id ?? "",
-    !!task && canControl,
-  );
   const fileRequired = !!task?.subProcess?.isFileRequired;
   const isSampleCheck = task?.subProcess?.code === "SAMPLE_CHECK";
 
@@ -104,7 +98,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   async function handleEndSubmit() {
     if (!task || !endRemark.trim()) return;
-    if (fileRequired && !hasFiles) return;
     if (isSampleCheck && !sampleOutcome) return;
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
@@ -279,29 +272,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle>
-                  Task Files
-                  {fileRequired && !hasFiles ? " — required before completion" : ""}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {fileRequired && !hasFiles && canControl && (
-                  <p className="mb-3 text-sm text-amber-800">
-                    This sub-process requires at least one uploaded file before you can complete the
-                    task.
-                  </p>
-                )}
-                <TaskArtifactPanel
-                  taskId={task.id}
-                  designId={task.designId ?? task.design.id}
-                  canUpload={canControl}
-                  subProcessCode={task.subProcess.code}
-                />
-              </CardContent>
-            </Card>
-
-            <Card className="mt-6">
-              <CardHeader>
                 <CardTitle>Time event timeline</CardTitle>
               </CardHeader>
               <CardContent>
@@ -341,11 +311,10 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             checklistNote={checklistNote}
             onChecklistNoteChange={setChecklistNote}
             fileRequired={fileRequired}
-            hasUploadedFiles={hasFiles}
-            filesLoading={filesLoading}
             taskId={task.id}
             designId={task.designId ?? task.design.id}
             subProcessCode={task.subProcess.code}
+            subProcessName={task.subProcess.name}
             canUpload={canControl}
             isSampleCheck={isSampleCheck}
             sampleOutcome={sampleOutcome || undefined}

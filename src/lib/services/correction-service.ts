@@ -5,6 +5,12 @@ import { ApiError } from "@/lib/api-utils";
 import type { CorrectionType, CorrectionStatus, Prisma } from "@prisma/client";
 import { MISTAKE_CORRECTION_TYPES } from "@/lib/kpi-metrics";
 import { resolveEmployeesForRoles } from "@/lib/services/assignment-service";
+import {
+  effectiveDependencySequence,
+  initialStatusForCreate,
+  isTaskReady,
+} from "@/lib/services/task-dependency";
+import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
 
 function ratingImpactForType(type: CorrectionType): number {
   return MISTAKE_CORRECTION_TYPES.includes(type as (typeof MISTAKE_CORRECTION_TYPES)[number])
@@ -27,31 +33,6 @@ const correctionInclude = {
 } as const;
 
 type Tx = Prisma.TransactionClient;
-
-async function unlockNextDependentTask(tx: Tx, designId: bigint, fromTask: {
-  sequence: number;
-  dependencySequence: number | null;
-  assignedEmployeeId: number | null;
-}) {
-  const seq = fromTask.dependencySequence ?? fromTask.sequence;
-  const next = await tx.designTask.findFirst({
-    where: {
-      designId,
-      status: "PENDING",
-      OR: [
-        { dependencySequence: { gt: seq } },
-        { dependencySequence: null, sequence: { gt: seq } },
-      ],
-    },
-    orderBy: [{ dependencySequence: "asc" }, { sequence: "asc" }],
-  });
-  if (!next) return;
-  if (!next.assignedEmployeeId) return;
-  await tx.designTask.update({
-    where: { id: next.id },
-    data: { status: "ASSIGNED", version: { increment: 1 } },
-  });
-}
 
 async function createOrReopenRoutedTask(
   tx: Tx,
@@ -84,6 +65,7 @@ async function createOrReopenRoutedTask(
     assigneeId = map.get(subProcess.defaultRoleId) ?? null;
   }
 
+  // Rework of an already-released stage: reopen as ASSIGNED for immediate work
   if (existing && ["PENDING", "ASSIGNED", "CORRECTION_REQUIRED"].includes(existing.status)) {
     return tx.designTask.update({
       where: { id: existing.id },
@@ -102,6 +84,24 @@ async function createOrReopenRoutedTask(
     where: { designId: input.designId },
     _max: { sequence: true },
   });
+  const sequence = (maxSeq._max.sequence ?? 0) + 1;
+  const dependencySequence = (source?.dependencySequence ?? source?.sequence ?? 0) + 1;
+
+  const siblings = await tx.designTask.findMany({
+    where: { designId: input.designId },
+    select: { id: true, dependencySequence: true, sequence: true, status: true },
+  });
+  const sourceSeq = source
+    ? effectiveDependencySequence(source)
+    : dependencySequence - 1;
+  const adjusted = siblings.map((s) => ({
+    ...s,
+    status: effectiveDependencySequence(s) === sourceSeq ? "COMPLETED" : s.status,
+  }));
+  const ready = isTaskReady(
+    { id: "routed", dependencySequence, sequence, status: "PENDING" },
+    adjusted,
+  );
 
   return tx.designTask.create({
     data: {
@@ -110,11 +110,11 @@ async function createOrReopenRoutedTask(
       subProcessId: subProcess.id,
       assignedEmployeeId: assigneeId,
       assignedRoleId: subProcess.defaultRoleId ?? source?.assignedRoleId ?? 1,
-      status: assigneeId ? "ASSIGNED" : "PENDING",
+      status: initialStatusForCreate({ hasAssignee: !!assigneeId, isReady: ready }),
       priority: source?.priority ?? "HIGH",
       expectedMinutes: source?.expectedMinutes ?? 120,
-      sequence: (maxSeq._max.sequence ?? 0) + 1,
-      dependencySequence: (source?.dependencySequence ?? source?.sequence ?? 0) + 1,
+      sequence,
+      dependencySequence,
     },
   });
 }
@@ -262,7 +262,16 @@ export async function updateCorrection(
           },
         });
         if (nextStatus === "COMPLETED") {
-          await unlockNextDependentTask(tx, sourceTask.designId, sourceTask);
+          await unlockNextDependentTasks(
+            tx,
+            {
+              id: sourceTask.id,
+              designId: sourceTask.designId,
+              dependencySequence: sourceTask.dependencySequence,
+              sequence: sourceTask.sequence,
+            },
+            correlationId,
+          );
         }
       }
 

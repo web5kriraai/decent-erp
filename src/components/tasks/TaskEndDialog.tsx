@@ -1,16 +1,20 @@
 "use client";
 
-import { useMemo } from "react";
-import Link from "next/link";
-import { Modal } from "@/components/ui/Modal";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Modal,
+  ModalAlert,
+  ModalFooterActions,
+  ModalForm,
+  ModalSection,
+} from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { FormTextArea } from "@/components/ui/form-text-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CheckIcon } from "lucide-react";
 import type { ChecklistItemMaster } from "@/hooks/use-masters";
-import { TaskArtifactPanel } from "@/components/tasks/TaskArtifactPanel";
+import { TaskArtifactPanel, useTaskHasFiles } from "@/components/tasks/TaskArtifactPanel";
 
 type TaskEndDialogProps = {
   open: boolean;
@@ -25,16 +29,11 @@ type TaskEndDialogProps = {
   checklistNote: string;
   onChecklistNoteChange: (value: string) => void;
   fileRequired?: boolean;
-  hasUploadedFiles?: boolean;
-  filesLoading?: boolean;
-  /** Embed in-dialog upload when file is required (preferred). */
   taskId?: string;
   designId?: string;
   subProcessCode?: string;
+  subProcessName?: string;
   canUpload?: boolean;
-  /** Fallback link when in-dialog upload cannot be shown. */
-  uploadHref?: string;
-  /** When sub-process is SAMPLE_CHECK */
   isSampleCheck?: boolean;
   sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
   onSampleOutcomeChange?: (outcome: "APPROVE" | "REJECT" | "RESAMPLE") => void;
@@ -55,22 +54,32 @@ export function TaskEndDialog({
   checklistNote,
   onChecklistNoteChange,
   fileRequired,
-  hasUploadedFiles,
-  filesLoading,
   taskId,
   designId,
   subProcessCode,
+  subProcessName,
   canUpload = true,
-  uploadHref,
   isSampleCheck,
   sampleOutcome,
   onSampleOutcomeChange,
   onSubmit,
   isPending,
 }: TaskEndDialogProps) {
-  const fileWarning = !!fileRequired && !hasUploadedFiles;
-  const filesBlocking = fileWarning || (!!fileRequired && !!filesLoading);
-  const showInlineUpload = !!fileRequired && !!taskId && !!designId;
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (!open) setIsUploading(false);
+  }, [open]);
+
+  const { hasFiles, isLoading: filesLoading } = useTaskHasFiles(
+    taskId ?? "",
+    designId ?? "",
+    open && !!taskId && !!designId,
+  );
+
+  const showFileUpload = !!fileRequired && !!taskId && !!designId;
+  const fileWarning = showFileUpload && !hasFiles && !isUploading && !filesLoading;
+  const filesBlocking = showFileUpload && (filesLoading || isUploading || !hasFiles);
 
   const { pendingChecklist, passedCount, allChecklistPassed, isPartialChecklist } = useMemo(() => {
     const pending = checklistItems.filter((item) => !checklistResults[item.id]);
@@ -90,14 +99,20 @@ export function TaskEndDialog({
   const sampleApproveBlocked =
     !!isSampleCheck && sampleOutcome === "APPROVE" && !allChecklistPassed && checklistItems.length > 0;
 
-  const canSubmit =
+  const formComplete =
     !!endRemark.trim() &&
     !nonePassed &&
     (allChecklistPassed || (isPartialChecklist && notesOk)) &&
-    !filesBlocking &&
     sampleOk &&
-    !sampleApproveBlocked &&
-    !isPending;
+    !sampleApproveBlocked;
+
+  const canSubmit = formComplete && !filesBlocking && !isPending;
+
+  const completionDescription = showFileUpload
+    ? `Choose a file to upload for ${subProcessName ?? "this sub-process"}, then complete the details below.`
+    : checklistItems.length > 0
+      ? "Mark every checklist item as passed, or pass some and add notes for the rest."
+      : "Add your completion details and submit when ready.";
 
   function markAllPassed() {
     for (const item of checklistItems) {
@@ -105,145 +120,153 @@ export function TaskEndDialog({
     }
   }
 
+  function submitLabel() {
+    if (isPending) return "Submitting…";
+    if (isUploading) return "Waiting for upload…";
+    if (isPartialChecklist) return "Submit with notes";
+    return "Submit Completion";
+  }
+
   return (
     <Modal
       open={open}
       title="Complete Task"
-      description="Mark every checklist item as passed, or pass some and add notes for the rest."
+      description={completionDescription}
       onClose={onClose}
-      size="lg"
+      size={showFileUpload ? "xl" : "lg"}
       footer={
-        <>
-          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+        <ModalFooterActions>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isPending || isUploading}>
             Cancel
           </Button>
           <Button type="button" disabled={!canSubmit} onClick={onSubmit}>
-            {isPending
-              ? "Submitting…"
-              : isPartialChecklist
-                ? "Submit with notes"
-                : "Submit Completion"}
+            {submitLabel()}
           </Button>
-        </>
+        </ModalFooterActions>
       }
     >
-      <div className="space-y-5">
-        {fileWarning && (
-          <div
-            className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-            role="alert"
-          >
-            This sub-process requires at least one uploaded file before completion.
-            {showInlineUpload ? (
-              <> Upload a file in the Task Files section below, then try again.</>
-            ) : uploadHref ? (
-              <>
-                {" "}
-                <Link href={uploadHref} className="font-medium underline underline-offset-2">
-                  Upload a file on the task detail page
-                </Link>
-                , then open Complete Task again.
-              </>
-            ) : (
-              <> Upload a task file for this sub-process, then try again.</>
-            )}
-          </div>
-        )}
-        {!!fileRequired && !!filesLoading && !hasUploadedFiles && (
-          <p className="text-sm text-muted-foreground">Checking uploaded files…</p>
-        )}
-
-        {showInlineUpload && (
-          <div className="space-y-2">
-            <Label>
-              Task Files
-              {fileWarning ? (
-                <>
-                  {" "}
-                  <span className="text-destructive">*</span>
-                </>
-              ) : null}
-            </Label>
-            <TaskArtifactPanel
-              taskId={taskId}
-              designId={designId}
-              canUpload={canUpload && !isPending}
-              subProcessCode={subProcessCode}
-            />
-          </div>
-        )}
-
-        {isSampleCheck && (
-          <FormSelect
-            id="sampleOutcome"
-            label="Sample Check Decision"
-            value={sampleOutcome ?? ""}
-            onValueChange={(v) =>
-              onSampleOutcomeChange?.(v as "APPROVE" | "REJECT" | "RESAMPLE")
+      <ModalForm className="pb-2">
+        {showFileUpload && (
+          <ModalSection
+            title="Task Files"
+            description={
+              subProcessName
+                ? `Supporting files for ${subProcessName}. Upload starts automatically when you choose a file.`
+                : "Supporting files for this sub-process. Upload starts automatically when you choose a file."
             }
-            options={[
-              { value: "APPROVE", label: "Approve sample" },
-              { value: "REJECT", label: "Reject (correction required)" },
-              { value: "RESAMPLE", label: "Send for re-sample" },
-            ]}
-            placeholder="Select outcome…"
-            disabled={isPending}
-          />
-        )}
-        {sampleApproveBlocked && (
-          <p className="text-xs text-destructive" role="alert">
-            Approve requires every checklist item to pass. Use Reject or Re-sample if items failed.
-          </p>
+            action={
+              hasFiles ? (
+                <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                  Uploaded
+                </span>
+              ) : isUploading ? (
+                <span className="inline-flex shrink-0 items-center rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
+                  Uploading…
+                </span>
+              ) : (
+                <span className="inline-flex shrink-0 items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+                  Required
+                </span>
+              )
+            }
+          >
+            {fileWarning && (
+              <ModalAlert variant="warning">
+                Choose a file below — it uploads automatically. Submit unlocks once the upload
+                completes.
+              </ModalAlert>
+            )}
+            {isUploading && (
+              <ModalAlert variant="info">
+                Your file is uploading. Submit will be available in a moment.
+              </ModalAlert>
+            )}
+            {filesLoading && !hasFiles && !isUploading ? (
+              <p className="text-sm text-muted-foreground">Checking uploaded files…</p>
+            ) : null}
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <TaskArtifactPanel
+                taskId={taskId}
+                designId={designId}
+                canUpload={canUpload && !isPending}
+                subProcessCode={subProcessCode}
+                compact
+                onUploadingChange={setIsUploading}
+              />
+            </div>
+          </ModalSection>
         )}
 
         {!isSampleCheck && (
           <FormSelect
             id="endStatus"
             label="Completion Status"
+            required
             value={endStatus}
             onValueChange={(v) => onEndStatusChange(v as "CHECKING" | "COMPLETED")}
             options={[
               { value: "CHECKING", label: "Send for Checking" },
               { value: "COMPLETED", label: "Mark Completed" },
             ]}
-            disabled={isPending}
+            disabled={isPending || isUploading}
           />
         )}
 
-        <div className="space-y-2">
-          <Label htmlFor="endRemark">
-            Output Remark <span className="text-destructive">*</span>
-          </Label>
-          <Textarea
-            id="endRemark"
-            rows={3}
-            value={endRemark}
-            onChange={(e) => onEndRemarkChange(e.target.value)}
-            placeholder="Describe work completed…"
-            disabled={isPending}
-            className="resize-none"
-          />
-        </div>
+        {isSampleCheck && (
+          <ModalSection title="Sample Check">
+            <FormSelect
+              id="sampleOutcome"
+              label="Sample Check Decision"
+              required
+              value={sampleOutcome ?? ""}
+              onValueChange={(v) =>
+                onSampleOutcomeChange?.(v as "APPROVE" | "REJECT" | "RESAMPLE")
+              }
+              options={[
+                { value: "APPROVE", label: "Approve sample" },
+                { value: "REJECT", label: "Reject (correction required)" },
+                { value: "RESAMPLE", label: "Send for re-sample" },
+              ]}
+              placeholder="Select outcome…"
+              disabled={isPending || isUploading}
+            />
+            {sampleApproveBlocked && (
+              <p className="text-xs text-destructive" role="alert">
+                Approve requires every checklist item to pass. Use Reject or Re-sample if items
+                failed.
+              </p>
+            )}
+          </ModalSection>
+        )}
+
+        <FormTextArea
+          id="endRemark"
+          label="Output Remark"
+          required
+          rows={3}
+          value={endRemark}
+          onChange={(e) => onEndRemarkChange(e.target.value)}
+          placeholder="Describe work completed…"
+          disabled={isPending || isUploading}
+        />
 
         {checklistItems.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label>
-                Quality Checklist <span className="text-destructive">*</span>
-              </Label>
-              <button
+          <ModalSection
+            title="Quality Checklist"
+            description="Check all items to complete normally. If only some pass, add notes for the rest."
+            action={
+              <Button
                 type="button"
-                className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 px-2 text-xs"
                 onClick={markAllPassed}
-                disabled={isPending || allChecklistPassed}
+                disabled={isPending || isUploading || allChecklistPassed}
               >
-                Mark all as passed
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Check all items to complete normally. If only some pass, add notes for the items that
-              did not.
-            </p>
+                Mark all passed
+              </Button>
+            }
+          >
             <div className="grid gap-2">
               {checklistItems.map((item) => {
                 const passed = !!checklistResults[item.id];
@@ -251,11 +274,11 @@ export function TaskEndDialog({
                   <label
                     key={item.id}
                     className={cn(
-                      "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors",
+                      "flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors",
                       passed
-                        ? "border-emerald-200 bg-emerald-50/80"
+                        ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/40 dark:bg-emerald-950/20"
                         : "border-border bg-background hover:bg-muted/40",
-                      isPending && "pointer-events-none opacity-60",
+                      (isPending || isUploading) && "pointer-events-none opacity-60",
                     )}
                   >
                     <span
@@ -273,7 +296,7 @@ export function TaskEndDialog({
                       type="checkbox"
                       className="sr-only"
                       checked={passed}
-                      disabled={isPending}
+                      disabled={isPending || isUploading}
                       onChange={(e) => onChecklistChange(item.id, e.target.checked)}
                     />
                     <span className="min-w-0 flex-1">
@@ -294,36 +317,43 @@ export function TaskEndDialog({
             )}
 
             {isPartialChecklist && (
-              <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-                <Label htmlFor="checklistNote">
-                  Notes for items that did not pass <span className="text-destructive">*</span>
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {pendingChecklist.length === 1
-                    ? `Explain why “${pendingChecklist[0].name}” is not confirmed.`
-                    : `Explain why these items are not confirmed: ${pendingChecklist
-                        .map((i) => i.name)
-                        .join(", ")}.`}
-                </p>
-                <Textarea
+              <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+                <FormTextArea
                   id="checklistNote"
+                  label="Notes for items that did not pass"
+                  required
                   rows={3}
                   value={checklistNote}
                   onChange={(e) => onChecklistNoteChange(e.target.value)}
                   placeholder="Message / notes for your checker or team…"
-                  disabled={isPending}
-                  className="resize-none bg-background"
+                  disabled={isPending || isUploading}
+                  hint={
+                    pendingChecklist.length === 1
+                      ? `Explain why “${pendingChecklist[0].name}” is not confirmed.`
+                      : `Explain why these items are not confirmed: ${pendingChecklist
+                          .map((i) => i.name)
+                          .join(", ")}.`
+                  }
+                  error={
+                    !checklistNote.trim()
+                      ? "Notes are required when only some checklist items are passed."
+                      : undefined
+                  }
+                  className="bg-background"
                 />
-                {!checklistNote.trim() && (
-                  <p className="text-xs text-destructive" role="alert">
-                    Notes are required when only some checklist items are passed.
-                  </p>
-                )}
               </div>
             )}
-          </div>
+          </ModalSection>
         )}
-      </div>
+
+        {!canSubmit && formComplete && filesBlocking && !isPending && (
+          <p className="text-xs text-muted-foreground" role="status">
+            {isUploading
+              ? "Finish uploading your file to enable submit."
+              : "Upload at least one file to enable submit."}
+          </p>
+        )}
+      </ModalForm>
     </Modal>
   );
 }

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Modal } from "@/components/ui/Modal";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+  ModalFormGrid,
+} from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { FormTextField } from "@/components/ui/form-text-field";
@@ -49,9 +54,11 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
     <Modal
       open={open}
       title="Edit Design Concept"
+      description="Update collection details and references for this design."
       onClose={onClose}
+      size="lg"
       footer={
-        <>
+        <ModalFooterActions>
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
@@ -60,25 +67,27 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             disabled={!collectionName.trim() || updateDesign.isPending}
             onClick={handleSave}
           >
-            Save
+            {updateDesign.isPending ? "Saving…" : "Save"}
           </Button>
-        </>
+        </ModalFooterActions>
       }
     >
-      <div className="form-grid">
-        <FormTextField
-          id="editCollection"
-          label="Collection Name"
-          required
-          value={collectionName}
-          onChange={(e) => setCollectionName(e.target.value)}
-        />
-        <FormTextField
-          id="editStyleName"
-          label="Style Name"
-          value={styleName}
-          onChange={(e) => setStyleName(e.target.value)}
-        />
+      <ModalForm>
+        <ModalFormGrid>
+          <FormTextField
+            id="editCollection"
+            label="Collection Name"
+            required
+            value={collectionName}
+            onChange={(e) => setCollectionName(e.target.value)}
+          />
+          <FormTextField
+            id="editStyleName"
+            label="Style Name"
+            value={styleName}
+            onChange={(e) => setStyleName(e.target.value)}
+          />
+        </ModalFormGrid>
         <FormSelect
           id="editWorkType"
           label="Work Type"
@@ -94,19 +103,21 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
           value={conceptNote}
           onChange={(e) => setConceptNote(e.target.value)}
         />
-        <FormTextField
-          id="editTrend"
-          label="Trend Reference"
-          value={trendReference}
-          onChange={(e) => setTrendReference(e.target.value)}
-        />
-        <FormTextField
-          id="editCelebrity"
-          label="Celebrity Reference"
-          value={celebrityReference}
-          onChange={(e) => setCelebrityReference(e.target.value)}
-        />
-      </div>
+        <ModalFormGrid>
+          <FormTextField
+            id="editTrend"
+            label="Trend Reference"
+            value={trendReference}
+            onChange={(e) => setTrendReference(e.target.value)}
+          />
+          <FormTextField
+            id="editCelebrity"
+            label="Celebrity Reference"
+            value={celebrityReference}
+            onChange={(e) => setCelebrityReference(e.target.value)}
+          />
+        </ModalFormGrid>
+      </ModalForm>
     </Modal>
   );
 }

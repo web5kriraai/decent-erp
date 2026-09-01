@@ -8,6 +8,7 @@ export const USERS = {
   admin: { email: "admin@decent-erp.local", password: ADMIN_PASSWORD },
   designHead: { email: "designhead@decent-erp.local", password: DEMO_PASSWORD },
   sketch: { email: "sketch@decent-erp.local", password: DEMO_PASSWORD },
+  punch: { email: "punch@decent-erp.local", password: DEMO_PASSWORD },
   checker: { email: "checker@decent-erp.local", password: DEMO_PASSWORD },
   costing: { email: "costing@decent-erp.local", password: DEMO_PASSWORD },
   production: { email: "production@decent-erp.local", password: DEMO_PASSWORD },

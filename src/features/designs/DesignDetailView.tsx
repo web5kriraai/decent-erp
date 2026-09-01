@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
@@ -9,10 +9,12 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { ROUTES } from "@/config/routes";
 import { useDesign } from "@/hooks/use-designs";
-import { useRequestDesignApproval } from "@/hooks/use-approvals";
 import { ImageGallery } from "@/components/ImageGallery";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
+import { DesignWorkflowPanel } from "@/components/designs/DesignWorkflowPanel";
+import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprovalCard";
+import { getPendingStageApproval } from "@/lib/design-workflow";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
 
@@ -25,17 +27,25 @@ export function DesignDetailView({
 }) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
+  const employeeId = session?.user?.employeeId;
   const designQuery = useDesign(designId);
-  const requestApproval = useRequestDesignApproval();
   const [assignTask, setAssignTask] = useState<DesignTask | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
-  const canRequestApproval =
-    permissions.includes(PERMISSIONS.DESIGN_APPROVE) &&
-    designQuery.data &&
-    ["DRAFT", "ACTIVE"].includes(designQuery.data.status);
+  const canApprove = permissions.includes(PERMISSIONS.DESIGN_APPROVE);
+  const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
+
+  const pendingStageApproval = useMemo(() => {
+    if (!designQuery.data) return null;
+    return getPendingStageApproval({
+      design: designQuery.data,
+      employeeId,
+      canApprove,
+      canExecute,
+    });
+  }, [canApprove, canExecute, designQuery.data, employeeId]);
 
   return (
     <div className="page-shell">
@@ -60,16 +70,6 @@ export function DesignDetailView({
                       Edit Concept
                     </button>
                   )}
-                  {canRequestApproval && (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      disabled={requestApproval.isPending}
-                      onClick={() => requestApproval.mutate(designId)}
-                    >
-                      Request Approval
-                    </button>
-                  )}
                   <Link href={ROUTES.designs.list} className="btn btn-secondary btn-sm">
                     Back
                   </Link>
@@ -90,6 +90,28 @@ export function DesignDetailView({
                 </p>
               </div>
             )}
+
+            {pendingStageApproval ? (
+              <InlineStageApprovalCard
+                designId={designId}
+                design={designQuery.data}
+                approvalTask={pendingStageApproval.approvalTask}
+                workTask={pendingStageApproval.workTask}
+                employeeId={employeeId}
+                canAssign={canAssign}
+              />
+            ) : null}
+
+            <div className="mb-6">
+              <DesignWorkflowPanel
+                design={designQuery.data}
+                designId={designId}
+                employeeId={employeeId}
+                canApprove={canApprove}
+                canExecute={canExecute}
+                canAssign={canAssign}
+              />
+            </div>
 
             <div
               style={{

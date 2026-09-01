@@ -1,5 +1,10 @@
 import type { Prisma, Priority } from "@prisma/client";
 import { resolveEmployeesForRoles } from "@/lib/services/assignment-service";
+import {
+  effectiveDependencySequence,
+  initialStatusForCreate,
+  minReadyDependencySequence,
+} from "@/lib/services/task-dependency";
 
 type PatternTaskRow = {
   processId: number;
@@ -33,6 +38,28 @@ function addWorkingDays(base: Date, dayOffset: number): Date {
   return result;
 }
 
+/** Only the lowest dep-seq row(s) with an assignee become ASSIGNED; later stages stay PENDING. */
+export function applyCreateReadiness(tasks: TaskCreateRow[]): TaskCreateRow[] {
+  if (tasks.length === 0) return tasks;
+  const minReady = minReadyDependencySequence(
+    tasks.map((t) => ({
+      dependencySequence: t.dependencySequence ?? null,
+      sequence: t.sequence,
+    })),
+  );
+  return tasks.map((t) => ({
+    ...t,
+    status: initialStatusForCreate({
+      hasAssignee: t.assignedEmployeeId != null,
+      isReady:
+        effectiveDependencySequence({
+          dependencySequence: t.dependencySequence ?? null,
+          sequence: t.sequence,
+        }) === minReady,
+    }),
+  }));
+}
+
 export async function buildTasksFromPatternTasks(
   designId: bigint,
   patternTasks: PatternTaskRow[],
@@ -41,7 +68,7 @@ export async function buildTasksFromPatternTasks(
   const base = options?.baseDate ?? new Date();
   const roleMap = await resolveEmployeesForRoles(patternTasks.map((p) => p.defaultRoleId));
 
-  return patternTasks.map((pt, index) => {
+  const rows: TaskCreateRow[] = patternTasks.map((pt, index) => {
     const plannedStart = addWorkingDays(base, pt.dayOffset);
     const dueAt = new Date(plannedStart.getTime() + pt.expectedMinutes * 60_000);
     const resolvedEmployee = roleMap.get(pt.defaultRoleId) ?? undefined;
@@ -60,9 +87,11 @@ export async function buildTasksFromPatternTasks(
       dependencySequence: pt.dependencySequence,
       plannedStart,
       dueAt,
-      status: assignee ? "ASSIGNED" : "PENDING",
+      status: "PENDING",
     };
   });
+
+  return applyCreateReadiness(rows);
 }
 
 export async function createDesignProcessInstances(
@@ -87,8 +116,12 @@ export async function createDesignProcessInstances(
         processId,
         sequence: processSeq++,
         status: "PENDING",
-        plannedStart: plannedStarts.length ? new Date(Math.min(...plannedStarts.map((d) => d.getTime()))) : null,
-        plannedEnd: dueDates.length ? new Date(Math.max(...dueDates.map((d) => d.getTime()))) : null,
+        plannedStart: plannedStarts.length
+          ? new Date(Math.min(...plannedStarts.map((d) => d.getTime())))
+          : null,
+        plannedEnd: dueDates.length
+          ? new Date(Math.max(...dueDates.map((d) => d.getTime())))
+          : null,
       },
     });
 

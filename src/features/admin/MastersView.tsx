@@ -6,7 +6,15 @@ import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
-import { Modal } from "@/components/ui/Modal";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+  ModalFormGrid,
+} from "@/components/ui/Modal";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextField } from "@/components/ui/form-text-field";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useProcessMasters } from "@/hooks/use-masters";
@@ -231,135 +239,110 @@ export function MastersView() {
       <Modal
         open={processModalOpen}
         title="Add Process"
+        description="Create a new top-level process for workflow patterns and task routing."
         onClose={() => setProcessModalOpen(false)}
         footer={
-          <>
-            <button type="button" className="btn btn-secondary" onClick={() => setProcessModalOpen(false)}>
+          <ModalFooterActions>
+            <Button type="button" variant="outline" onClick={() => setProcessModalOpen(false)}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="btn btn-primary"
               disabled={!code || !name || createProcess.isPending}
               onClick={() => createProcess.mutate()}
             >
-              Create
-            </button>
-          </>
+              {createProcess.isPending ? "Creating…" : "Create"}
+            </Button>
+          </ModalFooterActions>
         }
       >
-        <div className="form-group">
-          <label className="form-label" htmlFor="procCode">
-            Code *
-          </label>
-          <input
+        <ModalForm>
+          <FormTextField
             id="procCode"
-            className="form-input"
+            label="Code"
+            required
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="procName">
-            Name *
-          </label>
-          <input
+          <FormTextField
             id="procName"
-            className="form-input"
+            label="Name"
+            required
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="procSeq">
-            Sequence
-          </label>
-          <input
+          <FormTextField
             id="procSeq"
+            label="Sequence"
             type="number"
-            className="form-input"
             value={sequence}
             onChange={(e) => setSequence(e.target.value)}
           />
-        </div>
+        </ModalForm>
       </Modal>
 
       <Modal
         open={subProcessModalOpen}
         title="Add Sub-process"
+        description="Add a step under the selected process with an optional default role."
         onClose={() => setSubProcessModalOpen(false)}
         footer={
-          <>
-            <button
+          <ModalFooterActions>
+            <Button
               type="button"
-              className="btn btn-secondary"
+              variant="outline"
               onClick={() => setSubProcessModalOpen(false)}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="btn btn-primary"
               disabled={!subCode || !subName || createSubProcess.isPending}
               onClick={() => createSubProcess.mutate()}
             >
-              Create
-            </button>
-          </>
+              {createSubProcess.isPending ? "Creating…" : "Create"}
+            </Button>
+          </ModalFooterActions>
         }
       >
-        <div className="form-group">
-          <label className="form-label" htmlFor="subCode">
-            Code *
-          </label>
-          <input
-            id="subCode"
-            className="form-input"
-            value={subCode}
-            onChange={(e) => setSubCode(e.target.value)}
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="subName">
-            Name *
-          </label>
-          <input
-            id="subName"
-            className="form-input"
-            value={subName}
-            onChange={(e) => setSubName(e.target.value)}
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="subSeq">
-            Sequence
-          </label>
-          <input
-            id="subSeq"
-            type="number"
-            className="form-input"
-            value={subSequence}
-            onChange={(e) => setSubSequence(e.target.value)}
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="subRole">
-            Default Role
-          </label>
-          <select
-            id="subRole"
-            className="form-input"
-            value={defaultRoleId}
-            onChange={(e) => setDefaultRoleId(e.target.value ? Number(e.target.value) : "")}
-          >
-            <option value="">Select role (optional)</option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.displayName}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ModalForm>
+          <ModalFormGrid>
+            <FormTextField
+              id="subCode"
+              label="Code"
+              required
+              value={subCode}
+              onChange={(e) => setSubCode(e.target.value)}
+            />
+            <FormTextField
+              id="subName"
+              label="Name"
+              required
+              value={subName}
+              onChange={(e) => setSubName(e.target.value)}
+            />
+          </ModalFormGrid>
+          <ModalFormGrid>
+            <FormTextField
+              id="subSeq"
+              label="Sequence"
+              type="number"
+              value={subSequence}
+              onChange={(e) => setSubSequence(e.target.value)}
+            />
+            <FormSelect
+              id="subRole"
+              label="Default Role"
+              value={defaultRoleId === "" ? null : String(defaultRoleId)}
+              onValueChange={(v) => setDefaultRoleId(v ? Number(v) : "")}
+              options={roles.map((role) => ({
+                value: String(role.id),
+                label: role.displayName,
+              }))}
+              placeholder="Select role (optional)"
+            />
+          </ModalFormGrid>
+        </ModalForm>
       </Modal>
     </div>
   );
