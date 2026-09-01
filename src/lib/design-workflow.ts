@@ -18,7 +18,7 @@ import {
 } from "@/lib/workflow-actions";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 
-const SATISFIED_STATUSES = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
+const SATISFIED_STATUSES = new Set(["COMPLETED", "CHECKING", "CANCELLED", "SKIPPED"]);
 const ACTIONABLE_STATUSES = new Set([
   "ASSIGNED",
   "RUNNING",
@@ -106,7 +106,7 @@ function findCurrentStepIndex(ordered: DesignTask[], siblings: StageGateSibling[
   if (correctionIdx >= 0) return correctionIdx;
 
   const firstOpenIdx = effective.findIndex(
-    (status) => status !== "COMPLETED" && status !== "CANCELLED",
+    (status) => status !== "COMPLETED" && status !== "CANCELLED" && status !== "SKIPPED",
   );
   return firstOpenIdx >= 0 ? firstOpenIdx : Math.max(0, ordered.length - 1);
 }
@@ -117,6 +117,7 @@ function workflowDisplayStatus(
   isUpcoming: boolean,
 ): string {
   if (isUpcoming) return "UPCOMING";
+  if (effectiveStatus === "SKIPPED") return "SKIPPED";
   if (effectiveStatus === "COMPLETED") return "COMPLETED";
   if (isCurrent && (effectiveStatus === "RUNNING" || effectiveStatus === "ON_HOLD")) {
     return "IN_PROGRESS";
@@ -142,7 +143,8 @@ export function buildWorkflowSteps(tasks: DesignTask[] | undefined): WorkflowSte
       siblings,
     );
     const isDone = effectiveStatus === "COMPLETED";
-    const isUpcoming = task.status === "PENDING" && index > currentIdx;
+    const isSkipped = task.status === "SKIPPED";
+    const isUpcoming = task.status === "PENDING" && index > currentIdx && !isSkipped;
     const isCurrent = index === currentIdx && !isDone && !isUpcoming;
     const hasLaterOpenWork = ordered.slice(index + 1).some((t) => {
       const laterEffective = resolveEffectiveTaskStatus(
@@ -250,7 +252,7 @@ export function getPendingStageApproval(input: {
   if (
     sketch?.status === "CHECKING" &&
     sketchApproval &&
-    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"].includes(sketchApproval.status)
+    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"].includes(sketchApproval.status)
   ) {
     const ready = isTaskReady(
       {
@@ -262,7 +264,66 @@ export function getPendingStageApproval(input: {
       siblings,
     );
     if (ready) {
-      return { approvalTask: sketchApproval, workTask: sketch };
+      const isMine =
+        employeeId != null && sketchApproval.assignedEmployeeId === employeeId;
+      const isUnassigned = sketchApproval.assignedEmployeeId == null;
+      if (isMine || isUnassigned || canApprove) {
+        return { approvalTask: sketchApproval, workTask: sketch };
+      }
+    }
+  }
+
+  const machineSample = tasks.find((t) => t.subProcess?.code === "MACHINE_SAMPLE");
+  const sampleCheck = tasks.find((t) => t.subProcess?.code === "SAMPLE_CHECK");
+  if (
+    machineSample?.status === "CHECKING" &&
+    sampleCheck &&
+    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"].includes(sampleCheck.status)
+  ) {
+    const ready = isTaskReady(
+      {
+        id: sampleCheck.id,
+        dependencySequence: sampleCheck.dependencySequence ?? null,
+        sequence: sampleCheck.sequence,
+        status: sampleCheck.status,
+      },
+      siblings,
+    );
+    if (ready) {
+      const isMine = employeeId != null && sampleCheck.assignedEmployeeId === employeeId;
+      const isUnassigned = sampleCheck.assignedEmployeeId == null;
+      if (isMine || isUnassigned || canApprove) {
+        return { approvalTask: sampleCheck, workTask: machineSample };
+      }
+    }
+  }
+
+  const costing = tasks.find((t) => t.subProcess?.code === "COSTING");
+  const finalApproval = tasks.find((t) => t.subProcess?.code === "FINAL_APPROVAL");
+  if (
+    costing &&
+    ["CHECKING", "COMPLETED"].includes(costing.status) &&
+    finalApproval &&
+    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"].includes(finalApproval.status)
+  ) {
+    const ready = isTaskReady(
+      {
+        id: finalApproval.id,
+        dependencySequence: finalApproval.dependencySequence ?? null,
+        sequence: finalApproval.sequence,
+        status: finalApproval.status,
+      },
+      siblings,
+    );
+    if (ready) {
+      const isMine = employeeId != null && finalApproval.assignedEmployeeId === employeeId;
+      const isUnassigned = finalApproval.assignedEmployeeId == null;
+      if (isMine || isUnassigned || canApprove) {
+        return {
+          approvalTask: finalApproval,
+          workTask: costing.status === "CHECKING" ? costing : undefined,
+        };
+      }
     }
   }
 
@@ -289,7 +350,13 @@ export function getPendingStageApproval(input: {
     const workTask =
       code === "SKETCH_APPROVAL"
         ? tasks.find((t) => t.subProcess?.code === "SKETCH")
-        : undefined;
+        : code === "SAMPLE_CHECK"
+          ? tasks.find(
+              (t) => t.subProcess?.code === "MACHINE_SAMPLE" && t.status === "CHECKING",
+            )
+          : code === "FINAL_APPROVAL"
+            ? tasks.find((t) => t.subProcess?.code === "COSTING" && t.status === "CHECKING")
+            : undefined;
 
     return { approvalTask: task, workTask };
   }

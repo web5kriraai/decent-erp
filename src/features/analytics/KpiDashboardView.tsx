@@ -22,6 +22,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import Link from "next/link";
 import { ROUTES } from "@/config/routes";
+import { SPEC_KPI_METRICS } from "@/lib/kpi-metrics";
 
 type KpiRow = {
   id: string;
@@ -73,11 +74,16 @@ export function KpiDashboardView() {
     }, {}),
   );
 
+  const metricCoverage = SPEC_KPI_METRICS.map((metric) => ({
+    ...metric,
+    scored: data.filter((row) => row.metricCode === metric.code).length,
+  }));
+
   return (
     <div className="page-shell">
       <PageHeader
         title="Performance KPI"
-        subtitle="Weighted employee scores by role and period"
+        subtitle="Nine weighted metrics (spec §9.1) across roles and period"
         actions={
           <>
             <Link href={ROUTES.analytics.kpiDesignHead} className="btn btn-secondary btn-sm">
@@ -95,6 +101,22 @@ export function KpiDashboardView() {
         }
       />
 
+      <div className="card" style={{ marginBottom: "1.5rem" }}>
+        <div className="card-header">
+          <span className="card-title">Metric definitions (weights = 100%)</span>
+        </div>
+        <div className="card-body" style={{ padding: "1rem 1.25rem" }}>
+          <ul style={{ margin: 0, paddingLeft: "1.25rem", lineHeight: 1.6, columns: 2 }}>
+            {metricCoverage.map((metric) => (
+              <li key={metric.code}>
+                <strong>{metric.label}</strong> — {metric.weight}%
+                {metric.scored > 0 ? ` (${metric.scored} scores)` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
       <QueryState
         isLoading={kpiQuery.isLoading}
         isError={kpiQuery.isError}
@@ -108,6 +130,7 @@ export function KpiDashboardView() {
             label="Employees Tracked"
             value={new Set(data.map((d) => d.employee.employeeCode)).size}
           />
+          <StatCard label="Metrics" value={SPEC_KPI_METRICS.length} />
           <StatCard
             label="Current Period"
             value={new Date().toLocaleString("en", { month: "short", year: "numeric" })}
@@ -132,7 +155,12 @@ export function KpiDashboardView() {
         <DataTable<KpiRow & Record<string, unknown>>
           columns={[
             { key: "employee", header: "Employee", render: (r) => r.employee.name },
-            { key: "metricCode", header: "Metric" },
+            {
+              key: "metricCode",
+              header: "Metric",
+              render: (r) =>
+                SPEC_KPI_METRICS.find((m) => m.code === r.metricCode)?.label ?? r.metricCode,
+            },
             {
               key: "period",
               header: "Period",
@@ -144,7 +172,7 @@ export function KpiDashboardView() {
           rows={data}
           getRowKey={(row) => row.id}
           emptyTitle="No KPI scores yet"
-          emptyDescription="Scores are calculated from task time events and role-weighted definitions."
+          emptyDescription="Click Recompute KPI to calculate all nine weighted metrics from task and correction history."
         />
       </QueryState>
     </div>

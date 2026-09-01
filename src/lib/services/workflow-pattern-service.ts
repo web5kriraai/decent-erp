@@ -21,9 +21,9 @@ export type CreateWorkflowPatternInput = {
   tasks: WorkflowPatternTaskInput[];
 };
 
-export async function getWorkflowPatterns() {
+export async function getWorkflowPatterns(options?: { includeInactive?: boolean }) {
   return prisma.workflowPattern.findMany({
-    where: { active: true },
+    where: options?.includeInactive ? undefined : { active: true },
     orderBy: [{ name: "asc" }, { versionNo: "desc" }],
     include: {
       tasks: {
@@ -141,6 +141,65 @@ export async function createWorkflowPattern(
     userId,
     correlationId,
     after: pattern,
+  });
+
+  return pattern;
+}
+
+export async function updateWorkflowPatternTasks(
+  id: number,
+  tasks: WorkflowPatternTaskInput[],
+  userId: number,
+  correlationId: string,
+) {
+  const existing = await prisma.workflowPattern.findUnique({
+    where: { id },
+    include: { tasks: { orderBy: { sequence: "asc" } } },
+  });
+  if (!existing) throw new ApiError("Workflow pattern not found", 404);
+
+  await validatePatternTasks(tasks);
+
+  const pattern = await prisma.$transaction(async (tx) => {
+    await tx.workflowPatternTask.deleteMany({ where: { workflowPatternId: id } });
+    await tx.workflowPatternTask.createMany({
+      data: tasks.map((task) => ({
+        workflowPatternId: id,
+        processId: task.processId,
+        subProcessId: task.subProcessId,
+        defaultRoleId: task.defaultRoleId,
+        expectedMinutes: task.expectedMinutes,
+        sequence: task.sequence,
+        dayOffset: task.dayOffset ?? 0,
+        priority: task.priority ?? "MEDIUM",
+        dependencySequence: task.dependencySequence ?? null,
+      })),
+    });
+
+    return tx.workflowPattern.findUniqueOrThrow({
+      where: { id },
+      include: {
+        tasks: {
+          orderBy: { sequence: "asc" },
+          include: {
+            process: { select: { id: true, code: true, name: true } },
+            subProcess: { select: { id: true, code: true, name: true } },
+            defaultRole: { select: { id: true, code: true, name: true } },
+          },
+        },
+        productType: { select: { id: true, code: true, name: true } },
+      },
+    });
+  });
+
+  await writeAuditLogDirect({
+    entityType: "WorkflowPattern",
+    entityId: String(id),
+    action: "UPDATE_TASKS",
+    userId,
+    correlationId,
+    before: existing.tasks,
+    after: pattern.tasks,
   });
 
   return pattern;

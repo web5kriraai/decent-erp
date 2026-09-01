@@ -16,7 +16,7 @@ import { formatProductionReleaseMissing } from "@/lib/services/production-workfl
 
 export async function listApprovedDesigns() {
   return prisma.designConcept.findMany({
-    where: { status: "APPROVED" },
+    where: { status: { in: ["APPROVED", "PRODUCTION_ACCEPTED"] } },
     orderBy: { updatedAtUtc: "desc" },
     include: {
       productType: { select: { name: true } },
@@ -25,6 +25,38 @@ export async function listApprovedDesigns() {
       costs: true,
       productionHandoffs: { take: 3, orderBy: { releasedAtUtc: "desc" } },
     },
+  });
+}
+
+export async function listReleasedDesignsForGoLive() {
+  const designs = await prisma.designConcept.findMany({
+    where: { status: "PRODUCTION_RELEASED" },
+    orderBy: { updatedAtUtc: "desc" },
+    include: {
+      productType: { select: { name: true } },
+      designHead: { select: { id: true, name: true } },
+      tasks: {
+        where: { subProcess: { code: "LIVE_REVIEW" } },
+        select: { id: true, status: true },
+        take: 1,
+      },
+    },
+    take: 100,
+  });
+
+  return designs.map((design) => {
+    const liveReview = design.tasks[0];
+    const liveReviewCompleted = !liveReview || liveReview.status === "COMPLETED";
+    return {
+      id: design.id,
+      ideaRef: design.ideaRef,
+      collectionName: design.collectionName,
+      status: design.status,
+      productType: design.productType,
+      designHead: design.designHead,
+      liveReviewCompleted,
+      liveReviewStatus: liveReview?.status ?? null,
+    };
   });
 }
 
@@ -45,11 +77,11 @@ export async function releaseToProduction(
   return prisma.$transaction(async (tx) => {
     const design = await tx.designConcept.findUnique({ where: { id: designId } });
     if (!design) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
-    if (design.status !== "APPROVED") {
+    if (design.status !== "APPROVED" && design.status !== "PRODUCTION_ACCEPTED") {
       throw businessRule(
         APP_ERROR_CODES.DESIGN_STATUS_INVALID,
         undefined,
-        "Only approved designs can be released to production. Complete the production workflow tasks first.",
+        "Only accepted production designs can be released. Complete Accept Production Handoff first.",
       );
     }
 

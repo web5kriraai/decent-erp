@@ -14,7 +14,7 @@ import { FormTextField } from "@/components/ui/form-text-field";
 import { Button } from "@/components/ui/button";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { useProcessMasters, useProductTypes } from "@/hooks/use-masters";
-import type { CreateWorkflowPatternPayload } from "@/lib/types/api";
+import type { CreateWorkflowPatternPayload, WorkflowPattern } from "@/lib/types/api";
 
 type TaskDraft = {
   id: string;
@@ -39,6 +39,12 @@ type CreateWorkflowPatternModalProps = {
   onClose: () => void;
   onSubmit: (payload: CreateWorkflowPatternPayload) => void;
   isPending: boolean;
+  editPattern?: WorkflowPattern | null;
+  onSubmitTasks?: (
+    patternId: number,
+    tasks: CreateWorkflowPatternPayload["tasks"],
+  ) => void;
+  isTasksPending?: boolean;
 };
 
 export function CreateWorkflowPatternModal({
@@ -46,6 +52,9 @@ export function CreateWorkflowPatternModal({
   onClose,
   onSubmit,
   isPending,
+  editPattern = null,
+  onSubmitTasks,
+  isTasksPending = false,
 }: CreateWorkflowPatternModalProps) {
   const processesQuery = useProcessMasters(open);
   const productTypesQuery = useProductTypes(open);
@@ -63,10 +72,32 @@ export function CreateWorkflowPatternModal({
   useEffect(() => {
     if (!open) {
       resetForm();
+      return;
     }
-  }, [open]);
+    if (editPattern) {
+      setTasks(
+        editPattern.tasks.map((task, index) => ({
+          id: `edit-${task.id}-${index}`,
+          processId: task.processId,
+          subProcessId: task.subProcessId,
+          defaultRoleId: task.defaultRoleId,
+          expectedMinutes: String(task.expectedMinutes),
+        })),
+      );
+    }
+  }, [open, editPattern]);
 
   const canSubmit = useMemo(() => {
+    if (editPattern) {
+      if (tasks.length === 0) return false;
+      return tasks.every(
+        (task) =>
+          task.processId &&
+          task.subProcessId &&
+          task.defaultRoleId &&
+          Number(task.expectedMinutes) > 0,
+      );
+    }
     if (!name.trim()) return false;
     if (tasks.length === 0) return false;
     return tasks.every(
@@ -76,7 +107,7 @@ export function CreateWorkflowPatternModal({
         task.defaultRoleId &&
         Number(task.expectedMinutes) > 0,
     );
-  }, [name, tasks]);
+  }, [name, tasks, editPattern]);
 
   function resetForm() {
     setName("");
@@ -129,25 +160,39 @@ export function CreateWorkflowPatternModal({
       return;
     }
 
+    const taskPayload = tasks.map((task, index) => ({
+      processId: Number(task.processId),
+      subProcessId: Number(task.subProcessId),
+      defaultRoleId: Number(task.defaultRoleId),
+      expectedMinutes: Number(task.expectedMinutes),
+      sequence: index + 1,
+    }));
+
+    if (editPattern && onSubmitTasks) {
+      onSubmitTasks(editPattern.id, taskPayload);
+      return;
+    }
+
     onSubmit({
       name: name.trim(),
       productTypeId: productTypeId === "" ? null : productTypeId,
       versionNo: Number(versionNo) || 1,
-      tasks: tasks.map((task, index) => ({
-        processId: Number(task.processId),
-        subProcessId: Number(task.subProcessId),
-        defaultRoleId: Number(task.defaultRoleId),
-        expectedMinutes: Number(task.expectedMinutes),
-        sequence: index + 1,
-      })),
+      tasks: taskPayload,
     });
   }
+
+  const isEditMode = !!editPattern;
+  const submitPending = isEditMode ? isTasksPending : isPending;
 
   return (
     <Modal
       open={open}
-      title="Create Workflow Pattern"
-      description="Define a reusable sequence of process steps for new designs."
+      title={isEditMode ? `Edit Steps — ${editPattern.name}` : "Create Workflow Pattern"}
+      description={
+        isEditMode
+          ? "Replace task steps for this pattern. In-flight designs keep their existing tasks."
+          : "Define a reusable sequence of process steps for new designs."
+      }
       onClose={handleClose}
       size="xl"
       footer={
@@ -155,45 +200,60 @@ export function CreateWorkflowPatternModal({
           <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button type="button" disabled={!canSubmit || isPending} onClick={handleSubmit}>
-            {isPending ? "Creating…" : "Create Pattern"}
+          <Button type="button" disabled={!canSubmit || submitPending} onClick={handleSubmit}>
+            {submitPending
+              ? isEditMode
+                ? "Saving…"
+                : "Creating…"
+              : isEditMode
+                ? "Save Steps"
+                : "Create Pattern"}
           </Button>
         </ModalFooterActions>
       }
     >
       <ModalForm>
         {formError ? <ModalAlert variant="error">{formError}</ModalAlert> : null}
+        {isEditMode ? (
+          <ModalAlert variant="warning">
+            Changes apply to new designs only. Designs already in progress are not modified.
+          </ModalAlert>
+        ) : null}
 
-        <FormTextField
-          id="patternName"
-          label="Pattern Name"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Standard Saree Development"
-        />
+        {!isEditMode ? (
+          <>
+            <FormTextField
+              id="patternName"
+              label="Pattern Name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Standard Saree Development"
+            />
 
-        <ModalFormGrid>
-          <FormSelect
-            id="patternProductType"
-            label="Product Type"
-            value={productTypeId === "" ? null : String(productTypeId)}
-            onValueChange={(v) => setProductTypeId(v ? Number(v) : "")}
-            options={(productTypesQuery.data ?? []).map((pt) => ({
-              value: String(pt.id),
-              label: pt.name,
-            }))}
-            placeholder="Any product type"
-          />
-          <FormTextField
-            id="patternVersion"
-            label="Version"
-            type="number"
-            min={1}
-            value={versionNo}
-            onChange={(e) => setVersionNo(e.target.value)}
-          />
-        </ModalFormGrid>
+            <ModalFormGrid>
+              <FormSelect
+                id="patternProductType"
+                label="Product Type"
+                value={productTypeId === "" ? null : String(productTypeId)}
+                onValueChange={(v) => setProductTypeId(v ? Number(v) : "")}
+                options={(productTypesQuery.data ?? []).map((pt) => ({
+                  value: String(pt.id),
+                  label: pt.name,
+                }))}
+                placeholder="Any product type"
+              />
+              <FormTextField
+                id="patternVersion"
+                label="Version"
+                type="number"
+                min={1}
+                value={versionNo}
+                onChange={(e) => setVersionNo(e.target.value)}
+              />
+            </ModalFormGrid>
+          </>
+        ) : null}
 
         <ModalSection
           title="Task Steps"

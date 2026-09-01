@@ -3,6 +3,7 @@ import {
   type DepSibling,
   type MyTaskRow,
 } from "@/lib/services/action-center";
+import { isTaskReady } from "@/lib/services/task-dependency";
 
 export type ActionAvailability = {
   available: boolean;
@@ -33,7 +34,26 @@ export function getTaskStartAvailability(
     };
   }
 
-  if (task.status !== "ASSIGNED") {
+  if (task.status === "PENDING") {
+    const ready = isTaskReady(
+      {
+        id: task.id,
+        dependencySequence: task.dependencySequence,
+        sequence: task.sequence,
+        status: task.status,
+      },
+      siblings,
+    );
+    if (!ready) {
+      const blocker = findDependencyBlocker(task, siblings);
+      return {
+        available: false,
+        reason: blocker
+          ? describeDependencyBlocker(blocker)
+          : "Earlier workflow stages must finish before you can start this task.",
+      };
+    }
+  } else if (task.status !== "ASSIGNED") {
     return {
       available: false,
       reason: "Only assigned tasks can be started.",
@@ -55,12 +75,21 @@ export function getTaskStartAvailability(
   return { available: true };
 }
 
-export function getMarkLiveAvailability(designStatus: string): ActionAvailability {
-  if (designStatus === "PRODUCTION_RELEASED") {
-    return { available: true };
+export function getMarkLiveAvailability(
+  designStatus: string,
+  options?: { liveReviewCompleted?: boolean },
+): ActionAvailability {
+  if (designStatus !== "PRODUCTION_RELEASED") {
+    return {
+      available: false,
+      reason: "Only production-released designs can be marked live.",
+    };
   }
-  return {
-    available: false,
-    reason: "Only production-released designs can be marked live.",
-  };
+  if (options?.liveReviewCompleted === false) {
+    return {
+      available: false,
+      reason: "Management live design review must be completed before marking live.",
+    };
+  }
+  return { available: true };
 }

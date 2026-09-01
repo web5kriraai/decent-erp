@@ -205,15 +205,8 @@ export async function seedChecklistItems(
 export async function seedKpiDefinitions(prisma: PrismaClient, roles: RoleLookup) {
   const { SPEC_KPI_METRICS } = await import("@/lib/kpi-metrics");
   const effectiveFrom = new Date("2026-01-01T00:00:00Z");
-  const designerRoles = [
-    ROLE_CODES.SKETCH_DESIGNER,
-    ROLE_CODES.PUNCHING_DESIGNER,
-    ROLE_CODES.MACHINE_OPERATOR,
-    ROLE_CODES.SAMPLE_CHECKER,
-  ];
 
-  for (const roleCode of designerRoles) {
-    const role = roles[roleCode];
+  for (const role of Object.values(roles)) {
     if (!role) continue;
     for (const metric of SPEC_KPI_METRICS) {
       const existing = await prisma.employeeKpiDefinition.findFirst({

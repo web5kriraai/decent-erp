@@ -39,6 +39,8 @@ export type DesignTask = {
   expectedMinutes: number;
   version: number;
   outputRemark?: string | null;
+  skipReason?: string | null;
+  skippedAt?: string | null;
   assignedEmployeeId?: number | null;
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
   design: { id: string; ideaRef: string; collectionName: string };
@@ -51,6 +53,11 @@ export type DesignTask = {
     isApproval?: boolean;
   };
   timeEvents?: TaskTimeEvent[];
+  /** Resolved workflow status for display (CHECKING work may read COMPLETED after approval). */
+  effectiveStatus?: string;
+  isWaitingOnOthers?: boolean;
+  waitingOnStage?: string | null;
+  waitingOnAssignee?: string | null;
 };
 
 export type TaskTimeEvent = {
@@ -141,6 +148,9 @@ export type TaskTimeDetail = {
     assignedEmployee?: { name: string } | null;
   }>;
   assigneeHasRunningTask: boolean;
+  canStart: boolean;
+  startBlockedReason?: string;
+  blockedMessage?: string | null;
 };
 
 export type HoldReason = {
@@ -291,6 +301,66 @@ export type ManualDesignTask = {
   expectedMinutes: number;
   sequence?: number;
   assignedEmployeeId?: number;
+};
+
+export type DesignCompletionSummary = {
+  designId: string;
+  ideaRef: string;
+  collectionName: string;
+  status: string;
+  isComplete: boolean;
+  workflowStartedAt: string;
+  workflowFinishedAt: string | null;
+  phaseCounts: {
+    completed: number;
+    skipped: number;
+    cancelled: number;
+    total: number;
+  };
+  employees: Array<{
+    employeeId: number;
+    name: string;
+    employeeCode: string;
+    roleCode: string;
+    roleName: string;
+    tasksAssigned: number;
+    tasksCompleted: number;
+    tasksSkippedAsAssignee: number;
+    activeSeconds: number;
+    holdSeconds: number;
+    totalElapsedSeconds: number;
+  }>;
+  phases: Array<{
+    taskId: string;
+    sequence: number;
+    code: string;
+    name: string;
+    status: string;
+    assignee: { id: number; name: string; employeeCode: string } | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    activeSeconds: number;
+    holdSeconds: number;
+    totalElapsedSeconds: number;
+    expectedMinutes: number;
+    skipReason: string | null;
+  }>;
+  overrideHistory: Array<{
+    action: string;
+    atUtc: string;
+    actor: string;
+    fromStage: string | null;
+    toStage: string | null;
+    reason: string | null;
+    direction?: string;
+  }>;
+  totals: {
+    peopleCount: number;
+    totalActiveSeconds: number;
+    totalHoldSeconds: number;
+    totalElapsedSeconds: number;
+    skippedPhaseCount: number;
+  };
 };
 
 export type CreateDesignPayload = {

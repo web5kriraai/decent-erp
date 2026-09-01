@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
-import type { DesignListResponse, DesignSummary, CreateDesignPayload } from "@/lib/types/api";
+import type { DesignListResponse, DesignSummary, CreateDesignPayload, DesignCompletionSummary } from "@/lib/types/api";
 import { useApiToast } from "@/components/ui/ToastProvider";
 
 export function useDesignsList(enabled = true) {
@@ -109,5 +109,47 @@ export function useUpdateDesignStatus() {
       toast.success("Status updated", data.status.replace(/_/g, " "));
     },
     onError: (error) => toast.errorFromApi(error, "Could not update status"),
+  });
+}
+
+export function useDesignCompletionSummary(designId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.designs.completionSummary(designId),
+    queryFn: () => apiGet<DesignCompletionSummary>(`/api/designs/${designId}/completion-summary`),
+    enabled: enabled && !!designId,
+  });
+}
+
+export function useSendDesignToQc(designId: string) {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: (payload: { targetTaskId: string; reason: string; assigneeId?: number }) =>
+      apiPost<DesignSummary>(`/api/designs/${designId}/send-qc`, payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.completionSummary(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      toast.success("Sent to QC phase", data.currentStage?.replace(/_/g, " ") ?? "Updated");
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not send to QC phase"),
+  });
+}
+
+export function useBypassDesignPhase(designId: string) {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: (payload: { targetTaskId: string; reason: string; assigneeId?: number }) =>
+      apiPost<DesignSummary>(`/api/designs/${designId}/bypass`, payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.completionSummary(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      toast.success("Workflow bypassed", data.currentStage?.replace(/_/g, " ") ?? "Updated");
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not bypass workflow"),
   });
 }

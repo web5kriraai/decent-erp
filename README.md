@@ -108,6 +108,7 @@ Access is controlled by **permissions**, not role names directly. Each employee 
 | `TIME_VIEW_TEAM` | Live team time + time reports |
 | `KPI_ADMIN` | KPI dashboards and monthly recompute |
 | `MASTER_ADMIN` | Employees, roles catalog, process masters, workflow patterns (read), audit log |
+| `WORKFLOW_OVERRIDE` | Send design to any QC phase or bypass workflow to any phase (Design Head + Admin) |
 
 ### Roles (seeded)
 
@@ -186,11 +187,9 @@ Change all passwords before production. After an admin changes a user's role, th
 
 ### Not yet implemented
 
-- **Create / edit workflow patterns** via API or admin UI (patterns today come from seed only)
-- Full KPI metric set (5 core metrics implemented; extended set in product rules pending)
-- Auto-create correction record when approval decision is `CORRECTION_REQUIRED`
+- Extended analytics beyond the nine weighted KPI metrics (custom scorecards / benchmarking)
+- Multi-tenant / multi-company isolation
 
----
 
 ## How to work with the project
 
@@ -261,6 +260,7 @@ Full endpoint list and sample payloads: `.cursor/rules/30-api-surface.mdc`
 Key routes:
 
 - `GET/POST /api/designs`, `GET/PATCH /api/designs/{id}`
+- `POST /api/designs/{id}/send-qc`, `POST /api/designs/{id}/bypass`, `GET /api/designs/{id}/completion-summary`
 - `POST /api/designs/{id}/tasks/generate`, `PATCH /api/tasks/{id}/assign`
 - `POST /api/tasks/{id}/start|hold|resume|end`
 - `GET/POST /api/corrections`, `GET/POST /api/approvals`

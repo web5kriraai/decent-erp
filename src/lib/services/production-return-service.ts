@@ -47,11 +47,11 @@ export async function returnProductionForClarification(
       include: { designHead: { select: { id: true, name: true } } },
     });
     if (!design) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
-    if (design.status !== "APPROVED") {
+    if (design.status !== "APPROVED" && design.status !== "PRODUCTION_ACCEPTED") {
       throw businessRule(
         APP_ERROR_CODES.DESIGN_STATUS_INVALID,
         undefined,
-        "Only approved designs awaiting production can be returned for clarification.",
+        "Only approved or production-accepted designs can be returned for clarification.",
       );
     }
 
@@ -204,7 +204,7 @@ export async function getProductionReturnOptions(designId: bigint) {
   const release = await findProdTask(designId, "PROD_RELEASE");
 
   const canReturn =
-    design.status === "APPROVED" &&
+    (design.status === "APPROVED" || design.status === "PRODUCTION_ACCEPTED") &&
     handoff?.status === "COMPLETED" &&
     release?.status !== "COMPLETED";
 

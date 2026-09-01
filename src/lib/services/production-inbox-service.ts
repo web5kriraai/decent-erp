@@ -130,7 +130,7 @@ function classifyProductionDesign(
     instruction?.status === "COMPLETED" &&
     release &&
     release.status !== "COMPLETED" &&
-    design.status === "APPROVED"
+    (design.status === "APPROVED" || design.status === "PRODUCTION_ACCEPTED")
   ) {
     return {
       ...base,
@@ -140,11 +140,19 @@ function classifyProductionDesign(
     };
   }
 
-  if (design.status === "APPROVED" && handoff?.status === "COMPLETED") {
+  if (
+    (design.status === "APPROVED" || design.status === "PRODUCTION_ACCEPTED") &&
+    handoff?.status === "COMPLETED"
+  ) {
     return {
       ...base,
       section: "ready_for_acceptance",
-      stageLabel: instruction?.status === "PENDING" ? "Accept production handoff" : "Production workflow",
+      stageLabel:
+        instruction?.status === "PENDING"
+          ? "Accept production handoff"
+          : design.status === "PRODUCTION_ACCEPTED"
+            ? "Production accepted"
+            : "Production workflow",
       needsAcceptance: instruction?.status === "PENDING",
       assigneeName: instruction?.assignedEmployee?.name,
     };
@@ -158,7 +166,7 @@ async function loadReturnedClarificationDesigns(): Promise<ProductionInboxDesign
     where: {
       status: "OPEN",
       rootCause: { startsWith: "Production return:" },
-      design: { status: "APPROVED" },
+      design: { status: { in: ["APPROVED", "PRODUCTION_ACCEPTED", "ACTIVE"] } },
     },
     orderBy: { createdAtUtc: "desc" },
     take: 20,
@@ -223,7 +231,7 @@ export async function getProductionHeadInbox(
   const [designs, returnedClarification] = await Promise.all([
     prisma.designConcept.findMany({
       where: {
-        status: { in: ["APPROVED", "PRODUCTION_RELEASED", "LIVE"] },
+        status: { in: ["APPROVED", "PRODUCTION_ACCEPTED", "PRODUCTION_RELEASED", "LIVE"] },
       },
       orderBy: { updatedAtUtc: "desc" },
       include: {

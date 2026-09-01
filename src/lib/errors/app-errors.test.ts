@@ -7,7 +7,7 @@ import {
   inferCodeFromMessage,
   sanitizeLegacyMessage,
 } from "@/lib/errors/app-errors";
-import { getTaskStartAvailability } from "@/lib/action-availability";
+import { getTaskStartAvailability, getMarkLiveAvailability } from "@/lib/action-availability";
 
 describe("app-errors", () => {
   it("maps auth and permission statuses", () => {
@@ -82,5 +82,18 @@ describe("action-availability", () => {
     );
     expect(result.available).toBe(false);
     expect(result.reason).toContain("running task");
+  });
+
+  it("blocks Mark Live until live review is completed", () => {
+    const blocked = getMarkLiveAvailability("PRODUCTION_RELEASED", {
+      liveReviewCompleted: false,
+    });
+    expect(blocked.available).toBe(false);
+    expect(blocked.reason).toMatch(/live design review/i);
+
+    const ready = getMarkLiveAvailability("PRODUCTION_RELEASED", {
+      liveReviewCompleted: true,
+    });
+    expect(ready.available).toBe(true);
   });
 });

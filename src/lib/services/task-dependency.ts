@@ -5,6 +5,7 @@ export const DEPENDENCY_SATISFIED_STATUSES = [
   "COMPLETED",
   "CHECKING",
   "CANCELLED",
+  "SKIPPED",
 ] as const;
 
 /** Statuses shown on My Tasks / open-task counts (never PENDING). */

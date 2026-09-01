@@ -143,6 +143,7 @@ export function resolveTaskContextActions(input: {
     sequence: number;
     dependencySequence: number | null;
     assignedEmployeeId?: number | null;
+    subProcess?: { name: string; code: string; isApproval?: boolean };
     workflowPeers?: Array<{
       id: string;
       sequence: number;
@@ -165,7 +166,7 @@ export function resolveTaskContextActions(input: {
   const actions: ResolvedWorkflowAction[] = [];
   const { task } = input;
 
-  if (task.status === "ASSIGNED") {
+  if (task.status === "ASSIGNED" || task.status === "PENDING") {
     const availability = getTaskStartAvailability(
       {
         id: task.id,
@@ -177,10 +178,14 @@ export function resolveTaskContextActions(input: {
       peers,
       { hasRunningTask: input.task.assigneeHasRunningTask },
     );
+    const startLabel = task.subProcess?.name
+      ? `Start ${task.subProcess.name}`
+      : actionMeta(WORKFLOW_ACTION_CODES.START_TASK).label;
     actions.push(
       buildAction(WORKFLOW_ACTION_CODES.START_TASK, {
         enabled: availability.available,
         disabledReason: availability.reason,
+        label: startLabel,
         taskId: task.id,
         designId: task.designId,
       }),

@@ -13,7 +13,12 @@ function parseTaskId(raw: string): bigint {
 export async function GET(_request: Request, context: RouteContext) {
   return withApiHandler(null, async (ctx) => {
     const { id } = await context.params;
-    const task = await getTaskTimeDetail(parseTaskId(id), ctx.employeeId, ctx.permissions);
+    const task = await getTaskTimeDetail(
+      parseTaskId(id),
+      ctx.employeeId,
+      ctx.permissions,
+      ctx.correlationId,
+    );
     return jsonOk(serializeBigInt(task), ctx.correlationId);
   });
 }

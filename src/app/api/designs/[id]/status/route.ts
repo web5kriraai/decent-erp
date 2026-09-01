@@ -11,6 +11,7 @@ const schema = z.object({
     "APPROVAL_PENDING",
     "APPROVED",
     "REJECTED",
+    "PRODUCTION_ACCEPTED",
     "PRODUCTION_RELEASED",
     "LIVE",
     "CLOSED",

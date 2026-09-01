@@ -88,7 +88,13 @@ export function ExecutorWorkbench() {
   const timeSummary = timeQuery.data;
   const adminStats = adminQuery.data;
 
-  const openTasks = tasks.filter((t) => !DONE_TASK.has(t.status));
+  const openTasks = tasks.filter((t) => {
+    if (DONE_TASK.has(t.status)) return false;
+    if (t.effectiveStatus === "COMPLETED") return false;
+    if (t.isWaitingOnOthers) return false;
+    return true;
+  });
+  const waitingTasks = tasks.filter((t) => t.isWaitingOnOthers);
   const runningTasks = openTasks.filter((t) => t.status === "RUNNING");
   const activeDesigns = designs.filter((d) => !CLOSED_DESIGN.has(d.status));
 
@@ -375,7 +381,7 @@ export function ExecutorWorkbench() {
                                 {task.process.name} · {task.design.collectionName}
                               </p>
                             </div>
-                            <StatusBadge status={task.status} />
+                            <StatusBadge status={task.effectiveStatus ?? task.status} />
                           </li>
                         ))}
                     </ul>
@@ -384,10 +390,42 @@ export function ExecutorWorkbench() {
               </Card>
             )}
 
+            {canExecute && waitingTasks.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle>Waiting for approval</CardTitle>
+                  <Link href={ROUTES.work.tasks} className="btn btn-ghost btn-sm">
+                    Action center
+                  </Link>
+                </CardHeader>
+                <CardContent>
+                  <ul className="detail-task-list">
+                    {waitingTasks.slice(0, 6).map((task) => (
+                      <li key={task.id}>
+                        <div>
+                          <Link
+                            href={ROUTES.work.taskDetail(task.id)}
+                            className="data-table-link"
+                          >
+                            {task.design.ideaRef} · {task.subProcess.name}
+                          </Link>
+                          <p className="workbench-row-meta">
+                            Waiting on {task.waitingOnAssignee ?? "approver"} —{" "}
+                            {task.waitingOnStage ?? "stage review"}
+                          </p>
+                        </div>
+                        <StatusBadge status="CHECKING" />
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
             {canApprove && (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>Pending approvals</CardTitle>
+                  <CardTitle>Management approvals</CardTitle>
                   <Link href={ROUTES.quality.approvals} className="btn btn-ghost btn-sm">
                     Review all
                   </Link>

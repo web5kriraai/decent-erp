@@ -89,12 +89,13 @@ export function categorizeEmployeeTask(
       },
       siblings,
     );
-    if (!ready) {
-      const blocker = findDependencyBlocker(task, siblings);
-      if (blocker?.status === "CORRECTION_REQUIRED") {
-        return "blocked";
-      }
-      return "upcoming";
+    if (ready) return "actionRequired";
+    const blocker = findDependencyBlocker(task, siblings);
+    if (blocker?.status === "CORRECTION_REQUIRED") {
+      return "blocked";
+    }
+    if (blocker) {
+      return "waitingForOthers";
     }
     return "upcoming";
   }
@@ -144,6 +145,17 @@ export function buildWaitingContext(
       waitingFor: "Checker / approver",
       nextAction: "Review submitted work",
     };
+  }
+
+  if (task.status === "PENDING") {
+    const blocker = findDependencyBlocker(task, siblings);
+    if (blocker) {
+      return {
+        waitingFor: blocker.assignedEmployee?.name ?? "Prior stage owner",
+        nextAction: blocker.subProcess?.name ?? "Prior stage",
+        nextTaskId: linkableTaskId(blocker.id, blocker.assignedEmployeeId),
+      };
+    }
   }
 
   const next = findNextOpenTask(siblings, task.sequence);

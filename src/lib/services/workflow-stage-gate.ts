@@ -4,7 +4,7 @@ import {
 } from "@/lib/services/task-dependency";
 
 /** Work is finished for workflow UI (no assign / not "current"). */
-export const WORKFLOW_STEP_DONE_STATUSES = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
+export const WORKFLOW_STEP_DONE_STATUSES = new Set(["COMPLETED", "CHECKING", "CANCELLED", "SKIPPED"]);
 
 /** Statuses where a manager may (re)assign an employee. */
 export const WORKFLOW_ASSIGNABLE_STATUSES = new Set(["PENDING", "ASSIGNED"]);

@@ -103,6 +103,7 @@ export function DesignWorkflowPanel({
                   <p className="workflow-step-meta">
                     {step.assigneeName ?? "Unassigned"}
                     {step.isApproval ? " · Approval" : ""}
+                    {step.task.skipReason ? ` · ${step.task.skipReason}` : ""}
                   </p>
                 </div>
                 <StepStatusIcon step={step} />
@@ -152,6 +153,9 @@ function StepStatusIcon({
 }) {
   if (step.isUpcoming) {
     return <LockIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
+  }
+  if (step.status === "SKIPPED" || step.displayStatus === "SKIPPED") {
+    return <CircleDashedIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
   }
   if (step.isDone || step.displayStatus === "COMPLETED") {
     return <CheckCircle2Icon className="size-4 shrink-0 text-emerald-600" aria-hidden />;

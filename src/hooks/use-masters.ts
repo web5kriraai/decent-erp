@@ -5,10 +5,13 @@ import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { HoldReason, ProductType, Season, WorkflowPattern } from "@/lib/types/api";
 
-export function useWorkflowPatterns(enabled = true) {
+export function useWorkflowPatterns(enabled = true, includeInactive = false) {
   return useQuery({
-    queryKey: queryKeys.masters.workflowPatterns,
-    queryFn: () => apiGet<WorkflowPattern[]>("/api/workflow-patterns"),
+    queryKey: [...queryKeys.masters.workflowPatterns, includeInactive ? "all" : "active"],
+    queryFn: () =>
+      apiGet<WorkflowPattern[]>(
+        `/api/workflow-patterns${includeInactive ? "?includeInactive=1" : ""}`,
+      ),
     enabled,
     staleTime: 5 * 60_000,
   });

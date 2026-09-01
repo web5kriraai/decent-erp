@@ -6,8 +6,16 @@ import { Button } from "@/components/ui/button";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { cn } from "@/lib/utils";
 import { FileIcon, Loader2Icon, UploadCloudIcon } from "lucide-react";
+
+type MachineMetricsPayload = {
+  stitchCount?: number;
+  machineFormat?: string;
+  sampleQty?: number;
+  wastageQty?: number;
+};
 
 type TaskArtifactType = "SKETCH_VERSION" | "PUNCHING_FILE" | "SAMPLE_OUTPUT";
 
@@ -16,6 +24,10 @@ type TaskArtifact = {
   artifactType: TaskArtifactType;
   fileName?: string | null;
   storageKey?: string | null;
+  stitchCount?: number | null;
+  machineFormat?: string | null;
+  sampleQty?: number | null;
+  wastageQty?: number | null;
   uploadedAtUtc: string;
 };
 
@@ -42,6 +54,7 @@ type TaskArtifactPanelProps = {
   subProcessCode?: string;
   compact?: boolean;
   onUploadingChange?: (uploading: boolean) => void;
+  machineMetrics?: MachineMetricsPayload;
 };
 
 export function TaskArtifactPanel({
@@ -51,6 +64,7 @@ export function TaskArtifactPanel({
   subProcessCode,
   compact = false,
   onUploadingChange,
+  machineMetrics,
 }: TaskArtifactPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const toast = useApiToast();
@@ -103,6 +117,7 @@ export function TaskArtifactPanel({
           artifactType,
           fileName,
           storageKey,
+          ...(isMachineOutputTask(subProcessCode) ? machineMetrics : {}),
         });
 
         toast.success("File uploaded", `${fileName} is linked to this task.`);
@@ -117,7 +132,7 @@ export function TaskArtifactPanel({
         setUploading(false);
       }
     },
-    [artifactType, designId, queryClient, taskId, toast],
+    [artifactType, designId, machineMetrics, queryClient, subProcessCode, taskId, toast],
   );
 
   function handleFiles(files: FileList | null) {
@@ -216,6 +231,16 @@ export function TaskArtifactPanel({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {ARTIFACT_TYPE_LABELS[artifact.artifactType] ?? artifact.artifactType}
+                    {artifact.sampleQty != null || artifact.wastageQty != null ? (
+                      <span>
+                        {" "}
+                        · Sample {artifact.sampleQty ?? "—"}, wastage {artifact.wastageQty ?? "—"}
+                      </span>
+                    ) : null}
+                    {artifact.stitchCount != null ? (
+                      <span> · {artifact.stitchCount.toLocaleString()} stitches</span>
+                    ) : null}
+                    {artifact.machineFormat ? <span> · {artifact.machineFormat}</span> : null}
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-muted-foreground">

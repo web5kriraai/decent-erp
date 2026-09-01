@@ -6,6 +6,7 @@ import { completeStageApproval } from "@/lib/services/task-service";
 const schema = z.object({
   outputRemark: z.string().min(1),
   version: z.number().int().positive(),
+  decision: z.enum(["APPROVED", "REJECT", "CORRECTION_REQUIRED"]).optional(),
 });
 
 export async function POST(
@@ -23,6 +24,7 @@ export async function POST(
         {
           outputRemark: body.outputRemark,
           version: body.version,
+          decision: body.decision,
         },
         ctx.correlationId,
       );

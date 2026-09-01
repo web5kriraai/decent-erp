@@ -31,17 +31,29 @@ describe("permissions", () => {
 
   it("gives Design Head TASK_EXECUTE so Concept Review / stage tasks can run on My Tasks", () => {
     expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.DESIGN_HEAD]).toContain(PERMISSIONS.TASK_EXECUTE);
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.DESIGN_HEAD]).toContain(PERMISSIONS.WORKFLOW_OVERRIDE);
   });
 
-  it("gives Costing Team TASK_EXECUTE so pattern Costing tasks can clear the dependency gate", () => {
-    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.COSTING_TEAM]).toContain(PERMISSIONS.TASK_EXECUTE);
+  it("does not give workflow override to sample checker or management", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.SAMPLE_CHECKER]).not.toContain(
+      PERMISSIONS.WORKFLOW_OVERRIDE,
+    );
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MANAGEMENT]).not.toContain(
+      PERMISSIONS.WORKFLOW_OVERRIDE,
+    );
+  });
+
+  it("gives Management TASK_EXECUTE so Live Review can run on My Tasks", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MANAGEMENT]).toContain(PERMISSIONS.TASK_EXECUTE);
   });
 });
 
 describe("task dependency gate", () => {
   it("treats CHECKING as satisfied so Send-for-Checking unlocks the next sequence", () => {
     expect(DEPENDENCY_SATISFIED_STATUSES).toContain("CHECKING");
+    expect(DEPENDENCY_SATISFIED_STATUSES).toContain("SKIPPED");
     expect(isDependencySatisfiedStatus("CHECKING")).toBe(true);
+    expect(isDependencySatisfiedStatus("SKIPPED")).toBe(true);
     expect(isDependencySatisfiedStatus("COMPLETED")).toBe(true);
     expect(isDependencySatisfiedStatus("CANCELLED")).toBe(true);
     expect(isDependencySatisfiedStatus("ASSIGNED")).toBe(false);

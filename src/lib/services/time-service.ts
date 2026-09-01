@@ -9,6 +9,9 @@ import {
   type TimeEventRecord,
 } from "@/lib/services/time-calculation";
 import { MY_TASKS_VISIBLE_STATUSES } from "@/lib/services/task-dependency";
+import { buildBlockedContext } from "@/lib/services/action-center";
+import { getTaskStartAvailability } from "@/lib/action-availability";
+import { reconcileTaskReadiness } from "@/lib/services/task-readiness";
 import {
   resolveEffectiveTaskStatus,
   type StageGateSibling,
@@ -17,7 +20,7 @@ import {
 const taskTimeInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true } },
   process: { select: { id: true, name: true, code: true } },
-  subProcess: { select: { id: true, name: true, code: true, isFileRequired: true } },
+  subProcess: { select: { id: true, name: true, code: true, isFileRequired: true, isApproval: true } },
   assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
   timeEvents: {
     orderBy: { eventTimeUtc: "asc" as const },
@@ -278,7 +281,12 @@ export async function getTaskTimeDetail(
   taskId: bigint,
   viewerEmployeeId: number,
   viewerPermissions: string[],
+  correlationId = "task-detail",
 ) {
+  if (viewerPermissions.includes(PERMISSIONS.TASK_EXECUTE)) {
+    await reconcileTaskReadiness(taskId, viewerEmployeeId, correlationId);
+  }
+
   const task = await prisma.designTask.findUnique({
     where: { id: taskId },
     include: taskTimeInclude,
@@ -339,6 +347,35 @@ export async function getTaskTimeDetail(
     stageSiblings,
   );
 
+  const workflowPeers = peerTasks.map((peer) => ({
+    id: peer.id.toString(),
+    sequence: peer.sequence,
+    dependencySequence: peer.dependencySequence,
+    status: peer.status,
+    assignedEmployeeId: peer.assignedEmployeeId,
+    subProcess: peer.subProcess,
+    assignedEmployee: peer.assignedEmployee,
+  }));
+
+  const taskRow = {
+    id: task.id.toString(),
+    status: task.status,
+    dependencySequence: task.dependencySequence,
+    sequence: task.sequence,
+    assignedEmployeeId: task.assignedEmployeeId,
+  };
+
+  const startAvailability = isAssignee
+    ? getTaskStartAvailability(taskRow, workflowPeers, {
+        hasRunningTask: runningTask != null && runningTask.id !== task.id,
+      })
+    : { available: false as const };
+
+  const blockedContext =
+    isAssignee && !startAvailability.available && ["PENDING", "ASSIGNED"].includes(task.status)
+      ? buildBlockedContext(taskRow, workflowPeers)
+      : null;
+
   return {
     id: task.id.toString(),
     designId: task.designId.toString(),
@@ -368,17 +405,12 @@ export async function getTaskTimeDetail(
       remark: e.remark,
       employeeId: e.employeeId,
     })),
-    workflowPeers: peerTasks.map((peer) => ({
-      id: peer.id.toString(),
-      sequence: peer.sequence,
-      dependencySequence: peer.dependencySequence,
-      status: peer.status,
-      assignedEmployeeId: peer.assignedEmployeeId,
-      subProcess: peer.subProcess,
-      assignedEmployee: peer.assignedEmployee,
-    })),
+    workflowPeers,
     assigneeHasRunningTask:
       runningTask != null && runningTask.id !== task.id,
+    canStart: startAvailability.available,
+    startBlockedReason: startAvailability.reason,
+    blockedMessage: blockedContext?.blockedMessage ?? null,
   };
 }
 

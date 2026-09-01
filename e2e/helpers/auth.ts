@@ -13,6 +13,7 @@ export const USERS = {
   costing: { email: "costing@decent-erp.local", password: DEMO_PASSWORD },
   production: { email: "production@decent-erp.local", password: DEMO_PASSWORD },
   machine: { email: "machine@decent-erp.local", password: DEMO_PASSWORD },
+  management: { email: "management@decent-erp.local", password: DEMO_PASSWORD },
 } as const;
 
 /** Clear session and sign in (required when switching users mid-test). */
@@ -24,7 +25,7 @@ export async function login(page: Page, email: string, password: string) {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /Sign in to workspace/i }).click();
   await page.waitForURL("**/dashboard", { timeout: 30_000 });
-  await expect(page.getByRole("heading", { name: /Welcome back/i })).toBeVisible({
+  await expect(page.locator("main, .page-shell, .workbench-shell").first()).toBeVisible({
     timeout: 15_000,
   });
 }

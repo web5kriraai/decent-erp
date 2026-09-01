@@ -40,7 +40,11 @@ export async function validateProductionReleaseReadiness(
     return { ok: false, missing: ["Design record"] };
   }
 
-  if (design.status !== "APPROVED" && design.status !== "PRODUCTION_RELEASED") {
+  if (
+    design.status !== "APPROVED" &&
+    design.status !== "PRODUCTION_ACCEPTED" &&
+    design.status !== "PRODUCTION_RELEASED"
+  ) {
     missing.push("Management / final approval (design must be Approved)");
   }
 

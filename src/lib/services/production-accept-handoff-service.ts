@@ -31,7 +31,7 @@ export async function acceptProductionHandoff(
       select: { id: true, ideaRef: true, status: true, designHeadEmployeeId: true },
     });
     if (!design) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
-    if (design.status !== "APPROVED") {
+    if (design.status !== "APPROVED" && design.status !== "PRODUCTION_ACCEPTED") {
       throw businessRule(
         APP_ERROR_CODES.DESIGN_STATUS_INVALID,
         undefined,
@@ -84,13 +84,24 @@ export async function acceptProductionHandoff(
       },
     });
 
+    if (design.status === "APPROVED") {
+      await tx.designConcept.update({
+        where: { id: designId },
+        data: { status: "PRODUCTION_ACCEPTED" },
+      });
+    }
+
     await writeAuditLog(tx, {
       entityType: "DesignConcept",
       entityId: designId.toString(),
       action: "PRODUCTION_HANDOFF_ACCEPTED",
       userId: actorId,
       correlationId,
-      after: { instructionTaskId: instruction.id.toString(), assigneeId },
+      after: {
+        instructionTaskId: instruction.id.toString(),
+        assigneeId,
+        designStatus: "PRODUCTION_ACCEPTED",
+      },
     });
 
     if (assigneeId != null) {

@@ -28,7 +28,7 @@ const FULL_CHAIN = [
 async function main() {
   const subs = await prisma.designSubProcessMaster.findMany({
     where: { code: { in: FULL_CHAIN }, active: true },
-    include: { process: true, defaultRole: true },
+    include: { process: true },
   });
   const subByCode = Object.fromEntries(subs.map((s) => [s.code, s]));
 
@@ -65,7 +65,7 @@ async function main() {
           designId: design.id,
           processId: sub.processId,
           subProcessId: sub.id,
-          assignedRoleId: sub.defaultRoleId ?? sub.defaultRole?.id ?? 1,
+          assignedRoleId: sub.defaultRoleId ?? 1,
           status: "PENDING",
           priority: "MEDIUM",
           expectedMinutes: 60,

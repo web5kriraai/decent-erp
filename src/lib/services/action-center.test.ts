@@ -59,7 +59,7 @@ describe("categorizeEmployeeTask", () => {
     expect(categorizeEmployeeTask(task, siblings)).toBe("waitingForOthers");
   });
 
-  it("marks PENDING task with incomplete prior as upcoming", () => {
+  it("marks PENDING task blocked by an earlier stage as waitingForOthers", () => {
     const blockedSiblings: DepSibling[] = [
       sibling("1", 1, "RUNNING"),
       sibling("2", 2, "PENDING", { assignedEmployee: { name: "Me" } }),
@@ -72,7 +72,23 @@ describe("categorizeEmployeeTask", () => {
       subProcess: { name: "Punch", code: "PUNCH", isApproval: false },
       assignedEmployeeId: 5,
     };
-    expect(categorizeEmployeeTask(task, blockedSiblings)).toBe("upcoming");
+    expect(categorizeEmployeeTask(task, blockedSiblings)).toBe("waitingForOthers");
+  });
+
+  it("marks ready PENDING task as actionRequired", () => {
+    const readySiblings: DepSibling[] = [
+      sibling("1", 1, "COMPLETED"),
+      sibling("2", 2, "PENDING", { assignedEmployee: { name: "Me" } }),
+    ];
+    const task = {
+      id: "2",
+      status: "PENDING",
+      dependencySequence: 2,
+      sequence: 2,
+      subProcess: { name: "Punch", code: "PUNCH", isApproval: false },
+      assignedEmployeeId: 5,
+    };
+    expect(categorizeEmployeeTask(task, readySiblings)).toBe("actionRequired");
   });
 
   it("finds dependency blocker", () => {

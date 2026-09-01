@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { ImageGallery } from "@/components/ImageGallery";
 import { StatusBadge } from "@/components/StatusBadge";
-import { RaiseCorrectionModal } from "@/features/quality/RaiseCorrectionModal";
+import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
-import { useRaiseCorrection } from "@/hooks/use-corrections";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
-import { CheckCircle2Icon, RotateCcwIcon } from "lucide-react";
+import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
 
 type InlineStageApprovalCardProps = {
   designId: string;
@@ -33,10 +32,8 @@ export function InlineStageApprovalCard({
   const queryClient = useQueryClient();
   const assignTask = useAssignTask();
   const completeStageApproval = useCompleteStageApproval();
-  const raiseCorrection = useRaiseCorrection();
 
   const [remark, setRemark] = useState("");
-  const [correctionOpen, setCorrectionOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const stageName = approvalTask.subProcess?.name ?? "Stage";
@@ -90,20 +87,35 @@ export function InlineStageApprovalCard({
   }
 
   async function handleSendBack() {
-    if (!workTask || !employeeId) {
-      setCorrectionOpen(true);
-      return;
-    }
     if (!remark.trim()) return;
 
     setIsSubmitting(true);
     try {
-      await raiseCorrection.mutateAsync({
-        designId,
-        taskId: workTask.id,
-        correctionType: "IMPROVEMENT",
-        responsibleEmployeeId: workTask.assignedEmployeeId ?? undefined,
-        rootCause: remark.trim(),
+      const current = await resolveApprovalTask();
+      await completeStageApproval.mutateAsync({
+        taskId: current.id,
+        version: current.version,
+        outputRemark: remark.trim(),
+        decision: "CORRECTION_REQUIRED",
+      });
+      setRemark("");
+      await refreshDesign();
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleReject() {
+    if (!remark.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const current = await resolveApprovalTask();
+      await completeStageApproval.mutateAsync({
+        taskId: current.id,
+        version: current.version,
+        outputRemark: remark.trim(),
+        decision: "REJECT",
       });
       setRemark("");
       await refreshDesign();
@@ -115,8 +127,7 @@ export function InlineStageApprovalCard({
   const busy =
     isSubmitting ||
     assignTask.isPending ||
-    completeStageApproval.isPending ||
-    raiseCorrection.isPending;
+    completeStageApproval.isPending;
 
   return (
     <>
@@ -144,6 +155,8 @@ export function InlineStageApprovalCard({
         </div>
 
         <div className="space-y-5 px-5 py-4">
+          <TaskCompareVersionsPanel designId={designId} />
+
           <div>
             <p className="mb-2 text-sm font-medium text-foreground">Design files to review</p>
             <ImageGallery designId={designId} canUpload={false} />
@@ -177,22 +190,25 @@ export function InlineStageApprovalCard({
               type="button"
               variant="outline"
               size="lg"
-              disabled={busy || (workTask ? !remark.trim() : false)}
-              onClick={() => (workTask ? handleSendBack() : setCorrectionOpen(true))}
+              disabled={busy || !remark.trim()}
+              onClick={handleSendBack}
             >
               <RotateCcwIcon className="size-4" aria-hidden />
-              Send back for rework
+              Request correction
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="lg"
+              disabled={busy || !remark.trim()}
+              onClick={handleReject}
+            >
+              <XCircleIcon className="size-4" aria-hidden />
+              Reject
             </Button>
           </div>
         </div>
       </section>
-
-      <RaiseCorrectionModal
-        open={correctionOpen}
-        onClose={() => setCorrectionOpen(false)}
-        defaultDesignId={designId}
-        defaultTaskId={workTask?.id}
-      />
     </>
   );
 }

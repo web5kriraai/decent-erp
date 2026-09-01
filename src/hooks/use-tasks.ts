@@ -174,16 +174,19 @@ export function useCompleteStageApproval() {
       taskId,
       version,
       outputRemark,
+      decision = "APPROVED",
     }: {
       taskId: string;
       version: number;
       outputRemark: string;
+      decision?: "APPROVED" | "REJECT" | "CORRECTION_REQUIRED";
     }) =>
       apiPost<DesignTask>(`/api/tasks/${taskId}/approve-stage`, {
         version,
         outputRemark,
+        decision,
       }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail"] });
@@ -191,10 +194,17 @@ export function useCompleteStageApproval() {
       queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.time.mySummary });
       queryClient.invalidateQueries({ queryKey: queryKeys.time.live });
-      toast.success("Stage approved");
+      queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });
+      const label =
+        variables.decision === "REJECT"
+          ? "Stage rejected — correction routed"
+          : variables.decision === "CORRECTION_REQUIRED"
+            ? "Correction requested"
+            : "Stage approved";
+      toast.success(label);
     },
     onError: (error) => {
-      toast.errorFromApi(error, "Could not approve stage");
+      toast.errorFromApi(error, "Could not record stage decision");
     },
   });
 }

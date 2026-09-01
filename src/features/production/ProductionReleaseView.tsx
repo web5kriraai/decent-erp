@@ -15,6 +15,7 @@ import {
   useReleasedDesigns,
   useRetryHandoffSync,
 } from "@/hooks/use-production";
+import { getMarkLiveAvailability } from "@/lib/action-availability";
 import { resolveProductionContextActions } from "@/lib/workflow-actions";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -158,19 +159,42 @@ export function ProductionReleaseView() {
                 render: () => <StatusBadge status="PRODUCTION_RELEASED" />,
               },
               {
+                key: "liveReview",
+                header: "Live review",
+                render: (row) =>
+                  row.liveReviewCompleted ? (
+                    <StatusBadge status="COMPLETED" label="Ready" />
+                  ) : (
+                    <StatusBadge status="CHECKING" label="Pending" />
+                  ),
+              },
+              {
                 key: "actions",
                 header: "",
                 align: "right",
-                render: (row) => (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={markLive.isPending}
-                    onClick={() => markLive.mutate(row.id)}
-                  >
-                    Mark Live
-                  </button>
-                ),
+                render: (row) => {
+                  const availability = getMarkLiveAvailability(row.status, {
+                    liveReviewCompleted: row.liveReviewCompleted,
+                  });
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={markLive.isPending || !availability.available}
+                        title={availability.reason}
+                        onClick={() => markLive.mutate(row.id)}
+                      >
+                        Mark Live
+                      </button>
+                      {!availability.available && availability.reason ? (
+                        <span className="text-xs text-muted-foreground" style={{ maxWidth: "14rem", textAlign: "right" }}>
+                          {availability.reason}
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                },
               },
             ]}
             rows={releasedQuery.data ?? []}

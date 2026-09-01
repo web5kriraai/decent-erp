@@ -32,6 +32,11 @@ export const APP_ERROR_CODES = {
   PRODUCTION_RELEASE_TASK_REQUIRED: "PRODUCTION_RELEASE_TASK_REQUIRED",
 
   CORRECTION_INVALID: "CORRECTION_INVALID",
+
+  WORKFLOW_OVERRIDE_DENIED: "WORKFLOW_OVERRIDE_DENIED",
+  WORKFLOW_TARGET_INVALID: "WORKFLOW_TARGET_INVALID",
+  WORKFLOW_DESIGN_CLOSED: "WORKFLOW_DESIGN_CLOSED",
+  WORKFLOW_BYPASS_BLOCKED: "WORKFLOW_BYPASS_BLOCKED",
 } as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[keyof typeof APP_ERROR_CODES];
@@ -71,6 +76,11 @@ export const APP_ERROR_MESSAGES: Record<AppErrorCode, string> = {
     "Complete the Production Release task on My Tasks before releasing to production.",
 
   CORRECTION_INVALID: "This correction could not be processed. Check the details and try again.",
+
+  WORKFLOW_OVERRIDE_DENIED: "You do not have permission to override the workflow for this design.",
+  WORKFLOW_TARGET_INVALID: "The selected phase is not valid for this workflow action.",
+  WORKFLOW_DESIGN_CLOSED: "This design is closed and cannot be moved to another phase.",
+  WORKFLOW_BYPASS_BLOCKED: "This phase cannot be reached yet because required prior work is still missing.",
 };
 
 export function messageForCode(code: AppErrorCode): string {

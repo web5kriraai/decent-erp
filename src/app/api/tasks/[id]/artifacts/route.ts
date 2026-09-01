@@ -5,11 +5,30 @@ import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
 import type { TaskArtifactType } from "@prisma/client";
 
-const schema = z.object({
-  artifactType: z.enum(["SKETCH_VERSION", "PUNCHING_FILE", "SAMPLE_OUTPUT"]),
-  fileName: z.string().optional(),
-  storageKey: z.string().optional(),
-});
+const schema = z
+  .object({
+    artifactType: z.enum(["SKETCH_VERSION", "PUNCHING_FILE", "SAMPLE_OUTPUT"]),
+    fileName: z.string().optional(),
+    storageKey: z.string().optional(),
+    stitchCount: z.number().int().min(0).optional(),
+    machineFormat: z.string().max(32).optional(),
+    sampleQty: z.number().int().min(0).optional(),
+    wastageQty: z.number().int().min(0).optional(),
+  })
+  .superRefine((body, ctx) => {
+    const hasFile = !!body.storageKey?.trim();
+    const hasMetrics =
+      body.stitchCount != null ||
+      body.sampleQty != null ||
+      body.wastageQty != null ||
+      !!body.machineFormat?.trim();
+    if (!hasFile && !hasMetrics) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide a file upload or at least one machine output metric.",
+      });
+    }
+  });
 
 export async function POST(
   request: Request,
@@ -26,6 +45,10 @@ export async function POST(
         artifactType: body.artifactType as TaskArtifactType,
         fileName: body.fileName,
         storageKey: body.storageKey,
+        stitchCount: body.stitchCount,
+        machineFormat: body.machineFormat,
+        sampleQty: body.sampleQty,
+        wastageQty: body.wastageQty,
         uploadedById: ctx.employeeId,
       },
     });

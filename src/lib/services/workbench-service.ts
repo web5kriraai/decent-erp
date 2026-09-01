@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { listStageApprovalQueue } from "@/lib/services/stage-approval-queue";
 
 export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
   const now = new Date();
@@ -10,6 +11,7 @@ export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
     blockedDesigns,
     activeDesigns,
     openCorrections,
+    stageApprovals,
   ] = await Promise.all([
     prisma.designTask.count({
       where: {
@@ -69,6 +71,7 @@ export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
         design: { designHeadEmployeeId: designHeadId },
       },
     }),
+    listStageApprovalQueue(designHeadId),
   ]);
 
   return {
@@ -79,6 +82,7 @@ export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
     blockedDesigns,
     activeDesigns,
     openCorrections,
+    stageApprovals,
   };
 }
 
@@ -110,7 +114,7 @@ export async function getManagementWorkbenchSummary() {
         updatedAtUtc: { lt: thirtyDaysAgo },
       },
     }),
-    prisma.designConcept.count({ where: { status: "APPROVED" } }),
+    prisma.designConcept.count({ where: { status: { in: ["APPROVED", "PRODUCTION_ACCEPTED"] } } }),
     prisma.designConcept.count({ where: { status: "PRODUCTION_RELEASED" } }),
     prisma.designConcept.count({
       where: { status: { in: ["ACTIVE", "APPROVAL_PENDING", "ON_HOLD"] } },

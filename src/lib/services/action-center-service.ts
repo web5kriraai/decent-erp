@@ -5,6 +5,7 @@ import {
   categorizeEmployeeTask,
   type DepSibling,
 } from "@/lib/services/action-center";
+import { reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
 
 const taskInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true } },
@@ -65,6 +66,8 @@ function toDepSibling(
 }
 
 export async function getActionCenter(employeeId: number): Promise<ActionCenterResponse> {
+  await reconcileEmployeeTasksReadiness(employeeId, `action-center-${employeeId}`);
+
   const myTasks = await prisma.designTask.findMany({
     where: {
       assignedEmployeeId: employeeId,

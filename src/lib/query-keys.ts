@@ -5,6 +5,7 @@ export const queryKeys = {
     list: (filters?: { status?: string; search?: string }) =>
       ["designs", "list", filters] as const,
     detail: (id: string) => ["designs", "detail", id] as const,
+    completionSummary: (id: string) => ["designs", "completion-summary", id] as const,
     images: (id: string) => ["designs", "images", id] as const,
   },
   tasks: {

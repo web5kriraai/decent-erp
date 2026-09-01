@@ -176,6 +176,39 @@ describe("design workflow actions", () => {
     expect(pending?.workTask?.id).toBe("t2");
   });
 
+  it("surfaces final approval after costing is submitted for checking", () => {
+    const design: DesignSummary = {
+      ...baseDesign,
+      tasks: [
+        task({ id: "t1", sequence: 1, status: "COMPLETED", subProcess: { id: 1, name: "Concept Review", code: "CONCEPT_REVIEW", isApproval: true } }),
+        task({ id: "t6", sequence: 6, status: "COMPLETED", subProcess: { id: 6, name: "Sample Checking", code: "SAMPLE_CHECK", isApproval: true } }),
+        task({
+          id: "t7",
+          sequence: 7,
+          status: "CHECKING",
+          subProcess: { id: 7, name: "Costing", code: "COSTING" },
+        }),
+        task({
+          id: "t8",
+          sequence: 8,
+          status: "ASSIGNED",
+          assignedEmployeeId: 10,
+          subProcess: { id: 8, name: "Final Approval", code: "FINAL_APPROVAL", isApproval: true },
+        }),
+      ],
+    };
+
+    const pending = getPendingStageApproval({
+      design,
+      employeeId: 10,
+      canApprove: true,
+      canExecute: true,
+    });
+
+    expect(pending?.approvalTask.id).toBe("t8");
+    expect(pending?.workTask?.id).toBe("t7");
+  });
+
   it("marks sample checking as current and locks upcoming costing stages", () => {
     const design: DesignSummary = {
       ...baseDesign,

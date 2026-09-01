@@ -201,6 +201,21 @@ export async function raiseCorrectionInTransaction(
     data: { status: "CORRECTION_REQUIRED", version: { increment: 1 } },
   });
 
+  const sourceTask = await tx.designTask.findUnique({
+    where: { id: input.taskId },
+    include: { subProcess: { select: { code: true } } },
+  });
+  const qualityCodes = new Set(["SKETCH", "PUNCH", "MACHINE_SAMPLE", "SAMPLE_CHECK", "PUNCH_CHECK"]);
+  if (sourceTask && qualityCodes.has(sourceTask.subProcess.code)) {
+    await tx.designImage.updateMany({
+      where: { designId: input.designId, isPrimary: false },
+      data: {
+        reviewStatus: "REJECTED",
+        reviewNote: input.rootCause ?? "Returned for correction",
+      },
+    });
+  }
+
   await writeAuditLog(tx, {
     entityType: "DesignCorrection",
     entityId: correction.id.toString(),

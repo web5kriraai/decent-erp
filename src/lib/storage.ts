@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import {
   S3Client,
   PutObjectCommand,
@@ -7,29 +5,23 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  deleteFromLocal,
+  getLocalStorageRoot,
+  localDownloadPath,
+  uploadToLocal,
+} from "@/lib/local-storage";
+import { StorageError, type StorageBackend } from "@/lib/storage-types";
+
+export { StorageError } from "@/lib/storage-types";
 
 const endpoint = process.env.S3_ENDPOINT;
 const region = process.env.S3_REGION ?? "us-east-1";
 const bucket = process.env.S3_BUCKET ?? "decent-designs";
 const forcePathStyle = process.env.S3_FORCE_PATH_STYLE === "true";
 const storageDriver = process.env.STORAGE_DRIVER ?? "auto";
-const localRoot = path.resolve(
-  process.env.LOCAL_STORAGE_PATH ?? path.join(process.cwd(), ".local-storage"),
-);
-
-type StorageBackend = "s3" | "local";
 
 let activeBackend: StorageBackend | null = null;
-
-export class StorageError extends Error {
-  constructor(
-    message: string,
-    public readonly cause?: unknown,
-  ) {
-    super(message);
-    this.name = "StorageError";
-  }
-}
 
 function isConnectionError(error: unknown): boolean {
   if (error instanceof AggregateError) {
@@ -71,7 +63,7 @@ function useLocalBackend(reason?: unknown) {
           ? String(reason)
           : "not configured";
     console.warn(
-      `[storage] Using local filesystem at ${localRoot} (${detail}). ` +
+      `[storage] Using local filesystem at ${getLocalStorageRoot()} (${detail}). ` +
         "Start MinIO with `docker compose up minio minio-init -d` for S3 storage.",
     );
   }
@@ -81,26 +73,6 @@ function assertSafeKey(key: string) {
   if (!key || key.includes("..") || key.startsWith("/") || key.includes("\\")) {
     throw new StorageError("Invalid storage key");
   }
-}
-
-function localFilePath(key: string) {
-  assertSafeKey(key);
-  const resolved = path.resolve(localRoot, key);
-  if (!resolved.startsWith(localRoot + path.sep) && resolved !== localRoot) {
-    throw new StorageError("Invalid storage key path");
-  }
-  return resolved;
-}
-
-function localMetaPath(key: string) {
-  return `${localFilePath(key)}.meta.json`;
-}
-
-function localDownloadPath(key: string) {
-  return `/api/files/${key
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/")}`;
 }
 
 export const s3Client = new S3Client({
@@ -121,17 +93,6 @@ async function uploadToS3(key: string, body: Buffer | Uint8Array, contentType: s
       Body: body,
       ContentType: contentType,
     }),
-  );
-}
-
-async function uploadToLocal(key: string, body: Buffer | Uint8Array, contentType: string) {
-  const filePath = localFilePath(key);
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, body);
-  await fs.writeFile(
-    localMetaPath(key),
-    JSON.stringify({ contentType, uploadedAtUtc: new Date().toISOString() }),
-    "utf8",
   );
 }
 
@@ -192,12 +153,6 @@ async function deleteFromS3(key: string) {
   await s3Client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
-async function deleteFromLocal(key: string) {
-  const filePath = localFilePath(key);
-  await fs.rm(filePath, { force: true });
-  await fs.rm(localMetaPath(key), { force: true });
-}
-
 export async function deleteObject(key: string) {
   assertSafeKey(key);
   const backend = getBackend();
@@ -221,21 +176,6 @@ export async function deleteObject(key: string) {
 export function buildStorageKey(designId: string, fileName: string) {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   return `designs/${designId}/${Date.now()}-${safeName}`;
-}
-
-export async function readLocalObject(key: string) {
-  assertSafeKey(key);
-  const filePath = localFilePath(key);
-  const body = await fs.readFile(filePath);
-  let contentType = "application/octet-stream";
-  try {
-    const metaRaw = await fs.readFile(localMetaPath(key), "utf8");
-    const meta = JSON.parse(metaRaw) as { contentType?: string };
-    if (meta.contentType) contentType = meta.contentType;
-  } catch {
-    /* optional metadata */
-  }
-  return { body, contentType };
 }
 
 export function getActiveStorageBackend() {

@@ -24,6 +24,17 @@ export type DesignHeadWorkbenchSummary = {
   }>;
   activeDesigns: number;
   openCorrections: number;
+  stageApprovals: Array<{
+    taskId: string;
+    designId: string;
+    ideaRef: string;
+    collectionName: string;
+    stageName: string;
+    stageCode: string;
+    status: string;
+    assigneeName: string | null;
+    workStageName: string | null;
+  }>;
 };
 
 export type ManagementWorkbenchSummary = {

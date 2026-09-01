@@ -15,6 +15,7 @@ enum DesignStatus {
   ON_HOLD
   APPROVAL_PENDING
   APPROVED
+  PRODUCTION_ACCEPTED
   REJECTED
   PRODUCTION_RELEASED
   LIVE
@@ -29,6 +30,7 @@ enum TaskStatus {
   CHECKING
   CORRECTION_REQUIRED
   COMPLETED
+  SKIPPED
   CANCELLED
 }
 
@@ -120,6 +122,7 @@ model Employee {
   designHeadConcepts   DesignConcept[] @relation("DesignHead")
   createdConcepts      DesignConcept[] @relation("CreatedBy")
   assignedTasks        DesignTask[]    @relation("AssignedEmployee")
+  skippedTasks         DesignTask[]    @relation("TaskSkippedBy")
   timeEvents           TaskTimeEvent[] @relation("TimeEventEmployee")
   createdTimeEvents    TaskTimeEvent[] @relation("TimeEventCreatedBy")
   raisedCorrections    DesignCorrection[] @relation("RaisedBy")
@@ -511,8 +514,12 @@ model DesignTask {
 
   sequence            Int        @default(0)
   dependencySequence  Int?       @map("dependency_sequence")
+  skippedAt           DateTime?  @map("skipped_at")
+  skippedById         Int?       @map("skipped_by")
+  skipReason          String?    @map("skip_reason") @db.Text
 
   design           DesignConcept          @relation(fields: [designId], references: [id], onDelete: Cascade)
+  skippedBy        Employee?              @relation("TaskSkippedBy", fields: [skippedById], references: [id])
   process          DesignProcessMaster    @relation(fields: [processId], references: [id])
   subProcess       DesignSubProcessMaster @relation(fields: [subProcessId], references: [id])
   assignedEmployee Employee?              @relation("AssignedEmployee", fields: [assignedEmployeeId], references: [id])

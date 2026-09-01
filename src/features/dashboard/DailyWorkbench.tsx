@@ -5,6 +5,8 @@ import { ROLE_CODES } from "@/lib/permissions";
 import { DesignHeadDashboard } from "@/features/dashboard/DesignHeadDashboard";
 import { ProductionHeadDashboard } from "@/features/dashboard/ProductionHeadDashboard";
 import { ManagementDashboard } from "@/features/dashboard/ManagementDashboard";
+import { CheckerWorkbench } from "@/features/dashboard/CheckerWorkbench";
+import { MachineOperatorWorkbench } from "@/features/dashboard/MachineOperatorWorkbench";
 import { ExecutorWorkbench } from "@/features/dashboard/ExecutorWorkbench";
 
 export function DailyWorkbench() {
@@ -19,6 +21,12 @@ export function DailyWorkbench() {
   }
   if (roleCode === ROLE_CODES.MANAGEMENT) {
     return <ManagementDashboard />;
+  }
+  if (roleCode === ROLE_CODES.SAMPLE_CHECKER) {
+    return <CheckerWorkbench />;
+  }
+  if (roleCode === ROLE_CODES.MACHINE_OPERATOR) {
+    return <MachineOperatorWorkbench />;
   }
 
   return <ExecutorWorkbench />;

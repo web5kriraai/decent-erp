@@ -14,7 +14,14 @@ import { TaskTimeTimeline } from "@/components/time/TaskTimeTimeline";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
 import { TaskQualityContextPanel } from "@/components/tasks/TaskQualityContextPanel";
+import {
+  isStageApprovalTask,
+  TaskStageApprovalPanel,
+} from "@/components/tasks/TaskStageApprovalPanel";
+import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
+import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
 import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
+import { ActionUnavailable } from "@/components/ui/ActionUnavailable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ROUTES } from "@/config/routes";
 import {
@@ -27,6 +34,7 @@ import { useTaskMutations } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
+import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 
 type TaskDetailViewProps = {
   taskId: string;
@@ -76,6 +84,11 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   const fileRequired = !!task?.subProcess?.isFileRequired;
   const isSampleCheck = task?.subProcess?.code === "SAMPLE_CHECK";
+  const isStageApproval = isStageApprovalTask(task?.subProcess?.code);
+  const showComparePanel =
+    task?.subProcess?.code === "PUNCH_CHECK" ||
+    task?.subProcess?.code === "SAMPLE_CHECK";
+  const showMachineOutput = isMachineOutputTask(task?.subProcess?.code);
 
   const taskContextActions = useMemo(() => {
     if (!task || !canControl) return [];
@@ -86,6 +99,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         status: task.status,
         sequence: task.sequence,
         dependencySequence: task.dependencySequence,
+        subProcess: task.subProcess,
         assignedEmployeeId: task.assignedEmployeeId,
         workflowPeers: task.workflowPeers,
         assigneeHasRunningTask: task.assigneeHasRunningTask,
@@ -239,6 +253,36 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
               subProcessCode={task.subProcess.code}
             />
 
+            {showComparePanel ? (
+              <TaskCompareVersionsPanel designId={task.design.id} />
+            ) : null}
+
+            {showMachineOutput ? (
+              <TaskMachineOutputPanel taskId={task.id} canEdit={canControl} />
+            ) : null}
+
+            {isStageApproval && canControl ? (
+              <TaskStageApprovalPanel
+                taskId={task.id}
+                designId={task.design.id}
+                version={task.version}
+                status={task.status}
+                stageName={task.subProcess.name}
+                stageCode={task.subProcess.code}
+                assignedEmployeeId={task.assignedEmployeeId}
+                employeeId={session?.user?.employeeId}
+                canAssign={permissions.includes(PERMISSIONS.DESIGN_ASSIGN)}
+                showCompare={false}
+              />
+            ) : null}
+
+            {canControl && task.blockedMessage && !task.canStart ? (
+              <ActionUnavailable
+                reason={task.blockedMessage}
+                className="mb-4"
+              />
+            ) : null}
+
             <div
               style={{
                 display: "grid",
@@ -316,6 +360,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                       className="mt-4"
                       actions={taskContextActions}
                       onAction={handleTaskContextAction}
+                      showDisabled
                     />
                   ) : null}
                 </CardContent>

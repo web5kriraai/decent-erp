@@ -24,9 +24,12 @@ const createSchema = z.object({
   tasks: z.array(taskSchema).min(1),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   return withApiHandler(null, async (ctx) => {
-    const patterns = await getWorkflowPatterns();
+    const includeInactive =
+      ctx.permissions.includes(PERMISSIONS.MASTER_ADMIN) &&
+      new URL(request.url).searchParams.get("includeInactive") === "1";
+    const patterns = await getWorkflowPatterns({ includeInactive });
     return jsonOk(serializeBigInt(patterns), ctx.correlationId);
   });
 }

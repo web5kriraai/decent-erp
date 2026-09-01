@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { CheckIcon } from "lucide-react";
 import type { ChecklistItemMaster } from "@/hooks/use-masters";
 import { TaskArtifactPanel, useTaskHasFiles } from "@/components/tasks/TaskArtifactPanel";
+import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
+import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 
 type TaskEndDialogProps = {
   open: boolean;
@@ -78,6 +80,7 @@ export function TaskEndDialog({
   );
 
   const showFileUpload = !!fileRequired && !!taskId && !!designId;
+  const showMachineOutput = isMachineOutputTask(subProcessCode) && !!taskId;
   const fileWarning = showFileUpload && !hasFiles && !isUploading && !filesLoading;
   const filesBlocking = showFileUpload && (filesLoading || isUploading || !hasFiles);
 
@@ -146,6 +149,19 @@ export function TaskEndDialog({
       }
     >
       <ModalForm className="pb-2">
+        {showMachineOutput ? (
+          <ModalSection
+            title="Machine output"
+            description="Record stitch count, format, and sample/wastage quantities before completing."
+          >
+            <TaskMachineOutputPanel
+              taskId={taskId!}
+              canEdit={canUpload && !isPending}
+              compact
+            />
+          </ModalSection>
+        ) : null}
+
         {showFileUpload && (
           <ModalSection
             title="Task Files"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withApiHandler, ApiError } from "@/lib/api-utils";
-import { readLocalObject } from "@/lib/storage";
+import { readLocalObject } from "@/lib/local-storage";
 import { PERMISSIONS } from "@/lib/permissions";
 
 export async function GET(

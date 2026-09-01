@@ -3,8 +3,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
-import type { DesignListResponse } from "@/lib/types/api";
 import { useApiToast } from "@/components/ui/ToastProvider";
+
+export type ReleasedDesignForGoLive = {
+  id: string;
+  ideaRef: string;
+  collectionName: string;
+  status: string;
+  productType?: { name: string } | null;
+  designHead?: { name: string } | null;
+  liveReviewCompleted: boolean;
+  liveReviewStatus: string | null;
+};
 
 export function useApprovedDesigns(enabled = true) {
   return useQuery({
@@ -29,10 +39,8 @@ export function useApprovedDesigns(enabled = true) {
 export function useReleasedDesigns(enabled = true) {
   return useQuery({
     queryKey: queryKeys.production.released,
-    queryFn: () =>
-      apiGet<DesignListResponse>("/api/designs?status=PRODUCTION_RELEASED&limit=100"),
+    queryFn: () => apiGet<ReleasedDesignForGoLive[]>("/api/production/live"),
     enabled,
-    select: (data) => data.items,
   });
 }
 

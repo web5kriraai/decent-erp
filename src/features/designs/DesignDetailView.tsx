@@ -12,7 +12,9 @@ import { ROUTES } from "@/config/routes";
 import { useDesign } from "@/hooks/use-designs";
 import { ImageGallery } from "@/components/ImageGallery";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
+import { DesignCompletionSummaryPanel } from "@/features/designs/DesignCompletionSummaryPanel";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
+import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
 import { DesignWorkflowPanel } from "@/components/designs/DesignWorkflowPanel";
 import { CompactDesignActions } from "@/components/designs/CompactDesignActions";
 import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprovalCard";
@@ -41,6 +43,7 @@ export function DesignDetailView({
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
   const canUploadFiles = permissions.includes(PERMISSIONS.DESIGN_CREATE);
+  const canOverrideWorkflow = permissions.includes(PERMISSIONS.WORKFLOW_OVERRIDE);
 
   const pendingStageApproval = useMemo(() => {
     if (!designQuery.data) return null;
@@ -129,6 +132,17 @@ export function DesignDetailView({
                 onAssignTask={setAssignTask}
               />
             </div>
+
+            {canOverrideWorkflow ? (
+              <div className="mb-6">
+                <WorkflowOverrideActions designId={designId} design={designQuery.data} />
+              </div>
+            ) : null}
+
+            <DesignCompletionSummaryPanel
+              designId={designId}
+              design={designQuery.data}
+            />
 
             {showDesignFiles ? (
               <section className="card">

@@ -18,6 +18,7 @@ export type DesignWithTasks = {
   ideaRef: string;
   status: string;
   version: number;
+  currentStage?: string | null;
   tasks: WorkflowTask[];
 };
 
@@ -65,10 +66,10 @@ export async function completeAssignedTask(
   },
 ) {
   await apiPostJson(page, `/api/tasks/${taskId}/start`, {});
-  const detail = await apiGetJson<{ version: number; subProcess: { code?: string; isFileRequired?: boolean } }>(
-    page,
-    `/api/tasks/${taskId}`,
-  );
+  const detail = await apiGetJson<{
+    version: number;
+    subProcess: { id?: number; code?: string; isFileRequired?: boolean };
+  }>(page, `/api/tasks/${taskId}`);
 
   if (detail.subProcess.isFileRequired) {
     const type =
@@ -80,12 +81,24 @@ export async function completeAssignedTask(
     await addTaskArtifact(page, taskId, type);
   }
 
+  let checklist = extra?.checklist;
+  if (!checklist && detail.subProcess.id) {
+    const allChecklist = await apiGetJson<Array<{ id: number; subProcessId?: number | null }>>(
+      page,
+      "/api/masters/checklist",
+    );
+    const forSubProcess = allChecklist.filter((c) => c.subProcessId === detail.subProcess.id);
+    if (forSubProcess.length > 0) {
+      checklist = forSubProcess.map((item) => ({ itemId: item.id, result: true }));
+    }
+  }
+
   return apiPostJson(page, `/api/tasks/${taskId}/end`, {
     version: detail.version,
     outputRemark: remark,
     completionStatus: extra?.completionStatus ?? "COMPLETED",
     sampleOutcome: extra?.sampleOutcome,
-    checklist: extra?.checklist,
+    checklist,
   });
 }
 
@@ -104,11 +117,13 @@ export async function completeStageApproval(
   page: Page,
   taskId: string,
   remark = "E2E stage approval",
+  decision: "APPROVED" | "REJECT" | "CORRECTION_REQUIRED" = "APPROVED",
 ) {
   const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${taskId}`);
   return apiPostJson(page, `/api/tasks/${taskId}/approve-stage`, {
     outputRemark: remark,
     version: detail.version,
+    decision,
   });
 }
 
@@ -194,4 +209,37 @@ export async function submitManagementApprovals(page: Page, designId: string) {
       remark: "E2E pipeline approval",
     });
   }
+}
+
+export async function bypassDesignToPhase(
+  page: Page,
+  designId: string,
+  targetTaskId: string,
+  reason: string,
+) {
+  return apiPostJson(page, `/api/designs/${designId}/bypass`, {
+    targetTaskId,
+    reason,
+  });
+}
+
+export async function sendDesignToQcPhase(
+  page: Page,
+  designId: string,
+  targetTaskId: string,
+  reason: string,
+) {
+  return apiPostJson(page, `/api/designs/${designId}/send-qc`, {
+    targetTaskId,
+    reason,
+  });
+}
+
+export async function getCompletionSummary(page: Page, designId: string) {
+  return apiGetJson<{
+    isComplete: boolean;
+    employees: Array<{ name: string; activeSeconds: number }>;
+    phases: Array<{ status: string; skipReason?: string | null }>;
+    overrideHistory: Array<{ action: string }>;
+  }>(page, `/api/designs/${designId}/completion-summary`);
 }

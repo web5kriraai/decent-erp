@@ -18,7 +18,11 @@ import {
   isTaskReady,
 } from "@/lib/services/task-dependency";
 import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
+import { raiseCorrectionInTransaction } from "@/lib/services/correction-service";
+import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
 import { releaseToProduction } from "@/lib/services/production-service";
+import { resolveStatusAfterAssign, reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
+import { enrichEmployeeTasks } from "@/lib/services/task-workflow-enrichment";
 import { resolveWorkTaskEndStatus, findCheckingWorkTasksReleasedByApproval } from "@/lib/services/workflow-stage-gate";
 import type { Prisma } from "@prisma/client";
 
@@ -86,7 +90,9 @@ async function promoteGatedWorkTasksAfterApproval(
 }
 
 export async function getMyTasks(employeeId: number) {
-  return prisma.designTask.findMany({
+  await reconcileEmployeeTasksReadiness(employeeId, `my-tasks-${employeeId}`);
+
+  const tasks = await prisma.designTask.findMany({
     where: {
       assignedEmployeeId: employeeId,
       status: { in: [...MY_TASKS_VISIBLE_STATUSES] },
@@ -99,6 +105,8 @@ export async function getMyTasks(employeeId: number) {
       timeEvents: { orderBy: { eventTimeUtc: "asc" } },
     },
   });
+
+  return enrichEmployeeTasks(tasks);
 }
 
 export async function assignTask(
@@ -114,12 +122,26 @@ export async function assignTask(
     const employee = await tx.employee.findUnique({ where: { id: employeeId, active: true } });
     if (!employee) throw notFound();
 
-    // Manual assignment always releases to the assignee's queue (dashboard + My Tasks).
-    // startTask still enforces dependency readiness before work can begin.
-    let nextStatus = task.status;
-    if (task.status === "PENDING" || task.status === "ASSIGNED") {
-      nextStatus = "ASSIGNED";
-    }
+    const siblings = await tx.designTask.findMany({
+      where: { designId: task.designId },
+      select: { id: true, dependencySequence: true, sequence: true, status: true },
+    });
+    const ready = isTaskReady(
+      {
+        id: task.id.toString(),
+        dependencySequence: task.dependencySequence,
+        sequence: task.sequence,
+        status: task.status,
+      },
+      siblings,
+    );
+
+    // ASSIGNED only when dependencies are satisfied; otherwise stay PENDING until unlocked.
+    const nextStatus = resolveStatusAfterAssign({
+      currentStatus: task.status,
+      hasAssignee: true,
+      isReady: ready,
+    });
 
     const updated = await tx.designTask.update({
       where: { id: taskId },
@@ -263,38 +285,50 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
         "This task is on hold. Resume it instead of starting again.",
       );
     }
-    if (task.status !== "ASSIGNED") {
+
+    const siblingRows = await tx.designTask.findMany({
+      where: { designId: task.designId },
+      select: {
+        id: true,
+        dependencySequence: true,
+        sequence: true,
+        status: true,
+        subProcess: { select: { name: true, code: true } },
+      },
+      orderBy: [{ dependencySequence: "asc" }, { sequence: "asc" }],
+    });
+
+    const depSeq = effectiveDependencySequence(task);
+    const blocker = siblingRows.find(
+      (s) =>
+        s.id !== taskId &&
+        (s.dependencySequence != null
+          ? s.dependencySequence < depSeq
+          : s.sequence < depSeq) &&
+        !DEPENDENCY_SATISFIED_STATUSES.includes(s.status as (typeof DEPENDENCY_SATISFIED_STATUSES)[number]),
+    );
+
+    if (blocker) {
+      const label = blocker.subProcess?.name ?? blocker.subProcess?.code ?? "prior task";
+      throw businessRule(
+        APP_ERROR_CODES.TASK_DEPENDENCY_BLOCKED,
+        { blockerTaskId: blocker.id.toString() },
+        `Cannot start — “${label}” must be completed or sent for checking first.`,
+      );
+    }
+
+    let activeTask = task;
+    if (task.status === "PENDING") {
+      activeTask = await tx.designTask.update({
+        where: { id: taskId },
+        data: { status: "ASSIGNED", version: { increment: 1 } },
+      });
+    } else if (task.status !== "ASSIGNED") {
       throw conflict(
         APP_ERROR_CODES.TASK_WRONG_STATUS,
         { status: task.status },
         "Only assigned tasks can be started.",
       );
-    }
-
-    // Dependency gate: prior sequence must be ended (COMPLETED / CHECKING) or CANCELLED
-    const depSeq = effectiveDependencySequence(task);
-    if (depSeq > 0) {
-      const blocker = await tx.designTask.findFirst({
-        where: {
-          designId: task.designId,
-          id: { not: taskId },
-          status: { notIn: [...DEPENDENCY_SATISFIED_STATUSES] },
-          OR: [
-            { dependencySequence: { lt: depSeq, not: null } },
-            { dependencySequence: null, sequence: { lt: depSeq } },
-          ],
-        },
-        include: { subProcess: { select: { name: true, code: true } } },
-        orderBy: [{ dependencySequence: "asc" }, { sequence: "asc" }],
-      });
-      if (blocker) {
-        const label = blocker.subProcess?.name ?? blocker.subProcess?.code ?? "prior task";
-        throw businessRule(
-          APP_ERROR_CODES.TASK_DEPENDENCY_BLOCKED,
-          { blockerTaskId: blocker.id.toString() },
-          `Cannot start — “${label}” must be completed or sent for checking first.`,
-        );
-      }
     }
 
     const now = new Date();
@@ -312,7 +346,7 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
       where: { id: taskId },
       data: {
         status: "RUNNING",
-        startedAt: task.startedAt ?? now,
+        startedAt: activeTask.startedAt ?? now,
         version: { increment: 1 },
       },
     });
@@ -584,6 +618,32 @@ export async function endTask(
             reviewNote: input.outputRemark || "Image not approved during sample checking",
           },
         });
+
+        const machineSample = await tx.designTask.findFirst({
+          where: { designId: task.designId, subProcess: { code: "MACHINE_SAMPLE" } },
+          orderBy: { id: "desc" },
+          include: { subProcess: { select: { id: true } } },
+        });
+        const routeSub =
+          machineSample?.subProcess ??
+          (await tx.designSubProcessMaster.findFirst({
+            where: { code: "MACHINE_SAMPLE", active: true },
+            select: { id: true },
+          }));
+
+        await raiseCorrectionInTransaction(
+          tx,
+          {
+            designId: task.designId,
+            taskId: task.id,
+            correctionType: "IMPROVEMENT",
+            responsibleEmployeeId: machineSample?.assignedEmployeeId ?? null,
+            routeToSubProcessId: routeSub?.id ?? null,
+            rootCause: input.outputRemark || "Sample checking rejected — rework required",
+          },
+          employeeId,
+          correlationId,
+        );
       } else if (input.sampleOutcome === "RESAMPLE") {
         nextStatus = "COMPLETED";
         await spawnResampleTask(tx, task);
@@ -625,6 +685,9 @@ export async function endTask(
         version: { increment: 1 },
       },
     });
+
+    // Sample REJECT already created DesignCorrection + routed rework via raiseCorrectionInTransaction
+    // which also marked the check task CORRECTION_REQUIRED; keep outputRemark from this update.
 
     await tx.designConcept.update({
       where: { id: task.designId },
@@ -696,9 +759,15 @@ export async function endTask(
 export async function completeStageApproval(
   taskId: bigint,
   employeeId: number,
-  input: { outputRemark: string; version: number },
+  input: {
+    outputRemark: string;
+    version: number;
+    decision?: "APPROVED" | "REJECT" | "CORRECTION_REQUIRED";
+  },
   correlationId: string,
 ) {
+  const decision = input.decision ?? "APPROVED";
+
   const result = await prisma.$transaction(async (tx) => {
     const task = await tx.designTask.findUnique({
       where: { id: taskId },
@@ -714,10 +783,33 @@ export async function completeStageApproval(
     if (task.status === "COMPLETED" || task.status === "CANCELLED") {
       throw conflict(APP_ERROR_CODES.TASK_WRONG_STATUS, undefined, "This approval stage is already finished.");
     }
-    if (task.status === "PENDING") {
-      throw conflict(APP_ERROR_CODES.WORKFLOW_NOT_READY, undefined, "This approval is not ready yet.");
+
+    let status = task.status;
+
+    if (status === "PENDING") {
+      const siblings = await tx.designTask.findMany({
+        where: { designId: task.designId },
+        select: { id: true, dependencySequence: true, sequence: true, status: true },
+      });
+      const ready = isTaskReady(
+        {
+          id: task.id.toString(),
+          dependencySequence: task.dependencySequence,
+          sequence: task.sequence,
+          status: task.status,
+        },
+        siblings,
+      );
+      if (!ready) {
+        throw conflict(APP_ERROR_CODES.WORKFLOW_NOT_READY, undefined, "This approval is not ready yet.");
+      }
+      await tx.designTask.update({
+        where: { id: taskId },
+        data: { status: "ASSIGNED", version: { increment: 1 } },
+      });
+      status = "ASSIGNED";
     }
-    if (task.status === "ON_HOLD") {
+    if (status === "ON_HOLD") {
       throw conflict(
         APP_ERROR_CODES.TASK_WRONG_STATUS,
         undefined,
@@ -732,7 +824,6 @@ export async function completeStageApproval(
     }
 
     const now = new Date();
-    let status = task.status;
 
     if (task.assignedEmployeeId == null) {
       await tx.designTask.update({
@@ -780,6 +871,61 @@ export async function completeStageApproval(
         createdById: employeeId,
       },
     });
+
+    if (decision === "REJECT" || decision === "CORRECTION_REQUIRED") {
+      const workCode = workSubProcessCodeForApproval(task.subProcess.code);
+      const workTask = workCode
+        ? await tx.designTask.findFirst({
+            where: { designId: task.designId, subProcess: { code: workCode } },
+            orderBy: { id: "desc" },
+            include: { subProcess: { select: { id: true } } },
+          })
+        : null;
+
+      if (!workTask?.subProcess) {
+        throw businessRule(
+          APP_ERROR_CODES.WORKFLOW_NOT_READY,
+          undefined,
+          "Cannot route correction — related work stage not found.",
+        );
+      }
+
+      await raiseCorrectionInTransaction(
+        tx,
+        {
+          designId: task.designId,
+          taskId: task.id,
+          correctionType: "IMPROVEMENT",
+          responsibleEmployeeId: workTask.assignedEmployeeId,
+          routeToSubProcessId: workTask.subProcess.id,
+          rootCause: input.outputRemark,
+        },
+        employeeId,
+        correlationId,
+      );
+
+      const updated = await tx.designTask.findUniqueOrThrow({
+        where: { id: taskId },
+        include: {
+          assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
+          design: { select: { id: true, ideaRef: true, collectionName: true } },
+          process: true,
+          subProcess: true,
+        },
+      });
+
+      await writeAuditLog(tx, {
+        entityType: "DesignTask",
+        entityId: taskId.toString(),
+        action: decision === "REJECT" ? "REJECT_STAGE" : "CORRECTION_STAGE",
+        userId: employeeId,
+        correlationId,
+        before: task,
+        after: updated,
+      });
+
+      return updated;
+    }
 
     const updated = await tx.designTask.update({
       where: { id: taskId },
@@ -839,11 +985,22 @@ export async function completeStageApproval(
     return updated;
   });
 
-  await enqueueOutboxAndNotify(
-    "TASK_COMPLETED",
-    { taskId: taskId.toString(), designId: result.designId.toString() },
-    correlationId,
-  );
+  if (decision === "APPROVED") {
+    await enqueueOutboxAndNotify(
+      "TASK_COMPLETED",
+      { taskId: taskId.toString(), designId: result.designId.toString() },
+      correlationId,
+    );
+  } else {
+    await enqueueOutboxAndNotify(
+      "CORRECTION_RAISED",
+      {
+        designId: result.designId.toString(),
+        taskId: taskId.toString(),
+      },
+      correlationId,
+    );
+  }
 
   return result;
 }
