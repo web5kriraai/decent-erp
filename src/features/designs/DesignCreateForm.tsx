@@ -3,8 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
+import { PermissionDenied } from "@/components/PermissionDenied";
 import { useCreateDesign } from "@/hooks/use-designs";
 import {
   useComponentTypes,
@@ -18,6 +20,8 @@ import { getFieldErrors, ApiClientError } from "@/lib/api-client";
 import type { Priority, WorkType } from "@/lib/types/api";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ROUTES } from "@/config/routes";
+import { PERMISSIONS } from "@/lib/permissions";
+import { sessionPermissionsStaleHint } from "@/lib/user-messages";
 import { filterWorkflowPatternsForProductType } from "@/lib/workflow-patterns";
 
 type AssignmentMode = "AUTOMATIC" | "MANUAL";
@@ -49,6 +53,9 @@ const WORK_TYPE_OPTIONS: { value: WorkType; label: string }[] = [
 
 export function DesignCreateForm() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const permissions = session?.user?.permissions ?? [];
+  const canCreate = permissions.includes(PERMISSIONS.DESIGN_CREATE);
   const createDesign = useCreateDesign();
 
   const [collectionName, setCollectionName] = useState("");
@@ -230,11 +237,23 @@ export function DesignCreateForm() {
 
   const processList = processes.data ?? [];
 
+  if (!canCreate) {
+    return (
+      <div className="page-shell page-shell--narrow">
+        <PageHeader title="Create Design Concept" subtitle="Start a new collection in the design pipeline" />
+        <PermissionDenied permission={PERMISSIONS.DESIGN_CREATE} />
+        <p className="form-hint" style={{ marginTop: "1rem" }}>
+          {sessionPermissionsStaleHint()}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="page-shell page-shell--narrow">
       <PageHeader
         title="Create Design Concept"
-        subtitle="Design + tasks saved in one transaction - identity from your session"
+        subtitle="Add collection details, pick a workflow, and we'll set you as the design head"
         actions={
           <Link href={ROUTES.designs.list} className="btn btn-secondary">
             Cancel

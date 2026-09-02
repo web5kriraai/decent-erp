@@ -25,6 +25,7 @@ export async function GET(
         design,
         employeeId: ctx.employeeId,
         permissions: ctx.permissions,
+        roleCode: ctx.roleCode,
       });
       return jsonOk({ actions }, ctx.correlationId);
     },

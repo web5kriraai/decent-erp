@@ -37,7 +37,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       PERMISSIONS.CORRECTION_RAISE,
       PERMISSIONS.COST_VIEW,
       PERMISSIONS.TIME_VIEW_TEAM,
-      PERMISSIONS.PRODUCTION_RELEASE,
+      PERMISSIONS.WORKFLOW_OVERRIDE,
     ],
     navFocus: ["My Work", "Design Pipeline", "Quality", "Finance", "Team & Reports", "Production"],
   },

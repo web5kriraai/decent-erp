@@ -231,7 +231,7 @@ export function resolveApprovalContextActions(input: {
     return [
       buildAction(WORKFLOW_ACTION_CODES.APPROVE_LEVEL, {
         enabled: false,
-        disabledReason: "You do not have permission to approve designs.",
+        disabledReason: "Design approval isn't enabled for your role.",
       }),
     ];
   }
@@ -266,7 +266,7 @@ export function resolveCorrectionContextActions(input: {
   actions.push(
     buildAction(WORKFLOW_ACTION_CODES.RAISE_CORRECTION, {
       enabled: canRaise,
-      disabledReason: canRaise ? undefined : "You do not have permission to raise corrections.",
+      disabledReason: canRaise ? undefined : "Raising corrections isn't enabled for your role.",
     }),
   );
 
@@ -298,7 +298,7 @@ export function resolveCostingContextActions(input: {
       disabledReason: !input.designId
         ? "Select a design to add cost entries."
         : !canView
-          ? "You do not have permission to view costing."
+          ? "Costing view isn't enabled for your role."
           : undefined,
       designId: input.designId,
     }),

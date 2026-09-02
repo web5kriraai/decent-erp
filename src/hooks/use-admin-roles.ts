@@ -97,6 +97,30 @@ export type RolePermissionMatrix = {
   permissions: Array<{ id: number; code: string; name: string; assigned: boolean }>;
 };
 
+export type FullRbacMatrix = {
+  roles: Array<{
+    id: number;
+    code: string;
+    name: string;
+    displayName: string;
+    employeeCount: number;
+  }>;
+  permissions: Array<{ id: number; code: string; name: string; description: string | null }>;
+  matrix: Array<{
+    permissionCode: string;
+    permissionName: string;
+    roles: Array<{ roleId: number; roleCode: string; assigned: boolean }>;
+  }>;
+};
+
+export function useFullRbacMatrix(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.admin.rbacMatrix,
+    queryFn: () => apiGet<FullRbacMatrix>("/api/admin/rbac-matrix"),
+    enabled,
+  });
+}
+
 export function useRolePermissionMatrix(roleId: number, enabled = true) {
   return useQuery({
     queryKey: queryKeys.admin.rolePermissions(roleId),
@@ -116,9 +140,27 @@ export function useUpdateRolePermissions() {
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.rbacMatrix });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.rolePermissions(data.role.id) });
-      toast.success("Permissions saved", data.role.name);
+      toast.success("Permissions saved", `${data.role.name} updated`);
     },
-    onError: (error) => toast.errorFromApi(error, "Could not update permissions"),
+    onError: (error) => toast.errorFromApi(error, "Couldn't update permissions"),
+  });
+}
+
+export function useRestoreRolePermissions() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: (roleId: number) =>
+      apiPost<RolePermissionMatrix>(`/api/admin/roles/${roleId}/permissions/restore`, {}),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.rbacMatrix });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.rolePermissions(data.role.id) });
+      toast.success("Defaults restored", data.role.name);
+    },
+    onError: (error) => toast.errorFromApi(error, "Couldn't restore defaults"),
   });
 }

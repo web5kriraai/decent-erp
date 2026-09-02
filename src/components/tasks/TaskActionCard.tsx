@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/config/routes";
 import type { DesignTask, Priority } from "@/lib/types/api";
 import { resolveEffectiveTaskPriority } from "@/lib/task-priority";
+import {
+  formatActionCenterListHint,
+  resolveListItemDisplayStatus,
+  shouldApplyWaitingListStyle,
+  shouldShowDueInList,
+  shouldShowPriorityInList,
+  type ActionCenterListVariant,
+} from "@/lib/task-action-display";
 import { cn } from "@/lib/utils";
 
 function formatCollectionLabel(name: string) {
@@ -107,7 +115,7 @@ export function TaskActionCard({
       {dueHint ? <p className="task-card-due">{dueHint}</p> : null}
 
       <div className="task-card-meta">
-        <StatusBadge status={task.status} />
+        <StatusBadge status={resolveListItemDisplayStatus(task)} />
         {showStartButton ? (
           <Button
             type="button"
@@ -134,25 +142,45 @@ export function TaskActionCard({
   );
 }
 
-export function TaskActionListItem({ task }: { task: DesignTask }) {
-  const dueHint = formatDueHint(task.dueAt);
+export function TaskActionListItem({
+  task,
+  variant = "active",
+}: {
+  task: DesignTask;
+  variant?: ActionCenterListVariant;
+}) {
+  const showPriority = shouldShowPriorityInList(variant);
+  const showDue = shouldShowDueInList(variant);
+  const dueHint = showDue ? formatDueHint(task.dueAt) : null;
+  const listHint = formatActionCenterListHint(task, variant);
   const priority = taskDisplayPriority(task);
   const primaryLabel = taskPrimaryLabel(task);
   const secondaryLabel = taskSecondaryLabel(task);
+  const displayStatus = resolveListItemDisplayStatus(task);
 
   return (
-    <li className="action-center-list-item">
+    <li
+      className={cn(
+        "action-center-list-item",
+        variant === "completed" && "action-center-list-item--done",
+        shouldApplyWaitingListStyle(task, variant) && "action-center-list-item--waiting",
+      )}
+    >
       <div>
         <div className="task-list-item-head">
           <Link href={ROUTES.work.taskDetail(task.id)} className="data-table-link">
             {primaryLabel} · {task.subProcess.name}
           </Link>
-          <PriorityBadge priority={priority} />
+          {showPriority ? <PriorityBadge priority={priority} /> : null}
         </div>
         {secondaryLabel ? <p className="action-center-list-meta">{secondaryLabel}</p> : null}
-        {dueHint ? <p className="action-center-list-detail">{dueHint}</p> : null}
+        {listHint ? (
+          <p className="action-center-list-detail action-center-list-detail--muted">{listHint}</p>
+        ) : dueHint ? (
+          <p className="action-center-list-detail">{dueHint}</p>
+        ) : null}
       </div>
-      <StatusBadge status={task.status} />
+      <StatusBadge status={displayStatus} />
     </li>
   );
 }

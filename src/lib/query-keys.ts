@@ -81,6 +81,7 @@ export const queryKeys = {
     dashboard: ["admin", "dashboard"] as const,
     employees: ["admin", "employees"] as const,
     roles: ["admin", "roles"] as const,
+    rbacMatrix: ["admin", "rbac-matrix"] as const,
     rolePermissions: (roleId: number) => ["admin", "roles", roleId, "permissions"] as const,
     suggestCode: ["admin", "employees", "suggest-code"] as const,
   },

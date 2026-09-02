@@ -1,7 +1,7 @@
 import { ApiError } from "@/lib/api-utils";
 import { prisma } from "@/lib/db";
 import { ALL_ROLE_CODES, ROLE_CATALOG } from "@/config/roles";
-import { ROLE_CODES } from "@/lib/permissions";
+import { DEFAULT_ROLE_PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
 import bcrypt from "bcryptjs";
 
 const employeeSelect = {
@@ -223,4 +223,66 @@ export async function updateRolePermissions(
   });
 
   return getRolePermissionMatrix(roleId);
+}
+
+export async function getFullRbacMatrix() {
+  const [roles, permissions] = await Promise.all([
+    prisma.role.findMany({
+      where: { active: true },
+      orderBy: { code: "asc" },
+      include: {
+        permissions: { include: { permission: true } },
+        _count: { select: { employees: true } },
+      },
+    }),
+    prisma.permission.findMany({ orderBy: { code: "asc" } }),
+  ]);
+
+  const assignments = new Map<string, Set<string>>();
+  for (const role of roles) {
+    assignments.set(
+      role.code,
+      new Set(role.permissions.map((rp) => rp.permission.code)),
+    );
+  }
+
+  return {
+    roles: roles.map((role) => ({
+      id: role.id,
+      code: role.code,
+      name: role.name,
+      displayName:
+        ROLE_CATALOG[role.code as keyof typeof ROLE_CATALOG]?.displayName ?? role.name,
+      employeeCount: role._count.employees,
+    })),
+    permissions: permissions.map((p) => ({
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      description: p.description,
+    })),
+    matrix: permissions.map((permission) => ({
+      permissionCode: permission.code,
+      permissionName: permission.name,
+      roles: roles.map((role) => ({
+        roleId: role.id,
+        roleCode: role.code,
+        assigned: assignments.get(role.code)?.has(permission.code) ?? false,
+      })),
+    })),
+  };
+}
+
+export async function restoreRolePermissionsToDefaults(
+  roleId: number,
+  actorId: number,
+  correlationId: string,
+) {
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role) throw new ApiError("Role not found", 404);
+
+  const defaults = DEFAULT_ROLE_PERMISSIONS[role.code];
+  if (!defaults) throw new ApiError("No default permissions defined for this role", 422);
+
+  return updateRolePermissions(roleId, [...defaults], actorId, correlationId);
 }

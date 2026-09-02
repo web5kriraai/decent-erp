@@ -89,9 +89,10 @@ export function DesignDetailView({
 
             {showConceptSetup && (
               <div className="alert alert-info stack-section" role="status" id="concept-setup">
-                <strong>Step 2 — Attach references</strong>
+                <strong>Next — add reference images</strong>
                 <p style={{ margin: "0.25rem 0 0" }}>
-                  Upload product and reference images below. Mark one image as primary when ready.
+                  Upload product and inspiration photos below. Mark one as primary when you&apos;re
+                  happy with the set.
                 </p>
               </div>
             )}

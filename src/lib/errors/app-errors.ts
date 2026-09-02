@@ -1,3 +1,5 @@
+import { permissionDeniedMessage } from "@/lib/user-messages";
+
 /**
  * Application error codes — safe to expose to clients.
  * Technical details go in server logs only (via correlationId).
@@ -44,43 +46,41 @@ export type AppErrorCode = (typeof APP_ERROR_CODES)[keyof typeof APP_ERROR_CODES
 export const APP_ERROR_MESSAGES: Record<AppErrorCode, string> = {
   NOT_AUTHENTICATED: "Please sign in to continue.",
   PERMISSION_DENIED:
-    "You do not have permission to perform this action. Contact your administrator if this seems incorrect.",
-  VALIDATION_FAILED: "Some fields need correction before you can continue.",
-  NOT_FOUND: "The requested item could not be found. It may have been removed.",
+    "You don't have access for this action. If you think you should, ask your system admin to check your role permissions.",
+  VALIDATION_FAILED: "A few fields need fixing before we can save.",
+  NOT_FOUND: "We couldn't find that item. It may have been removed or moved.",
   CONCURRENCY_CONFLICT:
-    "This item was updated by someone else. Refresh the page to see the latest status, then try again.",
-  INTERNAL_ERROR:
-    "We couldn't complete this action right now. Your changes were not saved. Please try again.",
+    "Someone else updated this just now. Refresh the page, check the latest status, and try again.",
+  INTERNAL_ERROR: "Something went wrong on our side. Nothing was saved — please try once more.",
 
-  TASK_NOT_FOUND: "This task could not be found.",
-  TASK_NOT_ASSIGNED: "This task is not assigned to you.",
-  TASK_WRONG_STATUS: "This task cannot be updated in its current status.",
-  TASK_DEPENDENCY_BLOCKED:
-    "This task cannot start yet because a prior stage must be completed first.",
-  TASK_ALREADY_RUNNING: "You already have another task running. End or hold it before starting a new one.",
-  WORKDAY_CLOSED: "Your workday is closed. You cannot start new task time until the next workday.",
+  TASK_NOT_FOUND: "That task isn't in the system anymore.",
+  TASK_NOT_ASSIGNED: "This task isn't assigned to you.",
+  TASK_WRONG_STATUS: "This task can't be changed in its current state.",
+  TASK_DEPENDENCY_BLOCKED: "This task is waiting on an earlier stage to finish first.",
+  TASK_ALREADY_RUNNING: "You already have a task running. End or hold it before starting another.",
+  WORKDAY_CLOSED: "Your workday is closed. You can start task time again on the next workday.",
 
-  REQUIRED_FILE_MISSING: "Please upload the required file before submitting.",
-  CHECKLIST_INCOMPLETE: "Please complete all required checklist items before submitting.",
-  SAMPLE_OUTCOME_REQUIRED: "Please choose Approve, Reject, or Re-sample before submitting.",
+  REQUIRED_FILE_MISSING: "Please upload the required file before you submit.",
+  CHECKLIST_INCOMPLETE: "Please tick all required checklist items before you submit.",
+  SAMPLE_OUTCOME_REQUIRED: "Choose Approve, Reject, or Re-sample before submitting.",
 
-  DESIGN_NOT_FOUND: "This design could not be found.",
-  DESIGN_STATUS_INVALID: "This design cannot move to the requested status right now.",
-  WORKFLOW_NOT_READY: "The workflow is not ready for this action yet.",
+  DESIGN_NOT_FOUND: "That design couldn't be found.",
+  DESIGN_STATUS_INVALID: "This design can't move to that status right now.",
+  WORKFLOW_NOT_READY: "The workflow isn't ready for this step yet.",
 
-  APPROVAL_NOT_ALLOWED: "You are not authorized to record this approval decision.",
-  COSTING_REQUIRED: "Development costing must be complete before this approval can be recorded.",
+  APPROVAL_NOT_ALLOWED: "This approval decision isn't assigned to your role.",
+  COSTING_REQUIRED: "Development costing must be filled in before this approval can go through.",
 
-  PRODUCTION_RELEASE_BLOCKED: "Production release is not available yet.",
+  PRODUCTION_RELEASE_BLOCKED: "Production release isn't available for this design yet.",
   PRODUCTION_RELEASE_TASK_REQUIRED:
-    "Complete the Production Release task on My Tasks before releasing to production.",
+    "Finish the Production Release task on My Tasks before releasing to production.",
 
-  CORRECTION_INVALID: "This correction could not be processed. Check the details and try again.",
+  CORRECTION_INVALID: "We couldn't process this correction. Check the details and try again.",
 
-  WORKFLOW_OVERRIDE_DENIED: "You do not have permission to override the workflow for this design.",
-  WORKFLOW_TARGET_INVALID: "The selected phase is not valid for this workflow action.",
-  WORKFLOW_DESIGN_CLOSED: "This design is closed and cannot be moved to another phase.",
-  WORKFLOW_BYPASS_BLOCKED: "This phase cannot be reached yet because required prior work is still missing.",
+  WORKFLOW_OVERRIDE_DENIED: "Workflow override isn't enabled for your role on this design.",
+  WORKFLOW_TARGET_INVALID: "That phase isn't valid for this workflow action.",
+  WORKFLOW_DESIGN_CLOSED: "This design is closed — it can't be moved to another phase.",
+  WORKFLOW_BYPASS_BLOCKED: "That phase can't be reached yet because earlier work is still open.",
 };
 
 export function messageForCode(code: AppErrorCode): string {
@@ -108,7 +108,21 @@ export function humanizeClientError(input: {
   message: string;
   status: number;
   code?: string;
+  details?: unknown;
 }): { title: string; hint?: string } {
+  const details =
+    input.details && typeof input.details === "object"
+      ? (input.details as { requiredPermissions?: string[] })
+      : undefined;
+  const required = details?.requiredPermissions;
+
+  if (input.status === 403 && required?.length) {
+    return {
+      title: permissionDeniedMessage(required),
+      hint: "Sign out and back in after your admin updates your role.",
+    };
+  }
+
   const code =
     input.code && input.code in APP_ERROR_MESSAGES
       ? (input.code as AppErrorCode)
@@ -117,12 +131,14 @@ export function humanizeClientError(input: {
   const title = code ? APP_ERROR_MESSAGES[code] : sanitizeLegacyMessage(input.message, input.status);
 
   let hint: string | undefined;
-  if (input.status === 409 && code === APP_ERROR_CODES.CONCURRENCY_CONFLICT) {
+  if (input.status === 403 && code === APP_ERROR_CODES.PERMISSION_DENIED) {
+    hint = "Sign out and back in after your admin updates your role.";
+  } else if (input.status === 409 && code === APP_ERROR_CODES.CONCURRENCY_CONFLICT) {
     hint = "Refresh the page and try again.";
   } else if (input.status === 400 && code === APP_ERROR_CODES.VALIDATION_FAILED) {
     hint = "Check the highlighted fields and try again.";
   } else if (input.status >= 500) {
-    hint = "If this keeps happening, contact support with the reference below.";
+    hint = "If this keeps happening, share the reference below with support.";
   }
 
   return { title, hint };

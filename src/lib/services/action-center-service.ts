@@ -3,11 +3,11 @@ import {
   buildBlockedContext,
   buildWaitingContext,
   categorizeEmployeeTask,
+  foldWaitingTaskToPersonalBucket,
   type DepSibling,
 } from "@/lib/services/action-center";
-import { enrichActionCenterTaskList } from "@/lib/services/action-center-enrichment";
+import { enrichActionCenterTaskList, enrichActionCenterHistoricalList } from "@/lib/services/action-center-enrichment";
 import { reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
-import { sortTasksByEffectivePriority } from "@/lib/task-priority";
 
 const taskInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true, priority: true } },
@@ -40,6 +40,10 @@ export type ActionCenterBlockedItem = {
 export type ActionCenterTask = Awaited<ReturnType<typeof prisma.designTask.findMany>>[number] & {
   canStart?: boolean;
   startBlockedReason?: string;
+  effectiveStatus?: string;
+  isWaitingOnOthers?: boolean;
+  waitingOnStage?: string | null;
+  waitingOnAssignee?: string | null;
 };
 
 export type ActionCenterResponse = {
@@ -145,8 +149,8 @@ export async function getActionCenter(employeeId: number): Promise<ActionCenterR
         actionRequired.push(task);
         break;
       case "waitingForOthers": {
-        // Personal view: fold into Upcoming or Completed (supervisors use Pipeline Dependencies).
-        if (task.status === "COMPLETED") {
+        // Personal view: fold into Upcoming or Completed using effectiveStatus (not raw status).
+        if (foldWaitingTaskToPersonalBucket(row, siblings) === "completed") {
           completed.push(task);
         } else {
           upcoming.push(task);
@@ -189,14 +193,12 @@ export async function getActionCenter(employeeId: number): Promise<ActionCenterR
     actionRequired: enrichActionCenterTaskList(actionRequired, siblingsByDesign, runningTask?.id ?? null),
     waitingForOthers: [],
     blocked,
-    upcoming: enrichActionCenterTaskList(upcoming, siblingsByDesign, runningTask?.id ?? null),
-    completed: sortTasksByEffectivePriority(
-      completedRecent.map((task) => ({
-        ...task,
-        canStart: false,
-        startBlockedReason: undefined,
-      })),
-    ),
+    upcoming: enrichActionCenterHistoricalList(upcoming, siblingsByDesign),
+    completed: enrichActionCenterHistoricalList(completedRecent, siblingsByDesign).map((task) => ({
+      ...task,
+      canStart: false,
+      startBlockedReason: undefined,
+    })),
   };
 }
 

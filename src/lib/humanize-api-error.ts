@@ -16,6 +16,7 @@ export function humanizeApiError(error: unknown, fallback = "Something went wron
       message: error.message,
       status: error.status,
       code: error.code,
+      details: error.details,
     });
     const fieldSummary = error.isValidationError ? formatZodFieldSummary(error.details) : undefined;
     return {

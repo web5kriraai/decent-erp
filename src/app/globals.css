@@ -2423,6 +2423,15 @@ a.workbench-shortcut:hover {
   border-radius: var(--radius-md);
 }
 
+.action-center-list-item--done {
+  background: var(--color-neutral-50);
+  border-color: var(--color-neutral-200);
+}
+
+.action-center-list-item--waiting {
+  border-left: 3px solid var(--color-warning);
+}
+
 .action-center-list-meta {
   margin: 0.25rem 0 0;
   font-size: var(--font-size-caption);
@@ -2433,6 +2442,11 @@ a.workbench-shortcut:hover {
   margin: 0.35rem 0 0;
   font-size: var(--font-size-body);
   color: var(--color-neutral-700);
+}
+
+.action-center-list-detail--muted {
+  color: var(--color-neutral-500);
+  font-size: var(--font-size-caption);
 }
 
 .action-center-empty {
@@ -2980,6 +2994,85 @@ a.workbench-shortcut:hover {
   display: block;
   color: var(--color-neutral-500);
   margin-top: 0.125rem;
+}
+
+.rbac-matrix-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rbac-matrix-intro p {
+  margin: 0;
+  color: var(--color-neutral-700);
+}
+
+.rbac-matrix-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.rbac-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 960px;
+  font-size: var(--font-size-body);
+}
+
+.rbac-matrix-table th,
+.rbac-matrix-table td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.65rem 0.75rem;
+  vertical-align: top;
+}
+
+.rbac-matrix-table thead th {
+  background: var(--color-neutral-50);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.rbac-matrix-role-col {
+  min-width: 8.5rem;
+  text-align: center;
+}
+
+.rbac-matrix-role-name {
+  display: block;
+  font-weight: 600;
+}
+
+.rbac-matrix-role-actions {
+  margin-top: 0.35rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.rbac-matrix-perm-cell {
+  min-width: 14rem;
+  font-weight: 500;
+}
+
+.rbac-matrix-perm-cell span {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--color-neutral-600);
+  font-weight: 400;
+  font-size: var(--font-size-caption);
+}
+
+.rbac-matrix-cell {
+  text-align: center;
+}
+
+.rbac-matrix-toggle input {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
 }
 
 .sidebar-footer-role {

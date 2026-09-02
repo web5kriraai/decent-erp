@@ -3,7 +3,7 @@ import {
   isPriorPipelineStage,
   isTaskReady,
 } from "@/lib/services/task-dependency";
-import { findStageApprovalGate } from "@/lib/services/workflow-stage-gate";
+import { findStageApprovalGate, resolveEffectiveTaskStatus } from "@/lib/services/workflow-stage-gate";
 
 export { findStageApprovalGate } from "@/lib/services/workflow-stage-gate";
 
@@ -117,6 +117,15 @@ export function categorizeEmployeeTask(
   }
 
   return "completed";
+}
+
+/** Personal Action Center: waiting-for-others folds to Completed when the assignee's work is effectively done. */
+export function foldWaitingTaskToPersonalBucket(
+  task: MyTaskRow,
+  siblings: DepSibling[],
+): "completed" | "upcoming" {
+  const effectiveStatus = resolveEffectiveTaskStatus(task, siblings);
+  return effectiveStatus === "COMPLETED" ? "completed" : "upcoming";
 }
 
 export function buildWaitingContext(

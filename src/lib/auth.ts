@@ -85,12 +85,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.employeeId = user.employeeId;
         token.roleCode = user.roleCode;
         token.permissions = user.permissions;
       }
+
+      if (trigger === "update" && token.employeeId) {
+        const employee = await prisma.employee.findUnique({
+          where: { id: token.employeeId as number },
+          include: { role: true },
+        });
+        if (employee?.active) {
+          token.permissions = await loadEmployeePermissions(employee.roleId);
+          token.roleCode = employee.role.code;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {

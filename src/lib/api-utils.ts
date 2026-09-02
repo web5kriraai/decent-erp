@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { ZodError, type ZodSchema } from "zod";
+import { permissionDeniedMessage } from "@/lib/user-messages";
 import {
   APP_ERROR_CODES,
   formatZodFieldSummary,
@@ -55,11 +56,12 @@ export async function withApiHandler<T>(
       permission &&
       !requirePermission(session.user.permissions, permission)
     ) {
+      const requiredList = Array.isArray(permission) ? permission : [permission];
       return jsonError(
-        messageForCode(APP_ERROR_CODES.PERMISSION_DENIED),
+        permissionDeniedMessage(requiredList),
         403,
         correlationId,
-        undefined,
+        { requiredPermissions: requiredList },
         APP_ERROR_CODES.PERMISSION_DENIED,
       );
     }

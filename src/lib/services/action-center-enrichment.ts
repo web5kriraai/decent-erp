@@ -1,5 +1,7 @@
 import { getTaskStartAvailability } from "@/lib/action-availability";
 import type { DepSibling } from "@/lib/services/action-center";
+import { findNextOpenTask } from "@/lib/services/action-center";
+import { findStageApprovalGate, resolveEffectiveTaskStatus } from "@/lib/services/workflow-stage-gate";
 import { sortTasksByEffectivePriority } from "@/lib/task-priority";
 
 type EnrichableTask = {
@@ -45,4 +47,44 @@ export function enrichActionCenterTaskList<T extends EnrichableTask>(
   });
 
   return sortTasksByEffectivePriority(enriched);
+}
+
+export type ActionCenterHistoricalEnrichment = {
+  effectiveStatus: string;
+  isWaitingOnOthers: boolean;
+  waitingOnStage: string | null;
+  waitingOnAssignee: string | null;
+};
+
+export function enrichActionCenterHistoricalList<T extends EnrichableTask>(
+  tasks: T[],
+  siblingsByDesign: Map<string, DepSibling[]>,
+): Array<T & ActionCenterHistoricalEnrichment> {
+  return tasks.map((task) => {
+    const siblings = siblingsByDesign.get(task.designId.toString()) ?? [];
+    const gateTask = {
+      id: task.id.toString(),
+      dependencySequence: task.dependencySequence,
+      sequence: task.sequence,
+      status: task.status,
+      subProcess: task.subProcess,
+    };
+    const effectiveStatus = resolveEffectiveTaskStatus(gateTask, siblings);
+    const approvalGate =
+      task.status === "CHECKING" && !task.subProcess.isApproval
+        ? findStageApprovalGate(gateTask, siblings)
+        : null;
+    const nextOpen =
+      effectiveStatus === "COMPLETED" ? findNextOpenTask(siblings, task.sequence) : null;
+    const pipelineContinues =
+      nextOpen != null && nextOpen.status !== "COMPLETED" && nextOpen.status !== "CANCELLED";
+
+    return {
+      ...task,
+      effectiveStatus,
+      isWaitingOnOthers: approvalGate != null || pipelineContinues,
+      waitingOnStage: approvalGate?.subProcess?.name ?? null,
+      waitingOnAssignee: approvalGate?.assignedEmployee?.name ?? null,
+    };
+  });
 }

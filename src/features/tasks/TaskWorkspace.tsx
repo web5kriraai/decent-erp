@@ -64,14 +64,22 @@ function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
   );
 }
 
-function TaskList({ tasks, emptyMessage }: { tasks: DesignTask[]; emptyMessage: string }) {
+function TaskList({
+  tasks,
+  emptyMessage,
+  variant = "active",
+}: {
+  tasks: DesignTask[];
+  emptyMessage: string;
+  variant?: "active" | "completed" | "upcoming";
+}) {
   if (tasks.length === 0) {
     return <p className="action-center-empty">{emptyMessage}</p>;
   }
   return (
     <ul className="action-center-list">
       {tasks.map((task) => (
-        <TaskActionListItem key={task.id} task={task} />
+        <TaskActionListItem key={task.id} task={task} variant={variant} />
       ))}
     </ul>
   );
@@ -345,6 +353,7 @@ export function TaskWorkspace() {
             <TaskList
               tasks={center?.upcoming ?? []}
               emptyMessage="No upcoming tasks — prior stages will unlock work for you."
+              variant="upcoming"
             />
           </TabsContent>
 
@@ -352,6 +361,7 @@ export function TaskWorkspace() {
             <TaskList
               tasks={center?.completed ?? []}
               emptyMessage="No recently completed tasks."
+              variant="completed"
             />
           </TabsContent>
         </Tabs>

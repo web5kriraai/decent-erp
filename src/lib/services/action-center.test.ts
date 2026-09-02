@@ -3,6 +3,7 @@ import {
   buildBlockedContext,
   categorizeEmployeeTask,
   findDependencyBlocker,
+  foldWaitingTaskToPersonalBucket,
   type DepSibling,
 } from "./action-center";
 
@@ -160,6 +161,34 @@ describe("categorizeEmployeeTask", () => {
       assignedEmployeeId: 4,
     };
     expect(categorizeEmployeeTask(task, siblings)).toBe("completed");
+  });
+
+  it("folds CHECKING without an approval gate to Completed using effectiveStatus", () => {
+    const noGate: DepSibling[] = [
+      sibling("4", 4, "CHECKING", { subProcess: { name: "Punch", code: "PUNCH", isApproval: false } }),
+      sibling("5", 5, "ASSIGNED", { subProcess: { name: "Machine", code: "MACHINE_SAMPLE", isApproval: false } }),
+    ];
+    const task = {
+      id: "4",
+      status: "CHECKING",
+      dependencySequence: 4,
+      sequence: 4,
+      subProcess: { name: "Punch", code: "PUNCH", isApproval: false },
+      assignedEmployeeId: 4,
+    };
+    expect(foldWaitingTaskToPersonalBucket(task, noGate)).toBe("completed");
+  });
+
+  it("folds CHECKING work that still has an approval gate to Upcoming", () => {
+    const task = {
+      id: "1",
+      status: "CHECKING",
+      dependencySequence: 1,
+      sequence: 1,
+      subProcess: { name: "Sketch", code: "SKETCH", isApproval: false },
+      assignedEmployeeId: 5,
+    };
+    expect(foldWaitingTaskToPersonalBucket(task, siblings)).toBe("upcoming");
   });
 
   it("buildBlockedContext includes owner and human message", () => {

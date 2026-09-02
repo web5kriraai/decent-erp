@@ -80,6 +80,7 @@ export type DesignTask = {
   };
   timeEvents?: TaskTimeEvent[];
   dueAt?: string | null;
+  completedAt?: string | null;
   /** Resolved workflow status for display (CHECKING work may read COMPLETED after approval). */
   effectiveStatus?: string;
   isWaitingOnOthers?: boolean;
