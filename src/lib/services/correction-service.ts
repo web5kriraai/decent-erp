@@ -71,7 +71,12 @@ export async function createOrReopenRoutedTask(
   }
 
   // Rework of an already-released stage: reopen as ASSIGNED for immediate work
-  if (existing && ["PENDING", "ASSIGNED", "CORRECTION_REQUIRED"].includes(existing.status)) {
+  if (
+    existing &&
+    ["PENDING", "ASSIGNED", "CORRECTION_REQUIRED", "CHECKING", "COMPLETED"].includes(
+      existing.status,
+    )
+  ) {
     return tx.designTask.update({
       where: { id: existing.id },
       data: {

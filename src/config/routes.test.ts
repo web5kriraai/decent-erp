@@ -57,8 +57,9 @@ describe("getVisibleNavSections", () => {
     ]);
   });
 
-  it("gates Approvals by role hub access for sketch vs checker", () => {
+  it("gates Approvals by role hub access for sketch vs checker vs admin", () => {
     expect(allItemIds(ROLE_CODES.SKETCH_DESIGNER)).not.toContain("approvals");
     expect(allItemIds(ROLE_CODES.SAMPLE_CHECKER)).toContain("approvals");
+    expect(allItemIds(ROLE_CODES.ADMIN)).toContain("approvals");
   });
 });

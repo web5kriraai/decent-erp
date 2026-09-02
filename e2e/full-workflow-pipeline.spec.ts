@@ -155,7 +155,7 @@ test.describe("Full workflow pipeline", () => {
     );
     expect(liveDone).toBe(true);
 
-    await login(page, USERS.production.email, DEMO);
+    await login(page, USERS.management.email, DEMO);
     await apiPostJson(page, "/api/production/live", { designId: design.id });
 
     const liveDesign = await getDesign(page, design.id);
@@ -187,7 +187,7 @@ test.describe("Sample reject and re-sample", () => {
     ).toBe(true);
   });
 
-  test("sample RESAMPLE spawns rework task", async ({ page }) => {
+  test("sample RESAMPLE keeps costing locked until sample re-check", async ({ page }) => {
     test.setTimeout(180_000);
 
     await login(page, USERS.designHead.email, DEMO);
@@ -198,16 +198,51 @@ test.describe("Sample reject and re-sample", () => {
       sampleOutcome: "RESAMPLE",
     });
 
-    const after = await getDesign(page, design.id);
-    const resample = after.tasks.find((t) =>
-      (t.subProcess.code ?? "").includes("RESAMPLE") ||
-      (t.subProcess.name ?? "").toLowerCase().includes("re-sample") ||
-      (t.subProcess.name ?? "").toLowerCase().includes("resample"),
+    const afterResampleDecision = await getDesign(page, design.id);
+    const resample = afterResampleDecision.tasks.find((t) => t.subProcess.code === "RESAMPLE");
+    expect(resample).toBeTruthy();
+    expect(["ASSIGNED", "PENDING"].includes(resample!.status)).toBe(true);
+
+    const costing = afterResampleDecision.tasks.find((t) => t.subProcess.code === "COSTING");
+    expect(costing?.status).toBe("PENDING");
+
+    const sampleCheckWaiting = afterResampleDecision.tasks.find(
+      (t) => t.subProcess.code === "SAMPLE_CHECK",
     );
-    const machineOpen = after.tasks.filter(
-      (t) => t.subProcess.code === "MACHINE_SAMPLE" && !["COMPLETED", "CANCELLED"].includes(t.status),
+    expect(sampleCheckWaiting?.status).toBe("COMPLETED");
+
+    if (resample!.status === "PENDING") {
+      const machineId = await employeeIdFor(page, USERS.machine.email);
+      await assignTaskToEmployee(page, resample!.id, machineId);
+    }
+
+    const resampleDone = await completeTaskForUser(
+      page,
+      USERS.machine.email,
+      design.id,
+      "RESAMPLE",
     );
-    expect(Boolean(resample) || machineOpen.length > 0).toBe(true);
+    expect(resampleDone).toBe(true);
+
+    const afterMachine = await getDesign(page, design.id);
+    const sampleCheckReopened = afterMachine.tasks.find((t) => t.subProcess.code === "SAMPLE_CHECK");
+    expect(sampleCheckReopened?.status).toBe("ASSIGNED");
+
+    const costingStillLocked = afterMachine.tasks.find((t) => t.subProcess.code === "COSTING");
+    expect(costingStillLocked?.status).toBe("PENDING");
+
+    const recheckDone = await completeTaskForUser(
+      page,
+      USERS.checker.email,
+      design.id,
+      "SAMPLE_CHECK",
+      { sampleOutcome: "APPROVE" },
+    );
+    expect(recheckDone).toBe(true);
+
+    const afterApprove = await getDesign(page, design.id);
+    const costingUnlocked = afterApprove.tasks.find((t) => t.subProcess.code === "COSTING");
+    expect(costingUnlocked?.status).toBe("ASSIGNED");
   });
 });
 

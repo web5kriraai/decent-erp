@@ -119,6 +119,8 @@ export type ApprovalHubTabs = {
 /** Which Approvals hub tabs each role may see (strict role rules — no permission bypass). */
 export function getApprovalHubTabsForRole(roleCode: string | null | undefined): ApprovalHubTabs {
   switch (roleCode) {
+    case ROLE_CODES.ADMIN:
+      return { stage: true, ready: true, management: true };
     case ROLE_CODES.DESIGN_HEAD:
       return { stage: true, ready: true, management: true };
     case ROLE_CODES.SAMPLE_CHECKER:
@@ -140,6 +142,7 @@ export function filterStageApprovalsForRole<T extends { stageCode: string }>(
   items: T[],
 ): T[] {
   if (!roleCode) return [];
+  if (roleCode === ROLE_CODES.ADMIN) return items;
   return items.filter((item) => {
     const owner = getStageApprovalOwnerRole(item.stageCode);
     return owner === roleCode;

@@ -170,11 +170,6 @@ export function TaskEndDialog({
         {showFileUpload && (
           <ModalSection
             title="Task Files"
-            description={
-              subProcessName
-                ? `Supporting files for ${subProcessName}. Upload starts automatically when you choose a file.`
-                : "Supporting files for this sub-process. Upload starts automatically when you choose a file."
-            }
             action={
               hasFiles ? (
                 <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
@@ -191,20 +186,6 @@ export function TaskEndDialog({
               )
             }
           >
-            {fileWarning && (
-              <ModalAlert variant="warning">
-                Choose a file below — it uploads automatically. Submit unlocks once the upload
-                completes.
-              </ModalAlert>
-            )}
-            {isUploading && (
-              <ModalAlert variant="info">
-                Your file is uploading. Submit will be available in a moment.
-              </ModalAlert>
-            )}
-            {filesLoading && !hasFiles && !isUploading ? (
-              <p className="text-sm text-muted-foreground">Checking uploaded files…</p>
-            ) : null}
             <div className="rounded-lg border border-border bg-muted/20 p-4">
               <TaskArtifactPanel
                 taskId={taskId}
@@ -274,7 +255,6 @@ export function TaskEndDialog({
         {checklistItems.length > 0 && (
           <ModalSection
             title="Quality Checklist"
-            description="Check all items to complete normally. If only some pass, add notes for the rest."
             action={
               <AppButton
                 type="button"

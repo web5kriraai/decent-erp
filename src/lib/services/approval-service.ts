@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api-utils";
 import { designHasCosting } from "@/lib/services/costing-service";
 import type { ApprovalDecision } from "@prisma/client";
 import { unlockProductionHandoffTask } from "@/lib/services/production-handoff-unlock";
+import { raiseCorrectionInTransaction } from "@/lib/services/correction-service";
 import {
   buildPendingApprovalItems,
   canEmployeeActOnApprovalLevel,
@@ -15,6 +16,8 @@ import type {
   PendingApprovalQueueItem,
   ReadyForSignOffItem,
 } from "@/lib/types/api";
+
+const SIGN_OFF_CORRECTION_ROUTE_CODES = ["PUNCH", "SKETCH", "MACHINE_SAMPLE", "COSTING"] as const;
 
 export type { PendingApprovalQueueItem, ReadyForSignOffItem } from "@/lib/types/api";
 
@@ -60,9 +63,14 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
           subProcess: { select: { name: true, code: true, isApproval: true } },
         },
       },
+      costs: { where: { amount: { gt: 0 } }, select: { id: true }, take: 1 },
     },
     orderBy: { updatedAtUtc: "desc" },
   });
+
+  const designIdsWithCosting = new Set(
+    designs.filter((d) => d.costs.length > 0).map((d) => d.id.toString()),
+  );
 
   return buildPendingApprovalItems(
     designs.map((d) => ({
@@ -75,6 +83,7 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
       tasks: d.tasks,
     })),
     levels,
+    { designIdsWithCosting },
   ) as PendingApprovalQueueItem[];
 }
 
@@ -88,6 +97,7 @@ export async function listPendingApprovalsForEmployee(
   if (!employee) return [];
 
   const allPending = await listPendingApprovals();
+  if (employee.role?.code === "ADMIN") return allPending;
   return allPending.filter((item) =>
     canEmployeeActOnApprovalLevel(item.currentLevel, employee.roleId, employee.role?.code),
   );
@@ -160,6 +170,20 @@ export async function requestDesignApproval(
     });
     if (levels.length === 0) {
       throw new ApiError("No approval levels configured", 422);
+    }
+
+    const tasks = await tx.designTask.findMany({
+      where: { designId },
+      select: {
+        status: true,
+        subProcess: { select: { code: true, isApproval: true } },
+      },
+    });
+    if (tasks.length === 0 || !isDesignReadyForSignOff(tasks)) {
+      throw new ApiError(
+        "All required workflow stages must be complete before requesting management approval.",
+        422,
+      );
     }
 
     const updated = await tx.designConcept.update({
@@ -272,9 +296,12 @@ export async function submitApproval(
       const passedIds = new Set([...approvals.map((a) => a.approvalLevelId), input.approvalLevelId]);
       const allPassed = levels.every((l) => passedIds.has(l.id));
       if (allPassed) {
-        const hasCosting = await designHasCosting(input.designId);
+        const hasCosting = await designHasCosting(input.designId, tx);
         if (!hasCosting) {
-          throw new ApiError("Costing must be complete before final approval", 422);
+          throw new ApiError(
+            "Costing must be complete before final management approval. Add at least one cost entry on Finance → Costing, then approve again.",
+            422,
+          );
         }
         await tx.designConcept.update({
           where: { id: input.designId },
@@ -287,35 +314,108 @@ export async function submitApproval(
         where: { id: input.designId },
         data: { status: "ACTIVE" },
       });
-      if (input.taskId) {
-        const task = await tx.designTask.findUnique({
-          where: { id: input.taskId },
-          include: { assignedEmployee: true, subProcess: { select: { code: true } } },
+
+      // Full chain must re-approve after correction (keep this CORRECTION_REQUIRED row for history).
+      await tx.designApproval.deleteMany({
+        where: {
+          designId: input.designId,
+          id: { not: approval.id },
+          decision: { in: ["APPROVED", "PENDING", "SKIPPED"] },
+        },
+      });
+
+      let sourceTaskId = input.taskId ?? null;
+      if (!sourceTaskId) {
+        const fallback = await tx.designTask.findFirst({
+          where: {
+            designId: input.designId,
+            subProcess: {
+              code: { in: ["FINAL_APPROVAL", "COSTING", "SAMPLE_CHECK", "PUNCH", "SKETCH"] },
+            },
+          },
+          orderBy: { sequence: "desc" },
+          select: { id: true },
         });
+        sourceTaskId = fallback?.id ?? null;
+      }
+
+      const designTasks = await tx.designTask.findMany({
+        where: { designId: input.designId },
+        include: {
+          subProcess: { select: { id: true, code: true } },
+          assignedEmployee: { select: { id: true } },
+        },
+        orderBy: { sequence: "asc" },
+      });
+
+      const routeTask =
+        SIGN_OFF_CORRECTION_ROUTE_CODES.map((code) =>
+          designTasks.find((t) => t.subProcess.code === code),
+        ).find(Boolean) ?? null;
+
+      let raisedCorrectionId: string | null = null;
+
+      if (sourceTaskId && routeTask?.subProcess) {
+        const routeOwner =
+          designTasks.find((t) => t.subProcess.id === routeTask.subProcess.id)?.assignedEmployeeId ??
+          null;
+        const correction = await raiseCorrectionInTransaction(
+          tx,
+          {
+            designId: input.designId,
+            taskId: sourceTaskId,
+            correctionType: "IMPROVEMENT",
+            responsibleEmployeeId: routeOwner,
+            routeToSubProcessId: routeTask.subProcess.id,
+            rootCause: input.remark ?? "Approval returned for correction",
+          },
+          approverEmployeeId,
+          correlationId,
+        );
+        raisedCorrectionId = correction.id.toString();
+      } else if (sourceTaskId) {
         await tx.designTask.update({
-          where: { id: input.taskId },
-          data: { status: "CORRECTION_REQUIRED" },
+          where: { id: sourceTaskId },
+          data: { status: "CORRECTION_REQUIRED", version: { increment: 1 } },
         });
-        await tx.designCorrection.create({
+        const correction = await tx.designCorrection.create({
           data: {
             designId: input.designId,
-            taskId: input.taskId,
+            taskId: sourceTaskId,
             correctionType: "IMPROVEMENT",
-            responsibleEmployeeId: task?.assignedEmployeeId ?? null,
             raisedById: approverEmployeeId,
             rootCause: input.remark ?? "Approval returned for correction",
             status: "OPEN",
             ratingImpact: 0,
           },
         });
-        await tx.designImage.updateMany({
-          where: { designId: input.designId, isPrimary: false },
-          data: {
-            reviewStatus: "REJECTED",
-            reviewNote: input.remark ?? "Returned during approval",
-          },
-        });
+        raisedCorrectionId = correction.id.toString();
       }
+
+      await tx.designImage.updateMany({
+        where: { designId: input.designId, isPrimary: false },
+        data: {
+          reviewStatus: "REJECTED",
+          reviewNote: input.remark ?? "Returned during approval",
+        },
+      });
+
+      await writeAuditLog(tx, {
+        entityType: "DesignApproval",
+        entityId: approval.id.toString(),
+        action: input.decision,
+        userId: approverEmployeeId,
+        correlationId,
+        after: approval,
+      });
+
+      return {
+        ...approval,
+        chainComplete: false,
+        designStatus: "ACTIVE" as const,
+        nextLevel: null,
+        correctionId: raisedCorrectionId,
+      };
     }
 
     await writeAuditLog(tx, {
@@ -327,6 +427,57 @@ export async function submitApproval(
       after: approval,
     });
 
-    return approval;
+    let designStatus = design.status;
+    let chainComplete = false;
+    let nextLevel: { id: number; code: string; name: string; sequence: number } | null = null;
+
+    if (input.decision === "REJECTED") {
+      designStatus = "REJECTED";
+    } else if (input.decision === "APPROVED") {
+      const levels = await tx.approvalLevel.findMany({
+        where: { active: true },
+        orderBy: { sequence: "asc" },
+      });
+      const approvals = await tx.designApproval.findMany({
+        where: { designId: input.designId, decision: { in: ["APPROVED", "SKIPPED"] } },
+      });
+      const passedIds = new Set(approvals.map((a) => a.approvalLevelId));
+      const remaining = levels.find((l) => !passedIds.has(l.id));
+      const updatedDesign = await tx.designConcept.findUnique({
+        where: { id: input.designId },
+        select: { status: true },
+      });
+      designStatus = updatedDesign?.status ?? design.status;
+      chainComplete = !remaining && designStatus === "APPROVED";
+      nextLevel = remaining
+        ? {
+            id: remaining.id,
+            code: remaining.code,
+            name: remaining.name,
+            sequence: remaining.sequence,
+          }
+        : null;
+    }
+
+    return {
+      ...approval,
+      chainComplete,
+      designStatus,
+      nextLevel,
+      correctionId: null as string | null,
+    };
+  }).then(async (result) => {
+    if (input.decision === "CORRECTION_REQUIRED" && result.correctionId) {
+      await enqueueOutboxAndNotify(
+        "CORRECTION_RAISED",
+        {
+          correctionId: result.correctionId,
+          designId: input.designId.toString(),
+          taskId: input.taskId?.toString(),
+        },
+        correlationId,
+      );
+    }
+    return result;
   });
 }

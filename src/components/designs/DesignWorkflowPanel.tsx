@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import {
   buildWorkflowSteps,
   getDesignWorkflowContext,
+  getWorkflowPanelHeaderStatus,
 } from "@/lib/design-workflow";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
@@ -35,12 +36,21 @@ export function DesignWorkflowPanel({
     () => getDesignWorkflowContext({ status: design.status, tasks: design.tasks }),
     [design.status, design.tasks],
   );
+  const workflowHeaderStatus = useMemo(
+    () =>
+      getWorkflowPanelHeaderStatus({
+        designStatus: design.status,
+        steps,
+        workflowContext,
+      }),
+    [design.status, steps, workflowContext],
+  );
 
   return (
     <AppCard
       title="Workflow"
       description={workflowContext.summary ?? undefined}
-      headerAction={<StatusBadge status={design.status} />}
+      headerAction={<StatusBadge status={workflowHeaderStatus} />}
       contentClassName="space-y-4"
     >
       {(workflowContext.currentStage ||
@@ -52,6 +62,14 @@ export function DesignWorkflowPanel({
             <>
               <dt>Current stage</dt>
               <dd>{workflowContext.currentStage}</dd>
+            </>
+          ) : null}
+          {workflowContext.currentStatus && !workflowContext.waitingMessage ? (
+            <>
+              <dt>Stage status</dt>
+              <dd>
+                <StatusBadge status={workflowHeaderStatus} />
+              </dd>
             </>
           ) : null}
           {workflowContext.currentOwner ? (

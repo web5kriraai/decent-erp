@@ -19,6 +19,7 @@ import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActi
 import { DesignWorkflowPanel } from "@/components/designs/DesignWorkflowPanel";
 import { CompactDesignActions } from "@/components/designs/CompactDesignActions";
 import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprovalCard";
+import { ManagementApprovalCard } from "@/components/designs/ManagementApprovalCard";
 import { getPendingStageApproval } from "@/lib/design-workflow";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
@@ -115,7 +116,13 @@ export function DesignDetailView({
                 canAssign={canAssign}
               />
             ) : (
-              <div className="mb-4">
+              <div className="mb-4 space-y-4">
+                {designQuery.data.status === "APPROVAL_PENDING" ? (
+                  <ManagementApprovalCard
+                    designId={designId}
+                    ideaRef={designQuery.data.ideaRef}
+                  />
+                ) : null}
                 <CompactDesignActions
                   design={designQuery.data}
                   permissions={permissions}

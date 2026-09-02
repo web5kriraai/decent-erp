@@ -673,10 +673,15 @@ export async function endTask(
           correlationId,
         );
       } else if (input.sampleOutcome === "RESAMPLE") {
+        // Record this check attempt as complete, but do not unlock Costing —
+        // Machine Operator reworks via RESAMPLE, then Sample Checker must approve again.
         nextStatus = "COMPLETED";
         await spawnResampleTask(tx, task);
       }
     }
+
+    const isResampleOutcome = isSampleCheck && input.sampleOutcome === "RESAMPLE";
+    const isResampleTask = task.subProcess.code === "RESAMPLE";
 
     await tx.taskTimeEvent.create({
       data: {
@@ -720,39 +725,46 @@ export async function endTask(
     await tx.designConcept.update({
       where: { id: task.designId },
       data: {
-        currentStage:
-          siblingRows.find((s) => !["COMPLETED", "CHECKING", "CANCELLED"].includes(s.status))
-            ?.subProcess.code ?? task.subProcess.code,
+        currentStage: isResampleOutcome
+          ? "RESAMPLE"
+          : siblingRows.find((s) => !["COMPLETED", "CHECKING", "CANCELLED"].includes(s.status))
+              ?.subProcess.code ?? task.subProcess.code,
         ...(nextStatus === "CHECKING" ? { status: "ACTIVE" as const } : {}),
       },
     });
 
     if (nextStatus === "COMPLETED" || nextStatus === "CHECKING") {
-      if (task.subProcess.isApproval && nextStatus === "COMPLETED") {
-        await promoteGatedWorkTasksAfterApproval(
+      if (isResampleOutcome) {
+        // Costing / later stages stay locked until SAMPLE_CHECK is approved after re-sample.
+      } else if (isResampleTask && nextStatus === "COMPLETED") {
+        await reopenSampleCheckAfterResample(tx, task.designId, correlationId);
+      } else {
+        if (task.subProcess.isApproval && nextStatus === "COMPLETED") {
+          await promoteGatedWorkTasksAfterApproval(
+            tx,
+            {
+              id: task.id,
+              designId: task.designId,
+              dependencySequence: task.dependencySequence,
+              sequence: task.sequence,
+            },
+            employeeId,
+            correlationId,
+          );
+        }
+
+        await unlockNextDependentTasks(
           tx,
           {
             id: task.id,
             designId: task.designId,
             dependencySequence: task.dependencySequence,
             sequence: task.sequence,
+            subProcessCode: task.subProcess.code,
           },
-          employeeId,
           correlationId,
         );
       }
-
-      await unlockNextDependentTasks(
-        tx,
-        {
-          id: task.id,
-          designId: task.designId,
-          dependencySequence: task.dependencySequence,
-          sequence: task.sequence,
-          subProcessCode: task.subProcess.code,
-        },
-        correlationId,
-      );
     }
 
     const triggerProductionRelease =
@@ -1064,8 +1076,56 @@ export async function completeStageApproval(
   return result;
 }
 
+async function reopenSampleCheckAfterResample(
+  tx: Prisma.TransactionClient,
+  designId: bigint,
+  correlationId: string,
+) {
+  const sampleCheck = await tx.designTask.findFirst({
+    where: { designId, subProcess: { code: "SAMPLE_CHECK" } },
+    orderBy: { id: "desc" },
+  });
+  if (!sampleCheck) {
+    throw businessRule(
+      APP_ERROR_CODES.WORKFLOW_NOT_READY,
+      undefined,
+      "Cannot reopen sample check after re-sample — SAMPLE_CHECK stage not found.",
+    );
+  }
+
+  const { resolveEmployeeForRole } = await import("@/lib/services/assignment-service");
+  let assigneeId = sampleCheck.assignedEmployeeId;
+  if (!assigneeId && sampleCheck.assignedRoleId) {
+    assigneeId = await resolveEmployeeForRole(sampleCheck.assignedRoleId);
+  }
+
+  await tx.designTask.update({
+    where: { id: sampleCheck.id },
+    data: {
+      status: "ASSIGNED",
+      assignedEmployeeId: assigneeId,
+      completedAt: null,
+      outputRemark: null,
+      version: { increment: 1 },
+    },
+  });
+
+  await tx.designConcept.update({
+    where: { id: designId },
+    data: { currentStage: "SAMPLE_CHECK", status: "ACTIVE" },
+  });
+
+  if (assigneeId != null) {
+    await enqueueOutboxAndNotify(
+      "TASK_ASSIGNED",
+      { taskId: sampleCheck.id.toString(), employeeId: assigneeId },
+      correlationId,
+    );
+  }
+}
+
 async function spawnResampleTask(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  tx: Prisma.TransactionClient,
   sourceTask: {
     designId: bigint;
     processId: number;
@@ -1076,15 +1136,15 @@ async function spawnResampleTask(
     sequence: number;
   },
 ) {
-  const resample =
-    (await tx.designSubProcessMaster.findFirst({
-      where: { code: "RESAMPLE", active: true },
-    })) ??
-    (await tx.designSubProcessMaster.findFirst({
-      where: { code: "MACHINE_SAMPLE", active: true },
-    }));
+  const resample = await tx.designSubProcessMaster.findFirst({
+    where: { code: "RESAMPLE", active: true },
+  });
   if (!resample) {
-    throw businessRule(APP_ERROR_CODES.WORKFLOW_NOT_READY, undefined, "Re-sample workflow is not configured.");
+    throw businessRule(
+      APP_ERROR_CODES.WORKFLOW_NOT_READY,
+      undefined,
+      "Re-sample workflow is not configured. Ask an admin to enable the RESAMPLE sub-process.",
+    );
   }
 
   const { resolveEmployeeForRole } = await import("@/lib/services/assignment-service");
@@ -1095,37 +1155,31 @@ async function spawnResampleTask(
     _max: { sequence: true },
   });
   const sequence = (maxSeq._max.sequence ?? 0) + 1;
-  const dependencySequence = (sourceTask.dependencySequence ?? sourceTask.sequence) + 1;
+  // Independent of SAMPLE_CHECK completion — costing must not unlock from this task.
+  const dependencySequence = sourceTask.dependencySequence ?? sourceTask.sequence;
 
-  const siblings = await tx.designTask.findMany({
-    where: { designId: sourceTask.designId },
-    select: { id: true, dependencySequence: true, sequence: true, status: true },
-  });
-  // Source is ending in this transaction — treat its dep seq as satisfied for readiness
-  const sourceSeq = effectiveDependencySequence(sourceTask);
-  const adjusted = siblings.map((s) => ({
-    ...s,
-    status: effectiveDependencySequence(s) === sourceSeq ? "COMPLETED" : s.status,
-  }));
-  const ready = isTaskReady(
-    { id: "resample", dependencySequence, sequence, status: "PENDING" },
-    adjusted,
-  );
-
-  await tx.designTask.create({
+  const created = await tx.designTask.create({
     data: {
       designId: sourceTask.designId,
       processId: resample.processId,
       subProcessId: resample.id,
       assignedEmployeeId: assigneeId,
       assignedRoleId: roleId,
-      status: initialStatusForCreate({ hasAssignee: !!assigneeId, isReady: ready }),
+      status: initialStatusForCreate({ hasAssignee: !!assigneeId, isReady: true }),
       priority: sourceTask.priority,
       expectedMinutes: sourceTask.expectedMinutes,
       sequence,
       dependencySequence,
     },
   });
+
+  if (assigneeId != null) {
+    await enqueueOutboxAndNotify(
+      "TASK_ASSIGNED",
+      { taskId: created.id.toString(), employeeId: assigneeId },
+      `resample-${sourceTask.designId.toString()}`,
+    );
+  }
 }
 
 export async function closeWorkday(employeeId: number, correlationId: string) {

@@ -117,6 +117,8 @@ export function useSendDesignToQc(designId: string) {
       apiPost<DesignSummary>(`/api/designs/${designId}/send-qc`, payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.kanban });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.completionSummary(designId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       toast.success("Sent to QC phase", data.currentStage?.replace(/_/g, " ") ?? "Updated");
@@ -134,6 +136,8 @@ export function useBypassDesignPhase(designId: string) {
       apiPost<DesignSummary>(`/api/designs/${designId}/bypass`, payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.kanban });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.completionSummary(designId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       toast.success("Workflow bypassed", data.currentStage?.replace(/_/g, " ") ?? "Updated");

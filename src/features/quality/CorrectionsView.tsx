@@ -57,15 +57,6 @@ export function CorrectionsView() {
         }
       />
 
-      <AppCard title="Correction actions" className="stack-section">
-        <ContextualActionsPanel
-          actions={correctionActions}
-          onAction={(action) => {
-            if (action.enabled && action.code === "RAISE_CORRECTION") setRaiseOpen(true);
-          }}
-        />
-      </AppCard>
-
       <QueryState
         isLoading={correctionsQuery.isLoading}
         isError={correctionsQuery.isError}

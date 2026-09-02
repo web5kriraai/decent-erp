@@ -122,15 +122,30 @@ export function ApprovalsView() {
   async function handleSubmit() {
     if (!selected) return;
     if (decision !== "APPROVED" && !remark.trim()) return;
-    await submitApproval.mutateAsync({
-      designId: selected.designId,
+    if (decision === "APPROVED" && selected.costingReady === false) return;
+
+    const designId = selected.designId;
+    const result = await submitApproval.mutateAsync({
+      designId,
       taskId: selected.task?.id,
       approvalLevelId: selected.currentLevel.id,
       decision,
       remark: remark.trim() || undefined,
     });
-    setSelected(null);
+
     setRemark("");
+    setDecision("APPROVED");
+
+    if (result.nextLevel && !result.chainComplete) {
+      const refreshed = await hubQuery.refetch();
+      const nextItem = refreshed.data?.managementApprovals?.find((item) => item.designId === designId);
+      if (nextItem) {
+        setSelected(nextItem);
+        return;
+      }
+    }
+
+    setSelected(null);
   }
 
   async function handleRequestApproval(designId: string) {
@@ -371,7 +386,11 @@ export function ApprovalsView() {
             <AppButton
               type="button"
               appVariant="primary"
-              disabled={submitApproval.isPending || (decision !== "APPROVED" && !remark.trim())}
+              disabled={
+                submitApproval.isPending ||
+                (decision !== "APPROVED" && !remark.trim()) ||
+                (decision === "APPROVED" && selected?.costingReady === false)
+              }
               onClick={handleSubmit}
             >
               {submitApproval.isPending ? "Submitting…" : "Submit Decision"}
@@ -381,6 +400,15 @@ export function ApprovalsView() {
       >
         {selected && (
           <ModalForm>
+            {selected.costingReady === false && decision === "APPROVED" ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="alert">
+                Final management approval needs costing first. Add at least one cost entry on{" "}
+                <Link href={ROUTES.finance.costing} className="font-medium underline">
+                  Finance → Costing
+                </Link>
+                , then return here to approve.
+              </p>
+            ) : null}
             <FormSelect
               id="approvalDecision"
               label="Decision"

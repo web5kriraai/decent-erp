@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,12 +43,28 @@ export function PipelineAccordionBoard<T>({
   emptyLabel = "No items",
   className,
 }: PipelineAccordionBoardProps<T>) {
+  const [expandedPreviews, setExpandedPreviews] = useState<Set<string>>(new Set());
+
+  function togglePreviewExpanded(sectionId: string) {
+    setExpandedPreviews((current) => {
+      const next = new Set(current);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  }
+
   return (
     <div className={cn("pipeline-accordion", className)}>
       {sections.map((section) => {
         const isOpen = expandedId === section.id;
-        const visibleItems = section.items.slice(0, previewLimit);
-        const hiddenCount = Math.max(0, section.items.length - previewLimit);
+        const previewExpanded = expandedPreviews.has(section.id);
+        const visibleItems = previewExpanded
+          ? section.items
+          : section.items.slice(0, previewLimit);
+        const hiddenCount = previewExpanded
+          ? 0
+          : Math.max(0, section.items.length - previewLimit);
 
         return (
           <section
@@ -108,9 +124,24 @@ export function PipelineAccordionBoard<T>({
                       );
                     })}
                     {hiddenCount > 0 ? (
-                      <div className="pipeline-card pipeline-card--more" aria-label={`${hiddenCount} more designs`}>
+                      <button
+                        type="button"
+                        className="pipeline-card pipeline-card--more"
+                        aria-label={`Show ${hiddenCount} more designs`}
+                        onClick={() => togglePreviewExpanded(section.id)}
+                      >
                         +{hiddenCount} more designs
-                      </div>
+                      </button>
+                    ) : null}
+                    {previewExpanded && section.items.length > previewLimit ? (
+                      <button
+                        type="button"
+                        className="pipeline-card pipeline-card--more"
+                        aria-label="Show fewer designs"
+                        onClick={() => togglePreviewExpanded(section.id)}
+                      >
+                        Show fewer designs
+                      </button>
                     ) : null}
                   </div>
                 )}

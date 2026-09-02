@@ -4,6 +4,7 @@ import {
   getDesignWorkflowActions,
   getDesignWorkflowContext,
   getPendingStageApproval,
+  getWorkflowPanelHeaderStatus,
   isWorkflowStepAssignable,
 } from "@/lib/design-workflow";
 import { ROLE_CODES } from "@/lib/permissions";
@@ -426,5 +427,132 @@ describe("design workflow actions", () => {
     expect(machineSample?.displayStatus).toBe("COMPLETED");
     expect(machineSample?.canReassign).toBe(false);
     expect(costing?.code).toBe("COSTING");
+  });
+});
+
+describe("workflow panel header status", () => {
+  it("shows current stage status instead of design lifecycle ACTIVE", () => {
+    const design: DesignSummary = {
+      id: "1",
+      ideaRef: "IDEA-1",
+      collectionName: "Test",
+      status: "ACTIVE",
+      priority: "MEDIUM",
+      tasks: [
+        task({
+          id: "t1",
+          sequence: 1,
+          status: "COMPLETED",
+          subProcess: { id: 1, name: "Concept Review", code: "CONCEPT_REVIEW", isApproval: true },
+        }),
+        task({
+          id: "t2",
+          sequence: 2,
+          status: "ASSIGNED",
+          assignedEmployeeId: 2,
+          assignedEmployee: { name: "Ravi Sketch" },
+          subProcess: { id: 2, name: "Sketch Creation", code: "SKETCH" },
+        }),
+        task({
+          id: "t3",
+          sequence: 3,
+          status: "PENDING",
+          subProcess: { id: 3, name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        }),
+      ],
+    };
+
+    const steps = buildWorkflowSteps(design.tasks);
+    const ctx = getDesignWorkflowContext({ status: design.status, tasks: design.tasks });
+    const header = getWorkflowPanelHeaderStatus({
+      designStatus: design.status,
+      steps,
+      workflowContext: ctx,
+    });
+
+    expect(header).toBe("ASSIGNED");
+    expect(header).not.toBe("ACTIVE");
+  });
+
+  it("shows READY while waiting on stage approval", () => {
+    const design: DesignSummary = {
+      id: "1",
+      ideaRef: "IDEA-1",
+      collectionName: "Test",
+      status: "ACTIVE",
+      priority: "MEDIUM",
+      tasks: [
+        task({
+          id: "t1",
+          sequence: 1,
+          status: "COMPLETED",
+          subProcess: { id: 1, name: "Concept Review", code: "CONCEPT_REVIEW", isApproval: true },
+        }),
+        task({
+          id: "t2",
+          sequence: 2,
+          status: "CHECKING",
+          subProcess: { id: 2, name: "Sketch Creation", code: "SKETCH" },
+        }),
+        task({
+          id: "t3",
+          sequence: 3,
+          status: "ASSIGNED",
+          assignedEmployeeId: 10,
+          assignedEmployee: { name: "Priya Design Head" },
+          subProcess: { id: 3, name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        }),
+      ],
+    };
+
+    const steps = buildWorkflowSteps(design.tasks);
+    const ctx = getDesignWorkflowContext({ status: design.status, tasks: design.tasks });
+    const header = getWorkflowPanelHeaderStatus({
+      designStatus: design.status,
+      steps,
+      workflowContext: ctx,
+    });
+
+    expect(header).toBe("READY");
+  });
+
+  it("shows IN_PROGRESS when the current step timer is running", () => {
+    const design: DesignSummary = {
+      id: "1",
+      ideaRef: "IDEA-1",
+      collectionName: "Test",
+      status: "ACTIVE",
+      priority: "MEDIUM",
+      tasks: [
+        task({
+          id: "t1",
+          sequence: 1,
+          status: "COMPLETED",
+          subProcess: { id: 1, name: "Concept Review", code: "CONCEPT_REVIEW", isApproval: true },
+        }),
+        task({
+          id: "t2",
+          sequence: 2,
+          status: "RUNNING",
+          subProcess: { id: 2, name: "Sketch Creation", code: "SKETCH" },
+        }),
+        task({
+          id: "t3",
+          sequence: 3,
+          status: "PENDING",
+          subProcess: { id: 3, name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        }),
+      ],
+    };
+
+    const steps = buildWorkflowSteps(design.tasks);
+    const ctx = getDesignWorkflowContext({ status: design.status, tasks: design.tasks });
+    const header = getWorkflowPanelHeaderStatus({
+      designStatus: design.status,
+      steps,
+      workflowContext: ctx,
+    });
+
+    expect(header).toBe("IN_PROGRESS");
   });
 });

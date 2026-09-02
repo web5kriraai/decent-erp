@@ -54,12 +54,25 @@ export function useSubmitApproval() {
   return useMutation({
     mutationFn: (payload: SubmitApprovalPayload) =>
       apiPost<PendingApproval>("/api/approvals", payload),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.designHead });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.management });
-      toast.success("Approval recorded");
+      if (result.chainComplete || result.designStatus === "APPROVED") {
+        toast.success("Final approval complete", "Design is approved and ready for production handoff.");
+      } else if (result.nextLevel) {
+        toast.success(
+          `${result.level?.name ?? "Level"} approved`,
+          `Next in chain: ${result.nextLevel.name}. Open Review again to continue.`,
+        );
+      } else if (result.decision === "REJECTED") {
+        toast.success("Design rejected");
+      } else if (result.decision === "CORRECTION_REQUIRED") {
+        toast.success("Sent for correction", "Design returned to active workflow.");
+      } else {
+        toast.success("Approval recorded");
+      }
     },
     onError: (error) => toast.errorFromApi(error, "Could not submit approval"),
   });

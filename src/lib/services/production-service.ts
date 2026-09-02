@@ -4,8 +4,10 @@ import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import {
   businessRule,
+  createAppError,
   notFound,
 } from "@/lib/errors/create-app-error";
+import { canRoleMarkDesignLive } from "@/lib/action-availability";
 import { ERP_HANDOFF_MODULES } from "@/lib/kpi-metrics";
 import {
   validateProductionReleaseReadiness,
@@ -153,6 +155,19 @@ export async function releaseToProduction(
 
 export async function markDesignLive(designId: bigint, actorId: number, correlationId: string) {
   return prisma.$transaction(async (tx) => {
+    const actor = await tx.employee.findUnique({
+      where: { id: actorId },
+      select: { role: { select: { code: true } } },
+    });
+    if (!canRoleMarkDesignLive(actor?.role?.code)) {
+      throw createAppError(
+        APP_ERROR_CODES.PERMISSION_DENIED,
+        403,
+        undefined,
+        "Only Management can mark a design live.",
+      );
+    }
+
     const design = await tx.designConcept.findUnique({ where: { id: designId } });
     if (!design) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
     if (design.status !== "PRODUCTION_RELEASED") {

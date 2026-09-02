@@ -565,6 +565,42 @@ export type DesignWorkflowContext = {
   nextActionHint: string | null;
 };
 
+const TERMINAL_DESIGN_STATUSES = new Set([
+  "APPROVAL_PENDING",
+  "APPROVED",
+  "PRODUCTION_RELEASED",
+  "PRODUCTION_ACCEPTED",
+  "REJECTED",
+  "CLOSED",
+  "LIVE",
+]);
+
+/** Badge token for the Workflow panel header — reflects live stage status, not design lifecycle. */
+export function getWorkflowPanelHeaderStatus(input: {
+  designStatus: string;
+  steps: WorkflowStep[];
+  workflowContext: DesignWorkflowContext;
+}): string {
+  const { designStatus, steps, workflowContext } = input;
+
+  if (workflowContext.currentStatus) {
+    return workflowContext.currentStatus.replace(/\s+/g, "_").toUpperCase();
+  }
+
+  const current = steps.find((s) => s.isCurrent);
+  if (current) return current.displayStatus;
+
+  if (steps.length > 0 && steps.every((s) => s.isDone || s.displayStatus === "SKIPPED")) {
+    return "COMPLETED";
+  }
+
+  if (TERMINAL_DESIGN_STATUSES.has(designStatus)) {
+    return designStatus;
+  }
+
+  return designStatus;
+}
+
 export function getDesignWorkflowContext(input: {
   status: string;
   tasks?: DesignTask[];
@@ -628,11 +664,14 @@ export function getDesignWorkflowContext(input: {
   if (input.status === "APPROVAL_PENDING") {
     return {
       ...empty,
-      summary: "This design is in the final approval queue.",
-      currentStage: "Final approval chain",
+      summary: "This design is in the management sign-off queue.",
+      currentStage: "Management sign-off chain",
       currentStatus: "approval pending",
-      nextAction: "Management / approver decision",
-      waitingMessage: "Waiting for the next approver in the approval chain.",
+      nextAction: "Checker → Design Head → Management sign-off",
+      waitingMessage:
+        "Waiting for the next approver. If it is your level, open Quality → Approvals → Management sign-off.",
+      nextActionHint:
+        "Level 1: Sample Checker · Level 2: Design Head · Level 3: Management. Each level must approve before the next can act.",
     };
   }
 

@@ -30,6 +30,7 @@ function isSimulatedErpReference(ref: string | null | undefined): boolean {
 export function ProductionReleaseView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
+  const roleCode = session?.user?.roleCode;
   const canRelease = permissions.includes(PERMISSIONS.PRODUCTION_RELEASE);
 
   const designsQuery = useApprovedDesigns(canRelease);
@@ -45,6 +46,7 @@ export function ProductionReleaseView() {
 
   const productionActions = resolveProductionContextActions({
     permissions,
+    roleCode,
     designStatus: releasedQuery.data?.[0]?.status,
   });
 
@@ -210,6 +212,7 @@ export function ProductionReleaseView() {
                 render: (row) => {
                   const availability = getMarkLiveAvailability(row.status, {
                     liveReviewCompleted: row.liveReviewCompleted,
+                    roleCode,
                   });
                   return (
                     <div className="flex max-w-56 flex-col items-end gap-1">

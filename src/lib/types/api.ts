@@ -297,6 +297,8 @@ export type PendingApprovalQueueItem = {
     subProcess: { name: string };
   } | null;
   existingApprovalId: string | null;
+  /** False when final management level still needs a cost entry. */
+  costingReady?: boolean;
 };
 
 export type ReadyForSignOffItem = {
@@ -334,6 +336,10 @@ export type PendingApproval = {
     process: { name: string };
     subProcess: { name: string };
   } | null;
+  /** Present on submit response — chain still has a later level. */
+  chainComplete?: boolean;
+  designStatus?: string;
+  nextLevel?: ApprovalLevel | null;
 };
 
 export type DesignImageRecord = {

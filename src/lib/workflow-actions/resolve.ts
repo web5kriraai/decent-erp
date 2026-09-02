@@ -1,11 +1,12 @@
 import { ROUTES } from "@/config/routes";
-import { getTaskStartAvailability } from "@/lib/action-availability";
+import { getTaskStartAvailability, canRoleMarkDesignLive } from "@/lib/action-availability";
 import {
   getDesignWorkflowContext,
   findNextActionableTask,
 } from "@/lib/design-workflow";
 import { canRoleSeeReadyForSignOff } from "@/lib/approval-hub-rbac";
 import { PERMISSIONS } from "@/lib/permissions";
+import { isSignOffScopeExcluded } from "@/lib/services/approval-queue-utils";
 import {
   canRoleAccessApprovalsHub,
   canRoleActOnStageApproval,
@@ -40,7 +41,11 @@ function buildAction(
 
 function incompleteStageLabels(tasks: DesignTask[] | undefined): string[] {
   return (tasks ?? [])
-    .filter((t) => !SATISFIED.has(t.status) && t.subProcess?.code !== "CORRECTION")
+    .filter(
+      (t) =>
+        !SATISFIED.has(t.status) &&
+        !isSignOffScopeExcluded(t.subProcess?.code),
+    )
     .map((t) => t.subProcess?.name ?? "Stage");
 }
 
@@ -94,7 +99,9 @@ export function resolveDesignContextActions(input: {
     actions.push(
       buildAction(WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE, {
         enabled: true,
-        href: approvalsQueueHref,
+        href: `${approvalsQueueHref}?tab=management`,
+        label: "Open Management Sign-off",
+        description: "Review and submit your management approval decision.",
         designId: design.id,
       }),
     );
@@ -288,6 +295,7 @@ export function resolveCostingContextActions(input: {
 
 export function resolveProductionContextActions(input: {
   permissions: string[];
+  roleCode?: string | null;
   canReturn?: boolean;
   instructionTaskId?: string;
   releaseTaskId?: string;
@@ -351,9 +359,13 @@ export function resolveProductionContextActions(input: {
   }
 
   if (input.designStatus === "PRODUCTION_RELEASED") {
+    const canMarkLive = canRoleMarkDesignLive(input.roleCode);
     actions.push(
       buildAction(WORKFLOW_ACTION_CODES.MARK_LIVE, {
-        enabled: true,
+        enabled: canMarkLive,
+        disabledReason: canMarkLive
+          ? undefined
+          : "Only Management can mark a design live.",
         designId: input.designId,
         variant: "primary",
       }),

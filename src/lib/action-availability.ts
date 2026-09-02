@@ -4,11 +4,16 @@ import {
   type MyTaskRow,
 } from "@/lib/services/action-center";
 import { isTaskReady } from "@/lib/services/task-dependency";
+import { ROLE_CODES } from "@/lib/permissions";
 
 export type ActionAvailability = {
   available: boolean;
   reason?: string;
 };
+
+export function canRoleMarkDesignLive(roleCode: string | null | undefined): boolean {
+  return roleCode === ROLE_CODES.MANAGEMENT || roleCode === ROLE_CODES.ADMIN;
+}
 
 export function describeDependencyBlocker(blocker: DepSibling): string {
   const label = blocker.subProcess?.name ?? blocker.subProcess?.code ?? "Prior stage";
@@ -77,8 +82,14 @@ export function getTaskStartAvailability(
 
 export function getMarkLiveAvailability(
   designStatus: string,
-  options?: { liveReviewCompleted?: boolean },
+  options?: { liveReviewCompleted?: boolean; roleCode?: string | null },
 ): ActionAvailability {
+  if (options?.roleCode != null && !canRoleMarkDesignLive(options.roleCode)) {
+    return {
+      available: false,
+      reason: "Only Management can mark a design live.",
+    };
+  }
   if (designStatus !== "PRODUCTION_RELEASED") {
     return {
       available: false,

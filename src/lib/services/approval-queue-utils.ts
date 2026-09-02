@@ -1,16 +1,23 @@
 import { canRoleActOnManagementLevel } from "@/lib/approval-hub-rbac";
+import { ROLE_CODES } from "@/lib/permissions";
 
 const SATISFIED_TASK = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
 
-/** Tasks outside development sign-off scope — do not block ready-for-sign-off. */
-const SIGNOFF_SCOPE_EXCLUDED_CODES = new Set([
+/**
+ * Tasks outside development sign-off scope — do not block ready-for-sign-off.
+ * RESAMPLE is intentionally NOT excluded: checker must re-approve after re-sample.
+ */
+export const SIGNOFF_SCOPE_EXCLUDED_CODES = new Set([
   "CORRECTION",
-  "RESAMPLE",
   "PROD_HANDOFF",
   "PROD_INSTRUCTION",
   "PROD_RELEASE",
   "LIVE_REVIEW",
 ]);
+
+export function isSignOffScopeExcluded(code: string | null | undefined): boolean {
+  return !!code && SIGNOFF_SCOPE_EXCLUDED_CODES.has(code);
+}
 
 export function readyForSignOffScopeFilter(
   employeeId: number,
@@ -27,6 +34,7 @@ export function canEmployeeActOnApprovalLevel(
   employeeRoleId: number | null | undefined,
   employeeRoleCode: string | null | undefined,
 ): boolean {
+  if (employeeRoleCode === ROLE_CODES.ADMIN) return true;
   if (!level.requiredRoleId) return true;
   if (employeeRoleCode && level.code && !canRoleActOnManagementLevel(employeeRoleCode, level.code)) {
     return false;
@@ -37,7 +45,7 @@ export function canEmployeeActOnApprovalLevel(
 export function isDesignReadyForSignOff(
   tasks: Array<{ status: string; subProcess: { code: string; isApproval: boolean } }>,
 ): boolean {
-  const inSignOffScope = (code: string) => !SIGNOFF_SCOPE_EXCLUDED_CODES.has(code);
+  const inSignOffScope = (code: string) => !isSignOffScopeExcluded(code);
 
   const openApprovals = tasks.some(
     (t) =>
@@ -125,13 +133,18 @@ export type BuiltPendingApprovalItem = {
     subProcess: { name: string };
   } | null;
   existingApprovalId: string | null;
+  costingReady: boolean;
 };
 
 /** Pure builder — excludes stuck designs where every level is already APPROVED/SKIPPED. */
 export function buildPendingApprovalItems(
   designs: PendingDesignRow[],
   levels: ApprovalLevelRow[],
+  options?: { designIdsWithCosting?: Set<string> },
 ): BuiltPendingApprovalItem[] {
+  const withCosting = options?.designIdsWithCosting;
+  const lastLevel = levels.length > 0 ? levels[levels.length - 1] : null;
+
   return designs.flatMap((design) => {
     const passedLevelIds = new Set(
       design.approvals
@@ -146,6 +159,8 @@ export function buildPendingApprovalItems(
     );
 
     const designId = design.id.toString();
+    const isFinalLevel = lastLevel != null && nextLevel.id === lastLevel.id;
+    const costingReady = !isFinalLevel || (withCosting?.has(designId) ?? true);
 
     return [
       {
@@ -169,6 +184,7 @@ export function buildPendingApprovalItems(
             : null;
         })(),
         existingApprovalId: existingPending?.id?.toString() ?? null,
+        costingReady,
       },
     ];
   });

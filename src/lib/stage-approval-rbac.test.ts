@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canRoleActOnManagementLevel,
+  canRoleSeeManagementSignOff,
   canRoleSeeReadyForSignOff,
   getManagementLevelOwnerRole,
 } from "@/lib/approval-hub-rbac";
@@ -61,6 +62,12 @@ describe("stage-approval-rbac", () => {
       management: false,
     });
     expect(canRoleAccessApprovalsHub(ROLE_CODES.PUNCHING_DESIGNER)).toBe(false);
+    expect(getApprovalHubTabsForRole(ROLE_CODES.ADMIN)).toEqual({
+      stage: true,
+      ready: true,
+      management: true,
+    });
+    expect(canRoleAccessApprovalsHub(ROLE_CODES.ADMIN)).toBe(true);
   });
 });
 
@@ -74,7 +81,10 @@ describe("approval-hub-rbac", () => {
   it("restricts management level actions by role", () => {
     expect(canRoleActOnManagementLevel(ROLE_CODES.SAMPLE_CHECKER, "CHECKER_APPROVAL")).toBe(true);
     expect(canRoleActOnManagementLevel(ROLE_CODES.MANAGEMENT, "CHECKER_APPROVAL")).toBe(false);
+    expect(canRoleActOnManagementLevel(ROLE_CODES.ADMIN, "CHECKER_APPROVAL")).toBe(true);
+    expect(canRoleActOnManagementLevel(ROLE_CODES.ADMIN, "MANAGEMENT_APPROVAL")).toBe(true);
     expect(canRoleSeeReadyForSignOff(ROLE_CODES.DESIGN_HEAD)).toBe(true);
     expect(canRoleSeeReadyForSignOff(ROLE_CODES.MANAGEMENT)).toBe(false);
+    expect(canRoleSeeManagementSignOff(ROLE_CODES.ADMIN)).toBe(true);
   });
 });

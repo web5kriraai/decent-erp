@@ -27,6 +27,7 @@ export function canRoleActOnManagementLevel(
   levelCode: string,
 ): boolean {
   if (!roleCode) return false;
+  if (roleCode === ROLE_CODES.ADMIN) return true;
   const owner = getManagementLevelOwnerRole(levelCode);
   return owner === roleCode;
 }
@@ -37,6 +38,7 @@ export function canRoleSeeReadyForSignOff(roleCode: string | null | undefined): 
 
 export function canRoleSeeManagementSignOff(roleCode: string | null | undefined): boolean {
   return (
+    roleCode === ROLE_CODES.ADMIN ||
     roleCode === ROLE_CODES.SAMPLE_CHECKER ||
     roleCode === ROLE_CODES.DESIGN_HEAD ||
     roleCode === ROLE_CODES.MANAGEMENT

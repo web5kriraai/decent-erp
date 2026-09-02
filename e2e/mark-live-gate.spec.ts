@@ -170,6 +170,43 @@ test.describe("Mark Live gate and guards", () => {
     await expect(markLiveButton).toBeDisabled();
   });
 
+  test("production head cannot mark live even after live review", async ({ page }) => {
+    test.setTimeout(300_000);
+
+    const designId = await releaseDesignWithoutLiveReview(page);
+
+    await login(page, USERS.admin.email, USERS.admin.password);
+    const liveTask = await getDesignTaskByCode(page, designId, "LIVE_REVIEW");
+    expect(liveTask).toBeTruthy();
+    if (liveTask && ["PENDING", "ASSIGNED"].includes(liveTask.status)) {
+      const managementId = await employeeIdFor(page, USERS.management.email);
+      await assignTaskToEmployee(page, liveTask.id, managementId);
+    }
+
+    await login(page, USERS.management.email, DEMO);
+    const myTasks = await listMyTasks(page);
+    const live = myTasks.find(
+      (t) =>
+        t.design.id === designId &&
+        t.subProcess.code === "LIVE_REVIEW" &&
+        t.status === "ASSIGNED",
+    );
+    expect(live).toBeTruthy();
+    await completeAssignedTask(page, live!.id, "E2E live review");
+
+    await login(page, USERS.production.email, DEMO);
+    const denied = await page.request.post("/api/production/live", {
+      data: { designId },
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(denied.status()).toBe(403);
+
+    await login(page, USERS.management.email, DEMO);
+    await apiPostJson(page, "/api/production/live", { designId });
+    const liveDesign = await getDesign(page, designId);
+    expect(liveDesign.status).toBe("LIVE");
+  });
+
   test("non-production role cannot release to production", async ({ page }) => {
     await login(page, USERS.sketch.email, DEMO);
     const res = await page.request.post("/api/production/release", {

@@ -8,14 +8,14 @@ import {
 } from "@/lib/services/approval-queue-utils";
 
 describe("canEmployeeActOnApprovalLevel", () => {
-  it("denies admin bypass on role-scoped levels", () => {
+  it("allows admin to act on role-scoped management levels", () => {
     expect(
       canEmployeeActOnApprovalLevel(
         { requiredRoleId: 99, code: "CHECKER_APPROVAL" },
         1,
         "ADMIN",
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("allows matching role", () => {
@@ -38,9 +38,20 @@ describe("canEmployeeActOnApprovalLevel", () => {
     ).toBe(false);
   });
 
-  it("allows any employee when level has no required role", () => {
+  it("allows admin to act on any management level", () => {
     expect(
-      canEmployeeActOnApprovalLevel({ requiredRoleId: null }, 3, "SAMPLE_CHECKER"),
+      canEmployeeActOnApprovalLevel(
+        { requiredRoleId: 10, code: "CHECKER_APPROVAL" },
+        99,
+        "ADMIN",
+      ),
+    ).toBe(true);
+    expect(
+      canEmployeeActOnApprovalLevel(
+        { requiredRoleId: 30, code: "MANAGEMENT_APPROVAL" },
+        99,
+        "ADMIN",
+      ),
     ).toBe(true);
   });
 });
@@ -142,6 +153,28 @@ describe("buildPendingApprovalItems", () => {
       levels,
     );
     expect(items[0]?.task?.subProcess.name).toBe("Punch");
+  });
+  it("marks final level as not costing-ready when design has no costs", () => {
+    const items = buildPendingApprovalItems(
+      [
+        {
+          id: 103,
+          ideaRef: "IDEA-4",
+          collectionName: "Winter",
+          status: "APPROVAL_PENDING",
+          approvals: [
+            { approvalLevelId: 1, decision: "APPROVED" },
+            { approvalLevelId: 2, decision: "APPROVED" },
+          ],
+          tasks: [],
+        },
+      ],
+      levels,
+      { designIdsWithCosting: new Set() },
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.currentLevel.code).toBe("MANAGEMENT_APPROVAL");
+    expect(items[0]?.costingReady).toBe(false);
   });
 });
 
@@ -263,5 +296,16 @@ describe("isDesignReadyForSignOff", () => {
         work("LIVE_REVIEW", "PENDING", true),
       ]),
     ).toBe(true);
+  });
+
+  it("blocks ready-for-sign-off while RESAMPLE is still open", () => {
+    expect(
+      isDesignReadyForSignOff([
+        work("SAMPLE_CHECK", "COMPLETED"),
+        work("COSTING", "COMPLETED"),
+        work("FINAL_APPROVAL", "COMPLETED", true),
+        work("RESAMPLE", "ASSIGNED"),
+      ]),
+    ).toBe(false);
   });
 });

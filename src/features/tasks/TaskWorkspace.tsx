@@ -107,6 +107,7 @@ export function TaskWorkspace() {
   const { start, hold, resume, end, closeWorkday, isPending } = useTaskMutations();
 
   const [activeTab, setActiveTab] = useState<ActionTab>("actionRequired");
+  const [expandedKanbanLanes, setExpandedKanbanLanes] = useState<Set<string>>(new Set());
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [holdModalOpen, setHoldModalOpen] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
@@ -149,6 +150,15 @@ export function TaskWorkspace() {
 
   const taskChecklistItems =
     checklistQuery.data?.filter((item) => item.subProcessId === activeTask?.subProcess?.id) ?? [];
+
+  function toggleKanbanLaneExpanded(bucket: string) {
+    setExpandedKanbanLanes((current) => {
+      const next = new Set(current);
+      if (next.has(bucket)) next.delete(bucket);
+      else next.add(bucket);
+      return next;
+    });
+  }
 
   if (!canExecute) {
     return (
@@ -314,8 +324,13 @@ export function TaskWorkspace() {
                   <div className="kanban kanban--workspace">
                     {KANBAN_COLUMNS.map(([bucket, label]) => {
                       const laneTasks = kanbanGroups[bucket] ?? [];
-                      const visibleTasks = laneTasks.slice(0, WORKSPACE_LANE_PREVIEW);
-                      const hiddenCount = Math.max(0, laneTasks.length - WORKSPACE_LANE_PREVIEW);
+                      const laneExpanded = expandedKanbanLanes.has(bucket);
+                      const visibleTasks = laneExpanded
+                        ? laneTasks
+                        : laneTasks.slice(0, WORKSPACE_LANE_PREVIEW);
+                      const hiddenCount = laneExpanded
+                        ? 0
+                        : Math.max(0, laneTasks.length - WORKSPACE_LANE_PREVIEW);
 
                       return (
                         <div key={bucket} className="kanban-column">
@@ -346,7 +361,22 @@ export function TaskWorkspace() {
                               <p className="kanban-empty">No tasks</p>
                             ) : null}
                             {hiddenCount > 0 ? (
-                              <p className="kanban-lane-more">+{hiddenCount} more tasks</p>
+                              <button
+                                type="button"
+                                className="kanban-lane-more"
+                                onClick={() => toggleKanbanLaneExpanded(bucket)}
+                              >
+                                +{hiddenCount} more tasks
+                              </button>
+                            ) : null}
+                            {laneExpanded && laneTasks.length > WORKSPACE_LANE_PREVIEW ? (
+                              <button
+                                type="button"
+                                className="kanban-lane-more"
+                                onClick={() => toggleKanbanLaneExpanded(bucket)}
+                              >
+                                Show fewer tasks
+                              </button>
                             ) : null}
                           </div>
                         </div>

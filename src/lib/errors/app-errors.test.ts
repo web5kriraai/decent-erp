@@ -93,7 +93,17 @@ describe("action-availability", () => {
 
     const ready = getMarkLiveAvailability("PRODUCTION_RELEASED", {
       liveReviewCompleted: true,
+      roleCode: "MANAGEMENT",
     });
     expect(ready.available).toBe(true);
+  });
+
+  it("blocks Mark Live for Production Head role", () => {
+    const blocked = getMarkLiveAvailability("PRODUCTION_RELEASED", {
+      liveReviewCompleted: true,
+      roleCode: "PRODUCTION_HEAD",
+    });
+    expect(blocked.available).toBe(false);
+    expect(blocked.reason).toMatch(/only management/i);
   });
 });
