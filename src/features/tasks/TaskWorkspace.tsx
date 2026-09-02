@@ -6,8 +6,8 @@ import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { TimerWidget } from "@/components/TimerWidget";
-import { StatusBadge } from "@/components/StatusBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
+import { TaskActionCard, TaskActionListItem } from "@/components/tasks/TaskActionCard";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,10 @@ import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
 import { computeElapsedSeconds } from "@/lib/types/api";
-import { cn } from "@/lib/utils";
+import { groupActionCenterTasks } from "@/lib/task-priority";
 
 const KANBAN_COLUMNS = [
-  ["ASSIGNED", "Ready to Start"],
+  ["READY", "Ready to Start"],
   ["CORRECTION_REQUIRED", "Rework"],
   ["RUNNING", "In Progress"],
   ["ON_HOLD", "On Hold"],
@@ -39,11 +39,6 @@ const ACTION_TABS: { id: ActionTab; label: string }[] = [
   { id: "upcoming", label: "Upcoming" },
   { id: "completed", label: "Completed" },
 ];
-
-function formatCollectionLabel(name: string) {
-  if (/workday\s+\d{10,}/i.test(name)) return null;
-  return name;
-}
 
 function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
   if (items.length === 0) {
@@ -76,17 +71,7 @@ function TaskList({ tasks, emptyMessage }: { tasks: DesignTask[]; emptyMessage: 
   return (
     <ul className="action-center-list">
       {tasks.map((task) => (
-        <li key={task.id} className="action-center-list-item">
-          <div>
-            <Link href={ROUTES.work.taskDetail(task.id)} className="data-table-link">
-              {task.design.ideaRef} · {task.subProcess.name}
-            </Link>
-            {formatCollectionLabel(task.design.collectionName) ? (
-              <p className="action-center-list-meta">{task.design.collectionName}</p>
-            ) : null}
-          </div>
-          <StatusBadge status={task.status} />
-        </li>
+        <TaskActionListItem key={task.id} task={task} />
       ))}
     </ul>
   );
@@ -130,18 +115,7 @@ export function TaskWorkspace() {
     return computeElapsedSeconds(activeTask.timeEvents);
   }, [activeTask?.timeEvents, activeTask?.status]);
 
-  const tasksByStatus = useMemo(() => {
-    const groups: Record<string, DesignTask[]> = {
-      ASSIGNED: [],
-      CORRECTION_REQUIRED: [],
-      RUNNING: [],
-      ON_HOLD: [],
-    };
-    for (const task of tasks) {
-      if (groups[task.status]) groups[task.status].push(task);
-    }
-    return groups;
-  }, [tasks]);
+  const kanbanGroups = useMemo(() => groupActionCenterTasks(tasks), [tasks]);
 
   const tabCounts = useMemo(
     () => ({
@@ -165,6 +139,7 @@ export function TaskWorkspace() {
   }
 
   async function handleStart(task: DesignTask) {
+    if (!task.canStart) return;
     setSelectedTaskId(task.id);
     await start.mutateAsync(task.id);
   }
@@ -218,9 +193,12 @@ export function TaskWorkspace() {
   }
 
   function handleTaskCardKeyDown(e: React.KeyboardEvent, task: DesignTask) {
-    const canStart =
-      (task.status === "ASSIGNED" || task.status === "CORRECTION_REQUIRED") && !runningTask;
-    if (e.key === "Enter" && canStart) {
+    const showStart =
+      (task.status === "ASSIGNED" ||
+        task.status === "CORRECTION_REQUIRED" ||
+        task.status === "PENDING") &&
+      task.canStart;
+    if (e.key === "Enter" && showStart) {
       e.preventDefault();
       void handleStart(task);
     } else if (e.key === "Enter") {
@@ -312,67 +290,34 @@ export function TaskWorkspace() {
                 </p>
               ) : (
                 <div className="kanban">
-                  {KANBAN_COLUMNS.map(([status, label]) => (
-                    <div key={status} className="kanban-column">
+                  {KANBAN_COLUMNS.map(([bucket, label]) => (
+                    <div key={bucket} className="kanban-column">
                       <div className="kanban-column-header">
                         {label}
                         <span className="kanban-column-count">
-                          {tasksByStatus[status]?.length ?? 0}
+                          {kanbanGroups[bucket]?.length ?? 0}
                         </span>
                       </div>
-                      <div className="kanban-cards">
-                        {(tasksByStatus[status] ?? []).map((task) => {
+                      <div className="kanban-cards scroll-region">
+                        {(kanbanGroups[bucket] ?? []).map((task) => {
                           const isActiveCard = task.id === activeTask?.id && isTimerActive;
-                          const collectionLabel = formatCollectionLabel(task.design.collectionName);
+                          const showStartButton =
+                            bucket === "READY" || bucket === "CORRECTION_REQUIRED";
                           return (
-                            <article
+                            <TaskActionCard
                               key={task.id}
-                              className={cn(
-                                "task-card",
-                                selectedTaskId === task.id && "task-card--selected",
-                                isActiveCard && "task-card--active",
-                              )}
-                              onClick={() => setSelectedTaskId(task.id)}
+                              task={task}
+                              selected={selectedTaskId === task.id}
+                              active={isActiveCard}
+                              showStartButton={showStartButton}
+                              isPending={isPending}
+                              onSelect={() => setSelectedTaskId(task.id)}
+                              onStart={() => void handleStart(task)}
                               onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
-                              role="button"
-                              tabIndex={0}
-                              aria-label={`${task.design.ideaRef} ${task.subProcess.name}`}
-                              aria-current={isActiveCard ? "true" : undefined}
-                            >
-                              <p className="task-card-ref">
-                                <Link
-                                  href={ROUTES.work.taskDetail(task.id)}
-                                  className="data-table-link"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {task.design.ideaRef}
-                                </Link>
-                              </p>
-                              <p className="task-card-title">{task.subProcess.name}</p>
-                              {collectionLabel ? (
-                                <p className="task-card-subtitle">{collectionLabel}</p>
-                              ) : null}
-                              <div className="task-card-meta">
-                                <StatusBadge status={task.status} />
-                                {(status === "ASSIGNED" || status === "CORRECTION_REQUIRED") &&
-                                !runningTask ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={isPending}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      void handleStart(task);
-                                    }}
-                                  >
-                                    {status === "CORRECTION_REQUIRED" ? "Restart" : "Start"}
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </article>
+                            />
                           );
                         })}
-                        {(tasksByStatus[status] ?? []).length === 0 ? (
+                        {(kanbanGroups[bucket] ?? []).length === 0 ? (
                           <p className="kanban-empty">No tasks</p>
                         ) : null}
                       </div>

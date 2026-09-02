@@ -12,6 +12,7 @@ import type { PermissionCode } from "./permissions";
 export type ApiContext = {
   employeeId: number;
   permissions: string[];
+  roleCode: string;
   correlationId: string;
 };
 
@@ -66,6 +67,7 @@ export async function withApiHandler<T>(
     return await handler({
       employeeId: session.user.employeeId,
       permissions: session.user.permissions,
+      roleCode: session.user.roleCode,
       correlationId,
     });
   } catch (error) {

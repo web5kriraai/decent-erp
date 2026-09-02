@@ -33,6 +33,23 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
     expect(design.id).toBeTruthy();
     expect(design.status).toBe("ACTIVE");
     expect(design.ideaRef).toMatch(/^IDEA-/);
+
+    const dhTasks = await apiGetJson<
+      Array<{ status: string; subProcess: { code?: string } }>
+    >(page, "/api/tasks/my");
+    expect(dhTasks.some((t) => t.subProcess.code === "CONCEPT_REVIEW" && t.status === "ASSIGNED")).toBe(
+      false,
+    );
+
+    await login(page, USERS.sketch.email, USERS.sketch.password);
+    const sketchTasks = await apiGetJson<
+      Array<{ status: string; design: { id: string }; subProcess: { code?: string } }>
+    >(page, "/api/tasks/my");
+    expect(
+      sketchTasks.some(
+        (t) => t.design.id === design.id && t.subProcess.code === "SKETCH" && t.status === "ASSIGNED",
+      ),
+    ).toBe(true);
   });
 
   test("TC-04: only one RUNNING task per employee", async ({ page }) => {

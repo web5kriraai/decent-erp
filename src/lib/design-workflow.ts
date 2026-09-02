@@ -12,6 +12,10 @@ import {
 } from "@/lib/services/workflow-stage-gate";
 import { PERMISSIONS } from "@/lib/permissions";
 import {
+  canRoleActOnStageApproval,
+  isInlineStageApprovalSurface,
+} from "@/lib/stage-approval-rbac";
+import {
   resolveDesignContextActions,
   WORKFLOW_ACTION_CODES,
   type ResolvedWorkflowAction,
@@ -28,6 +32,21 @@ const ACTIONABLE_STATUSES = new Set([
 ]);
 
 export { isWorkflowStepAssignable };
+
+function canAccessStageApproval(
+  roleCode: string | undefined,
+  approvalCode: string,
+  isMine: boolean,
+  isUnassigned: boolean,
+): boolean {
+  if (!roleCode) return false;
+  if (!canRoleActOnStageApproval(roleCode, approvalCode)) return false;
+  return isMine || isUnassigned;
+}
+
+function isInlinePendingStageApproval(code: string): boolean {
+  return isInlineStageApprovalSurface(code);
+}
 
 export type WorkflowStep = {
   task: DesignTask;
@@ -192,7 +211,7 @@ export function buildWorkflowSteps(tasks: DesignTask[] | undefined): WorkflowSte
 export function findNextActionableTask(
   tasks: DesignTask[],
   employeeId?: number,
-  canApprove = false,
+  roleCode?: string,
 ): DesignTask | null {
   const siblings = toDepSeqTasks(tasks);
 
@@ -214,8 +233,12 @@ export function findNextActionableTask(
     const isApprovalStage = !!task.subProcess?.isApproval;
     const isMine = employeeId != null && task.assignedEmployeeId === employeeId;
     const isUnassigned = task.assignedEmployeeId == null;
+    const approvalCode = task.subProcess?.code ?? "";
 
-    if (isApprovalStage && (isMine || isUnassigned || canApprove)) {
+    if (
+      isApprovalStage &&
+      canAccessStageApproval(roleCode, approvalCode, isMine, isUnassigned)
+    ) {
       if (["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"].includes(task.status)) {
         return task;
       }
@@ -235,17 +258,82 @@ export type PendingStageApproval = {
   workTask?: DesignTask;
 };
 
+/** Whether an approval can be acted on given the linked work task state. */
+export function isStageApprovalActionable(
+  approvalCode: string,
+  workTask?: { status?: string },
+): boolean {
+  switch (approvalCode) {
+    case "SKETCH_APPROVAL":
+    case "PUNCH_CHECK":
+    case "SAMPLE_CHECK":
+      return workTask?.status === "CHECKING";
+    case "FINAL_APPROVAL":
+      return (
+        workTask?.status != null && ["CHECKING", "COMPLETED"].includes(workTask.status)
+      );
+    case "CONCEPT_REVIEW":
+      return true;
+    default:
+      return workTask == null || workTask.status === "CHECKING";
+  }
+}
+
+export function getStageApprovalBlockedMessage(
+  approvalCode: string,
+  workTask?: { status?: string },
+): string | undefined {
+  if (isStageApprovalActionable(approvalCode, workTask)) return undefined;
+
+  if (approvalCode === "SKETCH_APPROVAL") {
+    if (workTask?.status === "ASSIGNED" || workTask?.status === "RUNNING") {
+      return "Waiting for sketch designer to submit work.";
+    }
+    if (workTask?.status === "ON_HOLD") {
+      return "Sketch work is on hold — approval unlocks after the designer resumes and submits.";
+    }
+    return "Sketch must be submitted for checking before you can approve.";
+  }
+
+  if (approvalCode === "PUNCH_CHECK") {
+    return "Waiting for punch work to be submitted for checking.";
+  }
+
+  if (approvalCode === "SAMPLE_CHECK") {
+    return "Waiting for machine sample to be submitted for checking.";
+  }
+
+  if (approvalCode === "FINAL_APPROVAL") {
+    return "Waiting for costing to be completed before final approval.";
+  }
+
+  return "Waiting for prior work to be submitted for checking.";
+}
+
 export function getPendingStageApproval(input: {
   design: DesignSummary;
   employeeId?: number;
-  canApprove: boolean;
+  roleCode?: string;
   canExecute: boolean;
 }): PendingStageApproval | null {
-  const { design, employeeId, canApprove, canExecute } = input;
-  if (!(canExecute || canApprove)) return null;
+  const { design, employeeId, roleCode, canExecute } = input;
+  if (!canExecute && !roleCode) return null;
 
   const tasks = sortTasks(design.tasks);
   const siblings = toDepSeqTasks(tasks);
+
+  const tryReturn = (
+    approvalTask: DesignTask,
+    workTask: DesignTask | undefined,
+    approvalCode: string,
+  ): PendingStageApproval | null => {
+    if (!isInlinePendingStageApproval(approvalCode)) return null;
+    const isMine = employeeId != null && approvalTask.assignedEmployeeId === employeeId;
+    const isUnassigned = approvalTask.assignedEmployeeId == null;
+    if (!canAccessStageApproval(roleCode, approvalCode, isMine, isUnassigned)) return null;
+    if (!isStageApprovalActionable(approvalCode, workTask)) return null;
+    return { approvalTask, workTask };
+  };
 
   const sketch = tasks.find((t) => t.subProcess?.code === "SKETCH");
   const sketchApproval = tasks.find((t) => t.subProcess?.code === "SKETCH_APPROVAL");
@@ -264,12 +352,8 @@ export function getPendingStageApproval(input: {
       siblings,
     );
     if (ready) {
-      const isMine =
-        employeeId != null && sketchApproval.assignedEmployeeId === employeeId;
-      const isUnassigned = sketchApproval.assignedEmployeeId == null;
-      if (isMine || isUnassigned || canApprove) {
-        return { approvalTask: sketchApproval, workTask: sketch };
-      }
+      const result = tryReturn(sketchApproval, sketch, "SKETCH_APPROVAL");
+      if (result) return result;
     }
   }
 
@@ -290,11 +374,8 @@ export function getPendingStageApproval(input: {
       siblings,
     );
     if (ready) {
-      const isMine = employeeId != null && punchCheck.assignedEmployeeId === employeeId;
-      const isUnassigned = punchCheck.assignedEmployeeId == null;
-      if (isMine || isUnassigned || canApprove) {
-        return { approvalTask: punchCheck, workTask: punch };
-      }
+      const result = tryReturn(punchCheck, punch, "PUNCH_CHECK");
+      if (result) return result;
     }
   }
 
@@ -315,11 +396,8 @@ export function getPendingStageApproval(input: {
       siblings,
     );
     if (ready) {
-      const isMine = employeeId != null && sampleCheck.assignedEmployeeId === employeeId;
-      const isUnassigned = sampleCheck.assignedEmployeeId == null;
-      if (isMine || isUnassigned || canApprove) {
-        return { approvalTask: sampleCheck, workTask: machineSample };
-      }
+      const result = tryReturn(sampleCheck, machineSample, "SAMPLE_CHECK");
+      if (result) return result;
     }
   }
 
@@ -341,14 +419,12 @@ export function getPendingStageApproval(input: {
       siblings,
     );
     if (ready) {
-      const isMine = employeeId != null && finalApproval.assignedEmployeeId === employeeId;
-      const isUnassigned = finalApproval.assignedEmployeeId == null;
-      if (isMine || isUnassigned || canApprove) {
-        return {
-          approvalTask: finalApproval,
-          workTask: costing.status === "CHECKING" ? costing : undefined,
-        };
-      }
+      const result = tryReturn(
+        finalApproval,
+        costing.status === "CHECKING" ? costing : undefined,
+        "FINAL_APPROVAL",
+      );
+      if (result) return result;
     }
   }
 
@@ -367,14 +443,16 @@ export function getPendingStageApproval(input: {
     );
     if (!ready) continue;
 
+    const code = task.subProcess.code;
+    if (!isInlinePendingStageApproval(code)) continue;
+
     const isMine = employeeId != null && task.assignedEmployeeId === employeeId;
     const isUnassigned = task.assignedEmployeeId == null;
-    if (!(isMine || isUnassigned || canApprove)) continue;
+    if (!canAccessStageApproval(roleCode, code, isMine, isUnassigned)) continue;
 
-    const code = task.subProcess.code;
     const workTask =
       code === "SKETCH_APPROVAL"
-        ? tasks.find((t) => t.subProcess?.code === "SKETCH")
+        ? tasks.find((t) => t.subProcess?.code === "SKETCH" && t.status === "CHECKING")
         : code === "PUNCH_CHECK"
           ? tasks.find((t) => t.subProcess?.code === "PUNCH" && t.status === "CHECKING")
           : code === "SAMPLE_CHECK"
@@ -382,8 +460,14 @@ export function getPendingStageApproval(input: {
                 (t) => t.subProcess?.code === "MACHINE_SAMPLE" && t.status === "CHECKING",
               )
             : code === "FINAL_APPROVAL"
-              ? tasks.find((t) => t.subProcess?.code === "COSTING" && t.status === "CHECKING")
+              ? tasks.find(
+                  (t) =>
+                    t.subProcess?.code === "COSTING" &&
+                    ["CHECKING", "COMPLETED"].includes(t.status),
+                )
               : undefined;
+
+    if (!isStageApprovalActionable(code, workTask)) continue;
 
     return { approvalTask: task, workTask };
   }
@@ -430,6 +514,7 @@ export function getDesignContextActions(input: {
   canApprove: boolean;
   canExecute: boolean;
   canAssign?: boolean;
+  roleCode?: string;
   approvalsQueueHref: string;
 }): ResolvedWorkflowAction[] {
   const permissions: string[] = [];
@@ -440,6 +525,7 @@ export function getDesignContextActions(input: {
     design: input.design,
     employeeId: input.employeeId,
     permissions,
+    roleCode: input.roleCode,
     approvalsQueueHref: input.approvalsQueueHref,
   });
 }
@@ -449,6 +535,7 @@ export function getDesignWorkflowActions(input: {
   employeeId?: number;
   canApprove: boolean;
   canExecute: boolean;
+  roleCode?: string;
   approvalsQueueHref: string;
 }): DesignWorkflowAction[] {
   const resolved = getDesignContextActions(input);

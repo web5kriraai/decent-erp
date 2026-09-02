@@ -49,14 +49,21 @@ export function initialStatusForCreate(input: {
   return input.hasAssignee && input.isReady ? "ASSIGNED" : "PENDING";
 }
 
-/** Ready when every other task with a strictly lower dep seq is satisfied. */
+/** Prior pipeline stages (by sequence) that can block this task from starting. */
+export function isPriorPipelineStage(
+  sibling: { sequence: number },
+  task: { sequence: number },
+): boolean {
+  return sibling.sequence < task.sequence;
+}
+
+/** Ready when every earlier pipeline stage (lower sequence) is satisfied. */
 export function isTaskReady(task: DepSeqTask, siblings: DepSeqTask[]): boolean {
-  const depSeq = effectiveDependencySequence(task);
   return siblings.every((sibling) => {
     if (task.id != null && sibling.id != null && String(task.id) === String(sibling.id)) {
       return true;
     }
-    if (effectiveDependencySequence(sibling) >= depSeq) return true;
+    if (!isPriorPipelineStage(sibling, task)) return true;
     return isDependencySatisfiedStatus(sibling.status);
   });
 }

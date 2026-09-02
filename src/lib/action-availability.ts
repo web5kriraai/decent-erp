@@ -53,7 +53,7 @@ export function getTaskStartAvailability(
           : "Earlier workflow stages must finish before you can start this task.",
       };
     }
-  } else if (task.status !== "ASSIGNED") {
+  } else if (task.status !== "ASSIGNED" && task.status !== "CORRECTION_REQUIRED") {
     return {
       available: false,
       reason: "Only assigned tasks can be started.",

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { initialStatusForCreate, isTaskReady } from "@/lib/services/task-dependency";
+import { priorityRank } from "@/lib/task-priority";
 
 type ReadinessTask = {
   id: bigint;
@@ -86,10 +87,39 @@ export async function reconcileTaskReadiness(
   });
 }
 
+/** Align open task priorities with their design when design is more urgent. */
+export async function syncOpenTaskPrioritiesForEmployee(employeeId: number): Promise<number> {
+  const rows = await prisma.designTask.findMany({
+    where: {
+      assignedEmployeeId: employeeId,
+      status: { notIn: ["COMPLETED", "CANCELLED"] },
+    },
+    select: {
+      id: true,
+      priority: true,
+      design: { select: { priority: true } },
+    },
+  });
+
+  let updated = 0;
+  for (const row of rows) {
+    const designPriority = row.design.priority;
+    if (priorityRank(designPriority) >= priorityRank(row.priority)) continue;
+    await prisma.designTask.update({
+      where: { id: row.id },
+      data: { priority: designPriority },
+    });
+    updated += 1;
+  }
+  return updated;
+}
+
 export async function reconcileEmployeeTasksReadiness(
   employeeId: number,
   correlationId: string,
 ): Promise<number> {
+  await syncOpenTaskPrioritiesForEmployee(employeeId);
+
   const pending = await prisma.designTask.findMany({
     where: { assignedEmployeeId: employeeId, status: "PENDING" },
     select: {

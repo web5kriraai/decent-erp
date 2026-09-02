@@ -8,6 +8,11 @@ import {
   submitApproval,
 } from "@/lib/services/approval-service";
 import { listStageApprovalQueue } from "@/lib/services/stage-approval-queue";
+import {
+  canRoleAccessApprovalsHub,
+  filterStageApprovalsForRole,
+  getApprovalHubTabsForRole,
+} from "@/lib/stage-approval-rbac";
 
 const schema = z.object({
   designId: z.string(),
@@ -16,6 +21,8 @@ const schema = z.object({
   decision: z.enum(["APPROVED", "REJECTED", "CORRECTION_REQUIRED", "SKIPPED"]),
   remark: z.string().optional(),
 });
+
+const HUB_PERMISSION = [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.DESIGN_APPROVE] as const;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -29,28 +36,53 @@ export async function GET(request: Request) {
   }
 
   if (view === "stage") {
-    return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
-      const stage = await listStageApprovalQueue(ctx.employeeId);
+    return withApiHandler([...HUB_PERMISSION], async (ctx) => {
+      const stage = await listStageApprovalQueue(ctx.employeeId, ctx.roleCode);
       return jsonOk(stage, ctx.correlationId);
     });
   }
 
   if (view === "ready") {
     return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
-      const ready = await listDesignsReadyForSignOff(ctx.employeeId);
+      const ready = await listDesignsReadyForSignOff(ctx.employeeId, ctx.roleCode);
       return jsonOk(ready, ctx.correlationId);
     });
   }
 
   if (view === "hub") {
-    return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
+    return withApiHandler([...HUB_PERMISSION], async (ctx) => {
+      if (!canRoleAccessApprovalsHub(ctx.roleCode)) {
+        return jsonOk(
+          serializeBigInt({
+            stageApprovals: [],
+            managementApprovals: [],
+            readyForSignOff: [],
+            tabs: getApprovalHubTabsForRole(ctx.roleCode),
+          }),
+          ctx.correlationId,
+        );
+      }
+
+      const tabs = getApprovalHubTabsForRole(ctx.roleCode);
       const [stageApprovals, managementApprovals, readyForSignOff] = await Promise.all([
-        listStageApprovalQueue(ctx.employeeId),
-        listPendingApprovalsForEmployee(ctx.employeeId),
-        listDesignsReadyForSignOff(ctx.employeeId),
+        tabs.stage
+          ? listStageApprovalQueue(ctx.employeeId, ctx.roleCode)
+          : Promise.resolve([]),
+        tabs.management
+          ? listPendingApprovalsForEmployee(ctx.employeeId)
+          : Promise.resolve([]),
+        tabs.ready
+          ? listDesignsReadyForSignOff(ctx.employeeId, ctx.roleCode)
+          : Promise.resolve([]),
       ]);
+
       return jsonOk(
-        serializeBigInt({ stageApprovals, managementApprovals, readyForSignOff }),
+        serializeBigInt({
+          stageApprovals: filterStageApprovalsForRole(ctx.roleCode, stageApprovals),
+          managementApprovals,
+          readyForSignOff,
+          tabs,
+        }),
         ctx.correlationId,
       );
     });

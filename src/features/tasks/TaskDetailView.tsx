@@ -71,7 +71,18 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     task ? `${task.design.ideaRef} · ${task.subProcess.name}` : undefined,
   );
   const isAssignee = task?.assignedEmployeeId === session?.user?.employeeId;
-  const canControl = canExecute && isAssignee;
+  const roleCode = session?.user?.roleCode;
+  const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
+  const isStageApproval = isStageApprovalTask(task?.subProcess?.code);
+  const canActOnStageApproval =
+    isStageApproval &&
+    !!roleCode &&
+    (isAssignee ||
+      task?.assignedEmployeeId == null ||
+      (canAssign && task?.assignedEmployeeId != null));
+  const canControl = canExecute && (isAssignee || (isStageApproval && canActOnStageApproval));
+  const showComparePanel =
+    task?.subProcess?.code === "PUNCH_CHECK";
   const isRunning = task?.status === "RUNNING";
   const isOnHold = task?.status === "ON_HOLD";
   const designMismatch =
@@ -84,11 +95,24 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   const fileRequired = !!task?.subProcess?.isFileRequired;
   const isSampleCheck = task?.subProcess?.code === "SAMPLE_CHECK";
-  const isStageApproval = isStageApprovalTask(task?.subProcess?.code);
-  const showComparePanel =
-    task?.subProcess?.code === "PUNCH_CHECK" ||
-    task?.subProcess?.code === "SAMPLE_CHECK";
   const showMachineOutput = isMachineOutputTask(task?.subProcess?.code);
+
+  const linkedWorkTaskStatus = useMemo(() => {
+    if (!task?.workflowPeers) return undefined;
+    const code = task.subProcess.code;
+    const peerCode =
+      code === "SKETCH_APPROVAL"
+        ? "SKETCH"
+        : code === "PUNCH_CHECK"
+          ? "PUNCH"
+          : code === "SAMPLE_CHECK"
+            ? "MACHINE_SAMPLE"
+            : code === "FINAL_APPROVAL"
+              ? "COSTING"
+              : undefined;
+    if (!peerCode) return undefined;
+    return task.workflowPeers.find((peer) => peer.subProcess.code === peerCode)?.status;
+  }, [task]);
 
   const taskContextActions = useMemo(() => {
     if (!task || !canControl) return [];
@@ -271,8 +295,10 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                 stageCode={task.subProcess.code}
                 assignedEmployeeId={task.assignedEmployeeId}
                 employeeId={session?.user?.employeeId}
-                canAssign={permissions.includes(PERMISSIONS.DESIGN_ASSIGN)}
+                roleCode={roleCode}
+                canAssign={canAssign}
                 showCompare={false}
+                workTaskStatus={linkedWorkTaskStatus}
               />
             ) : null}
 

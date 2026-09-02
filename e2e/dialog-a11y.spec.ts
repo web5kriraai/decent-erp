@@ -11,25 +11,7 @@ function resetActiveTasks() {
 
 async function ensureSketchAssignedTask(page: import("@playwright/test").Page) {
   await login(page, USERS.designHead.email, USERS.designHead.password);
-  const design = await createDesignViaApi(page, `Dialog A11y ${Date.now()}`);
-  const dhTasks = await apiGetJson<
-    Array<{ id: string; status: string; design: { id: string }; subProcess: { code?: string } }>
-  >(page, "/api/tasks/my");
-  const concept = dhTasks.find(
-    (t) =>
-      t.design.id === design.id &&
-      t.status === "ASSIGNED" &&
-      t.subProcess.code === "CONCEPT_REVIEW",
-  );
-  if (concept) {
-    await apiPostJson(page, `/api/tasks/${concept.id}/start`, {});
-    const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${concept.id}`);
-    await apiPostJson(page, `/api/tasks/${concept.id}/end`, {
-      version: detail.version,
-      outputRemark: "E2E dialog a11y setup",
-      completionStatus: "COMPLETED",
-    });
-  }
+  await createDesignViaApi(page, `Dialog A11y ${Date.now()}`);
   await login(page, USERS.sketch.email, USERS.sketch.password);
 }
 

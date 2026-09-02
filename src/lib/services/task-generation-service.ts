@@ -15,6 +15,7 @@ type PatternTaskRow = {
   sequence: number;
   dayOffset: number;
   dependencySequence: number | null;
+  subProcess?: { isApproval: boolean };
 };
 
 export type TaskCreateRow = {
@@ -30,7 +31,13 @@ export type TaskCreateRow = {
   dependencySequence?: number | null;
   plannedStart?: Date;
   dueAt?: Date;
+  isApproval?: boolean;
 };
+
+/** Strip client-only fields before Prisma insert. */
+export function toPrismaTaskCreateRows(tasks: TaskCreateRow[]): Omit<TaskCreateRow, "isApproval">[] {
+  return tasks.map(({ isApproval: _ignored, ...row }) => row);
+}
 
 function addWorkingDays(base: Date, dayOffset: number): Date {
   const result = new Date(base);
@@ -38,7 +45,7 @@ function addWorkingDays(base: Date, dayOffset: number): Date {
   return result;
 }
 
-/** Only the lowest dep-seq row(s) with an assignee become ASSIGNED; later stages stay PENDING. */
+/** Only the lowest dep-seq work row(s) with an assignee become ASSIGNED; approvals stay PENDING until work submits. */
 export function applyCreateReadiness(tasks: TaskCreateRow[]): TaskCreateRow[] {
   if (tasks.length === 0) return tasks;
   const minReady = minReadyDependencySequence(
@@ -52,6 +59,7 @@ export function applyCreateReadiness(tasks: TaskCreateRow[]): TaskCreateRow[] {
     status: initialStatusForCreate({
       hasAssignee: t.assignedEmployeeId != null,
       isReady:
+        !t.isApproval &&
         effectiveDependencySequence({
           dependencySequence: t.dependencySequence ?? null,
           sequence: t.sequence,
@@ -63,7 +71,7 @@ export function applyCreateReadiness(tasks: TaskCreateRow[]): TaskCreateRow[] {
 export async function buildTasksFromPatternTasks(
   designId: bigint,
   patternTasks: PatternTaskRow[],
-  options?: { baseDate?: Date; firstAssigneeId?: number },
+  options?: { baseDate?: Date; firstAssigneeId?: number; designPriority?: Priority },
 ): Promise<TaskCreateRow[]> {
   const base = options?.baseDate ?? new Date();
   const roleMap = await resolveEmployeesForRoles(patternTasks.map((p) => p.defaultRoleId));
@@ -82,12 +90,13 @@ export async function buildTasksFromPatternTasks(
       assignedRoleId: pt.defaultRoleId,
       assignedEmployeeId: assignee,
       expectedMinutes: pt.expectedMinutes,
-      priority: pt.priority,
+      priority: options?.designPriority ?? pt.priority,
       sequence: pt.sequence,
       dependencySequence: pt.dependencySequence,
       plannedStart,
       dueAt,
       status: "PENDING",
+      isApproval: pt.subProcess?.isApproval ?? false,
     };
   });
 

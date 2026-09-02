@@ -15,7 +15,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="app-main">
         <TopBar />
-        <main id="main-content" className="app-content" tabIndex={-1}>
+        <main id="main-content" className="app-content scroll-region" tabIndex={-1}>
           {children}
         </main>
       </div>

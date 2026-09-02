@@ -9,7 +9,6 @@ import { CheckerWorkbench } from "@/features/dashboard/CheckerWorkbench";
 import { MachineOperatorWorkbench } from "@/features/dashboard/MachineOperatorWorkbench";
 import { ExecutorWorkbench } from "@/features/dashboard/ExecutorWorkbench";
 import { CostingTeamDashboard } from "@/features/dashboard/CostingTeamDashboard";
-import { PunchingCheckerWorkbench } from "@/features/dashboard/PunchingCheckerWorkbench";
 
 export function DailyWorkbench() {
   const { data: session } = useSession();
@@ -26,9 +25,6 @@ export function DailyWorkbench() {
   }
   if (roleCode === ROLE_CODES.SAMPLE_CHECKER) {
     return <CheckerWorkbench />;
-  }
-  if (roleCode === ROLE_CODES.PUNCHING_CHECKER) {
-    return <PunchingCheckerWorkbench />;
   }
   if (roleCode === ROLE_CODES.MACHINE_OPERATOR) {
     return <MachineOperatorWorkbench />;

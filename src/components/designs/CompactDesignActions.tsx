@@ -14,6 +14,7 @@ type CompactDesignActionsProps = {
   design: DesignSummary;
   permissions: string[];
   employeeId?: number;
+  roleCode?: string;
   onAssignTask?: (taskId: string) => void;
   className?: string;
 };
@@ -22,6 +23,7 @@ export function CompactDesignActions({
   design,
   permissions,
   employeeId,
+  roleCode,
   onAssignTask,
   className,
 }: CompactDesignActionsProps) {
@@ -34,8 +36,9 @@ export function CompactDesignActions({
         design,
         employeeId,
         permissions,
+        roleCode,
       }),
-    [design, employeeId, permissions],
+    [design, employeeId, permissions, roleCode],
   );
 
   if (actions.length === 0) return null;

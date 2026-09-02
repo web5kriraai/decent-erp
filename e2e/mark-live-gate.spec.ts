@@ -181,17 +181,16 @@ test.describe("Mark Live gate and guards", () => {
   test("concurrent task end returns conflict on stale version", async ({ page }) => {
     await login(page, USERS.designHead.email, DEMO);
     const design = await createDesignViaApi(page, `Concurrency ${Date.now()}`);
-    const concept = await getDesignTaskByCode(page, design.id, "CONCEPT_REVIEW");
-    expect(concept).toBeTruthy();
 
-    const headId = await employeeIdFor(page, USERS.designHead.email);
-    await assignTaskToEmployee(page, concept!.id, headId);
+    await login(page, USERS.sketch.email, DEMO);
+    const sketch = await getDesignTaskByCode(page, design.id, "SKETCH");
+    expect(sketch).toBeTruthy();
+    expect(sketch!.status).toBe("ASSIGNED");
 
-    await login(page, USERS.designHead.email, DEMO);
-    await apiPostJson(page, `/api/tasks/${concept!.id}/start`, {});
-    const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${concept!.id}`);
+    await apiPostJson(page, `/api/tasks/${sketch!.id}/start`, {});
+    const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${sketch!.id}`);
 
-    const first = page.request.post(`/api/tasks/${concept!.id}/end`, {
+    const first = page.request.post(`/api/tasks/${sketch!.id}/end`, {
       data: {
         version: detail.version,
         outputRemark: "First end",
@@ -199,7 +198,7 @@ test.describe("Mark Live gate and guards", () => {
       },
       headers: { "Content-Type": "application/json" },
     });
-    const second = page.request.post(`/api/tasks/${concept!.id}/end`, {
+    const second = page.request.post(`/api/tasks/${sketch!.id}/end`, {
       data: {
         version: detail.version,
         outputRemark: "Stale end",

@@ -134,8 +134,12 @@ export function TaskEndDialog({
   return (
     <Modal
       open={open}
-      title="Complete Task"
-      description={completionDescription}
+      title={isSampleCheck ? "Complete Sample Check" : "Complete Task"}
+      description={
+        isSampleCheck
+          ? "Select approve, reject, or re-sample. Complete the checklist and add your review notes."
+          : completionDescription
+      }
       onClose={handleClose}
       size={showFileUpload ? "xl" : "lg"}
       footer={

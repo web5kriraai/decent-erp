@@ -95,7 +95,10 @@ export async function listPendingApprovalsForEmployee(
 
 export async function listDesignsReadyForSignOff(
   employeeId: number,
+  roleCode?: string | null,
 ): Promise<ReadyForSignOffItem[]> {
+  if (roleCode && roleCode !== "DESIGN_HEAD") return [];
+
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
     include: { role: true },
@@ -214,8 +217,13 @@ export async function submitApproval(
         include: { role: true },
       });
       const requiredRole = await tx.role.findUnique({ where: { id: level.requiredRoleId } });
-      const isAdmin = approver?.role?.code === "ADMIN";
-      if (!isAdmin && approver?.roleId !== level.requiredRoleId) {
+      if (
+        !canEmployeeActOnApprovalLevel(
+          { requiredRoleId: level.requiredRoleId, code: level.code },
+          approver?.roleId,
+          approver?.role?.code,
+        )
+      ) {
         throw new ApiError(
           `This approval level requires role ${requiredRole?.name ?? "with matching permissions"} — you are not authorized`,
           403,

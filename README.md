@@ -119,8 +119,7 @@ Access is controlled by **permissions**, not role names directly. Each employee 
 | **Sketch Designer** | Sketch artist | Task execute, corrections |
 | **Punching Designer** | Wilcom / digitizing | Task execute, corrections |
 | **Machine Operator** | Sample floor | Task execute only |
-| **Sample Checker** | QC gate | Task execute, corrections, approve |
-| **Punching Checker** | Punch QC | Task execute, corrections |
+| **Sample Checker** | QC gate (punch + sample) | Task execute, corrections, approve |
 | **Costing Team** | Finance / costing | Cost view |
 | **Production Head** | Shop-floor handoff | Production release, cost view |
 | **Management** | Owner / director | Approve, KPI, team time, costing, production release |
@@ -138,8 +137,7 @@ All demo users except admin share password **`Demo@123`**.
 | `sketch@decent-erp.local` | Sketch Designer |
 | `punch@decent-erp.local` | Punching Designer |
 | `machine@decent-erp.local` | Machine Operator |
-| `checker@decent-erp.local` | Sample Checker |
-| `punchchecker@decent-erp.local` | Punching Checker |
+| `checker@decent-erp.local` | Sample Checker (punch + sample checks) |
 | `costing@decent-erp.local` | Costing Team |
 | `production@decent-erp.local` | Production Head |
 | `management@decent-erp.local` | Management |
@@ -212,7 +210,7 @@ flowchart LR
   K --> L[Live Review + Mark Live]
 ```
 
-1. **Design Head** — create concept; workflow generates the full master chain (16 steps including punch check, material, sample receive, live review).
+1. **Design Head** — create concept; workflow auto-advances Concept Review and assigns Sketch to the sketch designer; later approvals (sketch, punch check, final, etc.) stay manual.
 2. **Role executors** — complete tasks on **My Action Center** (start / hold / end); quality checkers see **Quality context** on task detail.
 3. **Design Head** — assign/reassign, request final approval when stages are complete; compact **primary actions** on design detail.
 4. **Checker / Management** — **Quality → Approvals** multi-level chain; management **Live design review** queue after production release.
@@ -221,6 +219,10 @@ flowchart LR
 7. **Notifications** — in-app bell in the top bar; background worker still handles email when SMTP is configured.
 
 After changing workflow pattern in seed, run `npm run db:seed` and `node scripts/repair-missing-workflow-tasks.mjs` for in-flight designs.
+
+If designs created before Concept Review auto-advance are stuck on **Approve concept review**, run once:
+
+`npx tsx scripts/repair-stuck-concept-review.mjs`
 
 E2E: `npm run test:e2e:reuse -- e2e/full-workflow-pipeline.spec.ts`
 

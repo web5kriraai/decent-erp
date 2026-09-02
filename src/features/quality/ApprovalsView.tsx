@@ -16,26 +16,18 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
-import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
-import {
-  resolveApprovalContextActions,
-  WORKFLOW_ACTION_CODES,
-  type ResolvedWorkflowAction,
-} from "@/lib/workflow-actions";
 import {
   useApprovalsHub,
   useRequestDesignApproval,
   useSubmitApproval,
   type PendingApprovalItem,
 } from "@/hooks/use-approvals";
-import { PERMISSIONS } from "@/lib/permissions";
+import { canRoleAccessApprovalsHub, getApprovalHubTabsForRole } from "@/lib/stage-approval-rbac";
 
 type ApprovalTab = "stage" | "ready" | "management";
-
-const TAB_ORDER: ApprovalTab[] = ["stage", "ready", "management"];
 
 function isApprovalTab(value: string | null): value is ApprovalTab {
   return value === "stage" || value === "ready" || value === "management";
@@ -43,11 +35,7 @@ function isApprovalTab(value: string | null): value is ApprovalTab {
 
 function TabCountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
-  return (
-    <span className="tab-count-badge">
-      {count}
-    </span>
-  );
+  return <span className="tab-count-badge">{count}</span>;
 }
 
 function formatCompletedAt(value: string | null) {
@@ -63,10 +51,11 @@ export function ApprovalsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
-  const permissions = session?.user?.permissions ?? [];
-  const canApprove = permissions.includes(PERMISSIONS.DESIGN_APPROVE);
+  const roleCode = session?.user?.roleCode;
+  const hubTabs = getApprovalHubTabsForRole(roleCode);
+  const canAccessHub = canRoleAccessApprovalsHub(roleCode);
 
-  const hubQuery = useApprovalsHub(canApprove);
+  const hubQuery = useApprovalsHub(canAccessHub);
   const submitApproval = useSubmitApproval();
   const requestApproval = useRequestDesignApproval();
 
@@ -81,36 +70,55 @@ export function ApprovalsView() {
   const readyItems = hubQuery.data?.readyForSignOff ?? [];
   const managementItems = hubQuery.data?.managementApprovals ?? [];
 
+  const visibleTabs = useMemo(() => {
+    const tabs: ApprovalTab[] = [];
+    if (hubTabs.stage) tabs.push("stage");
+    if (hubTabs.ready) tabs.push("ready");
+    if (hubTabs.management) tabs.push("management");
+    return tabs;
+  }, [hubTabs.management, hubTabs.ready, hubTabs.stage]);
+
   const defaultTab = useMemo<ApprovalTab>(() => {
-    if (stageItems.length > 0) return "stage";
-    if (readyItems.length > 0) return "ready";
-    if (managementItems.length > 0) return "management";
-    return "stage";
-  }, [stageItems.length, readyItems.length, managementItems.length]);
+    if (hubTabs.stage && stageItems.length > 0) return "stage";
+    if (hubTabs.ready && readyItems.length > 0) return "ready";
+    if (hubTabs.management && managementItems.length > 0) return "management";
+    return visibleTabs[0] ?? "stage";
+  }, [
+    hubTabs.management,
+    hubTabs.ready,
+    hubTabs.stage,
+    managementItems.length,
+    readyItems.length,
+    stageItems.length,
+    visibleTabs,
+  ]);
 
   const tabParam = searchParams.get("tab");
-  const activeTab: ApprovalTab = isApprovalTab(tabParam) ? tabParam : defaultTab;
+  const activeTab: ApprovalTab =
+    isApprovalTab(tabParam) && visibleTabs.includes(tabParam) ? tabParam : defaultTab;
 
   useEffect(() => {
-    if (!isApprovalTab(tabParam)) {
+    if (!canAccessHub) return;
+    if (!isApprovalTab(tabParam) || !visibleTabs.includes(tabParam)) {
       router.replace(`${ROUTES.quality.approvals}?tab=${defaultTab}`, { scroll: false });
     }
-  }, [tabParam, defaultTab, router]);
+  }, [canAccessHub, defaultTab, router, tabParam, visibleTabs]);
 
   function setActiveTab(tab: ApprovalTab) {
     router.replace(`${ROUTES.quality.approvals}?tab=${tab}`, { scroll: false });
   }
 
-  if (!canApprove) {
+  if (!canAccessHub) {
     return (
       <div className="page-shell">
-        <PermissionDenied permission={PERMISSIONS.DESIGN_APPROVE} />
+        <PermissionDenied message="Approvals hub is not available for your role. Open assigned approval tasks from My Tasks." />
       </div>
     );
   }
 
   async function handleSubmit() {
     if (!selected) return;
+    if (decision !== "APPROVED" && !remark.trim()) return;
     await submitApproval.mutateAsync({
       designId: selected.designId,
       taskId: selected.task?.id,
@@ -126,24 +134,11 @@ export function ApprovalsView() {
     setRequestingDesignId(designId);
     try {
       await requestApproval.mutateAsync(designId);
-      setActiveTab("management");
+      if (hubTabs.management) setActiveTab("management");
     } finally {
       setRequestingDesignId(null);
     }
   }
-
-  function handleApprovalAction(action: ResolvedWorkflowAction) {
-    if (!selected) return;
-    if (action.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL) setDecision("APPROVED");
-    if (action.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL) setDecision("REJECTED");
-    if (action.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL_CORRECTION) {
-      setDecision("CORRECTION_REQUIRED");
-    }
-  }
-
-  const approvalActions = selected
-    ? resolveApprovalContextActions({ item: selected, permissions })
-    : [];
 
   const isLoading = hubQuery.isLoading;
   const isError = hubQuery.isError;
@@ -169,181 +164,183 @@ export function ApprovalsView() {
       >
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ApprovalTab)}>
           <TabsList className="mb-4">
-            {TAB_ORDER.map((tab) => (
-              <TabsTrigger key={tab} value={tab}>
-                {tab === "stage" && (
-                  <>
-                    Stage approvals
-                    <TabCountBadge count={stageItems.length} />
-                  </>
-                )}
-                {tab === "ready" && (
-                  <>
-                    Ready for sign-off
-                    <TabCountBadge count={readyItems.length} />
-                  </>
-                )}
-                {tab === "management" && (
-                  <>
-                    Management sign-off
-                    <TabCountBadge count={managementItems.length} />
-                  </>
-                )}
+            {hubTabs.stage ? (
+              <TabsTrigger value="stage">
+                Stage approvals
+                <TabCountBadge count={stageItems.length} />
               </TabsTrigger>
-            ))}
+            ) : null}
+            {hubTabs.ready ? (
+              <TabsTrigger value="ready">
+                Ready for sign-off
+                <TabCountBadge count={readyItems.length} />
+              </TabsTrigger>
+            ) : null}
+            {hubTabs.management ? (
+              <TabsTrigger value="management">
+                Management sign-off
+                <TabCountBadge count={managementItems.length} />
+              </TabsTrigger>
+            ) : null}
           </TabsList>
 
-          <TabsContent value="stage">
-            <div className="card">
-              <DataTable
-                columns={[
-                  {
-                    key: "design",
-                    header: "Design",
-                    render: (row) => (
-                      <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
-                        {row.ideaRef}
-                      </Link>
-                    ),
-                  },
-                  { key: "collection", header: "Collection", render: (row) => row.collectionName },
-                  { key: "stage", header: "Stage", render: (row) => row.stageName },
-                  {
-                    key: "work",
-                    header: "Work submitted",
-                    render: (row) => row.workStageName ?? "—",
-                  },
-                  {
-                    key: "status",
-                    header: "Status",
-                    render: (row) => <StatusBadge status={row.status} />,
-                  },
-                  {
-                    key: "actions",
-                    header: "",
-                    align: "right",
-                    render: (row) => (
-                      <Link
-                        href={ROUTES.designs.detail(row.designId)}
-                        className="btn btn-primary btn-sm"
-                      >
-                        Review
-                      </Link>
-                    ),
-                  },
-                ]}
-                rows={stageItems}
-                getRowKey={(row) => row.taskId}
-                emptyTitle="No stage approvals waiting"
-                emptyDescription="When sketch, punch, sample check, or costing work is submitted, the approval task appears here for your review."
-              />
-            </div>
-          </TabsContent>
+          {hubTabs.stage ? (
+            <TabsContent value="stage">
+              <div className="card">
+                <DataTable
+                  columns={[
+                    {
+                      key: "design",
+                      header: "Design",
+                      render: (row) => (
+                        <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
+                          {row.ideaRef}
+                        </Link>
+                      ),
+                    },
+                    { key: "collection", header: "Collection", render: (row) => row.collectionName },
+                    { key: "stage", header: "Stage", render: (row) => row.stageName },
+                    {
+                      key: "work",
+                      header: "Work submitted",
+                      render: (row) => row.workStageName ?? "—",
+                    },
+                    {
+                      key: "status",
+                      header: "Status",
+                      render: (row) => <StatusBadge status={row.status} />,
+                    },
+                    {
+                      key: "actions",
+                      header: "",
+                      align: "right",
+                      render: (row) => (
+                        <Link
+                          href={ROUTES.designs.detail(row.designId)}
+                          className="btn btn-primary btn-sm"
+                        >
+                          Review
+                        </Link>
+                      ),
+                    },
+                  ]}
+                  rows={stageItems}
+                  getRowKey={(row) => row.taskId}
+                  emptyTitle="No stage approvals waiting"
+                  emptyDescription="When work is submitted for your review stage, the approval task appears here."
+                />
+              </div>
+            </TabsContent>
+          ) : null}
 
-          <TabsContent value="ready">
-            <div className="card">
-              <DataTable
-                columns={[
-                  {
-                    key: "design",
-                    header: "Design",
-                    render: (row) => (
-                      <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
-                        {row.ideaRef}
-                      </Link>
-                    ),
-                  },
-                  { key: "collection", header: "Collection", render: (row) => row.collectionName },
-                  {
-                    key: "completed",
-                    header: "Workflow completed",
-                    render: (row) => formatCompletedAt(row.completedAt),
-                  },
-                  {
-                    key: "actions",
-                    header: "",
-                    align: "right",
-                    render: (row) => (
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        disabled={
-                          requestApproval.isPending && requestingDesignId === row.designId
-                        }
-                        onClick={() => handleRequestApproval(row.designId)}
-                      >
-                        {requestApproval.isPending && requestingDesignId === row.designId
-                          ? "Submitting…"
-                          : "Request approval"}
-                      </button>
-                    ),
-                  },
-                ]}
-                rows={readyItems}
-                getRowKey={(row) => row.designId}
-                emptyTitle="No designs ready for sign-off"
-                emptyDescription="When all workflow stages are complete, designs appear here so you can submit them to the management approval chain."
-              />
-            </div>
-          </TabsContent>
+          {hubTabs.ready ? (
+            <TabsContent value="ready">
+              <div className="card">
+                <DataTable
+                  columns={[
+                    {
+                      key: "design",
+                      header: "Design",
+                      render: (row) => (
+                        <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
+                          {row.ideaRef}
+                        </Link>
+                      ),
+                    },
+                    { key: "collection", header: "Collection", render: (row) => row.collectionName },
+                    {
+                      key: "completed",
+                      header: "Workflow completed",
+                      render: (row) => formatCompletedAt(row.completedAt),
+                    },
+                    {
+                      key: "actions",
+                      header: "",
+                      align: "right",
+                      render: (row) => (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={
+                            requestApproval.isPending && requestingDesignId === row.designId
+                          }
+                          onClick={() => handleRequestApproval(row.designId)}
+                        >
+                          {requestApproval.isPending && requestingDesignId === row.designId
+                            ? "Submitting…"
+                            : "Request approval"}
+                        </button>
+                      ),
+                    },
+                  ]}
+                  rows={readyItems}
+                  getRowKey={(row) => row.designId}
+                  emptyTitle="No designs ready for sign-off"
+                  emptyDescription="When all workflow stages are complete, designs appear here so you can submit them to the management approval chain."
+                />
+              </div>
+            </TabsContent>
+          ) : null}
 
-          <TabsContent value="management">
-            <div className="card">
-              <DataTable
-                columns={[
-                  {
-                    key: "design",
-                    header: "Design",
-                    render: (row) => (
-                      <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
-                        {row.design.ideaRef}
-                      </Link>
-                    ),
-                  },
-                  {
-                    key: "collection",
-                    header: "Collection",
-                    render: (row) => row.design.collectionName,
-                  },
-                  {
-                    key: "level",
-                    header: "Current Level",
-                    render: (row) => row.currentLevel.name,
-                  },
-                  {
-                    key: "task",
-                    header: "Related Task",
-                    render: (row) =>
-                      row.task
-                        ? `${row.task.process.name} → ${row.task.subProcess.name}`
-                        : "—",
-                  },
-                  {
-                    key: "actions",
-                    header: "",
-                    align: "right",
-                    render: (row) => (
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        onClick={() => {
-                          setSelected(row);
-                          setDecision("APPROVED");
-                          setRemark("");
-                        }}
-                      >
-                        Review
-                      </button>
-                    ),
-                  },
-                ]}
-                rows={managementItems}
-                getRowKey={(row) => `${row.designId}-${row.currentLevel.id}`}
-                emptyTitle="No management sign-offs waiting"
-                emptyDescription="After you request final approval, designs enter the checker → design head → management chain and appear here at your level."
-              />
-            </div>
-          </TabsContent>
+          {hubTabs.management ? (
+            <TabsContent value="management">
+              <div className="card">
+                <DataTable
+                  columns={[
+                    {
+                      key: "design",
+                      header: "Design",
+                      render: (row) => (
+                        <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
+                          {row.design.ideaRef}
+                        </Link>
+                      ),
+                    },
+                    {
+                      key: "collection",
+                      header: "Collection",
+                      render: (row) => row.design.collectionName,
+                    },
+                    {
+                      key: "level",
+                      header: "Current Level",
+                      render: (row) => row.currentLevel.name,
+                    },
+                    {
+                      key: "task",
+                      header: "Related Task",
+                      render: (row) =>
+                        row.task
+                          ? `${row.task.process.name} → ${row.task.subProcess.name}`
+                          : "—",
+                    },
+                    {
+                      key: "actions",
+                      header: "",
+                      align: "right",
+                      render: (row) => (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => {
+                            setSelected(row);
+                            setDecision("APPROVED");
+                            setRemark("");
+                          }}
+                        >
+                          Review
+                        </button>
+                      ),
+                    },
+                  ]}
+                  rows={managementItems}
+                  getRowKey={(row) => `${row.designId}-${row.currentLevel.id}`}
+                  emptyTitle="No management sign-offs waiting"
+                  emptyDescription="Designs at your management approval level appear here after final approval is requested."
+                />
+              </div>
+            </TabsContent>
+          ) : null}
         </Tabs>
       </QueryState>
 
@@ -363,7 +360,7 @@ export function ApprovalsView() {
             </Button>
             <Button
               type="button"
-              disabled={submitApproval.isPending}
+              disabled={submitApproval.isPending || (decision !== "APPROVED" && !remark.trim())}
               onClick={handleSubmit}
             >
               {submitApproval.isPending ? "Submitting…" : "Submit Decision"}
@@ -373,12 +370,6 @@ export function ApprovalsView() {
       >
         {selected && (
           <ModalForm>
-            <ContextualActionsPanel
-              title="Decision actions"
-              actions={approvalActions}
-              onAction={handleApprovalAction}
-              showDisabled={false}
-            />
             <FormSelect
               id="approvalDecision"
               label="Decision"
@@ -395,9 +386,14 @@ export function ApprovalsView() {
               id="approvalRemark"
               label="Remark"
               rows={3}
+              required={decision !== "APPROVED"}
               value={remark}
               onChange={(e) => setRemark(e.target.value)}
-              placeholder="Optional notes for the design team…"
+              placeholder={
+                decision === "APPROVED"
+                  ? "Optional notes for the design team…"
+                  : "Required — explain why this was rejected or sent back…"
+              }
             />
           </ModalForm>
         )}

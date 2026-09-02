@@ -47,6 +47,44 @@ describe("categorizeEmployeeTask", () => {
     expect(categorizeEmployeeTask(task, siblings)).toBe("actionRequired");
   });
 
+  it("marks ready ASSIGNED sketch as actionRequired when sketch approval is open", () => {
+    const sketchFlow: DepSibling[] = [
+      {
+        id: "1",
+        dependencySequence: null,
+        sequence: 1,
+        status: "COMPLETED",
+        subProcess: { name: "Concept Review", code: "CONCEPT_REVIEW", isApproval: true },
+        assignedEmployee: { name: "Design Head" },
+      },
+      {
+        id: "2",
+        dependencySequence: null,
+        sequence: 2,
+        status: "ASSIGNED",
+        subProcess: { name: "Sketch Creation", code: "SKETCH", isApproval: false },
+        assignedEmployee: { name: "Ravi Sketch" },
+      },
+      {
+        id: "3",
+        dependencySequence: 1,
+        sequence: 3,
+        status: "ASSIGNED",
+        subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        assignedEmployee: { name: "Design Head" },
+      },
+    ];
+    const sketchTask = {
+      id: "2",
+      status: "ASSIGNED",
+      dependencySequence: null,
+      sequence: 2,
+      subProcess: { name: "Sketch Creation", code: "SKETCH", isApproval: false },
+      assignedEmployeeId: 3,
+    };
+    expect(categorizeEmployeeTask(sketchTask, sketchFlow)).toBe("actionRequired");
+  });
+
   it("marks CHECKING work task as waitingForOthers", () => {
     const task = {
       id: "1",

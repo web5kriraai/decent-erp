@@ -1,10 +1,11 @@
 import { IconLock } from "@/components/icons";
 
 type PermissionDeniedProps = {
-  permission: string;
+  permission?: string;
+  message?: string;
 };
 
-export function PermissionDenied({ permission }: PermissionDeniedProps) {
+export function PermissionDenied({ permission, message }: PermissionDeniedProps) {
   return (
     <div className="card">
       <div className="empty-state">
@@ -13,8 +14,10 @@ export function PermissionDenied({ permission }: PermissionDeniedProps) {
         </div>
         <h2 className="empty-state-title">Access restricted</h2>
         <p className="empty-state-desc">
-          You need the <strong>{permission.replace(/_/g, " ")}</strong> permission to
-          view this section. Contact your administrator if you believe this is an error.
+          {message ??
+            (permission
+              ? `You need the ${permission.replace(/_/g, " ")} permission to view this section. Contact your administrator if you believe this is an error.`
+              : "You do not have access to this section.")}
         </p>
       </div>
     </div>

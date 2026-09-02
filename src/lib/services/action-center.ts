@@ -1,6 +1,6 @@
 import {
-  effectiveDependencySequence,
   isDependencySatisfiedStatus,
+  isPriorPipelineStage,
   isTaskReady,
 } from "@/lib/services/task-dependency";
 import { findStageApprovalGate } from "@/lib/services/workflow-stage-gate";
@@ -26,19 +26,16 @@ export type MyTaskRow = {
   assignedEmployeeId: number | null;
 };
 
-/** First prior-stage task that blocks readiness. */
+/** First prior pipeline stage that blocks readiness. */
 export function findDependencyBlocker(task: MyTaskRow, siblings: DepSibling[]): DepSibling | null {
-  const depSeq = effectiveDependencySequence(task);
   const blockers = siblings
     .filter(
       (s) =>
         String(s.id) !== String(task.id) &&
-        effectiveDependencySequence(s) < depSeq &&
+        isPriorPipelineStage(s, task) &&
         !isDependencySatisfiedStatus(s.status),
     )
-    .sort(
-      (a, b) => effectiveDependencySequence(a) - effectiveDependencySequence(b),
-    );
+    .sort((a, b) => a.sequence - b.sequence);
   return blockers[0] ?? null;
 }
 

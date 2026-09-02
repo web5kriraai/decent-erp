@@ -18,6 +18,7 @@ import {
 
 const DONE = new Set(["COMPLETED", "CANCELLED"]);
 const OPEN_CORRECTION = new Set(["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"]);
+const QUALITY_CHECK_CODES = new Set(["PUNCH_CHECK", "SAMPLE_CHECK"]);
 
 type CheckerTask = {
   id: string;
@@ -27,6 +28,14 @@ type CheckerTask = {
   design: { id: string; ideaRef: string };
   subProcess: { code?: string; name: string };
 };
+
+function isQualityCheck(task: CheckerTask) {
+  return !!task.subProcess.code && QUALITY_CHECK_CODES.has(task.subProcess.code);
+}
+
+function isPunchCheck(task: CheckerTask) {
+  return task.subProcess.code === "PUNCH_CHECK";
+}
 
 function isSampleCheck(task: CheckerTask) {
   return task.subProcess.code === "SAMPLE_CHECK";
@@ -48,27 +57,28 @@ export function CheckerWorkbench() {
       if (DONE.has(t.status)) return false;
       if (t.effectiveStatus === "COMPLETED") return false;
       if (t.isWaitingOnOthers) return false;
-      return true;
+      return isQualityCheck(t);
     });
     const completed = tasks.filter(
-      (t) => DONE.has(t.status) || t.effectiveStatus === "COMPLETED",
+      (t) => isQualityCheck(t) && (DONE.has(t.status) || t.effectiveStatus === "COMPLETED"),
     );
-    const returned = actionable.filter(
-      (t) => isSampleCheck(t) && t.status === "CORRECTION_REQUIRED",
-    );
+    const returned = actionable.filter((t) => t.status === "CORRECTION_REQUIRED");
 
     return {
+      pendingPunch: actionable.filter((t) => isPunchCheck(t) && t.status !== "CORRECTION_REQUIRED"),
       pendingSample: actionable.filter((t) => isSampleCheck(t) && t.status !== "CORRECTION_REQUIRED"),
       returned,
-      completedSample: completed.filter(isSampleCheck).slice(0, 8),
+      completedChecks: completed.slice(0, 8),
     };
   }, [tasks]);
+
+  const pendingTotal = queues.pendingPunch.length + queues.pendingSample.length;
 
   return (
     <WorkbenchShell
       firstName={firstName}
       title="Sample checker desk"
-      subtitle="Sample checks, returns, management sign-off, and completed reviews"
+      subtitle="Punch checks, sample checks, management sign-off, and completed reviews"
       actions={
         <Link href={ROUTES.work.tasks} className="btn btn-primary btn-sm">
           My Action Center
@@ -85,9 +95,10 @@ export function CheckerWorkbench() {
     >
       <div className="workbench-overview">
         <div className="stat-grid workbench-pulse">
-          <StatCard label="Pending sample checks" value={queues.pendingSample.length} accent />
+          <StatCard label="Pending quality checks" value={pendingTotal} accent />
+          <StatCard label="Punch checks waiting" value={queues.pendingPunch.length} />
+          <StatCard label="Sample checks waiting" value={queues.pendingSample.length} />
           <StatCard label="Returned / correction" value={queues.returned.length + corrections.length} />
-          <StatCard label="Completed sample checks" value={queues.completedSample.length} />
           <StatCard label="Management sign-off" value={managementApprovals.length} />
         </div>
       </div>
@@ -119,6 +130,29 @@ export function CheckerWorkbench() {
           </WorkbenchQueueCard>
 
           <WorkbenchQueueCard
+            title="Pending punch checks"
+            href={ROUTES.work.tasks}
+            linkLabel="Open tasks"
+            emptyMessage="No punch checks waiting."
+          >
+            {queues.pendingPunch.length === 0 ? (
+              <WorkbenchEmpty message="When punching work is submitted, your PUNCH_CHECK task appears here." />
+            ) : (
+              <ul className="detail-task-list">
+                {queues.pendingPunch.slice(0, 8).map((task) => (
+                  <WorkbenchListItem
+                    key={task.id}
+                    primaryHref={ROUTES.work.taskDetail(task.id)}
+                    primaryLabel={task.design.ideaRef}
+                    meta={task.subProcess.name}
+                    trailing={<StatusBadge status={task.status} />}
+                  />
+                ))}
+              </ul>
+            )}
+          </WorkbenchQueueCard>
+
+          <WorkbenchQueueCard
             title="Pending sample checks"
             href={ROUTES.work.tasks}
             linkLabel="Open tasks"
@@ -142,7 +176,7 @@ export function CheckerWorkbench() {
           </WorkbenchQueueCard>
 
           <WorkbenchQueueCard
-            title="Returned sample checks"
+            title="Returned checks"
             href={ROUTES.quality.corrections}
             linkLabel="Corrections"
             emptyMessage="No returned checks."
@@ -174,16 +208,16 @@ export function CheckerWorkbench() {
           </WorkbenchQueueCard>
 
           <WorkbenchQueueCard
-            title="Completed sample checks"
+            title="Completed checks"
             href={ROUTES.work.tasks}
             linkLabel="History"
-            emptyMessage="No completed sample checks yet."
+            emptyMessage="No completed checks yet."
           >
-            {queues.completedSample.length === 0 ? (
-              <WorkbenchEmpty message="Completed sample checks appear here." />
+            {queues.completedChecks.length === 0 ? (
+              <WorkbenchEmpty message="Completed punch and sample checks appear here." />
             ) : (
               <ul className="detail-task-list">
-                {queues.completedSample.map((task) => (
+                {queues.completedChecks.map((task) => (
                   <WorkbenchListItem
                     key={task.id}
                     primaryHref={ROUTES.work.taskDetail(task.id)}

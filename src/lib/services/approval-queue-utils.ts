@@ -1,3 +1,5 @@
+import { canRoleActOnManagementLevel } from "@/lib/approval-hub-rbac";
+
 const SATISFIED_TASK = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
 
 /** Tasks outside development sign-off scope — do not block ready-for-sign-off. */
@@ -11,25 +13,27 @@ const SIGNOFF_SCOPE_EXCLUDED_CODES = new Set([
 ]);
 
 /** Roles that see all portfolio-ready designs (executive oversight). */
-export const READY_SIGNOFF_GLOBAL_ROLES = new Set(["ADMIN", "MANAGEMENT"]);
+export const READY_SIGNOFF_GLOBAL_ROLES = new Set<string>();
 
 export function readyForSignOffScopeFilter(
   employeeId: number,
   roleCode: string | null | undefined,
 ): { designHeadEmployeeId?: number } {
-  if (roleCode && READY_SIGNOFF_GLOBAL_ROLES.has(roleCode)) {
-    return {};
+  if (roleCode === "DESIGN_HEAD") {
+    return { designHeadEmployeeId: employeeId };
   }
   return { designHeadEmployeeId: employeeId };
 }
 
 export function canEmployeeActOnApprovalLevel(
-  level: { requiredRoleId?: number | null },
+  level: { requiredRoleId?: number | null; code?: string },
   employeeRoleId: number | null | undefined,
   employeeRoleCode: string | null | undefined,
 ): boolean {
   if (!level.requiredRoleId) return true;
-  if (employeeRoleCode === "ADMIN") return true;
+  if (employeeRoleCode && level.code && !canRoleActOnManagementLevel(employeeRoleCode, level.code)) {
+    return false;
+  }
   return employeeRoleId === level.requiredRoleId;
 }
 

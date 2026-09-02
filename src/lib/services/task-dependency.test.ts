@@ -74,4 +74,14 @@ describe("task dependency readiness", () => {
     expect(minReadyDependencySequence(batch)).toBe(1);
     expect(effectiveDependencySequence(batch[2])).toBe(3);
   });
+
+  it("sketch is ready when sketch approval is assigned at a later sequence", () => {
+    const siblings = [
+      { id: "1", dependencySequence: null, sequence: 1, status: "COMPLETED" },
+      { id: "2", dependencySequence: null, sequence: 2, status: "ASSIGNED" },
+      { id: "3", dependencySequence: 1, sequence: 3, status: "ASSIGNED" },
+    ];
+    expect(isTaskReady(siblings[1], siblings)).toBe(true);
+    expect(isTaskReady(siblings[2], siblings)).toBe(false);
+  });
 });

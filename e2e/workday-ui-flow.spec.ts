@@ -3,7 +3,7 @@
  * Run: npm run test:e2e -- e2e/workday-ui-flow.spec.ts
  */
 import { execSync } from "node:child_process";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
   USERS,
   apiGetJson,
@@ -27,38 +27,6 @@ function parseTimer(text: string): number {
   return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
 }
 
-/** Complete ASSIGNED prior-sequence tasks for design head so dependency gate allows sketch. */
-async function completePriorDesignHeadTasks(page: Page, designId: string) {
-  const tasks = await apiGetJson<
-    Array<{
-      id: string;
-      status: string;
-      version: number;
-      design: { id: string };
-      subProcess: { code?: string; name: string };
-      dependencySequence?: number | null;
-      sequence?: number;
-    }>
-  >(page, "/api/tasks/my");
-
-  const mine = tasks.filter(
-    (t) =>
-      t.design.id === designId &&
-      t.status === "ASSIGNED" &&
-      (t.subProcess.code === "CONCEPT_REVIEW" || /concept|review/i.test(t.subProcess.name)),
-  );
-
-  for (const task of mine) {
-    await apiPostJson(page, `/api/tasks/${task.id}/start`, {});
-    const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${task.id}`);
-    await apiPostJson(page, `/api/tasks/${task.id}/end`, {
-      version: detail.version,
-      outputRemark: "E2E prior stage complete",
-      completionStatus: "COMPLETED",
-    });
-  }
-}
-
 test.describe("Workday UI flow (end-to-end)", () => {
   test.describe.configure({ mode: "serial" });
   test.setTimeout(120_000);
@@ -80,13 +48,13 @@ test.describe("Workday UI flow (end-to-end)", () => {
     });
     expect(design.id).toBeTruthy();
 
-    // Readiness: later roles must not see tasks before Concept Review ends
+    // Concept Review auto-advances on create — Sketch is ready for sketch designer
     const dhTasksBefore = await apiGetJson<
       Array<{ status: string; subProcess: { code?: string; name: string } }>
     >(page, "/api/tasks/my");
     expect(
       dhTasksBefore.filter((t) => t.status === "ASSIGNED").map((t) => t.subProcess.code ?? t.subProcess.name),
-    ).toEqual(expect.arrayContaining(["CONCEPT_REVIEW"]));
+    ).not.toContain("CONCEPT_REVIEW");
     expect(
       dhTasksBefore.some(
         (t) => t.subProcess.code === "SKETCH_APPROVAL" || t.subProcess.code === "FINAL_APPROVAL",
@@ -100,15 +68,6 @@ test.describe("Workday UI flow (end-to-end)", () => {
     await login(page, USERS.punch.email, USERS.punch.password);
     const punchTasks = await apiGetJson<unknown[]>(page, "/api/tasks/my");
     expect(punchTasks).toHaveLength(0);
-
-    await login(page, USERS.designHead.email, USERS.designHead.password);
-    await completePriorDesignHeadTasks(page, design.id);
-
-    // Illegal status jump blocked by FSM
-    const jump = await page.request.patch(`/api/designs/${design.id}/status`, {
-      data: { status: "PRODUCTION_RELEASED", version: 1 },
-    });
-    expect(jump.status()).toBe(422);
 
     await login(page, USERS.sketch.email, USERS.sketch.password);
 
@@ -124,10 +83,17 @@ test.describe("Workday UI flow (end-to-end)", () => {
 
     const assignedTask = tasks.find((t) => t.status === "ASSIGNED");
     if (!assignedTask) {
-      test.skip(true, "No ASSIGNED sketch task after Concept Review unlock");
+      test.skip(true, "No ASSIGNED sketch task after design create");
       return;
     }
 
+    await login(page, USERS.designHead.email, USERS.designHead.password);
+    const jump = await page.request.patch(`/api/designs/${design.id}/status`, {
+      data: { status: "PRODUCTION_RELEASED", version: 1 },
+    });
+    expect(jump.status()).toBe(422);
+
+    await login(page, USERS.sketch.email, USERS.sketch.password);
     await page.goto("/work/tasks");
     await expect(page.getByRole("heading", { name: /My Tasks/i })).toBeVisible();
 

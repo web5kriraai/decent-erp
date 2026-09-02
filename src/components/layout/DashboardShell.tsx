@@ -38,7 +38,7 @@ export function Sidebar() {
   const pathname = useRouteMeta().pathname;
   const { collapsed, mobileOpen, toggleCollapsed, closeMobile } = useSidebarState();
   const permissions = session?.user?.permissions ?? [];
-  const sections = getVisibleNavSections(permissions);
+  const sections = getVisibleNavSections(permissions, session?.user?.roleCode);
 
   return (
     <>
@@ -78,7 +78,7 @@ export function Sidebar() {
           </button>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav scroll-region" aria-label="Workspace sections">
           {sections.map((section) => (
             <div key={section.id} className="sidebar-section">
               {!collapsed && (
@@ -108,13 +108,29 @@ export function Sidebar() {
           ))}
         </nav>
 
-        {!collapsed && session?.user?.roleCode && (
+        {session?.user && (
           <div className="sidebar-footer">
-            <div className="sidebar-footer-role">{formatRoleLabel(session.user.roleCode)}</div>
-            <div className="sidebar-footer-hint">
-              {getRoleDefinition(session.user.roleCode)?.navFocus.slice(0, 2).join(" · ") ??
-                "Design Management"}
+            <div className="sidebar-footer-user">
+              <div className="sidebar-footer-avatar" aria-hidden title={session.user.name ?? "User"}>
+                {getInitials(session.user.name ?? "User")}
+              </div>
+              {!collapsed && (
+                <div className="sidebar-footer-info">
+                  <div className="sidebar-footer-name">{session.user.name ?? "User"}</div>
+                  {session.user.roleCode && (
+                    <div className="sidebar-footer-role">
+                      {formatRoleLabel(session.user.roleCode)}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+            {!collapsed && session.user.roleCode && (
+              <div className="sidebar-footer-hint">
+                {getRoleDefinition(session.user.roleCode)?.navFocus.slice(0, 2).join(" · ") ??
+                  "Design Management"}
+              </div>
+            )}
           </div>
         )}
       </aside>

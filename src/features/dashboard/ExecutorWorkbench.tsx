@@ -23,6 +23,8 @@ import {
 } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
+import { canRoleSeeManagementSignOff } from "@/lib/approval-hub-rbac";
+import { canRoleAccessApprovalsHub } from "@/lib/stage-approval-rbac";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useMyTimeSummary } from "@/hooks/use-time";
@@ -32,6 +34,8 @@ import { useApprovedDesigns } from "@/hooks/use-production";
 import { useAdminDashboardStats } from "@/hooks/use-admin-dashboard";
 import { formatDuration } from "@/lib/services/time-calculation";
 import { isDashboardOpenTask } from "@/lib/task-list-filters";
+import { compareTasksByPriority, resolveEffectiveTaskPriority } from "@/lib/task-priority";
+import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import type { ComponentType } from "react";
 
 const CLOSED_DESIGN = new Set(["CLOSED", "REJECTED", "PRODUCTION_RELEASED", "LIVE"]);
@@ -55,11 +59,13 @@ function QueueEmpty({ message }: { message: string }) {
 export function ExecutorWorkbench() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
+  const roleCode = session?.user?.roleCode;
 
   const canCreateDesign = hasPermission(permissions, PERMISSIONS.DESIGN_CREATE);
   const canAssign = hasPermission(permissions, PERMISSIONS.DESIGN_ASSIGN);
   const canExecute = hasPermission(permissions, PERMISSIONS.TASK_EXECUTE);
-  const canApprove = hasPermission(permissions, PERMISSIONS.DESIGN_APPROVE);
+  const showManagementApprovals = canRoleSeeManagementSignOff(roleCode);
+  const showApprovalsHub = canRoleAccessApprovalsHub(roleCode);
   const canCorrections = hasPermission(permissions, PERMISSIONS.CORRECTION_RAISE);
   const canCost = hasPermission(permissions, PERMISSIONS.COST_VIEW);
   const canRelease = hasPermission(permissions, PERMISSIONS.PRODUCTION_RELEASE);
@@ -71,7 +77,7 @@ export function ExecutorWorkbench() {
   const designsQuery = useDesignsList(canViewPipeline || canCost);
   const tasksQuery = useMyTasks(canExecute);
   const timeQuery = useMyTimeSummary(canExecute);
-  const approvalsQuery = usePendingApprovals(canApprove);
+  const approvalsQuery = usePendingApprovals(showManagementApprovals);
   const correctionsQuery = useCorrections(undefined, canCorrections);
   const releaseQuery = useApprovedDesigns(canRelease);
   const adminQuery = useAdminDashboardStats(isMasterAdmin);
@@ -94,7 +100,7 @@ export function ExecutorWorkbench() {
     (canViewPipeline && designsQuery.isLoading) ||
     (canCost && !canViewPipeline && designsQuery.isLoading) ||
     (canExecute && (tasksQuery.isLoading || timeQuery.isLoading)) ||
-    (canApprove && approvalsQuery.isLoading) ||
+    (showManagementApprovals && approvalsQuery.isLoading) ||
     (canCorrections && correctionsQuery.isLoading) ||
     (canRelease && releaseQuery.isLoading) ||
     (isMasterAdmin && adminQuery.isLoading);
@@ -145,11 +151,11 @@ export function ExecutorWorkbench() {
       icon: IconClock,
     });
   }
-  if (canApprove) {
+  if (showApprovalsHub) {
     shortcuts.push({
       id: "approvals",
       label: "Approvals",
-      href: `${ROUTES.quality.approvals}?tab=management`,
+      href: `${ROUTES.quality.approvals}?tab=${showManagementApprovals ? "management" : "stage"}`,
       description: `${approvals.length} waiting`,
       icon: IconApprovals,
       badge: approvals.length,
@@ -225,7 +231,7 @@ export function ExecutorWorkbench() {
       tasksQuery.refetch();
       timeQuery.refetch();
     }
-    if (canApprove) approvalsQuery.refetch();
+    if (showManagementApprovals) approvalsQuery.refetch();
     if (canCorrections) correctionsQuery.refetch();
     if (canRelease) releaseQuery.refetch();
     if (isMasterAdmin) adminQuery.refetch();
@@ -273,7 +279,7 @@ export function ExecutorWorkbench() {
                 )}
               </>
             )}
-            {canApprove && (
+            {showManagementApprovals && (
               <StatCard label="Pending Approvals" value={approvals.length} accent={!canExecute} />
             )}
             {canCorrections && (
@@ -283,7 +289,7 @@ export function ExecutorWorkbench() {
               <StatCard
                 label="Active Designs"
                 value={activeDesigns.length}
-                accent={!canExecute && !canApprove}
+                accent={!canExecute && !showApprovalsHub}
               />
             )}
             {canRelease && (
@@ -355,18 +361,37 @@ export function ExecutorWorkbench() {
                         .sort((a, b) => {
                           if (a.status === "RUNNING" && b.status !== "RUNNING") return -1;
                           if (b.status === "RUNNING" && a.status !== "RUNNING") return 1;
-                          return 0;
+                          return compareTasksByPriority(
+                            {
+                              priority: resolveEffectiveTaskPriority(a.priority, a.design.priority),
+                              dueAt: a.dueAt,
+                              design: a.design,
+                            },
+                            {
+                              priority: resolveEffectiveTaskPriority(b.priority, b.design.priority),
+                              dueAt: b.dueAt,
+                              design: b.design,
+                            },
+                          );
                         })
                         .slice(0, 6)
                         .map((task) => (
                           <li key={task.id}>
                             <div>
-                              <Link
-                                href={ROUTES.work.taskDetail(task.id)}
-                                className="data-table-link"
-                              >
-                                {task.design.ideaRef} · {task.subProcess.name}
-                              </Link>
+                              <div className="task-list-item-head">
+                                <Link
+                                  href={ROUTES.work.taskDetail(task.id)}
+                                  className="data-table-link"
+                                >
+                                  {task.design.ideaRef} · {task.subProcess.name}
+                                </Link>
+                                <PriorityBadge
+                                  priority={resolveEffectiveTaskPriority(
+                                    task.priority,
+                                    task.design.priority,
+                                  )}
+                                />
+                              </div>
                               <p className="workbench-row-meta">
                                 {task.process.name} · {task.design.collectionName}
                               </p>
@@ -380,7 +405,7 @@ export function ExecutorWorkbench() {
               </Card>
             )}
 
-            {canApprove && (
+            {showManagementApprovals && (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle>Management approvals</CardTitle>

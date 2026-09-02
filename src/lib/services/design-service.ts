@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
+import { autoAdvanceConceptReview } from "@/lib/services/concept-review-auto-advance";
 import { ApiError } from "@/lib/api-utils";
 import type { AssignmentMode, Priority, WorkType } from "@prisma/client";
 import {
@@ -9,6 +10,7 @@ import {
   createDesignComponents,
   createDesignProcessInstances,
   generateDesignNumber,
+  toPrismaTaskCreateRows,
   type TaskCreateRow,
 } from "@/lib/services/task-generation-service";
 import {
@@ -104,9 +106,11 @@ export async function createDesignWithTasks(
       const patternTasks = await tx.workflowPatternTask.findMany({
         where: { workflowPatternId: input.workflowPatternId },
         orderBy: { sequence: "asc" },
+        include: { subProcess: { select: { isApproval: true } } },
       });
       tasksToCreate = await buildTasksFromPatternTasks(design.id, patternTasks, {
         firstAssigneeId: input.designHeadEmployeeId,
+        designPriority: input.priority,
       });
     }
 
@@ -131,6 +135,7 @@ export async function createDesignWithTasks(
           plannedStart: base,
           dueAt: new Date(base.getTime() + mt.expectedMinutes * 60_000),
           status: "PENDING",
+          isApproval: subProcess.isApproval,
         });
       }
     }
@@ -147,7 +152,7 @@ export async function createDesignWithTasks(
     }
 
     await createDesignProcessInstances(tx, design.id, tasksToCreate);
-    await tx.designTask.createMany({ data: tasksToCreate });
+    await tx.designTask.createMany({ data: toPrismaTaskCreateRows(tasksToCreate) });
 
     const firstReady =
       tasksToCreate.find((t) => t.status === "ASSIGNED") ?? tasksToCreate[0];
@@ -187,7 +192,8 @@ export async function createDesignWithTasks(
       { designId: design.id.toString() },
       correlationId,
     );
-    return design;
+    await autoAdvanceConceptReview(design.id, createdById, correlationId);
+    return prisma.designConcept.findUniqueOrThrow({ where: { id: design.id } });
   });
 }
 
@@ -343,6 +349,16 @@ export async function updateDesign(
       },
     });
 
+    if (data.priority && data.priority !== existing.priority) {
+      await tx.designTask.updateMany({
+        where: {
+          designId: id,
+          status: { notIn: ["COMPLETED", "CANCELLED"] },
+        },
+        data: { priority: data.priority },
+      });
+    }
+
     await writeAuditLog(tx, {
       entityType: "DesignConcept",
       entityId: id.toString(),
@@ -476,6 +492,7 @@ export async function generateTasksFromPattern(
     const patternTasks = await tx.workflowPatternTask.findMany({
       where: { workflowPatternId },
       orderBy: { sequence: "asc" },
+      include: { subProcess: { select: { isApproval: true } } },
     });
 
     if (patternTasks.length === 0) {
@@ -484,10 +501,11 @@ export async function generateTasksFromPattern(
 
     const tasksToCreate = await buildTasksFromPatternTasks(designId, patternTasks, {
       firstAssigneeId: design.designHeadEmployeeId,
+      designPriority: design.priority,
     });
 
     await createDesignProcessInstances(tx, designId, tasksToCreate);
-    await tx.designTask.createMany({ data: tasksToCreate });
+    await tx.designTask.createMany({ data: toPrismaTaskCreateRows(tasksToCreate) });
 
     await writeAuditLog(tx, {
       entityType: "DesignConcept",

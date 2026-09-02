@@ -8,8 +8,15 @@ import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersions
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
 import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const STAGE_APPROVAL_CODES = new Set(["PUNCH_CHECK", "SKETCH_APPROVAL", "CONCEPT_REVIEW", "FINAL_APPROVAL"]);
+import {
+  getStageApprovalBlockedMessage,
+  isStageApprovalActionable,
+} from "@/lib/design-workflow";
+import {
+  canRoleActOnStageApproval,
+  getStageApprovalUiConfig,
+  isStageApprovalCode,
+} from "@/lib/stage-approval-rbac";
 
 type TaskStageApprovalPanelProps = {
   taskId: string;
@@ -20,12 +27,16 @@ type TaskStageApprovalPanelProps = {
   stageCode: string;
   assignedEmployeeId?: number | null;
   employeeId?: number;
+  roleCode?: string;
   canAssign: boolean;
   showCompare?: boolean;
+  workTaskStatus?: string;
 };
 
 export function isStageApprovalTask(code?: string) {
-  return !!code && STAGE_APPROVAL_CODES.has(code);
+  if (!code || !isStageApprovalCode(code)) return false;
+  const config = getStageApprovalUiConfig(code);
+  return config?.surface === "task_panel";
 }
 
 export function TaskStageApprovalPanel({
@@ -37,16 +48,25 @@ export function TaskStageApprovalPanel({
   stageCode,
   assignedEmployeeId,
   employeeId,
+  roleCode,
   canAssign,
   showCompare = true,
+  workTaskStatus,
 }: TaskStageApprovalPanelProps) {
   const assignTask = useAssignTask();
   const completeStageApproval = useCompleteStageApproval();
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const uiConfig = getStageApprovalUiConfig(stageCode);
+  const roleAllowed = canRoleActOnStageApproval(roleCode, stageCode);
   const isOpen = !["COMPLETED", "CANCELLED", "CORRECTION_REQUIRED"].includes(status);
-  if (!isOpen) return null;
+
+  if (!isOpen || !uiConfig || uiConfig.surface !== "task_panel" || !roleAllowed) return null;
+
+  const showApprove = uiConfig.actions.includes("approve");
+  const showCorrection = uiConfig.actions.includes("correction");
+  const showReject = uiConfig.actions.includes("reject");
 
   const needsAssign =
     employeeId &&
@@ -89,17 +109,22 @@ export function TaskStageApprovalPanel({
   }
 
   const busy = isSubmitting || assignTask.isPending || completeStageApproval.isPending;
+  const workTask =
+    workTaskStatus != null ? ({ status: workTaskStatus } as { status: string }) : undefined;
+  const canApprove = isStageApprovalActionable(stageCode, workTask);
+  const approvalBlockedMessage = getStageApprovalBlockedMessage(stageCode, workTask);
+  const panelTitle = uiConfig.title ?? `${stageName} — review decision`;
 
   return (
     <>
-      {showCompare && (stageCode === "PUNCH_CHECK" || stageCode === "SKETCH_APPROVAL") ? (
+      {showCompare && uiConfig.showCompare ? (
         <TaskCompareVersionsPanel designId={designId} />
       ) : null}
 
       <Card className="mb-4 border-primary/20">
         <CardHeader className="border-b border-primary/10 bg-primary/5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>{stageName} — review decision</CardTitle>
+            <CardTitle>{panelTitle}</CardTitle>
             <StatusBadge status={status} />
           </div>
         </CardHeader>
@@ -110,6 +135,11 @@ export function TaskStageApprovalPanel({
             </p>
           ) : (
             <>
+              {!canApprove && approvalBlockedMessage ? (
+                <p className="text-sm text-muted-foreground" role="status">
+                  {approvalBlockedMessage}
+                </p>
+              ) : null}
               <FormTextArea
                 id={`stage-decision-${taskId}`}
                 label="Review notes"
@@ -119,32 +149,39 @@ export function TaskStageApprovalPanel({
                 rows={3}
               />
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => submitDecision("APPROVED")}
-                >
-                  <CheckCircle2Icon className="size-4" aria-hidden />
-                  Approve
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy || !remark.trim()}
-                  onClick={() => submitDecision("CORRECTION_REQUIRED")}
-                >
-                  <RotateCcwIcon className="size-4" aria-hidden />
-                  Request correction
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={busy || !remark.trim()}
-                  onClick={() => submitDecision("REJECT")}
-                >
-                  <XCircleIcon className="size-4" aria-hidden />
-                  Reject
-                </Button>
+                {showApprove ? (
+                  <Button
+                    type="button"
+                    disabled={busy || !canApprove}
+                    title={!canApprove ? approvalBlockedMessage : undefined}
+                    onClick={() => submitDecision("APPROVED")}
+                  >
+                    <CheckCircle2Icon className="size-4" aria-hidden />
+                    Approve {stageName.toLowerCase()}
+                  </Button>
+                ) : null}
+                {showCorrection ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy || !canApprove || !remark.trim()}
+                    onClick={() => submitDecision("CORRECTION_REQUIRED")}
+                  >
+                    <RotateCcwIcon className="size-4" aria-hidden />
+                    Request correction
+                  </Button>
+                ) : null}
+                {showReject ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={busy || !canApprove || !remark.trim()}
+                    onClick={() => submitDecision("REJECT")}
+                  >
+                    <XCircleIcon className="size-4" aria-hidden />
+                    Reject
+                  </Button>
+                ) : null}
               </div>
             </>
           )}

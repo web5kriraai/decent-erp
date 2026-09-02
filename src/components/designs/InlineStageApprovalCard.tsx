@@ -9,6 +9,14 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
 import { queryKeys } from "@/lib/query-keys";
+import {
+  getStageApprovalBlockedMessage,
+  isStageApprovalActionable,
+} from "@/lib/design-workflow";
+import {
+  getStageApprovalUiConfig,
+  isStageApprovalCode,
+} from "@/lib/stage-approval-rbac";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
 
@@ -23,7 +31,6 @@ type InlineStageApprovalCardProps = {
 
 export function InlineStageApprovalCard({
   designId,
-  design,
   approvalTask,
   workTask,
   employeeId,
@@ -37,8 +44,18 @@ export function InlineStageApprovalCard({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const stageName = approvalTask.subProcess?.name ?? "Stage";
-  const isSketchApproval = approvalTask.subProcess?.code === "SKETCH_APPROVAL";
-  const sketchWaiting = workTask?.status === "CHECKING";
+  const approvalCode = approvalTask.subProcess?.code ?? "";
+
+  if (!isStageApprovalCode(approvalCode)) return null;
+
+  const uiConfig = getStageApprovalUiConfig(approvalCode);
+  if (!uiConfig || uiConfig.surface !== "inline_card") return null;
+
+  const canApprove = isStageApprovalActionable(approvalCode, workTask);
+  const approvalBlockedMessage = getStageApprovalBlockedMessage(approvalCode, workTask);
+  const showApprove = uiConfig.actions.includes("approve");
+  const showCorrection = uiConfig.actions.includes("correction");
+  const showReject = uiConfig.actions.includes("reject");
 
   async function refreshDesign() {
     await queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
@@ -129,86 +146,89 @@ export function InlineStageApprovalCard({
     assignTask.isPending ||
     completeStageApproval.isPending;
 
+  const cardTitle = uiConfig.title ?? `${stageName} — your action`;
+
   return (
-    <>
-      <section className="mb-6 overflow-hidden rounded-lg border-2 border-primary/25 bg-gradient-to-br from-primary/5 via-card to-card shadow-sm">
-        <div className="border-b border-primary/15 bg-primary/5 px-5 py-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CheckCircle2Icon className="size-5 text-primary" aria-hidden />
-                <h2 className="text-lg font-semibold text-foreground">
-                  {isSketchApproval ? "Sketch ready for your approval" : `${stageName} — your action`}
-                </h2>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {isSketchApproval && sketchWaiting
-                  ? "The sketch designer submitted work for checking. Review the files below, then approve or send back — all from this page."
-                  : `Review the design and approve ${stageName.toLowerCase()} without leaving this page.`}
-              </p>
+    <section className="mb-6 overflow-hidden rounded-lg border-2 border-primary/25 bg-gradient-to-br from-primary/5 via-card to-card shadow-sm">
+      <div className="border-b border-primary/15 bg-primary/5 px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CheckCircle2Icon className="size-5 text-primary" aria-hidden />
+              <h2 className="text-lg font-semibold text-foreground">{cardTitle}</h2>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <StatusBadge status={approvalTask.status} />
-              {workTask ? <StatusBadge status={workTask.status} /> : null}
-            </div>
+            <p className="text-sm text-muted-foreground">
+              {canApprove
+                ? `Review the design and record your ${stageName.toLowerCase()} decision without leaving this page.`
+                : approvalBlockedMessage}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge status={approvalTask.status} />
+            {workTask ? <StatusBadge status={workTask.status} /> : null}
           </div>
         </div>
+      </div>
 
-        <div className="space-y-5 px-5 py-4">
-          <TaskCompareVersionsPanel designId={designId} />
+      <div className="space-y-5 px-5 py-4">
+        {uiConfig.showCompare ? <TaskCompareVersionsPanel designId={designId} /> : null}
 
+        {uiConfig.showGallery ? (
           <div>
             <p className="mb-2 text-sm font-medium text-foreground">Design files to review</p>
             <ImageGallery designId={designId} canUpload={false} />
           </div>
+        ) : null}
 
-          <FormTextArea
-            id="stage-approval-remark"
-            label="Review notes (optional for approval, required to send back)"
-            value={remark}
-            onChange={(e) => setRemark(e.target.value)}
-            placeholder={
-              isSketchApproval
-                ? "Add feedback for the sketch designer if sending back for rework…"
-                : "Add approval notes or feedback…"
-            }
-            rows={3}
-          />
+        <FormTextArea
+          id="stage-approval-remark"
+          label="Review notes (optional for approval, required to send back)"
+          value={remark}
+          onChange={(e) => setRemark(e.target.value)}
+          placeholder="Add approval notes or feedback…"
+          rows={3}
+        />
 
-          <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+        <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+          {showApprove ? (
             <Button
               type="button"
               size="lg"
-              disabled={busy}
+              disabled={busy || !canApprove}
+              title={!canApprove ? approvalBlockedMessage : undefined}
               onClick={handleApprove}
               className="min-w-[10rem]"
             >
               <CheckCircle2Icon className="size-4" aria-hidden />
-              {isSketchApproval ? "Approve sketch" : `Approve ${stageName.toLowerCase()}`}
+              Approve {stageName.toLowerCase()}
             </Button>
+          ) : null}
+          {showCorrection ? (
             <Button
               type="button"
               variant="outline"
               size="lg"
-              disabled={busy || !remark.trim()}
+              disabled={busy || !canApprove || !remark.trim()}
               onClick={handleSendBack}
             >
               <RotateCcwIcon className="size-4" aria-hidden />
               Request correction
             </Button>
+          ) : null}
+          {showReject ? (
             <Button
               type="button"
               variant="destructive"
               size="lg"
-              disabled={busy || !remark.trim()}
+              disabled={busy || !canApprove || !remark.trim()}
               onClick={handleReject}
             >
               <XCircleIcon className="size-4" aria-hidden />
               Reject
             </Button>
-          </div>
+          ) : null}
         </div>
-      </section>
-    </>
+      </div>
+    </section>
   );
 }

@@ -42,6 +42,7 @@ describe("workflow-actions resolve", () => {
     const actions = resolveDesignContextActions({
       design,
       permissions: [PERMISSIONS.DESIGN_APPROVE],
+      roleCode: "DESIGN_HEAD",
     });
 
     const request = actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL);

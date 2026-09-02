@@ -94,39 +94,22 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
   [ROLE_CODES.SAMPLE_CHECKER]: {
     code: ROLE_CODES.SAMPLE_CHECKER,
     displayName: "Sample Checker",
-    summary: "Quality gate for samples - checklist, approve, reject, or re-sample.",
+    summary: "Quality gate for punching files and machine samples — checklist, approve, reject, or re-sample.",
     responsibilities: [
-      "Execute sample checking tasks with structured checklist",
+      "Execute punching check and sample checking tasks on My Tasks",
       "Approve, reject, or request re-sample on machine output",
+      "Approve or return punching work for correction",
       "Raise corrections with responsible employee",
       "Complete checking tasks with audited timestamps",
     ],
     restrictions: [
       "Cannot change cost masters or workflow configuration",
-      "Punching checks are handled by the Punching Checker role",
     ],
     permissions: [
       PERMISSIONS.TASK_EXECUTE,
       PERMISSIONS.CORRECTION_RAISE,
       PERMISSIONS.DESIGN_APPROVE,
     ],
-    navFocus: ["My Work", "Quality"],
-  },
-  [ROLE_CODES.PUNCHING_CHECKER]: {
-    code: ROLE_CODES.PUNCHING_CHECKER,
-    displayName: "Punching Checker",
-    summary: "Quality gate for punching files — EMB/DST review before machine sampling.",
-    responsibilities: [
-      "Execute punching check tasks on My Tasks",
-      "Approve or return punching work for correction",
-      "Raise corrections routed to punching designers",
-      "Track checking time via server timer",
-    ],
-    restrictions: [
-      "No sample-check or management approval authority",
-      "Cannot edit workflow patterns or costing masters",
-    ],
-    permissions: [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.CORRECTION_RAISE],
     navFocus: ["My Work", "Quality"],
   },
   [ROLE_CODES.COSTING_TEAM]: {
@@ -224,7 +207,6 @@ export const DEMO_ACCOUNTS = [
   { email: "punch@decent-erp.local", role: ROLE_CODES.PUNCHING_DESIGNER, password: "Demo@123" },
   { email: "machine@decent-erp.local", role: ROLE_CODES.MACHINE_OPERATOR, password: "Demo@123" },
   { email: "checker@decent-erp.local", role: ROLE_CODES.SAMPLE_CHECKER, password: "Demo@123" },
-  { email: "punchchecker@decent-erp.local", role: ROLE_CODES.PUNCHING_CHECKER, password: "Demo@123" },
   { email: "costing@decent-erp.local", role: ROLE_CODES.COSTING_TEAM, password: "Demo@123" },
   { email: "production@decent-erp.local", role: ROLE_CODES.PRODUCTION_HEAD, password: "Demo@123" },
   { email: "management@decent-erp.local", role: ROLE_CODES.MANAGEMENT, password: "Demo@123" },

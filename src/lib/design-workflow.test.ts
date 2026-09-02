@@ -4,9 +4,9 @@ import {
   getDesignWorkflowActions,
   getDesignWorkflowContext,
   getPendingStageApproval,
-  getWorkflowStatusMessage,
   isWorkflowStepAssignable,
 } from "@/lib/design-workflow";
+import { ROLE_CODES } from "@/lib/permissions";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 
 function task(
@@ -52,11 +52,47 @@ describe("design workflow actions", () => {
     ],
   };
 
+  it("does not return sketch approval when sketch is still assigned", () => {
+    const design: DesignSummary = {
+      ...baseDesign,
+      tasks: [
+        task({
+          id: "t1",
+          sequence: 1,
+          status: "COMPLETED",
+          subProcess: { id: 1, name: "Concept Review", code: "CONCEPT_REVIEW", isApproval: true },
+        }),
+        task({
+          id: "t2",
+          sequence: 2,
+          status: "ASSIGNED",
+          subProcess: { id: 2, name: "Sketch Creation", code: "SKETCH" },
+        }),
+        task({
+          id: "t3",
+          sequence: 3,
+          status: "ASSIGNED",
+          assignedEmployeeId: 10,
+          subProcess: { id: 3, name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        }),
+      ],
+    };
+
+    const pending = getPendingStageApproval({
+      design,
+      employeeId: 10,
+      roleCode: ROLE_CODES.DESIGN_HEAD,
+      canExecute: true,
+    });
+
+    expect(pending).toBeNull();
+  });
+
   it("surfaces sketch approval inline for design head after sketch is submitted", () => {
     const pending = getPendingStageApproval({
       design: baseDesign,
       employeeId: 10,
-      canApprove: true,
+      roleCode: ROLE_CODES.DESIGN_HEAD,
       canExecute: true,
     });
 
@@ -64,7 +100,18 @@ describe("design workflow actions", () => {
     expect(pending?.workTask?.id).toBe("t2");
   });
 
-  it("surfaces punch check inline when punch is submitted for checking", () => {
+  it("denies sketch approval to sample checker role", () => {
+    const pending = getPendingStageApproval({
+      design: baseDesign,
+      employeeId: 10,
+      roleCode: ROLE_CODES.SAMPLE_CHECKER,
+      canExecute: true,
+    });
+
+    expect(pending).toBeNull();
+  });
+
+  it("does not surface punch check on design page (task panel only)", () => {
     const design: DesignSummary = {
       ...baseDesign,
       tasks: [
@@ -105,12 +152,36 @@ describe("design workflow actions", () => {
     const pending = getPendingStageApproval({
       design,
       employeeId: 10,
-      canApprove: true,
+      roleCode: ROLE_CODES.SAMPLE_CHECKER,
       canExecute: true,
     });
 
-    expect(pending?.approvalTask.id).toBe("t5");
-    expect(pending?.workTask?.id).toBe("t4");
+    expect(pending).toBeNull();
+  });
+
+  it("denies punch check inline card to design head", () => {
+    const design: DesignSummary = {
+      ...baseDesign,
+      tasks: [
+        task({ id: "t4", sequence: 4, status: "CHECKING", subProcess: { id: 4, name: "Punch", code: "PUNCH" } }),
+        task({
+          id: "t5",
+          sequence: 5,
+          status: "ASSIGNED",
+          assignedEmployeeId: 10,
+          subProcess: { id: 5, name: "Punch Check", code: "PUNCH_CHECK", isApproval: true },
+        }),
+      ],
+    };
+
+    const pending = getPendingStageApproval({
+      design,
+      employeeId: 10,
+      roleCode: ROLE_CODES.DESIGN_HEAD,
+      canExecute: true,
+    });
+
+    expect(pending).toBeNull();
   });
 
   it("marks only the first open stage as current in the workflow rail", () => {
@@ -165,6 +236,7 @@ describe("design workflow actions", () => {
       employeeId: 10,
       canApprove: true,
       canExecute: true,
+      roleCode: ROLE_CODES.DESIGN_HEAD,
       approvalsQueueHref: "/quality/approvals",
     });
 
@@ -182,6 +254,7 @@ describe("design workflow actions", () => {
       employeeId: 10,
       canApprove: true,
       canExecute: true,
+      roleCode: ROLE_CODES.DESIGN_HEAD,
       approvalsQueueHref: "/quality/approvals",
     });
 
@@ -217,7 +290,7 @@ describe("design workflow actions", () => {
     const pending = getPendingStageApproval({
       design,
       employeeId: 10,
-      canApprove: true,
+      roleCode: ROLE_CODES.DESIGN_HEAD,
       canExecute: true,
     });
 
@@ -250,12 +323,37 @@ describe("design workflow actions", () => {
     const pending = getPendingStageApproval({
       design,
       employeeId: 10,
-      canApprove: true,
+      roleCode: ROLE_CODES.DESIGN_HEAD,
       canExecute: true,
     });
 
     expect(pending?.approvalTask.id).toBe("t8");
     expect(pending?.workTask?.id).toBe("t7");
+  });
+
+  it("does not surface sample check on design page (task end dialog only)", () => {
+    const design: DesignSummary = {
+      ...baseDesign,
+      tasks: [
+        task({ id: "t5", sequence: 5, status: "CHECKING", subProcess: { id: 5, name: "Machine Sample", code: "MACHINE_SAMPLE" } }),
+        task({
+          id: "t6",
+          sequence: 6,
+          status: "ASSIGNED",
+          assignedEmployeeId: 10,
+          subProcess: { id: 6, name: "Sample Checking", code: "SAMPLE_CHECK", isApproval: true },
+        }),
+      ],
+    };
+
+    const pending = getPendingStageApproval({
+      design,
+      employeeId: 10,
+      roleCode: ROLE_CODES.SAMPLE_CHECKER,
+      canExecute: true,
+    });
+
+    expect(pending).toBeNull();
   });
 
   it("marks sample checking as current and locks upcoming costing stages", () => {

@@ -8,21 +8,33 @@ import {
 } from "@/lib/services/approval-queue-utils";
 
 describe("canEmployeeActOnApprovalLevel", () => {
-  it("allows admin on any level", () => {
+  it("denies admin bypass on role-scoped levels", () => {
     expect(
-      canEmployeeActOnApprovalLevel({ requiredRoleId: 99 }, 1, "ADMIN"),
-    ).toBe(true);
+      canEmployeeActOnApprovalLevel(
+        { requiredRoleId: 99, code: "CHECKER_APPROVAL" },
+        1,
+        "ADMIN",
+      ),
+    ).toBe(false);
   });
 
   it("allows matching role", () => {
     expect(
-      canEmployeeActOnApprovalLevel({ requiredRoleId: 5 }, 5, "DESIGN_HEAD"),
+      canEmployeeActOnApprovalLevel(
+        { requiredRoleId: 5, code: "DESIGN_HEAD_APPROVAL" },
+        5,
+        "DESIGN_HEAD",
+      ),
     ).toBe(true);
   });
 
   it("denies non-matching role", () => {
     expect(
-      canEmployeeActOnApprovalLevel({ requiredRoleId: 5 }, 3, "SAMPLE_CHECKER"),
+      canEmployeeActOnApprovalLevel(
+        { requiredRoleId: 5, code: "DESIGN_HEAD_APPROVAL" },
+        3,
+        "SAMPLE_CHECKER",
+      ),
     ).toBe(false);
   });
 
@@ -34,18 +46,12 @@ describe("canEmployeeActOnApprovalLevel", () => {
 });
 
 describe("readyForSignOffScopeFilter", () => {
-  it("returns no filter for admin and management", () => {
-    expect(readyForSignOffScopeFilter(7, "ADMIN")).toEqual({});
-    expect(readyForSignOffScopeFilter(7, "MANAGEMENT")).toEqual({});
-  });
-
-  it("scopes design head to their portfolio", () => {
+  it("scopes every role to their portfolio", () => {
+    expect(readyForSignOffScopeFilter(7, "ADMIN")).toEqual({ designHeadEmployeeId: 7 });
+    expect(readyForSignOffScopeFilter(7, "MANAGEMENT")).toEqual({ designHeadEmployeeId: 7 });
     expect(readyForSignOffScopeFilter(12, "DESIGN_HEAD")).toEqual({
       designHeadEmployeeId: 12,
     });
-  });
-
-  it("scopes other roles to their portfolio", () => {
     expect(readyForSignOffScopeFilter(3, "SAMPLE_CHECKER")).toEqual({
       designHeadEmployeeId: 3,
     });
@@ -183,10 +189,18 @@ describe("role-filtered pending approvals", () => {
     );
 
     const checkerItems = items.filter((item) =>
-      canEmployeeActOnApprovalLevel(item.currentLevel, 10, "SAMPLE_CHECKER"),
+      canEmployeeActOnApprovalLevel(
+        { ...item.currentLevel, code: "CHECKER_APPROVAL" },
+        10,
+        "SAMPLE_CHECKER",
+      ),
     );
     const designHeadItems = items.filter((item) =>
-      canEmployeeActOnApprovalLevel(item.currentLevel, 20, "DESIGN_HEAD"),
+      canEmployeeActOnApprovalLevel(
+        { ...item.currentLevel, code: "DESIGN_HEAD_APPROVAL" },
+        20,
+        "DESIGN_HEAD",
+      ),
     );
 
     expect(checkerItems).toHaveLength(1);

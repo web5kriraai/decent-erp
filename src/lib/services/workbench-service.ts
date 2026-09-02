@@ -72,8 +72,8 @@ export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
       },
     }),
     countOpenCorrectionsForEmployee(designHeadId),
-    listStageApprovalQueue(designHeadId),
-    listDesignsReadyForSignOff(designHeadId),
+    listStageApprovalQueue(designHeadId, "DESIGN_HEAD"),
+    listDesignsReadyForSignOff(designHeadId, "DESIGN_HEAD"),
   ]);
 
   return {

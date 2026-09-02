@@ -5,10 +5,12 @@ import {
   categorizeEmployeeTask,
   type DepSibling,
 } from "@/lib/services/action-center";
+import { enrichActionCenterTaskList } from "@/lib/services/action-center-enrichment";
 import { reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
+import { sortTasksByEffectivePriority } from "@/lib/task-priority";
 
 const taskInclude = {
-  design: { select: { id: true, ideaRef: true, collectionName: true } },
+  design: { select: { id: true, ideaRef: true, collectionName: true, priority: true } },
   process: true,
   subProcess: true,
   assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
@@ -35,12 +37,17 @@ export type ActionCenterBlockedItem = {
   blockedMessage: string;
 };
 
+export type ActionCenterTask = Awaited<ReturnType<typeof prisma.designTask.findMany>>[number] & {
+  canStart?: boolean;
+  startBlockedReason?: string;
+};
+
 export type ActionCenterResponse = {
-  actionRequired: Awaited<ReturnType<typeof prisma.designTask.findMany>>;
+  actionRequired: ActionCenterTask[];
   waitingForOthers: ActionCenterWaitingItem[];
   blocked: ActionCenterBlockedItem[];
-  upcoming: Awaited<ReturnType<typeof prisma.designTask.findMany>>;
-  completed: Awaited<ReturnType<typeof prisma.designTask.findMany>>;
+  upcoming: ActionCenterTask[];
+  completed: ActionCenterTask[];
 };
 
 export type TeamPipelineDependencyItem = ActionCenterWaitingItem & {
@@ -176,12 +183,20 @@ export async function getActionCenter(employeeId: number): Promise<ActionCenterR
     })
     .slice(0, 20);
 
+  const runningTask = actionRequired.find((t) => t.status === "RUNNING") ?? null;
+
   return {
-    actionRequired,
-    waitingForOthers: [], // Personal view: supervisors use Pipeline Dependencies page.
+    actionRequired: enrichActionCenterTaskList(actionRequired, siblingsByDesign, runningTask?.id ?? null),
+    waitingForOthers: [],
     blocked,
-    upcoming,
-    completed: completedRecent,
+    upcoming: enrichActionCenterTaskList(upcoming, siblingsByDesign, runningTask?.id ?? null),
+    completed: sortTasksByEffectivePriority(
+      completedRecent.map((task) => ({
+        ...task,
+        canStart: false,
+        startBlockedReason: undefined,
+      })),
+    ),
   };
 }
 

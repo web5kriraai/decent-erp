@@ -233,9 +233,27 @@ a:not(.btn):not(.sidebar-link):not(.sidebar-brand-link):hover {
 
 /* ---- Layout ---- */
 
+/* Scrollable region — mouse wheel works; scrollbar hidden */
+.scroll-region {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scroll-region::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .app-shell {
   display: flex;
+  height: 100vh;
   min-height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background: var(--background);
 }
 
@@ -244,12 +262,26 @@ a:not(.btn):not(.sidebar-link):not(.sidebar-brand-link):hover {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 .app-content {
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   width: 100%;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.app-content::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .page-shell {
@@ -1038,19 +1070,27 @@ a.btn-warning:hover {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
   background: var(--color-sidebar-bg);
   color: #fff;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 
 .sidebar-brand {
   position: relative;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 0.75rem;
   height: var(--topbar-height);
   padding: 0 1.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 2;
 }
 
 .sidebar-brand-mark {
@@ -1085,8 +1125,18 @@ a.btn-warning:hover {
 
 .sidebar-nav {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem 0.75rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .sidebar-section-label {
@@ -1141,10 +1191,58 @@ a.sidebar-link--active:hover {
 }
 
 .sidebar-footer {
-  padding: 1rem 0.75rem;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 0.875rem 0.75rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--color-sidebar-bg);
+  z-index: 2;
+}
+
+.sidebar-footer-user {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.sidebar-footer-avatar {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: var(--radius-full);
   font-size: var(--font-size-caption);
-  opacity: 0.6;
+  font-weight: 600;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.sidebar-footer-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar-footer-name {
+  font-weight: 600;
+  font-size: var(--font-size-caption);
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar--collapsed .sidebar-footer {
+  padding: 0.75rem 0.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.sidebar--collapsed .sidebar-footer-user {
+  justify-content: center;
 }
 
 .app-shell--sidebar-collapsed {
@@ -1237,6 +1335,8 @@ a.sidebar-brand-link:hover {
     top: 0;
     left: 0;
     bottom: 0;
+    height: 100vh;
+    max-height: 100vh;
     z-index: 50;
     transform: translateX(-100%);
     transition: transform var(--transition-fast);
@@ -1295,6 +1395,10 @@ a.sidebar-brand-link:hover {
 /* ---- Topbar ---- */
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1676,6 +1780,9 @@ a.sidebar-brand-link:hover {
   border: 1px solid var(--color-kanban-lane-border);
   border-radius: var(--radius-lg);
   min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  max-height: min(70vh, 720px);
 }
 
 .kanban-column-header {
@@ -1706,6 +1813,12 @@ a.sidebar-brand-link:hover {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.kanban-cards.scroll-region {
+  max-height: calc(min(70vh, 720px) - 3rem);
 }
 
 .task-card {
@@ -1715,6 +1828,71 @@ a.sidebar-brand-link:hover {
   padding: 0.875rem;
   cursor: pointer;
   transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  border-left-width: 3px;
+  border-left-style: solid;
+  border-left-color: transparent;
+}
+
+.task-card--priority-URGENT {
+  border-left-color: var(--color-danger);
+}
+
+.task-card--priority-HIGH {
+  border-left-color: var(--color-warning);
+}
+
+.task-card--priority-MEDIUM {
+  border-left-color: var(--color-info);
+}
+
+.task-card--priority-LOW {
+  border-left-color: var(--color-neutral-300);
+}
+
+.task-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.task-card-idea-ref {
+  margin: 0.15rem 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-400);
+  font-family: var(--font-family-mono);
+}
+
+.task-card-due {
+  margin: 0.25rem 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  font-weight: 500;
+}
+
+.task-card-blocked-hint {
+  margin: 0.5rem 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  line-height: 1.4;
+}
+
+.task-card-start--disabled:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.task-card--active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.task-list-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .task-card:hover {
@@ -2805,14 +2983,19 @@ a.workbench-shortcut:hover {
 }
 
 .sidebar-footer-role {
-  font-weight: 600;
-  font-size: var(--font-size-caption);
-  margin-bottom: 0.25rem;
+  font-weight: 500;
+  font-size: 0.6875rem;
+  color: rgba(255, 255, 255, 0.72);
+  text-transform: capitalize;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar-footer-hint {
+  margin-top: 0.375rem;
   font-size: 0.6875rem;
-  opacity: 0.75;
+  color: rgba(255, 255, 255, 0.5);
   line-height: 1.4;
 }
 

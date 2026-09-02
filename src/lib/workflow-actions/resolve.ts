@@ -4,7 +4,12 @@ import {
   getDesignWorkflowContext,
   findNextActionableTask,
 } from "@/lib/design-workflow";
+import { canRoleSeeReadyForSignOff } from "@/lib/approval-hub-rbac";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
+import {
+  canRoleAccessApprovalsHub,
+  canRoleActOnStageApproval,
+} from "@/lib/stage-approval-rbac";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 import { actionMeta } from "@/lib/workflow-actions/definitions";
 import {
@@ -48,30 +53,39 @@ export function resolveDesignContextActions(input: {
   design: DesignSummary;
   employeeId?: number;
   permissions: string[];
+  roleCode?: string;
   approvalsQueueHref?: string;
 }): ResolvedWorkflowAction[] {
-  const { design, employeeId, permissions } = input;
+  const { design, employeeId, permissions, roleCode } = input;
   const approvalsQueueHref = input.approvalsQueueHref ?? ROUTES.quality.approvals;
   const canApprove = permissions.includes(PERMISSIONS.DESIGN_APPROVE);
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
+  const canRequestApproval = canRoleSeeReadyForSignOff(roleCode);
+  const canOpenApprovalsHub = canRoleAccessApprovalsHub(roleCode);
   const tasks = design.tasks ?? [];
   const context = getDesignWorkflowContext({ status: design.status, tasks });
   const actions: ResolvedWorkflowAction[] = [];
 
-  const nextTask = findNextActionableTask(tasks, employeeId, canApprove);
-  if (nextTask && (canExecute || (canApprove && nextTask.subProcess?.isApproval))) {
-    if (!nextTask.subProcess?.isApproval) {
-      actions.push(
-        buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
-          enabled: true,
-          label: `Open ${nextTask.subProcess?.name ?? "Task"}`,
-          description: `Continue ${nextTask.subProcess?.name ?? "the current task"} for this design.`,
-          taskId: nextTask.id,
-          designId: design.id,
-          href: ROUTES.work.taskDetail(nextTask.id),
-        }),
-      );
+  const nextTask = findNextActionableTask(tasks, employeeId, roleCode);
+  if (nextTask && canExecute) {
+    const isApproval = !!nextTask.subProcess?.isApproval;
+    const approvalCode = nextTask.subProcess?.code ?? "";
+    const canActOnApproval =
+      !isApproval || canRoleActOnStageApproval(roleCode, approvalCode);
+    if (!isApproval || canActOnApproval) {
+      if (!isApproval) {
+        actions.push(
+          buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
+            enabled: true,
+            label: `Open ${nextTask.subProcess?.name ?? "Task"}`,
+            description: `Continue ${nextTask.subProcess?.name ?? "the current task"} for this design.`,
+            taskId: nextTask.id,
+            designId: design.id,
+            href: ROUTES.work.taskDetail(nextTask.id),
+          }),
+        );
+      }
     }
   }
 
@@ -82,7 +96,7 @@ export function resolveDesignContextActions(input: {
       t.status !== "CANCELLED",
   );
 
-  if (canApprove && design.status === "APPROVAL_PENDING") {
+  if (canOpenApprovalsHub && design.status === "APPROVAL_PENDING") {
     actions.push(
       buildAction(WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE, {
         enabled: true,
@@ -90,7 +104,7 @@ export function resolveDesignContextActions(input: {
         designId: design.id,
       }),
     );
-  } else if (canApprove && ["DRAFT", "ACTIVE"].includes(design.status)) {
+  } else if (canRequestApproval && ["DRAFT", "ACTIVE"].includes(design.status)) {
     const incomplete = incompleteStageLabels(tasks);
     const readyForRequest = incomplete.length === 0 && !openApprovals;
     actions.push(

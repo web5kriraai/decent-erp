@@ -69,7 +69,7 @@ export type DesignTask = {
   skippedAt?: string | null;
   assignedEmployeeId?: number | null;
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
-  design: { id: string; ideaRef: string; collectionName: string };
+  design: { id: string; ideaRef: string; collectionName: string; priority?: Priority };
   process: { id: number; name: string; code: string };
   subProcess: {
     id: number;
@@ -79,11 +79,14 @@ export type DesignTask = {
     isApproval?: boolean;
   };
   timeEvents?: TaskTimeEvent[];
+  dueAt?: string | null;
   /** Resolved workflow status for display (CHECKING work may read COMPLETED after approval). */
   effectiveStatus?: string;
   isWaitingOnOthers?: boolean;
   waitingOnStage?: string | null;
   waitingOnAssignee?: string | null;
+  canStart?: boolean;
+  startBlockedReason?: string;
 };
 
 export type TaskTimeEvent = {

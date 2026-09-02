@@ -27,6 +27,7 @@ export async function POST(
           decision: body.decision,
         },
         ctx.correlationId,
+        ctx.roleCode,
       );
       return jsonOk(serializeBigInt(task), ctx.correlationId);
     },

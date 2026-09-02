@@ -6,7 +6,6 @@ import {
   businessRule,
   conflict,
   createAppError,
-  forbidden,
   notFound,
 } from "@/lib/errors/create-app-error";
 import type { Priority, TaskStatus } from "@prisma/client";
@@ -20,9 +19,12 @@ import {
 import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
 import { raiseCorrectionInTransaction } from "@/lib/services/correction-service";
 import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
+import { canRoleActOnStageApproval } from "@/lib/stage-approval-rbac";
+import { isStageApprovalActionable } from "@/lib/design-workflow";
 import { releaseToProduction } from "@/lib/services/production-service";
 import { resolveStatusAfterAssign, reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
 import { enrichEmployeeTasks } from "@/lib/services/task-workflow-enrichment";
+import { sortTasksByEffectivePriority } from "@/lib/task-priority";
 import { resolveWorkTaskEndStatus, findCheckingWorkTasksReleasedByApproval } from "@/lib/services/workflow-stage-gate";
 import type { Prisma } from "@prisma/client";
 
@@ -99,14 +101,14 @@ export async function getMyTasks(employeeId: number) {
     },
     orderBy: [{ dueAt: "asc" }, { priority: "desc" }],
     include: {
-      design: { select: { id: true, ideaRef: true, collectionName: true } },
+      design: { select: { id: true, ideaRef: true, collectionName: true, priority: true } },
       process: true,
       subProcess: true,
       timeEvents: { orderBy: { eventTimeUtc: "asc" } },
     },
   });
 
-  return enrichEmployeeTasks(tasks);
+  return sortTasksByEffectivePriority(await enrichEmployeeTasks(tasks));
 }
 
 export async function assignTask(
@@ -303,14 +305,13 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
       orderBy: [{ dependencySequence: "asc" }, { sequence: "asc" }],
     });
 
-    const depSeq = effectiveDependencySequence(task);
     const blocker = siblingRows.find(
       (s) =>
         s.id !== taskId &&
-        (s.dependencySequence != null
-          ? s.dependencySequence < depSeq
-          : s.sequence < depSeq) &&
-        !DEPENDENCY_SATISFIED_STATUSES.includes(s.status as (typeof DEPENDENCY_SATISFIED_STATUSES)[number]),
+        s.sequence < task.sequence &&
+        !DEPENDENCY_SATISFIED_STATUSES.includes(
+          s.status as (typeof DEPENDENCY_SATISFIED_STATUSES)[number],
+        ),
     );
 
     if (blocker) {
@@ -775,6 +776,7 @@ export async function completeStageApproval(
     decision?: "APPROVED" | "REJECT" | "CORRECTION_REQUIRED";
   },
   correlationId: string,
+  roleCode?: string,
 ) {
   const decision = input.decision ?? "APPROVED";
 
@@ -787,6 +789,27 @@ export async function completeStageApproval(
     if (!task.subProcess.isApproval) {
       throw businessRule(APP_ERROR_CODES.APPROVAL_NOT_ALLOWED);
     }
+
+    if (!canRoleActOnStageApproval(roleCode, task.subProcess.code)) {
+      throw createAppError(APP_ERROR_CODES.PERMISSION_DENIED, 403);
+    }
+
+    const workCode = workSubProcessCodeForApproval(task.subProcess.code);
+    const linkedWork = workCode
+      ? await tx.designTask.findFirst({
+          where: { designId: task.designId, subProcess: { code: workCode } },
+          orderBy: { id: "desc" },
+          select: { status: true },
+        })
+      : null;
+    if (!isStageApprovalActionable(task.subProcess.code, linkedWork ?? undefined)) {
+      throw conflict(
+        APP_ERROR_CODES.WORKFLOW_NOT_READY,
+        undefined,
+        "This approval cannot be recorded until prior work is submitted for checking.",
+      );
+    }
+
     if (task.version !== input.version) {
       throw conflict(APP_ERROR_CODES.CONCURRENCY_CONFLICT);
     }

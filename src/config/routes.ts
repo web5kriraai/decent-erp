@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { PERMISSIONS, type PermissionCode } from "@/lib/permissions";
+import { canRoleAccessApprovalsHub } from "@/lib/stage-approval-rbac";
 import {
   IconDashboard,
   IconDesigns,
@@ -416,10 +417,15 @@ export function isNavActive(pathname: string, href: string, exact?: boolean): bo
   return pathname.startsWith(`${href}/`);
 }
 
-export function getVisibleNavSections(permissions: string[]): NavSection[] {
+export function getVisibleNavSections(permissions: string[], roleCode?: string): NavSection[] {
+  const showApprovals = roleCode
+    ? canRoleAccessApprovalsHub(roleCode)
+    : permissions.includes(PERMISSIONS.DESIGN_APPROVE);
+
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (item.id === "approvals" && !showApprovals) return false;
       if (item.anyPermission?.length) {
         return item.anyPermission.some((p) => permissions.includes(p));
       }

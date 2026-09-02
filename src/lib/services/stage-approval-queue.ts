@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
 import { isTaskReady } from "@/lib/services/task-dependency";
+import {
+  canRoleActOnStageApproval,
+  filterStageApprovalsForRole,
+} from "@/lib/stage-approval-rbac";
 
 import type { StageApprovalQueueItem } from "@/lib/types/api";
 
@@ -36,7 +40,10 @@ function relatedWorkTaskName(
 }
 
 /** Workflow stage approvals (Final Approval, Sketch Approval, etc.) — not the management chain. */
-export async function listStageApprovalQueue(employeeId: number): Promise<StageApprovalQueueItem[]> {
+export async function listStageApprovalQueue(
+  employeeId: number,
+  roleCode?: string | null,
+): Promise<StageApprovalQueueItem[]> {
   const candidates = await prisma.designTask.findMany({
     where: {
       subProcess: { isApproval: true },
@@ -94,6 +101,20 @@ export async function listStageApprovalQueue(employeeId: number): Promise<StageA
     const isMine = task.assignedEmployeeId === employeeId;
     const isUnassigned = task.assignedEmployeeId == null;
     if (!isMine && !isUnassigned) continue;
+    if (
+      roleCode &&
+      !canRoleActOnStageApproval(roleCode, task.subProcess.code) &&
+      !isMine
+    ) {
+      continue;
+    }
+    if (
+      roleCode &&
+      isUnassigned &&
+      !canRoleActOnStageApproval(roleCode, task.subProcess.code)
+    ) {
+      continue;
+    }
 
     queue.push({
       taskId: task.id.toString(),
@@ -108,5 +129,5 @@ export async function listStageApprovalQueue(employeeId: number): Promise<StageA
     });
   }
 
-  return queue;
+  return roleCode ? filterStageApprovalsForRole(roleCode, queue) : queue;
 }

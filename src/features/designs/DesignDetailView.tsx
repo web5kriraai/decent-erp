@@ -38,7 +38,7 @@ export function DesignDetailView({
 
   useBreadcrumbReplacement(designId, designQuery.data?.ideaRef);
 
-  const canApprove = permissions.includes(PERMISSIONS.DESIGN_APPROVE);
+  const roleCode = session?.user?.roleCode;
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
@@ -50,10 +50,10 @@ export function DesignDetailView({
     return getPendingStageApproval({
       design: designQuery.data,
       employeeId,
-      canApprove,
+      roleCode,
       canExecute,
     });
-  }, [canApprove, canExecute, designQuery.data, employeeId]);
+  }, [canExecute, designQuery.data, employeeId, roleCode]);
 
   const showDesignFiles = !pendingStageApproval;
 
@@ -111,6 +111,7 @@ export function DesignDetailView({
                   design={designQuery.data}
                   permissions={permissions}
                   employeeId={employeeId}
+                  roleCode={roleCode}
                   onAssignTask={(taskId) => {
                     const task = designQuery.data.tasks?.find((t) => t.id === taskId);
                     if (task) setAssignTask(task);

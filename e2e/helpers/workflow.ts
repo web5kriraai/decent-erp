@@ -168,10 +168,18 @@ export async function completeTaskForUser(
   await login(page, email, userEntry.password);
 
   const tasks = await listMyTasks(page);
-  const mine = tasks.find(
+  let mine = tasks.find(
     (t) => t.design.id === designId && t.subProcess.code === code && t.status === "ASSIGNED",
   );
+  if (!mine && code === "CONCEPT_REVIEW") {
+    return false;
+  }
   if (!mine) return false;
+
+  if (code === "CONCEPT_REVIEW" && mine.subProcess.isApproval) {
+    await completeStageApproval(page, mine.id, `E2E ${code}`);
+    return true;
+  }
 
   let payload = extra;
   if (code === "SAMPLE_CHECK" && !extra?.checklist) {

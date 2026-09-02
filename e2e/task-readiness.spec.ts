@@ -7,7 +7,6 @@ import { expect, test } from "@playwright/test";
 import {
   USERS,
   apiGetJson,
-  apiPostJson,
   createDesignViaApi,
   login,
 } from "./helpers/auth";
@@ -24,24 +23,6 @@ type MyTask = {
   version?: number;
 };
 
-async function completeConceptReview(page: import("@playwright/test").Page, designId: string) {
-  const tasks = await apiGetJson<MyTask[]>(page, "/api/tasks/my");
-  const concept = tasks.find(
-    (t) =>
-      t.design.id === designId &&
-      t.status === "ASSIGNED" &&
-      (t.subProcess.code === "CONCEPT_REVIEW" || /concept/i.test(t.subProcess.name)),
-  );
-  if (!concept) return;
-  await apiPostJson(page, `/api/tasks/${concept.id}/start`, {});
-  const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${concept.id}`);
-  await apiPostJson(page, `/api/tasks/${concept.id}/end`, {
-    version: detail.version,
-    outputRemark: "E2E readiness — Concept Review complete",
-    completionStatus: "COMPLETED",
-  });
-}
-
 test.describe("Task readiness matrix (all employees)", () => {
   test.describe.configure({ mode: "serial" });
   test.setTimeout(90_000);
@@ -54,7 +35,7 @@ test.describe("Task readiness matrix (all employees)", () => {
     resetActiveTasks();
   });
 
-  test("after design create: only Design Head Concept Review visible; others empty", async ({
+  test("after design create: Sketch ASSIGNED; Design Head has no open Concept Review", async ({
     page,
   }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
@@ -63,34 +44,13 @@ test.describe("Task readiness matrix (all employees)", () => {
     });
 
     const dhAssigned = await apiGetJson<MyTask[]>(page, "/api/tasks/my");
-    const dhCodes = dhAssigned
+    const dhForDesign = dhAssigned.filter((t) => t.design.id === design.id);
+    const dhCodes = dhForDesign
       .filter((t) => t.status === "ASSIGNED")
       .map((t) => t.subProcess.code);
-    expect(dhCodes).toContain("CONCEPT_REVIEW");
+    expect(dhCodes).not.toContain("CONCEPT_REVIEW");
     expect(dhCodes).not.toContain("SKETCH_APPROVAL");
     expect(dhCodes).not.toContain("FINAL_APPROVAL");
-
-    const roles = [
-      USERS.sketch,
-      USERS.punch,
-      USERS.machine,
-      USERS.checker,
-      USERS.costing,
-    ] as const;
-    for (const user of roles) {
-      await login(page, user.email, user.password);
-      const mine = await apiGetJson<MyTask[]>(page, "/api/tasks/my");
-      const forDesign = mine.filter((t) => t.design.id === design.id);
-      expect(forDesign).toHaveLength(0);
-    }
-  });
-
-  test("after Concept Review ends: Sketch ASSIGNED; Design Head still no Sketch Approval", async ({
-    page,
-  }) => {
-    await login(page, USERS.designHead.email, USERS.designHead.password);
-    const design = await createDesignViaApi(page, `Readiness unlock ${Date.now()}`);
-    await completeConceptReview(page, design.id);
 
     await login(page, USERS.sketch.email, USERS.sketch.password);
     const sketchTasks = await apiGetJson<MyTask[]>(page, "/api/tasks/my");
@@ -100,10 +60,33 @@ test.describe("Task readiness matrix (all employees)", () => {
     expect(sketchForDesign.length).toBeGreaterThanOrEqual(1);
     expect(sketchForDesign.some((t) => t.subProcess.code === "SKETCH")).toBe(true);
 
+    const roles = [USERS.punch, USERS.machine, USERS.checker, USERS.costing] as const;
+    for (const user of roles) {
+      await login(page, user.email, user.password);
+      const mine = await apiGetJson<MyTask[]>(page, "/api/tasks/my");
+      const forDesign = mine.filter((t) => t.design.id === design.id);
+      expect(forDesign).toHaveLength(0);
+    }
+  });
+
+  test("after design create: Design Head still no Sketch Approval until sketch submits", async ({
+    page,
+  }) => {
+    await login(page, USERS.designHead.email, USERS.designHead.password);
+    const design = await createDesignViaApi(page, `Readiness unlock ${Date.now()}`);
+
+    await login(page, USERS.sketch.email, USERS.sketch.password);
+    const sketchTasks = await apiGetJson<MyTask[]>(page, "/api/tasks/my");
+    const sketchForDesign = sketchTasks.filter(
+      (t) => t.design.id === design.id && t.status === "ASSIGNED",
+    );
+    expect(sketchForDesign.some((t) => t.subProcess.code === "SKETCH")).toBe(true);
+
     await login(page, USERS.designHead.email, USERS.designHead.password);
     const dhAfter = await apiGetJson<MyTask[]>(page, "/api/tasks/my");
     const dhForDesign = dhAfter.filter((t) => t.design.id === design.id && t.status === "ASSIGNED");
     expect(dhForDesign.some((t) => t.subProcess.code === "SKETCH_APPROVAL")).toBe(false);
     expect(dhForDesign.some((t) => t.subProcess.code === "FINAL_APPROVAL")).toBe(false);
+    expect(dhForDesign.some((t) => t.subProcess.code === "CONCEPT_REVIEW")).toBe(false);
   });
 });
