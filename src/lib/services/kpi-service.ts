@@ -226,13 +226,14 @@ export async function calculateMonthlyKpi(year: number, month: number) {
   return results;
 }
 
-export async function getProcessMasters() {
+export async function getProcessMasters(options?: { includeInactive?: boolean }) {
+  const includeInactive = options?.includeInactive === true;
   return prisma.designProcessMaster.findMany({
-    where: { active: true },
+    where: includeInactive ? undefined : { active: true },
     orderBy: { sequence: "asc" },
     include: {
       subProcesses: {
-        where: { active: true },
+        where: includeInactive ? undefined : { active: true },
         orderBy: { sequence: "asc" },
       },
     },

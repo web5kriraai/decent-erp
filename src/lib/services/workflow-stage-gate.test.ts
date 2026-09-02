@@ -68,6 +68,24 @@ describe("workflow stage gates", () => {
     ).toBe("COMPLETED");
   });
 
+  it("forces CHECKING when a stage-approval gate exists even if COMPLETED was requested", () => {
+    const siblings: StageGateSibling[] = [
+      stage("2", 2, "RUNNING", { subProcess: { name: "Sketch", code: "SKETCH", isApproval: false } }),
+      stage("3", 3, "PENDING", {
+        subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        assignedEmployeeId: 10,
+      }),
+    ];
+
+    expect(
+      resolveWorkTaskEndStatus(
+        { id: "2", dependencySequence: 2, sequence: 2, subProcess: { isApproval: false } },
+        siblings,
+        "COMPLETED",
+      ),
+    ).toBe("CHECKING");
+  });
+
   it("resolves machine sample to COMPLETED once sample checking is finished", () => {
     const siblings: StageGateSibling[] = [
       stage("5", 5, "CHECKING", { subProcess: { name: "Machine Sample", code: "MACHINE_SAMPLE", isApproval: false } }),

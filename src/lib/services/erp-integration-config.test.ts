@@ -35,11 +35,11 @@ describe("erp-integration-config", () => {
     expect(ERP_MODULE_SYNC_ORDER[0]).toBe("GREY_MATERIAL");
     expect(ERP_MODULE_SYNC_ORDER).toContain("SALES");
     expect(ERP_MODULE_SYNC_ORDER).toContain("ACCOUNTS");
-    for (const module of PRIMARY_ERP_MODULES) {
-      expect(ERP_MODULE_SYNC_ORDER).toContain(module);
+    for (const erpModule of PRIMARY_ERP_MODULES) {
+      expect(ERP_MODULE_SYNC_ORDER).toContain(erpModule);
     }
-    for (const module of DOWNSTREAM_ERP_MODULES) {
-      expect(ERP_MODULE_SYNC_ORDER).toContain(module);
+    for (const erpModule of DOWNSTREAM_ERP_MODULES) {
+      expect(ERP_MODULE_SYNC_ORDER).toContain(erpModule);
     }
   });
 });

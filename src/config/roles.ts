@@ -193,12 +193,6 @@ export function formatRoleLabel(roleCode: string): string {
   return getRoleDefinition(roleCode)?.displayName ?? roleCode.replace(/_/g, " ");
 }
 
-export function getRolesForPermissions(permissions: string[]): RoleDefinition[] {
-  return ALL_ROLE_CODES.map((code) => ROLE_CATALOG[code]).filter((role) =>
-    role.permissions.every((p) => permissions.includes(p)),
-  );
-}
-
 /** Demo login accounts seeded for UAT (password: Demo@123) */
 export const DEMO_ACCOUNTS = [
   { email: "admin@decent-erp.local", role: ROLE_CODES.ADMIN, password: "Admin@123" },

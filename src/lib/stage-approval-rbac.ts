@@ -110,13 +110,6 @@ export function canRoleActOnStageApproval(
   return true;
 }
 
-export function canRoleViewUnassignedStageApproval(
-  roleCode: string | null | undefined,
-  approvalCode: string,
-): boolean {
-  return canRoleActOnStageApproval(roleCode, approvalCode);
-}
-
 export type ApprovalHubTabs = {
   stage: boolean;
   ready: boolean;
@@ -151,9 +144,4 @@ export function filterStageApprovalsForRole<T extends { stageCode: string }>(
     const owner = getStageApprovalOwnerRole(item.stageCode);
     return owner === roleCode;
   });
-}
-
-export function stageCodesOwnedByRole(roleCode: string | null | undefined): StageApprovalCode[] {
-  if (!roleCode) return [];
-  return STAGE_APPROVAL_CODES.filter((code) => STAGE_APPROVAL_OWNER_ROLE[code] === roleCode);
 }

@@ -7,10 +7,14 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
 import { AppButtonLink } from "@/components/ui/AppButton";
+import {
+  PipelineAccordionBoard,
+  type PipelineAccordionSection,
+} from "@/components/ui/PipelineAccordionBoard";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
-import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import { useDesignKanban, useUpdateDesignStatus } from "@/hooks/use-designs";
+import { pipelineStatusAccent, pipelineStatusLabel } from "@/lib/pipeline-status-theme";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { KanbanDesignItem } from "@/lib/types/api";
 
@@ -25,57 +29,23 @@ const KANBAN_COLUMNS = [
   "LIVE",
 ] as const;
 
-function formatStageStatus(status: string | null): string {
-  if (!status) return "";
-  return status.replace(/_/g, " ");
-}
-
-function KanbanCardWorkflow({ design }: { design: KanbanDesignItem }) {
-  const { workflow } = design;
-  const hasWorkflow = workflow.totalStages > 0;
-  const stageLabel =
-    workflow.currentStage ??
-    (hasWorkflow ? "Workflow not started" : "No workflow tasks");
+function DesignPipelineCard({ design }: { design: KanbanDesignItem }) {
+  const stageHint =
+    design.workflow.currentStage ??
+    (design.workflow.totalStages > 0 ? "In workflow" : null);
 
   return (
-    <div className="task-card-workflow">
-      <div className="task-card-workflow-head">
-        <span className="task-card-stage">{stageLabel}</span>
-        {workflow.currentStatus ? (
-          <StatusBadge
-            status={workflow.currentStatus.toUpperCase().replace(/ /g, "_")}
-            label={formatStageStatus(workflow.currentStatus)}
-          />
-        ) : null}
+    <article className="pipeline-card">
+      <Link href={ROUTES.designs.detail(design.id)} className="pipeline-card-ref">
+        {design.ideaRef}
+      </Link>
+      <p className="pipeline-card-title">{design.collectionName}</p>
+      {stageHint ? <p className="pipeline-card-stage">{stageHint}</p> : null}
+      <div className="pipeline-card-foot">
+        <span className="pipeline-card-owner">{design.designHead.name}</span>
+        <PriorityBadge priority={design.priority} />
       </div>
-
-      {workflow.currentOwner ? (
-        <p className="task-card-workflow-owner">Owner: {workflow.currentOwner}</p>
-      ) : null}
-
-      {hasWorkflow ? (
-        <p className="task-card-progress">
-          {workflow.completedStages} / {workflow.totalStages} stages complete
-        </p>
-      ) : null}
-
-      {workflow.activeStages.length > 1 ? (
-        <ul className="task-card-active-stages">
-          {workflow.activeStages.map((stage) => (
-            <li key={`${stage.label}-${stage.status}`}>
-              <span>{stage.label}</span>
-              {stage.assigneeName ? (
-                <span className="text-caption-muted"> · {stage.assigneeName}</span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {workflow.summary ? (
-        <p className="task-card-workflow-summary">{workflow.summary}</p>
-      ) : null}
-    </div>
+    </article>
   );
 }
 
@@ -85,6 +55,7 @@ export function DesignKanbanView() {
   const kanbanQuery = useDesignKanban(permissions.includes(PERMISSIONS.DESIGN_CREATE));
   const updateStatus = useUpdateDesignStatus();
   const [dragId, setDragId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>("ACTIVE");
 
   const grouped = useMemo(() => {
     const map = Object.fromEntries(KANBAN_COLUMNS.map((s) => [s, [] as KanbanDesignItem[]])) as Record<
@@ -96,6 +67,20 @@ export function DesignKanbanView() {
     }
     return map;
   }, [kanbanQuery.data]);
+
+  const sections = useMemo((): PipelineAccordionSection<KanbanDesignItem>[] => {
+    return KANBAN_COLUMNS.map((status, index) => ({
+      id: status,
+      label: pipelineStatusLabel(status),
+      sequence: index + 1,
+      accent: pipelineStatusAccent(status),
+      items: grouped[status] ?? [],
+    }));
+  }, [grouped]);
+
+  function toggleSection(sectionId: string) {
+    setExpandedId((prev) => (prev === sectionId ? null : sectionId));
+  }
 
   function handleDrop(status: string) {
     if (!dragId) return;
@@ -122,7 +107,7 @@ export function DesignKanbanView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Design Pipeline"
-        subtitle="Kanban view by lifecycle status with current workflow stage on each card"
+        subtitle="Expand one lifecycle phase at a time — up to 15 designs shown per row"
         actions={
           <AppButtonLink href={ROUTES.designs.list} appVariant="secondary" size="sm">
             Table view
@@ -135,53 +120,20 @@ export function DesignKanbanView() {
         isError={kanbanQuery.isError}
         error={kanbanQuery.error}
         onRetry={() => kanbanQuery.refetch()}
-        skeletonVariant="cards"
+        skeletonVariant="pipeline-accordion"
       >
-        <div className="kanban">
-          {KANBAN_COLUMNS.map((status) => (
-            <section
-              key={status}
-              className="kanban-column"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop(status)}
-            >
-              <header className="kanban-column-header">
-                <StatusBadge status={status} />
-                <span className="kanban-column-count">{grouped[status]?.length ?? 0}</span>
-              </header>
-              <div className="kanban-cards">
-                {(grouped[status] ?? []).length === 0 ? (
-                  <p className="kanban-empty">No designs</p>
-                ) : (
-                  (grouped[status] ?? []).map((design) => (
-                    <article
-                      key={design.id}
-                      className="task-card"
-                      draggable
-                      onDragStart={() => setDragId(design.id)}
-                      onDragEnd={() => setDragId(null)}
-                    >
-                      <Link href={ROUTES.designs.detail(design.id)} className="task-card-ref">
-                        {design.ideaRef}
-                      </Link>
-                      <p className="task-card-title">{design.collectionName}</p>
-                      <KanbanCardWorkflow design={design} />
-                      <div className="task-card-meta">
-                        <span className="text-caption-muted">
-                          {design.productType.name}
-                        </span>
-                        <PriorityBadge priority={design.priority} />
-                      </div>
-                      <p className="text-caption-muted mt-2 mb-0">
-                        {design.designHead.name}
-                      </p>
-                    </article>
-                  ))
-                )}
-              </div>
-            </section>
-          ))}
-        </div>
+        <PipelineAccordionBoard
+          sections={sections}
+          expandedId={expandedId}
+          onToggle={toggleSection}
+          onDragStart={setDragId}
+          onDragEnd={() => setDragId(null)}
+          onDrop={handleDrop}
+          getItemId={(design) => design.id}
+          renderCard={(design) => <DesignPipelineCard design={design} />}
+          emptyLabel="No designs in this phase"
+          previewLimit={15}
+        />
       </QueryState>
     </div>
   );

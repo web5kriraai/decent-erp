@@ -32,7 +32,7 @@ type KpiRow = {
   weightedScore: string;
   periodYear: number;
   periodMonth: number;
-  employee: { name: string; employeeCode: string };
+  employee: { id: number; name: string; employeeCode: string };
 };
 
 export function KpiDashboardView() {
@@ -68,7 +68,7 @@ export function KpiDashboardView() {
   const data = kpiQuery.data ?? [];
   const chartData = Object.values(
     data.reduce<Record<string, { name: string; score: number }>>((acc, row) => {
-      const key = row.employee.employeeCode;
+      const key = String(row.employee.id);
       if (!acc[key]) acc[key] = { name: row.employee.name.split(" ")[0], score: 0 };
       acc[key].score += Number(row.weightedScore);
       return acc;
@@ -125,10 +125,10 @@ export function KpiDashboardView() {
         skeletonVariant="stats"
       >
         <div className="stat-grid stack-section">
-          <StatCard label="Score Records" value={data.length} accent />
+          <StatCard label="Score Records" value={data.length} />
           <StatCard
             label="Employees Tracked"
-            value={new Set(data.map((d) => d.employee.employeeCode)).size}
+            value={new Set(data.map((d) => d.employee.id)).size}
           />
           <StatCard label="Metrics" value={SPEC_KPI_METRICS.length} />
           <StatCard

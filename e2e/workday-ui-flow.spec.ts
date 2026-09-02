@@ -48,26 +48,31 @@ test.describe("Workday UI flow (end-to-end)", () => {
     });
     expect(design.id).toBeTruthy();
 
-    // Concept Review auto-advances on create — Sketch is ready for sketch designer
+    // Concept Review stays PENDING on create — Sketch is ready for sketch designer
     const dhTasksBefore = await apiGetJson<
-      Array<{ status: string; subProcess: { code?: string; name: string } }>
+      Array<{
+        status: string;
+        design: { id: string };
+        subProcess: { code?: string; name: string };
+      }>
     >(page, "/api/tasks/my");
+    const forDesign = dhTasksBefore.filter((t) => t.design.id === design.id);
     expect(
-      dhTasksBefore.filter((t) => t.status === "ASSIGNED").map((t) => t.subProcess.code ?? t.subProcess.name),
+      forDesign.filter((t) => t.status === "ASSIGNED").map((t) => t.subProcess.code ?? t.subProcess.name),
     ).not.toContain("CONCEPT_REVIEW");
     expect(
-      dhTasksBefore.some(
+      forDesign.some(
         (t) => t.subProcess.code === "SKETCH_APPROVAL" || t.subProcess.code === "FINAL_APPROVAL",
       ),
     ).toBe(false);
 
     await login(page, USERS.costing.email, USERS.costing.password);
-    const costingTasks = await apiGetJson<unknown[]>(page, "/api/tasks/my");
-    expect(costingTasks).toHaveLength(0);
+    const costingTasks = await apiGetJson<Array<{ design: { id: string } }>>(page, "/api/tasks/my");
+    expect(costingTasks.filter((t) => t.design.id === design.id)).toHaveLength(0);
 
     await login(page, USERS.punch.email, USERS.punch.password);
-    const punchTasks = await apiGetJson<unknown[]>(page, "/api/tasks/my");
-    expect(punchTasks).toHaveLength(0);
+    const punchTasks = await apiGetJson<Array<{ design: { id: string } }>>(page, "/api/tasks/my");
+    expect(punchTasks.filter((t) => t.design.id === design.id)).toHaveLength(0);
 
     await login(page, USERS.sketch.email, USERS.sketch.password);
 
@@ -186,7 +191,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
     await page.keyboard.press("Control+k");
     const searchDialog = page.getByRole("dialog", { name: /Search Decent ERP/i });
     await expect(searchDialog).toBeVisible({ timeout: 10_000 });
-    await expect(searchDialog.getByPlaceholder(/Search designs/i)).toBeVisible();
+    await expect(searchDialog.getByPlaceholder(/Search or jump to/i)).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(searchDialog).not.toBeVisible();
   });

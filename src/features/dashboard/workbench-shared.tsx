@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Children } from "react";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
+import { isNavActive } from "@/config/routes";
 
 export function WorkbenchEmpty({ message }: { message: string }) {
   return <p className="workbench-empty">{message}</p>;
@@ -50,6 +52,62 @@ export function WorkbenchShell({
         {children}
       </QueryState>
     </div>
+  );
+}
+
+export type WorkbenchQuickAction = {
+  href: string;
+  label: string;
+  badge?: number;
+};
+
+function quickActionPath(href: string) {
+  return href.split("?")[0] || href;
+}
+
+/** Shared dashboard nav chips — one inactive + one active style app-wide. */
+export function WorkbenchQuickActions({
+  title = "Quick actions",
+  actions,
+  description,
+  className,
+}: {
+  title?: string;
+  actions: WorkbenchQuickAction[];
+  description?: string;
+  className?: string;
+}) {
+  const pathname = usePathname();
+
+  if (actions.length === 0) return null;
+
+  return (
+    <AppCard title={title} className={className} contentClassName="space-y-2">
+      <div className="nav-chip-row contextual-actions-buttons">
+        {actions.map((action) => {
+          const path = quickActionPath(action.href);
+          const active = isNavActive(pathname, path);
+          return (
+            <AppButtonLink
+              key={`${action.href}-${action.label}`}
+              href={action.href}
+              appVariant="outline"
+              size="sm"
+              data-app-surface="nav-chip"
+              data-active={active ? "true" : undefined}
+              aria-current={active ? "page" : undefined}
+            >
+              {action.badge != null && action.badge > 0
+                ? `${action.label} (${action.badge})`
+                : action.label}
+            </AppButtonLink>
+          );
+        })}
+      </div>
+      {description ? (
+        <p className="m-0 text-xs text-muted-foreground">{description}</p>
+      ) : null}
+    </AppCard>
   );
 }
 

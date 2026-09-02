@@ -14,6 +14,7 @@ import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
+  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 
@@ -49,11 +50,11 @@ export function CheckerWorkbench() {
   const correctionsQuery = useCorrections(undefined, true);
   const approvalsQuery = usePendingApprovals(true);
 
-  const tasks = (tasksQuery.data ?? []) as CheckerTask[];
   const corrections = (correctionsQuery.data ?? []).filter((c) => OPEN_CORRECTION.has(c.status));
   const managementApprovals = approvalsQuery.data ?? [];
 
   const queues = useMemo(() => {
+    const tasks = (tasksQuery.data ?? []) as CheckerTask[];
     const actionable = tasks.filter((t) => {
       if (DONE.has(t.status)) return false;
       if (t.effectiveStatus === "COMPLETED") return false;
@@ -71,7 +72,7 @@ export function CheckerWorkbench() {
       returned,
       completedChecks: completed.slice(0, 8),
     };
-  }, [tasks]);
+  }, [tasksQuery.data]);
 
   const pendingTotal = queues.pendingPunch.length + queues.pendingSample.length;
 
@@ -95,8 +96,27 @@ export function CheckerWorkbench() {
       }}
     >
       <div className="workbench-overview">
+        <WorkbenchQuickActions
+          actions={[
+            {
+              href: ROUTES.work.tasks,
+              label: "My Tasks",
+              badge: pendingTotal,
+            },
+            {
+              href: `${ROUTES.quality.approvals}?tab=management`,
+              label: "Approvals",
+              badge: managementApprovals.length,
+            },
+            {
+              href: ROUTES.quality.corrections,
+              label: "Corrections",
+              badge: corrections.length,
+            },
+          ]}
+        />
         <div className="stat-grid workbench-pulse">
-          <StatCard label="Pending quality checks" value={pendingTotal} accent />
+          <StatCard label="Pending quality checks" value={pendingTotal} />
           <StatCard label="Punch checks waiting" value={queues.pendingPunch.length} />
           <StatCard label="Sample checks waiting" value={queues.pendingSample.length} />
           <StatCard label="Returned / correction" value={queues.returned.length + corrections.length} />

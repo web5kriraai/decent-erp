@@ -142,11 +142,6 @@ export async function listDesignsReadyForSignOff(
     });
 }
 
-export async function countPendingApprovalsForEmployee(employeeId: number): Promise<number> {
-  const items = await listPendingApprovalsForEmployee(employeeId);
-  return items.length;
-}
-
 export async function requestDesignApproval(
   designId: bigint,
   requesterId: number,
@@ -334,26 +329,4 @@ export async function submitApproval(
 
     return approval;
   });
-}
-
-export async function getDesignApprovalStatus(designId: bigint) {
-  const [design, levels, approvals] = await Promise.all([
-    prisma.designConcept.findUnique({ where: { id: designId } }),
-    getApprovalLevels(),
-    prisma.designApproval.findMany({
-      where: { designId },
-      include: { level: true, approver: { select: { id: true, name: true } } },
-      orderBy: { decisionAtUtc: "desc" },
-    }),
-  ]);
-  if (!design) throw new ApiError("Design not found", 404);
-
-  const passedLevelIds = new Set(
-    approvals
-      .filter((a) => a.decision === "APPROVED" || a.decision === "SKIPPED")
-      .map((a) => a.approvalLevelId),
-  );
-  const currentLevel = levels.find((l) => !passedLevelIds.has(l.id)) ?? null;
-
-  return { design, levels, approvals, currentLevel, allPassed: !currentLevel };
 }

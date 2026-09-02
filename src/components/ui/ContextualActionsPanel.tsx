@@ -22,7 +22,7 @@ function toAppVariant(variant: ResolvedWorkflowAction["variant"]): AppButtonVari
 }
 
 export function ContextualActionsPanel({
-  title = "Actions",
+  title,
   actions,
   className,
   onAction,
@@ -35,7 +35,7 @@ export function ContextualActionsPanel({
 
   return (
     <div className={cn("contextual-actions-panel", className)}>
-      <p className="contextual-actions-title">{title}</p>
+      {title ? <p className="contextual-actions-title">{title}</p> : null}
       {enabled.length > 0 ? (
         <div className="contextual-actions-buttons">
           {enabled.map((action) => {

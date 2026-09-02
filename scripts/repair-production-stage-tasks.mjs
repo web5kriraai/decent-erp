@@ -6,7 +6,6 @@
  * Usage: npx tsx scripts/repair-production-stage-tasks.mjs
  */
 import { PrismaClient } from "@prisma/client";
-import { ROLE_CODES } from "../src/lib/permissions.ts";
 import { appendProductionStageTasks } from "../src/lib/services/production-handoff-unlock.ts";
 import { unlockProductionHandoffTask } from "../src/lib/services/production-handoff-unlock.ts";
 

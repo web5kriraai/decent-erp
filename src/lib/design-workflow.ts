@@ -22,7 +22,6 @@ import {
 } from "@/lib/workflow-actions";
 import type { DesignSummary, DesignTask, KanbanWorkflowInfo } from "@/lib/types/api";
 
-const SATISFIED_STATUSES = new Set(["COMPLETED", "CHECKING", "CANCELLED", "SKIPPED"]);
 const ACTIONABLE_STATUSES = new Set([
   "ASSIGNED",
   "RUNNING",
@@ -517,7 +516,7 @@ function mapResolvedToLegacyAction(
   };
 }
 
-export function getDesignContextActions(input: {
+function getDesignContextActions(input: {
   design: DesignSummary;
   employeeId?: number;
   canApprove: boolean;
@@ -551,13 +550,6 @@ export function getDesignWorkflowActions(input: {
   return resolved
     .filter((action) => action.enabled)
     .map((action, index) => mapResolvedToLegacyAction(action, index === 0 ? "primary" : "secondary"));
-}
-
-export function getWorkflowStatusMessage(
-  steps: WorkflowStep[],
-  designStatus: string,
-): string | null {
-  return getDesignWorkflowContext({ status: designStatus, tasks: steps.map((s) => s.task) }).summary;
 }
 
 export type DesignWorkflowContext = {

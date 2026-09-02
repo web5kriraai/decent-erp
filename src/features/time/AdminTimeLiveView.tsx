@@ -93,7 +93,7 @@ export function AdminTimeLiveView() {
         {data && (
           <>
             <div className="stat-grid stack-section">
-              <StatCard label="Running now" value={data.runningCount} accent />
+              <StatCard label="Running now" value={data.runningCount} />
               <StatCard label="On hold" value={data.onHoldCount} />
               <StatCard label="Idle" value={data.employees.filter((e) => e.status === "IDLE").length} />
               <StatCard
@@ -113,10 +113,7 @@ export function AdminTimeLiveView() {
                     key: "name",
                     header: "Employee",
                     render: (row) => (
-                      <>
-                        <strong>{row.name}</strong>
-                        <p className="data-table-subtext">{row.employeeCode}</p>
-                      </>
+                      <strong>{row.name}</strong>
                     ),
                   },
                   {

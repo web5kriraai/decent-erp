@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
+import { jsonOk, parseBody, withApiHandler } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { generateTasksFromPattern } from "@/lib/services/design-service";
 

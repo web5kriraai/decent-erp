@@ -35,7 +35,7 @@ export function jsonError(
   );
 }
 
-export async function withApiHandler<T>(
+export async function withApiHandler(
   permission: PermissionCode | PermissionCode[] | null,
   handler: (ctx: ApiContext) => Promise<NextResponse>,
 ) {

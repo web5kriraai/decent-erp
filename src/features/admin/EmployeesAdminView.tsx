@@ -7,7 +7,6 @@ import {
   Modal,
   ModalFooterActions,
   ModalForm,
-  ModalFormGrid,
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
@@ -21,14 +20,12 @@ import {
   useAdminEmployees,
   useAdminRoles,
   useCreateEmployee,
-  useSuggestedEmployeeCode,
   useUpdateEmployee,
 } from "@/hooks/use-admin-roles";
 import { PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
 import type { AdminEmployeeRow } from "@/lib/types/api";
 
 type FormState = {
-  employeeCode: string;
   name: string;
   email: string;
   roleCode: string;
@@ -37,7 +34,6 @@ type FormState = {
 };
 
 const emptyForm = (roleCode: string = ROLE_CODES.SKETCH_DESIGNER): FormState => ({
-  employeeCode: "",
   name: "",
   email: "",
   roleCode,
@@ -60,32 +56,18 @@ export function EmployeesAdminView() {
   const [createForm, setCreateForm] = useState<FormState>(() => emptyForm());
   const [editForm, setEditForm] = useState<FormState>(() => emptyForm());
 
-  const suggestCodeQuery = useSuggestedEmployeeCode(createOpen);
   const roles = rolesQuery.data ?? [];
   const currentEmployeeId = session?.user?.employeeId;
   const defaultRoleCode = roles[0]?.code ?? ROLE_CODES.SKETCH_DESIGNER;
 
-  const suggestedCode = suggestCodeQuery.data?.employeeCode;
-  if (createOpen && suggestedCode && !createForm.employeeCode) {
-    setCreateForm((prev) => ({
-      ...prev,
-      employeeCode: suggestedCode,
-      roleCode: prev.roleCode || defaultRoleCode,
-    }));
-  }
-
   function openCreateModal() {
-    setCreateForm({
-      ...emptyForm(defaultRoleCode),
-      employeeCode: suggestedCode ?? "",
-    });
+    setCreateForm(emptyForm(defaultRoleCode));
     setCreateOpen(true);
   }
 
   function openEditModal(employee: AdminEmployeeRow) {
     setEditEmployee(employee);
     setEditForm({
-      employeeCode: employee.employeeCode,
       name: employee.name,
       email: employee.email,
       roleCode: employee.role.code,
@@ -96,7 +78,6 @@ export function EmployeesAdminView() {
 
   async function handleCreateSubmit() {
     await createEmployee.mutateAsync({
-      employeeCode: createForm.employeeCode.trim() || undefined,
       name: createForm.name.trim(),
       email: createForm.email.trim(),
       roleCode: createForm.roleCode,
@@ -176,7 +157,6 @@ export function EmployeesAdminView() {
         <AppCard>
           <DataTable
             columns={[
-              { key: "employeeCode", header: "Code" },
               { key: "name", header: "Name" },
               { key: "email", header: "Email" },
               {
@@ -274,7 +254,6 @@ export function EmployeesAdminView() {
         title={editEmployee ? `Edit ${editEmployee.name}` : "Edit Employee"}
         form={editForm}
         roles={roles}
-        codeReadOnly
         showActiveToggle={!!editEmployee && !isSelf(editEmployee.id)}
         requirePassword={false}
         isPending={updateEmployee.isPending}
@@ -293,7 +272,6 @@ type EmployeeFormModalProps = {
   form: FormState;
   roles: Array<{ code: string; displayName: string }>;
   requirePassword: boolean;
-  codeReadOnly?: boolean;
   showActiveToggle?: boolean;
   isPending: boolean;
   onClose: () => void;
@@ -308,7 +286,6 @@ function EmployeeFormModal({
   form,
   roles,
   requirePassword,
-  codeReadOnly,
   showActiveToggle,
   isPending,
   onClose,
@@ -349,27 +326,17 @@ function EmployeeFormModal({
       }
     >
       <ModalForm>
-        <ModalFormGrid>
-          <FormTextField
-            id="empCode"
-            label="Employee Code"
-            value={form.employeeCode}
-            readOnly={codeReadOnly}
-            onChange={(e) => onChange({ ...form, employeeCode: e.target.value.toUpperCase() })}
-            placeholder="EMP010"
-          />
-          <FormSelect
-            id="empRole"
-            label="Role"
-            required
-            value={form.roleCode || null}
-            onValueChange={(v) => onChange({ ...form, roleCode: v })}
-            options={roles.map((role) => ({
-              value: role.code,
-              label: role.displayName,
-            }))}
-          />
-        </ModalFormGrid>
+        <FormSelect
+          id="empRole"
+          label="Role"
+          required
+          value={form.roleCode || null}
+          onValueChange={(v) => onChange({ ...form, roleCode: v })}
+          options={roles.map((role) => ({
+            value: role.code,
+            label: role.displayName,
+          }))}
+        />
 
         <FormTextField
           id="empName"

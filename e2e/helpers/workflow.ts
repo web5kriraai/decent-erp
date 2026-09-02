@@ -168,7 +168,7 @@ export async function completeTaskForUser(
   await login(page, email, userEntry.password);
 
   const tasks = await listMyTasks(page);
-  let mine = tasks.find(
+  const mine = tasks.find(
     (t) => t.design.id === designId && t.subProcess.code === code && t.status === "ASSIGNED",
   );
   if (!mine && code === "CONCEPT_REVIEW") {

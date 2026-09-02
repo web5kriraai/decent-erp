@@ -77,12 +77,7 @@ export function PipelineDependenciesView() {
               {
                 key: "owner",
                 header: "Owner",
-                render: (row) => (
-                  <>
-                    {row.employeeName}
-                    <p className="data-table-subtext">{row.employeeCode}</p>
-                  </>
-                ),
+                render: (row) => row.employeeName,
               },
               { key: "myStage", header: "Stage" },
               {

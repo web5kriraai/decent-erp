@@ -105,11 +105,11 @@ export function RaiseCorrectionModal({
   }
 
   const designQuery = useDesign(designId, open && !!designId);
-  const tasks = designQuery.data?.tasks ?? [];
   const isMistake = correctionType === "MISTAKE";
 
-  const selectedTask = tasks.find((t) => t.id === taskId);
+  const selectedTask = (designQuery.data?.tasks ?? []).find((t) => t.id === taskId);
   const routeOptions = useMemo(() => {
+    const tasks = designQuery.data?.tasks ?? [];
     const byCode = new Map<string, { id: number; name: string; code: string }>();
     for (const t of tasks) {
       const code = t.subProcess.code;
@@ -121,7 +121,7 @@ export function RaiseCorrectionModal({
     return ROUTE_CODES.map((code) => byCode.get(code)).filter(
       (r): r is { id: number; name: string; code: string } => !!r,
     );
-  }, [tasks]);
+  }, [designQuery.data?.tasks]);
 
   const routeSeedKey = `${designId}:${taskId}:${routeOptions.map((r) => r.id).join(",")}`;
   if (open && routeSeedKey !== routeSeededFor && routeOptions.length > 0 && taskId) {
@@ -215,7 +215,7 @@ export function RaiseCorrectionModal({
                 setTaskId(v);
                 setRouteSeededFor("");
               }}
-              options={tasks.map((t) => ({
+              options={(designQuery.data?.tasks ?? []).map((t) => ({
                 value: t.id,
                 label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
               }))}
@@ -259,7 +259,7 @@ export function RaiseCorrectionModal({
             onValueChange={(v) => setResponsibleEmployeeId(v ? Number(v) : "")}
             options={(employeesQuery.data ?? []).map((e) => ({
               value: String(e.id),
-              label: `${e.name} (${e.employeeCode})`,
+              label: e.name,
             }))}
             placeholder="Select employee…"
             hint={isMistake ? undefined : "Optional for non-mistake corrections"}

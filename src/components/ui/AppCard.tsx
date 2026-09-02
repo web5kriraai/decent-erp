@@ -31,7 +31,7 @@ export function AppCard({
 }: AppCardProps) {
   return (
     <Card
-      className={cn(flat && "shadow-none ring-foreground/5", className)}
+      className={cn(flat && "shadow-none", className)}
       {...props}
     >
       {title || description || headerAction ? (

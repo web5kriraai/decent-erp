@@ -26,7 +26,7 @@ test.describe("Dialog accessibility", () => {
       await apiPostJson(page, `/api/tasks/${assigned.id}/start`, {});
     }
     await page.goto("/work/tasks");
-    await expect(page.getByRole("heading", { name: /My Tasks/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /My Action Center/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Hold task/i })).toBeVisible({
       timeout: 15_000,
     });

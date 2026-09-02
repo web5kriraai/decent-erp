@@ -124,6 +124,7 @@ export async function autoAdvanceConceptReview(
   return { advanced: true, taskId: stuck.taskId.toString() };
 }
 
+/** Used by scripts/repair-stuck-concept-review.mjs after deploy. */
 export async function listDesignsWithStuckConceptReview(): Promise<
   Array<{ id: bigint; ideaRef: string; designHeadEmployeeId: number; createdById: number }>
 > {

@@ -177,7 +177,3 @@ export function buildStorageKey(designId: string, fileName: string) {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   return `designs/${designId}/${Date.now()}-${safeName}`;
 }
-
-export function getActiveStorageBackend() {
-  return getBackend();
-}

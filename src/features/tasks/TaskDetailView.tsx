@@ -45,7 +45,10 @@ type TaskDetailViewProps = {
 
 export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const { data: session, status: sessionStatus } = useSession();
-  const permissions = session?.user?.permissions ?? [];
+  const permissions = useMemo(
+    () => session?.user?.permissions ?? [],
+    [session?.user?.permissions],
+  );
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canViewTeam = permissions.includes(PERMISSIONS.TIME_VIEW_TEAM);
   const enabled = sessionStatus === "authenticated" && (canExecute || canViewTeam);
@@ -53,7 +56,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const detailQuery = useTaskTimeDetail(taskId, enabled);
   const holdReasons = useHoldReasons(canExecute && enabled);
   const checklistQuery = useChecklistItems(canExecute && enabled);
-  const { start, hold, resume, end, isPending } = useTaskMutations();
+  const { start, hold, resume, end } = useTaskMutations();
 
   const [holdModalOpen, setHoldModalOpen] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
@@ -373,16 +376,16 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
                   <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
                 </dl>
-                {canControl && taskContextActions.length > 0 ? (
+              </AppCard>
+              {canControl && taskContextActions.length > 0 ? (
+                <AppCard title="Task actions" className="mt-4">
                   <ContextualActionsPanel
-                    title="Task actions"
-                    className="mt-4"
                     actions={taskContextActions}
                     onAction={handleTaskContextAction}
                     showDisabled
                   />
-                ) : null}
-              </AppCard>
+                </AppCard>
+              ) : null}
             </div>
 
             <AppCard title="Time event timeline" className="mt-6">

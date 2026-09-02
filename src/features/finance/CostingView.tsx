@@ -95,15 +95,14 @@ export function CostingView() {
         </AppCard>
       ) : (
         <>
-          <AppCard className="contextual-actions-wrap stack-section">
-            <ContextualActionsPanel title="Costing actions" actions={costingActions} />
+          <AppCard title="Costing actions" className="stack-section">
+            <ContextualActionsPanel actions={costingActions} />
           </AppCard>
 
           <div className="stat-grid stack-section">
             <StatCard
               label="Total Dev Cost"
               value={summary ? `₹${summary.totalDevCost.toFixed(2)}` : "-"}
-              accent
             />
             <StatCard label="Cost Entries" value={String(summary?.entryCount ?? 0)} />
             <StatCard

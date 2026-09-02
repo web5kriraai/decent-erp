@@ -18,10 +18,6 @@ export function notFound(code: AppErrorCode = APP_ERROR_CODES.NOT_FOUND): ApiErr
   return createAppError(code, 404);
 }
 
-export function forbidden(): ApiError {
-  return createAppError(APP_ERROR_CODES.PERMISSION_DENIED, 403);
-}
-
 export function conflict(code: AppErrorCode, details?: unknown, message?: string): ApiError {
   return createAppError(code, 409, details, message);
 }

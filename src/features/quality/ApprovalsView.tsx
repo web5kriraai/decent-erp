@@ -36,7 +36,7 @@ function isApprovalTab(value: string | null): value is ApprovalTab {
 
 function TabCountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
-  return <span className="tab-count-badge">{count}</span>;
+  return <span className="action-center-tab-count">{count}</span>;
 }
 
 function formatCompletedAt(value: string | null) {
@@ -166,19 +166,19 @@ export function ApprovalsView() {
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ApprovalTab)}>
           <TabsList className="mb-4">
             {hubTabs.stage ? (
-              <TabsTrigger value="stage">
+              <TabsTrigger value="stage" className="action-center-tab-trigger">
                 Stage approvals
                 <TabCountBadge count={stageItems.length} />
               </TabsTrigger>
             ) : null}
             {hubTabs.ready ? (
-              <TabsTrigger value="ready">
+              <TabsTrigger value="ready" className="action-center-tab-trigger">
                 Ready for sign-off
                 <TabCountBadge count={readyItems.length} />
               </TabsTrigger>
             ) : null}
             {hubTabs.management ? (
-              <TabsTrigger value="management">
+              <TabsTrigger value="management" className="action-center-tab-trigger">
                 Management sign-off
                 <TabCountBadge count={managementItems.length} />
               </TabsTrigger>

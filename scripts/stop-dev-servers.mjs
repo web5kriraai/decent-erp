@@ -40,7 +40,6 @@ function stopUnixPort(port) {
   }
 }
 
-let stopped = 0;
 for (const port of PORTS) {
   if (process.platform === "win32") stopWindowsPort(port);
   else stopUnixPort(port);

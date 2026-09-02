@@ -103,10 +103,7 @@ export function EmployeeTimeReportView() {
                   key: "name",
                   header: "Employee",
                   render: (row) => (
-                    <>
-                      <strong>{row.name}</strong>
-                      <p className="data-table-subtext">{row.employeeCode}</p>
-                    </>
+                    <strong>{row.name}</strong>
                   ),
                 },
                 {

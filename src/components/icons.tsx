@@ -191,3 +191,51 @@ export function IconWorkflow(props: IconProps) {
     </Icon>
   );
 }
+
+export function IconProduction(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 21h18" />
+      <path d="M5 21V10l7-5 7 5v11" />
+      <path d="M9 21v-6h6v6" />
+    </Icon>
+  );
+}
+
+export function IconReports(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="8" y1="13" x2="16" y2="13" />
+      <line x1="8" y1="17" x2="16" y2="17" />
+      <line x1="10" y1="9" x2="10" y2="9" />
+    </Icon>
+  );
+}
+
+export function IconChevronLeft(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <polyline points="15 18 9 12 15 6" />
+    </Icon>
+  );
+}
+
+export function IconChevronRight(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <polyline points="9 18 15 12 9 6" />
+    </Icon>
+  );
+}
+
+export function IconMenu(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+    </Icon>
+  );
+}

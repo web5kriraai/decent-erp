@@ -7,21 +7,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import {
+  WorkbenchQuickActions,
   WorkbenchShell,
+  type WorkbenchQuickAction,
 } from "@/features/dashboard/workbench-shared";
-import {
-  IconApprovals,
-  IconClock,
-  IconCorrections,
-  IconCosting,
-  IconDesigns,
-  IconKpi,
-  IconMasters,
-  IconPlus,
-  IconTasks,
-  IconUsers,
-  IconWorkflow,
-} from "@/components/icons";
+import { IconPlus } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { canRoleSeeManagementSignOff } from "@/lib/approval-hub-rbac";
@@ -38,19 +28,9 @@ import { isDashboardOpenTask } from "@/lib/task-list-filters";
 import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
 import { compareTasksByPriority, resolveEffectiveTaskPriority } from "@/lib/task-priority";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
-import type { ComponentType } from "react";
 
-const CLOSED_DESIGN = new Set(["CLOSED", "REJECTED", "PRODUCTION_RELEASED", "LIVE"]);
 const OPEN_CORRECTION = new Set(["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"]);
-
-type Shortcut = {
-  id: string;
-  label: string;
-  href: string;
-  description: string;
-  icon: ComponentType<{ size?: number }>;
-  badge?: number;
-};
+const CLOSED_DESIGN = new Set(["CLOSED", "REJECTED", "PRODUCTION_RELEASED", "LIVE"]);
 
 function QueueEmpty({ message }: { message: string }) {
   return (
@@ -116,114 +96,76 @@ export function ExecutorWorkbench() {
     releaseQuery.isError ||
     (isMasterAdmin && adminQuery.isError);
 
-  const shortcuts: Shortcut[] = [];
+  const shortcuts: WorkbenchQuickAction[] = [];
   if (canCreateDesign) {
     shortcuts.push({
-      id: "new-design",
       label: "New Design",
       href: ROUTES.designs.new,
-      description: "Start a concept",
-      icon: IconPlus,
     });
     shortcuts.push({
-      id: "pipeline",
       label: "Pipeline",
       href: ROUTES.designs.kanban,
-      description: `${activeDesigns.length} active`,
-      icon: IconDesigns,
       badge: activeDesigns.length,
     });
   }
   if (canExecute) {
     shortcuts.push({
-      id: "my-tasks",
       label: "My Tasks",
       href: ROUTES.work.tasks,
-      description: `${openTasks.length} open`,
-      icon: IconTasks,
       badge: openTasks.length,
     });
     shortcuts.push({
-      id: "my-time",
       label: "My Time",
       href: ROUTES.work.myTime,
-      description: timeSummary
-        ? formatDuration(timeSummary.totals.activeSeconds)
-        : "Today",
-      icon: IconClock,
     });
   }
   if (showApprovalsHub) {
     shortcuts.push({
-      id: "approvals",
       label: "Approvals",
       href: `${ROUTES.quality.approvals}?tab=${showManagementApprovals ? "management" : "stage"}`,
-      description: `${approvals.length} waiting`,
-      icon: IconApprovals,
       badge: approvals.length,
     });
   }
   if (canCorrections) {
     shortcuts.push({
-      id: "corrections",
       label: "Corrections",
       href: ROUTES.quality.corrections,
-      description: `${corrections.length} open`,
-      icon: IconCorrections,
       badge: corrections.length,
     });
   }
   if (canCost) {
     shortcuts.push({
-      id: "costing",
       label: "Costing",
       href: ROUTES.finance.costing,
-      description: "Enter costs",
-      icon: IconCosting,
     });
   }
   if (canRelease) {
     shortcuts.push({
-      id: "release",
       label: "Release",
       href: ROUTES.production.release,
-      description: `${readyToRelease.length} ready`,
-      icon: IconWorkflow,
       badge: readyToRelease.length,
     });
   }
   if (canTeamTime) {
     shortcuts.push({
-      id: "team-time",
       label: "Team Time",
       href: ROUTES.admin.timeLive,
-      description: "Live timers",
-      icon: IconClock,
     });
   }
   if (canKpi) {
     shortcuts.push({
-      id: "kpi",
       label: "KPI",
       href: ROUTES.analytics.kpi,
-      description: "Scores",
-      icon: IconKpi,
     });
   }
   if (isMasterAdmin) {
     shortcuts.push({
-      id: "employees",
       label: "Employees",
       href: ROUTES.admin.employees,
-      description: "Directory",
-      icon: IconUsers,
     });
     shortcuts.push({
-      id: "masters",
       label: "Masters",
       href: ROUTES.admin.masters,
-      description: "Config",
-      icon: IconMasters,
     });
   }
 
@@ -271,10 +213,12 @@ export function ExecutorWorkbench() {
       onRetry={refetchAll}
     >
         <div className="workbench-overview">
+          <WorkbenchQuickActions actions={shortcuts} />
+
           <div className="stat-grid workbench-pulse">
             {canExecute && (
               <>
-                <StatCard label="Open Tasks" value={openTasks.length} accent />
+                <StatCard label="Open Tasks" value={openTasks.length} />
                 <StatCard label="Running Now" value={runningTasks.length} />
                 {timeSummary && (
                   <StatCard
@@ -286,7 +230,7 @@ export function ExecutorWorkbench() {
               </>
             )}
             {showManagementApprovals && (
-              <StatCard label="Pending Approvals" value={approvals.length} accent={!canExecute} />
+              <StatCard label="Pending Approvals" value={approvals.length} />
             )}
             {canCorrections && (
               <StatCard label="My open corrections" value={corrections.length} />
@@ -295,7 +239,6 @@ export function ExecutorWorkbench() {
               <StatCard
                 label="Active Designs"
                 value={activeDesigns.length}
-                accent={!canExecute && !showApprovalsHub}
               />
             )}
             {canRelease && (
@@ -315,36 +258,6 @@ export function ExecutorWorkbench() {
               </>
             )}
           </div>
-
-          {shortcuts.length > 0 && (
-            <section className="workbench-shortcuts" aria-label="Shortcuts">
-              <h2 className="workbench-section-title">Shortcuts</h2>
-              <div className="workbench-shortcut-grid">
-                {shortcuts.map((item) => {
-                  const Icon = item.icon;
-                  const showBadge = typeof item.badge === "number" && item.badge > 0;
-                  return (
-                    <Link
-                      key={item.id}
-                      href={item.href}
-                      className="workbench-shortcut"
-                    >
-                      {showBadge && (
-                        <span className="workbench-shortcut-badge" aria-label={`${item.badge} items`}>
-                          {item.badge}
-                        </span>
-                      )}
-                      <span className="workbench-shortcut-icon">
-                        <Icon size={18} />
-                      </span>
-                      <span className="workbench-shortcut-label">{item.label}</span>
-                      <span className="workbench-shortcut-desc">{item.description}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          )}
         </div>
 
         <section className="workbench-queues" aria-label="Action queue">

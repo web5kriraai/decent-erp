@@ -67,16 +67,3 @@ export function validateUploadFile(
 
   return { ok: true };
 }
-
-export function categoryLabel(category: UploadCategory): string {
-  switch (category) {
-    case "PRODUCT_IMAGE":
-      return "product image";
-    case "SKETCH":
-      return "sketch";
-    case "PUNCHING":
-      return "punching file";
-    default:
-      return "file";
-  }
-}

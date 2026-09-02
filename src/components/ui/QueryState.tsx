@@ -18,7 +18,7 @@ type QueryStateProps = {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyAction?: ReactNode;
-  skeletonVariant?: "table" | "cards" | "stats";
+  skeletonVariant?: "table" | "cards" | "stats" | "pipeline-accordion";
   onRetry?: () => void;
   /** When set, 404 errors offer a link back to this list path. */
   notFoundHref?: string;

@@ -77,8 +77,8 @@ export function ProductionReleaseView() {
         </p>
       </AppCard>
 
-      <AppCard className="contextual-actions-wrap stack-section">
-        <ContextualActionsPanel title="Production desk actions" actions={productionActions} />
+      <AppCard title="Production desk actions" className="stack-section">
+        <ContextualActionsPanel actions={productionActions} />
       </AppCard>
 
       <AppCard title="How release works" className="stack-section">

@@ -37,24 +37,21 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
   const sendQc = useSendDesignToQc(designId);
   const bypass = useBypassDesignPhase(designId);
 
-  const tasks = design.tasks ?? [];
+  const qcTasks = useMemo(() => {
+    const tasks = design.tasks ?? [];
+    return tasks.filter(
+      (t) =>
+        isQcCheckTask({
+          code: t.subProcess.code,
+          isApproval: t.subProcess.isApproval,
+        }) && t.status !== "COMPLETED",
+    );
+  }, [design.tasks]);
 
-  const qcTasks = useMemo(
-    () =>
-      tasks.filter(
-        (t) =>
-          isQcCheckTask({
-            code: t.subProcess.code,
-            isApproval: t.subProcess.isApproval,
-          }) && t.status !== "COMPLETED",
-      ),
-    [tasks],
-  );
-
-  const bypassTasks = useMemo(
-    () => tasks.filter((t) => t.status !== "COMPLETED"),
-    [tasks],
-  );
+  const bypassTasks = useMemo(() => {
+    const tasks = design.tasks ?? [];
+    return tasks.filter((t) => t.status !== "COMPLETED");
+  }, [design.tasks]);
 
   const reasonOk = reason.trim().length >= 10;
   const isPending = sendQc.isPending || bypass.isPending;

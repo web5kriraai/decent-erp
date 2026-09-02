@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type {
-  ApprovalLevel,
   PendingApproval,
   PendingApprovalQueueItem,
   ReadyForSignOffItem,
@@ -45,33 +44,6 @@ export function usePendingApprovals(enabled = true) {
     queryFn: () => apiGet<PendingApprovalItem[]>("/api/approvals"),
     enabled,
     refetchInterval: APPROVALS_REFETCH_MS,
-  });
-}
-
-export function useStageApprovals(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.approvals.stage,
-    queryFn: () => apiGet<StageApprovalQueueItem[]>("/api/approvals?view=stage"),
-    enabled,
-    refetchInterval: APPROVALS_REFETCH_MS,
-  });
-}
-
-export function useReadyForSignOff(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.approvals.ready,
-    queryFn: () => apiGet<ReadyForSignOffItem[]>("/api/approvals?view=ready"),
-    enabled,
-    refetchInterval: APPROVALS_REFETCH_MS,
-  });
-}
-
-export function useApprovalLevels(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.approvals.levels,
-    queryFn: () => apiGet<ApprovalLevel[]>("/api/approvals?view=levels"),
-    enabled,
-    staleTime: 10 * 60_000,
   });
 }
 

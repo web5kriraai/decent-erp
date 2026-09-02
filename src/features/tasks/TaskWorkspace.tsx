@@ -108,22 +108,23 @@ export function TaskWorkspace() {
   const [sampleOutcome, setSampleOutcome] = useState<"APPROVE" | "REJECT" | "RESAMPLE" | "">("");
 
   const center = centerQuery.data;
-  const tasks = center?.actionRequired ?? [];
-  const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
-  const runningTask = tasks.find((t) => t.status === "RUNNING");
-  const onHoldTask = tasks.find((t) => t.status === "ON_HOLD");
+  const selectedTask = (center?.actionRequired ?? []).find((t) => t.id === selectedTaskId) ?? null;
+  const runningTask = (center?.actionRequired ?? []).find((t) => t.status === "RUNNING");
+  const onHoldTask = (center?.actionRequired ?? []).find((t) => t.status === "ON_HOLD");
   const activeTask = runningTask ?? onHoldTask ?? selectedTask;
   const isTimerActive = !!(runningTask || onHoldTask);
 
   const fileRequired = !!activeTask?.subProcess?.isFileRequired;
   const isSampleCheck = activeTask?.subProcess?.code === "SAMPLE_CHECK";
 
-  const elapsedSeconds = useMemo(() => {
-    if (!activeTask?.timeEvents) return 0;
-    return computeElapsedSeconds(activeTask.timeEvents);
-  }, [activeTask?.timeEvents, activeTask?.status]);
+  const elapsedSeconds = activeTask?.timeEvents
+    ? computeElapsedSeconds(activeTask.timeEvents)
+    : 0;
 
-  const kanbanGroups = useMemo(() => groupActionCenterTasks(tasks), [tasks]);
+  const kanbanGroups = useMemo(
+    () => groupActionCenterTasks(center?.actionRequired ?? []),
+    [center?.actionRequired],
+  );
 
   const tabCounts = useMemo(
     () => ({
@@ -293,45 +294,47 @@ export function TaskWorkspace() {
                 }
               />
 
-              {tasks.length === 0 ? (
+              {(center?.actionRequired ?? []).length === 0 ? (
                 <p className="action-center-empty action-center-empty--inline">
                   No tasks ready for you right now. Check Blocked or Upcoming tabs.
                 </p>
               ) : (
-                <div className="kanban">
-                  {KANBAN_COLUMNS.map(([bucket, label]) => (
-                    <div key={bucket} className="kanban-column">
-                      <div className="kanban-column-header">
-                        {label}
-                        <span className="kanban-column-count">
-                          {kanbanGroups[bucket]?.length ?? 0}
-                        </span>
+                <div className="kanban-board scroll-x-region">
+                  <div className="kanban kanban--compact">
+                    {KANBAN_COLUMNS.map(([bucket, label]) => (
+                      <div key={bucket} className="kanban-column">
+                        <div className="kanban-column-header">
+                          <span className="kanban-column-title">{label}</span>
+                          <span className="kanban-column-count">
+                            {kanbanGroups[bucket]?.length ?? 0}
+                          </span>
+                        </div>
+                        <div className="kanban-cards scroll-region">
+                          {(kanbanGroups[bucket] ?? []).map((task) => {
+                            const isActiveCard = task.id === activeTask?.id && isTimerActive;
+                            const showStartButton =
+                              bucket === "READY" || bucket === "CORRECTION_REQUIRED";
+                            return (
+                              <TaskActionCard
+                                key={task.id}
+                                task={task}
+                                selected={selectedTaskId === task.id}
+                                active={isActiveCard}
+                                showStartButton={showStartButton}
+                                isPending={isPending}
+                                onSelect={() => setSelectedTaskId(task.id)}
+                                onStart={() => void handleStart(task)}
+                                onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
+                              />
+                            );
+                          })}
+                          {(kanbanGroups[bucket] ?? []).length === 0 ? (
+                            <p className="kanban-empty">No tasks</p>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="kanban-cards scroll-region">
-                        {(kanbanGroups[bucket] ?? []).map((task) => {
-                          const isActiveCard = task.id === activeTask?.id && isTimerActive;
-                          const showStartButton =
-                            bucket === "READY" || bucket === "CORRECTION_REQUIRED";
-                          return (
-                            <TaskActionCard
-                              key={task.id}
-                              task={task}
-                              selected={selectedTaskId === task.id}
-                              active={isActiveCard}
-                              showStartButton={showStartButton}
-                              isPending={isPending}
-                              onSelect={() => setSelectedTaskId(task.id)}
-                              onStart={() => void handleStart(task)}
-                              onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
-                            />
-                          );
-                        })}
-                        {(kanbanGroups[bucket] ?? []).length === 0 ? (
-                          <p className="kanban-empty">No tasks</p>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

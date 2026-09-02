@@ -6,7 +6,6 @@ import { expect, test } from "@playwright/test";
 import {
   USERS,
   apiGetJson,
-  apiPatchJson,
   apiPostJson,
   createDesignViaApi,
   login,
@@ -35,11 +34,16 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
     expect(design.ideaRef).toMatch(/^IDEA-/);
 
     const dhTasks = await apiGetJson<
-      Array<{ status: string; subProcess: { code?: string } }>
+      Array<{ status: string; design: { id: string }; subProcess: { code?: string } }>
     >(page, "/api/tasks/my");
-    expect(dhTasks.some((t) => t.subProcess.code === "CONCEPT_REVIEW" && t.status === "ASSIGNED")).toBe(
-      false,
-    );
+    expect(
+      dhTasks.some(
+        (t) =>
+          t.design.id === design.id &&
+          t.subProcess.code === "CONCEPT_REVIEW" &&
+          t.status === "ASSIGNED",
+      ),
+    ).toBe(false);
 
     await login(page, USERS.sketch.email, USERS.sketch.password);
     const sketchTasks = await apiGetJson<
@@ -184,7 +188,7 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
     await page.goto("/designs/kanban");
     await expect(page.getByRole("heading", { name: /Design Pipeline/i })).toBeVisible();
-    await expect(page.locator(".kanban-column").first()).toBeVisible();
+    await expect(page.locator(".pipeline-accordion-section").first()).toBeVisible();
     const data = await apiGetJson<unknown[]>(page, "/api/designs/kanban");
     expect(Array.isArray(data)).toBe(true);
   });
@@ -202,7 +206,8 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
     expect(codes).toContain("TASK_EXECUTE");
 
     await page.goto("/admin/roles");
-    await expect(page.getByRole("heading", { name: /Roles & Responsibilities/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Roles & Access/i })).toBeVisible();
+    await page.getByRole("tab", { name: /Role guide/i }).click();
     await page.getByRole("button", { name: /Edit permissions/i }).first().click();
     await expect(page.locator(".role-perm-grid").first()).toBeVisible();
   });

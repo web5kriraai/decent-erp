@@ -86,19 +86,24 @@ type ProcessMaster = {
   code: string;
   name: string;
   sequence: number;
+  active?: boolean;
   subProcesses: Array<{
     id: number;
     name: string;
     code: string;
     sequence: number;
     defaultRoleId?: number | null;
+    active?: boolean;
   }>;
 };
 
-export function useProcessMasters(enabled = true) {
+export function useProcessMasters(enabled = true, includeInactive = false) {
   return useQuery({
-    queryKey: queryKeys.masters.processes,
-    queryFn: () => apiGet<ProcessMaster[]>("/api/masters/processes"),
+    queryKey: [...queryKeys.masters.processes, includeInactive ? "all" : "active"],
+    queryFn: () =>
+      apiGet<ProcessMaster[]>(
+        `/api/masters/processes${includeInactive ? "?includeInactive=1" : ""}`,
+      ),
     enabled,
     staleTime: 5 * 60_000,
   });

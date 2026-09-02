@@ -2,7 +2,6 @@ import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler, ApiError } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
-import { writeAuditLogDirect } from "@/lib/audit";
 import { updateWorkflowPattern } from "@/lib/services/workflow-pattern-service";
 
 const patchSchema = z.object({

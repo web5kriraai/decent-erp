@@ -73,7 +73,10 @@ test.describe("Action Center status display", () => {
     await expect(page.getByRole("heading", { name: /My Action Center/i })).toBeVisible();
     await page.getByRole("tab", { name: /Upcoming/i }).click();
 
-    const row = page.locator("li.action-center-list-item", { hasText: /Sketch Creation/i }).first();
+    const row = page
+      .locator("li.action-center-list-item", { hasText: design.ideaRef })
+      .filter({ hasText: /Sketch Creation/i })
+      .first();
     await expect(row).toBeVisible();
     await expect(row).toHaveClass(/action-center-list-item--waiting/);
     await expect(row.getByLabel("Status: CHECKING")).toBeVisible();

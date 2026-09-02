@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/db";
 import { seedDatabase } from "@/lib/seed";
 
 export async function POST() {

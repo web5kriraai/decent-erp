@@ -4,8 +4,6 @@
 import { expect, test } from "@playwright/test";
 import {
   USERS,
-  apiGetJson,
-  apiPatchJson,
   apiPostJson,
   createDesignViaApi,
   login,
@@ -15,10 +13,6 @@ test.describe("Production return and API errors", () => {
   test("production head cannot return before handoff completes", async ({ page }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
     const design = await createDesignViaApi(page, `Return gate ${Date.now()}`);
-    await apiPatchJson(page, `/api/designs/${design.id}/status`, {
-      status: "APPROVED",
-      version: design.version ?? 1,
-    });
 
     await login(page, USERS.production.email, USERS.production.password);
     const res = await page.request.post("/api/production/return", {
@@ -61,11 +55,6 @@ test.describe("Production return and API errors", () => {
   test("direct production release blocked when workflow tasks incomplete", async ({ page }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
     const design = await createDesignViaApi(page, `Release gate ${Date.now()}`);
-
-    await apiPatchJson(page, `/api/designs/${design.id}/status`, {
-      status: "APPROVED",
-      version: design.version ?? 1,
-    });
 
     await login(page, USERS.costing.email, USERS.costing.password);
     await apiPostJson(page, `/api/designs/${design.id}/costs`, {

@@ -1,6 +1,6 @@
 type SkeletonRowsProps = {
   rows?: number;
-  variant?: "table" | "cards" | "stats";
+  variant?: "table" | "cards" | "stats" | "pipeline-accordion";
 };
 
 export function SkeletonRows({ rows = 5, variant = "table" }: SkeletonRowsProps) {
@@ -17,19 +17,40 @@ export function SkeletonRows({ rows = 5, variant = "table" }: SkeletonRowsProps)
     );
   }
 
-  if (variant === "cards") {
+  if (variant === "pipeline-accordion") {
     return (
-      <div className="kanban">
-        {Array.from({ length: 3 }).map((_, col) => (
-          <div key={col} className="kanban-column">
-            <div className="skeleton mx-4 my-3 h-5" />
-            <div className="p-3">
-              {Array.from({ length: 2 }).map((__, row) => (
-                <div key={row} className="skeleton skeleton-row" />
-              ))}
+      <div className="pipeline-accordion pipeline-accordion-skeleton">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="pipeline-accordion-section">
+            <div className="pipeline-accordion-trigger">
+              <div className="skeleton h-9 w-9 rounded-md" />
+              <div className="skeleton h-5 flex-1 max-w-[10rem]" />
+              <div className="skeleton h-6 w-8 rounded-full" />
             </div>
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (variant === "cards") {
+    return (
+      <div className="kanban-board scroll-x-region">
+        <div className="kanban">
+          {Array.from({ length: 4 }).map((_, col) => (
+            <div key={col} className="kanban-column">
+              <div className="kanban-column-header">
+                <div className="skeleton h-5 w-24" />
+                <div className="skeleton h-5 w-6 rounded-full" />
+              </div>
+              <div className="kanban-cards">
+                {Array.from({ length: 2 }).map((__, row) => (
+                  <div key={row} className="skeleton h-24 rounded-md" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

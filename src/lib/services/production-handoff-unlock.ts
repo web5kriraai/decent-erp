@@ -1,7 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { resolveEmployeeForRole } from "@/lib/services/assignment-service";
-import { PRODUCTION_POST_APPROVAL_CODES } from "@/lib/services/production-workflow";
 
 type Tx = Prisma.TransactionClient;
 

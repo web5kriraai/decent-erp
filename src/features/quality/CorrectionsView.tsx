@@ -57,9 +57,8 @@ export function CorrectionsView() {
         }
       />
 
-      <AppCard className="contextual-actions-wrap stack-section">
+      <AppCard title="Correction actions" className="stack-section">
         <ContextualActionsPanel
-          title="Correction actions"
           actions={correctionActions}
           onAction={(action) => {
             if (action.enabled && action.code === "RAISE_CORRECTION") setRaiseOpen(true);

@@ -25,9 +25,7 @@ export async function login(page: Page, email: string, password: string) {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /Sign in to workspace/i }).click();
   await page.waitForURL("**/dashboard", { timeout: 30_000 });
-  await expect(page.locator("main, .page-shell, .workbench-shell").first()).toBeVisible({
-    timeout: 15_000,
-  });
+  await expect(page.locator("#main-content")).toBeVisible({ timeout: 30_000 });
 }
 
 type ApiEnvelope<T> = { data: T; correlationId?: string };

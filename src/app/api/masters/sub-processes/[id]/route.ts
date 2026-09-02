@@ -3,6 +3,10 @@ import { jsonOk, parseBody, serializeBigInt, withApiHandler, ApiError } from "@/
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
+import {
+  getSubProcessUsage,
+  type MasterUsageWarning,
+} from "@/lib/services/master-usage-service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -21,12 +25,22 @@ export async function PATCH(request: Request, context: RouteContext) {
     const subProcessId = Number(id);
     if (!Number.isInteger(subProcessId)) throw new ApiError("Invalid id", 400);
     const body = await parseBody(request, patchSchema);
-    const existing = await prisma.designSubProcessMaster.findUnique({ where: { id: subProcessId } });
+    const existing = await prisma.designSubProcessMaster.findUnique({
+      where: { id: subProcessId },
+    });
     if (!existing) throw new ApiError("Sub-process not found", 404);
+
+    const deactivating = body.active === false && existing.active === true;
+    let warnings: MasterUsageWarning[] = [];
+    if (deactivating) {
+      warnings = await getSubProcessUsage(subProcessId);
+    }
+
     const updated = await prisma.designSubProcessMaster.update({
       where: { id: subProcessId },
       data: body,
     });
+
     await writeAuditLogDirect({
       entityType: "DesignSubProcessMaster",
       entityId: String(subProcessId),
@@ -36,6 +50,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       before: existing,
       after: updated,
     });
-    return jsonOk(serializeBigInt(updated), ctx.correlationId);
+
+    return jsonOk(
+      {
+        ...serializeBigInt(updated),
+        warnings,
+      },
+      ctx.correlationId,
+    );
   });
 }

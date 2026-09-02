@@ -5,7 +5,7 @@ import {
   findNextActionableTask,
 } from "@/lib/design-workflow";
 import { canRoleSeeReadyForSignOff } from "@/lib/approval-hub-rbac";
-import { PERMISSIONS, hasPermission } from "@/lib/permissions";
+import { PERMISSIONS } from "@/lib/permissions";
 import {
   canRoleAccessApprovalsHub,
   canRoleActOnStageApproval,
@@ -17,11 +17,6 @@ import {
   type ResolvedWorkflowAction,
 } from "@/lib/workflow-actions/types";
 import type { CorrectionRecord } from "@/lib/types/api";
-
-type ApprovalQueueItem = {
-  designId: string;
-  currentLevel: { id: number; name: string };
-};
 
 const SATISFIED = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
 
@@ -58,7 +53,6 @@ export function resolveDesignContextActions(input: {
 }): ResolvedWorkflowAction[] {
   const { design, employeeId, permissions, roleCode } = input;
   const approvalsQueueHref = input.approvalsQueueHref ?? ROUTES.quality.approvals;
-  const canApprove = permissions.includes(PERMISSIONS.DESIGN_APPROVE);
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const canRequestApproval = canRoleSeeReadyForSignOff(roleCode);
@@ -221,39 +215,6 @@ export function resolveTaskContextActions(input: {
   }
 
   return actions;
-}
-
-export function resolveApprovalContextActions(input: {
-  item: ApprovalQueueItem;
-  permissions: string[];
-}): ResolvedWorkflowAction[] {
-  if (!hasPermission(input.permissions, PERMISSIONS.DESIGN_APPROVE)) {
-    return [
-      buildAction(WORKFLOW_ACTION_CODES.APPROVE_LEVEL, {
-        enabled: false,
-        disabledReason: "Design approval isn't enabled for your role.",
-      }),
-    ];
-  }
-
-  return [
-    buildAction(WORKFLOW_ACTION_CODES.APPROVE_LEVEL, {
-      enabled: true,
-      designId: input.item.designId,
-      description: `Record approval for ${input.item.currentLevel.name}.`,
-    }),
-    buildAction(WORKFLOW_ACTION_CODES.REJECT_LEVEL, {
-      enabled: true,
-      designId: input.item.designId,
-      variant: "destructive",
-    }),
-    buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL_CORRECTION, {
-      enabled: true,
-      designId: input.item.designId,
-      variant: "warning",
-      description: "Send back for correction before approval can continue.",
-    }),
-  ];
 }
 
 export function resolveCorrectionContextActions(input: {

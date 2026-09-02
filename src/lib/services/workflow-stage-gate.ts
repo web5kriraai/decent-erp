@@ -3,9 +3,6 @@ import {
   isDependencySatisfiedStatus,
 } from "@/lib/services/task-dependency";
 
-/** Work is finished for workflow UI (no assign / not "current"). */
-export const WORKFLOW_STEP_DONE_STATUSES = new Set(["COMPLETED", "CHECKING", "CANCELLED", "SKIPPED"]);
-
 /** Statuses where a manager may (re)assign an employee. */
 export const WORKFLOW_ASSIGNABLE_STATUSES = new Set(["PENDING", "ASSIGNED"]);
 
@@ -28,10 +25,6 @@ export type StageGateSibling = {
 
 export function isWorkflowStepAssignable(status: string): boolean {
   return WORKFLOW_ASSIGNABLE_STATUSES.has(status);
-}
-
-export function isWorkflowStepDone(status: string): boolean {
-  return WORKFLOW_STEP_DONE_STATUSES.has(status);
 }
 
 /**
@@ -70,15 +63,20 @@ export function findStageApprovalGate(
   return null;
 }
 
-/** CHECKING only when a stage-approval gate exists; otherwise work is COMPLETED. */
+/**
+ * When a stage-approval gate exists, work must end as CHECKING (even if the client
+ * requested COMPLETED). Without a gate, end as COMPLETED (even if CHECKING was requested).
+ */
 export function resolveWorkTaskEndStatus(
   workTask: StageGateTask,
   siblings: StageGateSibling[],
   requested: "COMPLETED" | "CHECKING",
 ): "COMPLETED" | "CHECKING" {
-  if (requested === "COMPLETED") return "COMPLETED";
-  if (workTask.subProcess?.isApproval) return "CHECKING";
-  return findStageApprovalGate(workTask, siblings) ? "CHECKING" : "COMPLETED";
+  if (workTask.subProcess?.isApproval) {
+    return requested === "CHECKING" ? "CHECKING" : "COMPLETED";
+  }
+  if (findStageApprovalGate(workTask, siblings)) return "CHECKING";
+  return "COMPLETED";
 }
 
 /** Work tasks in CHECKING whose approval gate is this completed approval stage. */
@@ -123,11 +121,4 @@ export function resolveEffectiveTaskStatus(
     if (!findStageApprovalGate(task, siblings)) return "COMPLETED";
   }
   return task.status;
-}
-
-export function isEffectivelyComplete(
-  task: StageGateTask & { status: string; subProcess?: { isApproval?: boolean } | null },
-  siblings: StageGateSibling[],
-): boolean {
-  return resolveEffectiveTaskStatus(task, siblings) === "COMPLETED";
 }

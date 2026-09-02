@@ -11,11 +11,14 @@ const createSchema = z.object({
   sequence: z.number().int().positive(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   return withApiHandler(
     [PERMISSIONS.MASTER_ADMIN, PERMISSIONS.DESIGN_CREATE, PERMISSIONS.DESIGN_ASSIGN],
     async (ctx) => {
-      const processes = await getProcessMasters();
+      const includeInactive =
+        ctx.permissions.includes(PERMISSIONS.MASTER_ADMIN) &&
+        new URL(request.url).searchParams.get("includeInactive") === "1";
+      const processes = await getProcessMasters({ includeInactive });
       return jsonOk(serializeBigInt(processes), ctx.correlationId);
     },
   );

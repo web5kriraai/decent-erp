@@ -16,6 +16,7 @@ import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
+  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 
@@ -88,17 +89,43 @@ export function DesignHeadDashboard() {
       }}
     >
       <div className="workbench-overview">
+        <WorkbenchQuickActions
+          actions={[
+            { href: ROUTES.designs.new, label: "New Design" },
+            { href: ROUTES.designs.list, label: "Designs", badge: activeDesigns.length },
+            {
+              href: ROUTES.quality.approvals,
+              label: "Approvals",
+              badge: approvals.length,
+            },
+            {
+              href: ROUTES.work.tasks,
+              label: "My Tasks",
+              badge: openTasks.length,
+            },
+            { href: ROUTES.admin.timeLive, label: "Team time" },
+          ]}
+        />
         <div className="stat-grid workbench-pulse">
-          <StatCard label="My open tasks" value={summary?.myOpenTasks ?? openTasks.length} accent />
+          <StatCard label="My open tasks" value={summary?.myOpenTasks ?? openTasks.length} />
           <StatCard label="Stage approvals" value={summary?.stageApprovals?.length ?? 0} />
           <StatCard label="Ready for sign-off" value={summary?.readyForSignOff ?? 0} />
           <StatCard label="Management approvals" value={approvals.length} />
           <StatCard label="My open corrections" value={summary?.openCorrections ?? corrections.length} />
           <StatCard label="Handoff pending" value={summary?.handoffPending ?? 0} />
-          <StatCard label="Blocked designs" value={summary?.blockedDesigns.length ?? 0} />
+          <StatCard
+            label="Blocked designs"
+            value={summary?.blockedDesigns.length ?? 0}
+            tone={(summary?.blockedDesigns.length ?? 0) > 0 ? "warning" : "default"}
+          />
           <StatCard label="Active pipeline" value={summary?.activeDesigns ?? activeDesigns.length} />
           {summary && summary.overdueTasks > 0 ? (
-            <StatCard label="Overdue tasks" value={summary.overdueTasks} trend="Needs attention" />
+            <StatCard
+              label="Overdue tasks"
+              value={summary.overdueTasks}
+              trend="Needs attention"
+              tone="danger"
+            />
           ) : null}
         </div>
       </div>

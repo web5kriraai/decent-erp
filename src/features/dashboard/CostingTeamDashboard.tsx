@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { IconCosting, IconTasks } from "@/components/icons";
+import { IconCosting } from "@/components/icons";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -15,6 +15,7 @@ import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
+  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 import { isDashboardOpenTask } from "@/lib/task-list-filters";
@@ -79,8 +80,15 @@ export function CostingTeamDashboard() {
       }}
     >
       <div className="workbench-overview">
+        <WorkbenchQuickActions
+          actions={[
+            { href: ROUTES.work.tasks, label: "My Tasks", badge: costingTasks.length },
+            { href: ROUTES.finance.costing, label: "Costing" },
+            { href: ROUTES.work.myTime, label: "My Time" },
+          ]}
+        />
         <div className="stat-grid workbench-pulse">
-          <StatCard label="My costing tasks" value={costingTasks.length} accent />
+          <StatCard label="My costing tasks" value={costingTasks.length} />
           <StatCard label="Awaiting approval" value={checkingTasks.length} />
           <StatCard
             label="Active designs"
@@ -141,33 +149,6 @@ export function CostingTeamDashboard() {
                 ))}
               </ul>
             )}
-          </WorkbenchQueueCard>
-
-          <WorkbenchQueueCard
-            title="Quick links"
-            href={ROUTES.work.tasks}
-            linkLabel="All tasks"
-            emptyMessage="No quick links available."
-          >
-            <ul className="detail-task-list">
-              <WorkbenchListItem
-                primaryHref={ROUTES.work.tasks}
-                primaryLabel="My Tasks"
-                meta="Start timer and complete costing work"
-                trailing={<IconTasks size={16} />}
-              />
-              <WorkbenchListItem
-                primaryHref={ROUTES.finance.costing}
-                primaryLabel="Costing entries"
-                meta="Add material, time, and machine costs"
-                trailing={<IconCosting size={16} />}
-              />
-              <WorkbenchListItem
-                primaryHref={ROUTES.work.myTime}
-                primaryLabel="My Time Today"
-                meta="Review active and hold time"
-              />
-            </ul>
           </WorkbenchQueueCard>
         </div>
       </section>

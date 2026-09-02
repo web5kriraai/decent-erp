@@ -28,7 +28,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const enabled = permissions.includes(PERMISSIONS.MASTER_ADMIN);
-  const processesQuery = useProcessMasters(enabled);
+  const processesQuery = useProcessMasters(enabled, true);
   const rolesQuery = useAdminRoles(enabled);
   const queryClient = useQueryClient();
   const toast = useApiToast();
@@ -104,14 +104,25 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
 
   const updateProcess = useMutation({
     mutationFn: (payload: { id: number; name: string; sequence: number; active: boolean }) =>
-      apiPatch(`/api/masters/processes/${payload.id}`, {
+      apiPatch<{
+        id: number;
+        warnings?: Array<{ code: string; message: string; count: number }>;
+      }>(`/api/masters/processes/${payload.id}`, {
         name: payload.name,
         sequence: payload.sequence,
         active: payload.active,
       }),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.processes });
-      toast.success("Process updated");
+      const warnings = data.warnings ?? [];
+      if (!variables.active && warnings.length > 0) {
+        toast.warning(
+          "Process deactivated",
+          warnings.map((w) => w.message).join("; "),
+        );
+      } else {
+        toast.success(variables.active ? "Process updated" : "Process deactivated");
+      }
       setEditProcess(null);
     },
     onError: (error) => toast.errorFromApi(error, "Could not update process"),
@@ -125,19 +136,133 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
       defaultRoleId: number | null;
       active: boolean;
     }) =>
-      apiPatch(`/api/masters/sub-processes/${payload.id}`, {
+      apiPatch<{
+        id: number;
+        warnings?: Array<{ code: string; message: string; count: number }>;
+      }>(`/api/masters/sub-processes/${payload.id}`, {
         name: payload.name,
         sequence: payload.sequence,
         defaultRoleId: payload.defaultRoleId,
         active: payload.active,
       }),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.processes });
-      toast.success("Sub-process updated");
+      const warnings = data.warnings ?? [];
+      if (!variables.active && warnings.length > 0) {
+        toast.warning(
+          "Sub-process deactivated",
+          warnings.map((w) => w.message).join("; "),
+        );
+      } else {
+        toast.success(variables.active ? "Sub-process updated" : "Sub-process deactivated");
+      }
       setEditSubProcess(null);
     },
     onError: (error) => toast.errorFromApi(error, "Could not update sub-process"),
   });
+
+  const setProcessActive = useMutation({
+    mutationFn: (payload: { id: number; active: boolean; name: string; sequence: number }) =>
+      apiPatch<{
+        id: number;
+        warnings?: Array<{ code: string; message: string; count: number }>;
+      }>(`/api/masters/processes/${payload.id}`, {
+        name: payload.name,
+        sequence: payload.sequence,
+        active: payload.active,
+      }),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.masters.processes });
+      const warnings = data.warnings ?? [];
+      if (!variables.active && warnings.length > 0) {
+        toast.warning(
+          "Process deactivated",
+          warnings.map((w) => w.message).join("; "),
+        );
+      } else if (variables.active) {
+        toast.success("Process reactivated");
+      } else {
+        toast.success("Process deactivated");
+      }
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not update process status"),
+  });
+
+  const setSubProcessActive = useMutation({
+    mutationFn: (payload: {
+      id: number;
+      active: boolean;
+      name: string;
+      sequence: number;
+      defaultRoleId: number | null;
+    }) =>
+      apiPatch<{
+        id: number;
+        warnings?: Array<{ code: string; message: string; count: number }>;
+      }>(`/api/masters/sub-processes/${payload.id}`, {
+        name: payload.name,
+        sequence: payload.sequence,
+        defaultRoleId: payload.defaultRoleId,
+        active: payload.active,
+      }),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.masters.processes });
+      const warnings = data.warnings ?? [];
+      if (!variables.active && warnings.length > 0) {
+        toast.warning(
+          "Sub-process deactivated",
+          warnings.map((w) => w.message).join("; "),
+        );
+      } else if (variables.active) {
+        toast.success("Sub-process reactivated");
+      } else {
+        toast.success("Sub-process deactivated");
+      }
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not update sub-process status"),
+  });
+
+  function confirmDeactivateProcess(process: {
+    id: number;
+    name: string;
+    sequence: number;
+    subProcesses?: Array<{ active?: boolean }>;
+  }) {
+    const activeChildren = (process.subProcesses ?? []).filter((s) => s.active !== false).length;
+    const cascadeNote =
+      activeChildren > 0
+        ? `\n\n${activeChildren} active sub-process${activeChildren === 1 ? "" : "es"} will also be deactivated.`
+        : "";
+    const ok = window.confirm(
+      `Deactivate process "${process.name}"?\n\nIt will be hidden from new designs and workflows. Existing tasks keep their history.${cascadeNote}`,
+    );
+    if (!ok) return;
+    setProcessActive.mutate({
+      id: process.id,
+      active: false,
+      name: process.name,
+      sequence: process.sequence,
+    });
+  }
+
+  function confirmDeactivateSubProcess(sub: {
+    id: number;
+    name: string;
+    sequence: number;
+    defaultRoleId?: number | null;
+  }) {
+    const ok = window.confirm(
+      `Deactivate sub-process "${sub.name}"?\n\nIt will be hidden from new work. Existing tasks keep their history.`,
+    );
+    if (!ok) return;
+    setSubProcessActive.mutate({
+      id: sub.id,
+      active: false,
+      name: sub.name,
+      sequence: sub.sequence,
+      defaultRoleId: sub.defaultRoleId ?? null,
+    });
+  }
 
   function openSubProcessModal(processId: number, nextSequence: number) {
     setSelectedProcessId(processId);
@@ -165,7 +290,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         <div className="page-shell">
           <PageHeader
             title="Process Masters"
-            subtitle="Main processes, sub-processes, and workflow configuration"
+            subtitle="Main processes and sub-processes. Deactivate to retire from new work (soft delete); inactive rows stay visible here for reactivation."
             actions={
               <AppButton
                 type="button"
@@ -216,7 +341,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                 task generation.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="scroll-x-region">
                 <table className="data-table app-table">
                   <thead>
                     <tr>
@@ -277,16 +402,53 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                 >
                                   Edit
                                 </AppButton>
-                                <AppButton
-                                  type="button"
-                                  appVariant="secondary"
-                                  size="sm"
-                                  onClick={() =>
-                                    openSubProcessModal(process.id, subProcesses.length + 1)
-                                  }
-                                >
-                                  Add Sub-process
-                                </AppButton>
+                                {isActive ? (
+                                  <>
+                                    <AppButton
+                                      type="button"
+                                      appVariant="secondary"
+                                      size="sm"
+                                      onClick={() =>
+                                        openSubProcessModal(process.id, subProcesses.length + 1)
+                                      }
+                                    >
+                                      Add Sub-process
+                                    </AppButton>
+                                    <AppButton
+                                      type="button"
+                                      appVariant="outline"
+                                      size="sm"
+                                      disabled={setProcessActive.isPending}
+                                      onClick={() =>
+                                        confirmDeactivateProcess({
+                                          id: process.id,
+                                          name: process.name,
+                                          sequence: process.sequence,
+                                          subProcesses,
+                                        })
+                                      }
+                                    >
+                                      Deactivate
+                                    </AppButton>
+                                  </>
+                                ) : (
+                                  <AppButton
+                                    type="button"
+                                    appVariant="secondary"
+                                    size="sm"
+                                    disabled={setProcessActive.isPending}
+                                    onClick={() =>
+                                      setProcessActive.mutate({
+                                        id: process.id,
+                                        active: true,
+                                        name: process.name,
+                                        sequence: process.sequence,
+                                      })
+                                    }
+                                  >
+                                    Reactivate
+                                  </AppButton>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -330,22 +492,60 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                             />
                                           </td>
                                           <td className="text-right">
-                                            <AppButton
-                                              type="button"
-                                              appVariant="ghost"
-                                              size="sm"
-                                              onClick={() =>
-                                                setEditSubProcess({
-                                                  id: sub.id,
-                                                  name: sub.name,
-                                                  sequence: String(sub.sequence),
-                                                  defaultRoleId: sub.defaultRoleId ?? "",
-                                                  active: subActive,
-                                                })
-                                              }
-                                            >
-                                              Edit
-                                            </AppButton>
+                                            <div className="inline-actions">
+                                              <AppButton
+                                                type="button"
+                                                appVariant="ghost"
+                                                size="sm"
+                                                onClick={() =>
+                                                  setEditSubProcess({
+                                                    id: sub.id,
+                                                    name: sub.name,
+                                                    sequence: String(sub.sequence),
+                                                    defaultRoleId: sub.defaultRoleId ?? "",
+                                                    active: subActive,
+                                                  })
+                                                }
+                                              >
+                                                Edit
+                                              </AppButton>
+                                              {subActive ? (
+                                                <AppButton
+                                                  type="button"
+                                                  appVariant="outline"
+                                                  size="sm"
+                                                  disabled={setSubProcessActive.isPending}
+                                                  onClick={() =>
+                                                    confirmDeactivateSubProcess({
+                                                      id: sub.id,
+                                                      name: sub.name,
+                                                      sequence: sub.sequence,
+                                                      defaultRoleId: sub.defaultRoleId,
+                                                    })
+                                                  }
+                                                >
+                                                  Deactivate
+                                                </AppButton>
+                                              ) : (
+                                                <AppButton
+                                                  type="button"
+                                                  appVariant="secondary"
+                                                  size="sm"
+                                                  disabled={setSubProcessActive.isPending}
+                                                  onClick={() =>
+                                                    setSubProcessActive.mutate({
+                                                      id: sub.id,
+                                                      active: true,
+                                                      name: sub.name,
+                                                      sequence: sub.sequence,
+                                                      defaultRoleId: sub.defaultRoleId ?? null,
+                                                    })
+                                                  }
+                                                >
+                                                  Reactivate
+                                                </AppButton>
+                                              )}
+                                            </div>
                                           </td>
                                         </tr>
                                       );
@@ -429,15 +629,32 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
             <AppButton
               type="button"
               disabled={!editProcess?.name || updateProcess.isPending}
-              onClick={() =>
-                editProcess &&
+              onClick={() => {
+                if (!editProcess) return;
+                const processRow = processes.find((p) => p.id === editProcess.id);
+                const wasActive = processRow
+                  ? (processRow as { active?: boolean }).active !== false
+                  : true;
+                if (wasActive && !editProcess.active) {
+                  const activeChildren = (processRow?.subProcesses ?? []).filter(
+                    (s) => (s as { active?: boolean }).active !== false,
+                  ).length;
+                  const cascadeNote =
+                    activeChildren > 0
+                      ? `\n\n${activeChildren} active sub-process${activeChildren === 1 ? "" : "es"} will also be deactivated.`
+                      : "";
+                  const ok = window.confirm(
+                    `Deactivate process "${editProcess.name}"?\n\nIt will be hidden from new designs and workflows. Existing tasks keep their history.${cascadeNote}`,
+                  );
+                  if (!ok) return;
+                }
                 updateProcess.mutate({
                   id: editProcess.id,
                   name: editProcess.name,
                   sequence: Number(editProcess.sequence) || 1,
                   active: editProcess.active,
-                })
-              }
+                });
+              }}
             >
               {updateProcess.isPending ? "Saving…" : "Save"}
             </AppButton>
@@ -548,8 +765,22 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
             <AppButton
               type="button"
               disabled={!editSubProcess?.name || updateSubProcess.isPending}
-              onClick={() =>
-                editSubProcess &&
+              onClick={() => {
+                if (!editSubProcess) return;
+                let wasActive = true;
+                for (const process of processes) {
+                  const found = process.subProcesses?.find((s) => s.id === editSubProcess.id);
+                  if (found) {
+                    wasActive = (found as { active?: boolean }).active !== false;
+                    break;
+                  }
+                }
+                if (wasActive && !editSubProcess.active) {
+                  const ok = window.confirm(
+                    `Deactivate sub-process "${editSubProcess.name}"?\n\nIt will be hidden from new work. Existing tasks keep their history.`,
+                  );
+                  if (!ok) return;
+                }
                 updateSubProcess.mutate({
                   id: editSubProcess.id,
                   name: editSubProcess.name,
@@ -559,8 +790,8 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                       ? null
                       : editSubProcess.defaultRoleId,
                   active: editSubProcess.active,
-                })
-              }
+                });
+              }}
             >
               {updateSubProcess.isPending ? "Saving…" : "Save"}
             </AppButton>

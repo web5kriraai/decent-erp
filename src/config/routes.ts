@@ -10,13 +10,15 @@ import {
   IconCosting,
   IconKpi,
   IconMasters,
-  IconPlus,
   IconClock,
   IconUsers,
   IconRoles,
   IconWorkflow,
   IconLock,
+  IconProduction,
+  IconReports,
 } from "@/components/icons";
+import { getRoleDefinition } from "@/config/roles";
 
 export const ROUTES = {
   login: "/login",
@@ -125,13 +127,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: IconDesigns,
         permission: PERMISSIONS.DESIGN_CREATE,
       },
-      {
-        id: "designs-new",
-        label: "New Concept",
-        href: ROUTES.designs.new,
-        icon: IconPlus,
-        permission: PERMISSIONS.DESIGN_CREATE,
-      },
     ],
   },
   {
@@ -227,23 +222,9 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "reports-hub",
         label: "Reports Hub",
         href: ROUTES.analytics.reportsHub,
-        icon: IconKpi,
+        icon: IconReports,
         permission: PERMISSIONS.KPI_ADMIN,
         exact: true,
-      },
-      {
-        id: "reports-corrections",
-        label: "Correction Analysis",
-        href: ROUTES.analytics.reportsCorrections,
-        icon: IconKpi,
-        permission: PERMISSIONS.KPI_ADMIN,
-      },
-      {
-        id: "reports-design-success",
-        label: "Design Success",
-        href: ROUTES.analytics.reportsDesignSuccess,
-        icon: IconKpi,
-        permission: PERMISSIONS.KPI_ADMIN,
       },
     ],
   },
@@ -255,7 +236,7 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "production-release",
         label: "Production Release",
         href: ROUTES.production.release,
-        icon: IconDesigns,
+        icon: IconProduction,
         permission: PERMISSIONS.PRODUCTION_RELEASE,
       },
     ],
@@ -422,7 +403,7 @@ export function getVisibleNavSections(permissions: string[], roleCode?: string):
     ? canRoleAccessApprovalsHub(roleCode)
     : permissions.includes(PERMISSIONS.DESIGN_APPROVE);
 
-  return NAV_SECTIONS.map((section) => ({
+  const filtered = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
       if (item.id === "approvals" && !showApprovals) return false;
@@ -432,6 +413,42 @@ export function getVisibleNavSections(permissions: string[], roleCode?: string):
       return !item.permission || permissions.includes(item.permission);
     }),
   })).filter((section) => section.items.length > 0);
+
+  return orderNavSectionsForRole(filtered, roleCode);
+}
+
+/** Main first, then ROLE_CATALOG.navFocus labels, then remaining (admin last). */
+export function orderNavSectionsForRole(sections: NavSection[], roleCode?: string): NavSection[] {
+  if (sections.length <= 1) return sections;
+
+  const byId = new Map(sections.map((s) => [s.id, s]));
+  const byLabel = new Map(sections.map((s) => [s.label, s]));
+  const used = new Set<string>();
+  const ordered: NavSection[] = [];
+
+  const push = (section: NavSection | undefined) => {
+    if (!section || used.has(section.id)) return;
+    used.add(section.id);
+    ordered.push(section);
+  };
+
+  push(byId.get("main"));
+
+  const roleDef = roleCode ? getRoleDefinition(roleCode) : undefined;
+  const focus = roleDef?.navFocus ?? [];
+  for (const label of focus) {
+    if (label === "Main" || label === "All modules") continue;
+    push(byLabel.get(label));
+  }
+
+  for (const section of sections) {
+    if (section.id === "admin") continue;
+    push(section);
+  }
+
+  push(byId.get("admin"));
+
+  return ordered;
 }
 
 export function getBreadcrumbsForPath(pathname: string): BreadcrumbItem[] {

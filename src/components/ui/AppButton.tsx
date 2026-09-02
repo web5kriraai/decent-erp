@@ -38,13 +38,10 @@ export function AppButton({
 }: AppButtonProps) {
   return (
     <Button
-      variant={variant ?? shadcnVariant[appVariant]}
-      className={cn(
-        appVariant === "warning" &&
-          "bg-[var(--color-warning-bg)] text-[var(--color-warning)] hover:bg-[var(--color-warning-bg)]/80",
-        className,
-      )}
       {...props}
+      variant={variant ?? shadcnVariant[appVariant]}
+      data-app-variant={appVariant}
+      className={className}
     />
   );
 }
@@ -63,20 +60,18 @@ export function AppButtonLink({
 }: AppButtonLinkProps) {
   return (
     <Link
+      {...props}
+      data-slot="button"
+      data-app-variant={appVariant}
       className={cn(
         buttonVariants({
           variant: shadcnVariant[appVariant],
           size,
         }),
-        appVariant === "warning" &&
-          "bg-[var(--color-warning-bg)] text-[var(--color-warning)] hover:bg-[var(--color-warning-bg)]/80",
         className,
       )}
-      {...props}
     >
       {children}
     </Link>
   );
 }
-
-export { buttonVariants };

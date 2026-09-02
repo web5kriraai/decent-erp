@@ -12,9 +12,6 @@ const SIGNOFF_SCOPE_EXCLUDED_CODES = new Set([
   "LIVE_REVIEW",
 ]);
 
-/** Roles that see all portfolio-ready designs (executive oversight). */
-export const READY_SIGNOFF_GLOBAL_ROLES = new Set<string>();
-
 export function readyForSignOffScopeFilter(
   employeeId: number,
   roleCode: string | null | undefined,

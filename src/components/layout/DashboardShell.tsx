@@ -8,7 +8,7 @@ import {
   isNavActive,
   ROUTES,
 } from "@/config/routes";
-import { formatRoleLabel, getRoleDefinition } from "@/config/roles";
+import { formatRoleLabel } from "@/config/roles";
 import { useRouteMeta } from "@/hooks/use-route-meta";
 import { useSidebarState } from "@/components/layout/SidebarProvider";
 import {
@@ -17,9 +17,17 @@ import {
 } from "@/components/layout/GlobalSearchCommand";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { AppButton } from "@/components/ui/AppButton";
-import { IconSearch, IconLogout } from "@/components/icons";
+import {
+  IconSearch,
+  IconLogout,
+  IconChevronLeft,
+  IconChevronRight,
+  IconMenu,
+} from "@/components/icons";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { cn } from "@/lib/utils";
+
+const SEARCH_PLACEHOLDER = "Search or jump to…";
 
 function getInitials(name: string) {
   return name
@@ -34,12 +42,25 @@ function formatRole(code: string) {
   return formatRoleLabel(code);
 }
 
+function usePlatformModKeyLabel(): string {
+  const [label] = useState(() => {
+    if (typeof navigator === "undefined") return "Ctrl";
+    const isApple =
+      /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ||
+      /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    return isApple ? "⌘" : "Ctrl";
+  });
+  return label;
+}
+
 export function Sidebar() {
   const { data: session } = useSession();
   const pathname = useRouteMeta().pathname;
   const { collapsed, mobileOpen, toggleCollapsed, closeMobile } = useSidebarState();
   const permissions = session?.user?.permissions ?? [];
-  const sections = getVisibleNavSections(permissions, session?.user?.roleCode);
+  const roleCode = session?.user?.roleCode;
+  const sections = getVisibleNavSections(permissions, roleCode);
+  const brandModule = roleCode ? formatRoleLabel(roleCode) : "Design Management";
 
   return (
     <>
@@ -68,7 +89,7 @@ export function Sidebar() {
             {!collapsed && (
               <div className="sidebar-brand-text">
                 <span className="sidebar-brand-name">Decent ERP</span>
-                <span className="sidebar-brand-module">Design Management</span>
+                <span className="sidebar-brand-module">{brandModule}</span>
               </div>
             )}
           </Link>
@@ -81,7 +102,7 @@ export function Sidebar() {
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand" : "Collapse"}
           >
-            {collapsed ? "›" : "‹"}
+            {collapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
           </AppButton>
         </div>
 
@@ -114,32 +135,6 @@ export function Sidebar() {
             </div>
           ))}
         </nav>
-
-        {session?.user && (
-          <div className="sidebar-footer">
-            <div className="sidebar-footer-user">
-              <div className="sidebar-footer-avatar" aria-hidden title={session.user.name ?? "User"}>
-                {getInitials(session.user.name ?? "User")}
-              </div>
-              {!collapsed && (
-                <div className="sidebar-footer-info">
-                  <div className="sidebar-footer-name">{session.user.name ?? "User"}</div>
-                  {session.user.roleCode && (
-                    <div className="sidebar-footer-role">
-                      {formatRoleLabel(session.user.roleCode)}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            {!collapsed && session.user.roleCode && (
-              <div className="sidebar-footer-hint">
-                {getRoleDefinition(session.user.roleCode)?.navFocus.slice(0, 2).join(" · ") ??
-                  "Design Management"}
-              </div>
-            )}
-          </div>
-        )}
       </aside>
     </>
   );
@@ -153,8 +148,9 @@ export function TopBar() {
   const role = session?.user?.roleCode ?? "employee";
   const [searchOpen, setSearchOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const openSearch = useCallback(() => setSearchOpen(true), []);
-  useGlobalSearchShortcut(openSearch);
+  const toggleSearch = useCallback(() => setSearchOpen((open) => !open), []);
+  useGlobalSearchShortcut(toggleSearch);
+  const modKey = usePlatformModKeyLabel();
 
   return (
     <header className="topbar">
@@ -166,7 +162,7 @@ export function TopBar() {
         onClick={toggleMobile}
         aria-label="Open navigation menu"
       >
-        ☰
+        <IconMenu size={18} />
       </AppButton>
 
       <Breadcrumbs items={breadcrumbs} variant="topbar" className="topbar-breadcrumbs" />
@@ -180,9 +176,9 @@ export function TopBar() {
           aria-label="Open global search"
         >
           <IconSearch size={16} />
-          <span>Search designs…</span>
+          <span>{SEARCH_PLACEHOLDER}</span>
           <kbd className="ml-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium sm:inline">
-            Ctrl K
+            {modKey} K
           </kbd>
         </AppButton>
       </div>

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
-import { businessRule, notFound } from "@/lib/errors/create-app-error";
+import { businessRule } from "@/lib/errors/create-app-error";
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";

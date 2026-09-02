@@ -15,6 +15,7 @@ import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
+  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 import type { ProductionInboxDesign } from "@/lib/services/production-inbox-service";
@@ -129,11 +130,21 @@ export function ProductionHeadDashboard() {
       }}
     >
       <div className="workbench-overview">
+        <WorkbenchQuickActions
+          actions={[
+            {
+              href: ROUTES.work.tasks,
+              label: "My Tasks",
+              badge: openTasks.length,
+            },
+            { href: ROUTES.production.release, label: "Production desk" },
+            { href: ROUTES.finance.costing, label: "Costing" },
+          ]}
+        />
         <div className="stat-grid workbench-pulse">
           <StatCard
             label="Ready for acceptance"
             value={counts?.ready_for_acceptance ?? 0}
-            accent
           />
           <StatCard label="Instruction in progress" value={counts?.instruction_pending ?? 0} />
           <StatCard label="Ready for release" value={counts?.ready_for_release ?? 0} />

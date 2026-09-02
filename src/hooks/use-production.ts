@@ -46,26 +46,6 @@ export function useReleasedDesigns(enabled = true) {
   });
 }
 
-export function useReleaseToProduction() {
-  const queryClient = useQueryClient();
-  const toast = useApiToast();
-
-  return useMutation({
-    mutationFn: (designId: string) =>
-      apiPost<{ id: string; ideaRef: string; status: string }>("/api/production/release", {
-        designId,
-      }),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.production.approved });
-      queryClient.invalidateQueries({ queryKey: queryKeys.production.released });
-      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffs() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
-      toast.success("Released to production", data.ideaRef);
-    },
-    onError: (error) => toast.errorFromApi(error, "Could not release design"),
-  });
-}
-
 export function useMarkDesignLive() {
   const queryClient = useQueryClient();
   const toast = useApiToast();

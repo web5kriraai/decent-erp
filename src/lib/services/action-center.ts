@@ -5,8 +5,6 @@ import {
 } from "@/lib/services/task-dependency";
 import { findStageApprovalGate, resolveEffectiveTaskStatus } from "@/lib/services/workflow-stage-gate";
 
-export { findStageApprovalGate } from "@/lib/services/workflow-stage-gate";
-
 export type DepSibling = {
   id: string;
   dependencySequence: number | null;
@@ -43,14 +41,6 @@ export function findNextOpenTask(siblings: DepSibling[], afterSequence: number):
   return siblings
     .filter((s) => s.sequence > afterSequence && !isDependencySatisfiedStatus(s.status))
     .sort((a, b) => a.sequence - b.sequence)[0] ?? null;
-}
-
-/** @deprecated Prefer findStageApprovalGate — kept for existing imports. */
-export function findRelatedApprovalTask(
-  workTask: MyTaskRow,
-  siblings: DepSibling[],
-): DepSibling | null {
-  return findStageApprovalGate(workTask, siblings);
 }
 
 export type ActionCenterBucket =

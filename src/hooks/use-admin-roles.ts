@@ -40,15 +40,6 @@ export function useAdminRoles(enabled = true) {
   });
 }
 
-export function useSuggestedEmployeeCode(enabled = false) {
-  return useQuery({
-    queryKey: queryKeys.admin.suggestCode,
-    queryFn: () => apiGet<{ employeeCode: string }>("/api/admin/employees/suggest-code"),
-    enabled,
-    staleTime: 0,
-  });
-}
-
 function invalidateEmployees(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: queryKeys.admin.employees });
   queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles });
@@ -63,7 +54,7 @@ export function useCreateEmployee() {
       apiPost<AdminEmployeeRow>("/api/admin/employees", payload),
     onSuccess: (data) => {
       invalidateEmployees(queryClient);
-      toast.success("Employee created", `${data.name} (${data.employeeCode}) can sign in now`);
+      toast.success("Employee created", `${data.name} can sign in now`);
     },
     onError: (error) => toast.errorFromApi(error, "Could not create employee"),
   });
@@ -82,15 +73,6 @@ export function useUpdateEmployee() {
     },
     onError: (error) => toast.errorFromApi(error, "Could not update employee"),
   });
-}
-
-export function useUpdateEmployeeRole() {
-  const updateEmployee = useUpdateEmployee();
-  return {
-    ...updateEmployee,
-    mutateAsync: ({ employeeId, roleCode }: { employeeId: number; roleCode: string }) =>
-      updateEmployee.mutateAsync({ employeeId, roleCode }),
-  };
 }
 
 export type RolePermissionMatrix = {

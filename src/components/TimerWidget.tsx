@@ -89,8 +89,14 @@ export function TimerWidget({
 
       <div className="timer-actions">
         {status === "RUNNING" && onHold ? (
-          <AppButton type="button" appVariant="outline" size="sm" onClick={onHold}>
-            <PauseIcon />
+          <AppButton
+            type="button"
+            appVariant="outline"
+            size="sm"
+            onClick={onHold}
+            aria-label="Hold task"
+          >
+            <PauseIcon aria-hidden />
             Hold
           </AppButton>
         ) : null}

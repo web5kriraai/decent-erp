@@ -113,34 +113,3 @@ export async function designHasCosting(
   });
   return entry != null;
 }
-
-export async function updateDesignCostBaselines(
-  designId: bigint,
-  input: { estimatedCost?: number | null; standardCost?: number | null },
-  userId: number,
-  correlationId: string,
-) {
-  const existing = await prisma.designConcept.findUnique({ where: { id: designId } });
-  if (!existing) throw new ApiError("Design not found", 404);
-
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.designConcept.update({
-      where: { id: designId },
-      data: {
-        ...(input.estimatedCost !== undefined ? { estimatedCost: input.estimatedCost } : {}),
-        ...(input.standardCost !== undefined ? { standardCost: input.standardCost } : {}),
-        version: { increment: 1 },
-      },
-    });
-    await writeAuditLog(tx, {
-      entityType: "DesignConcept",
-      entityId: designId.toString(),
-      action: "COST_BASELINE_UPDATE",
-      userId,
-      correlationId,
-      before: existing,
-      after: updated,
-    });
-    return updated;
-  });
-}

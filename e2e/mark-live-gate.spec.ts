@@ -10,6 +10,7 @@ import {
   login,
 } from "./helpers/auth";
 import {
+  addTaskArtifact,
   assignTaskToEmployee,
   completeAssignedTask,
   completeStageApproval,
@@ -188,6 +189,7 @@ test.describe("Mark Live gate and guards", () => {
     expect(sketch!.status).toBe("ASSIGNED");
 
     await apiPostJson(page, `/api/tasks/${sketch!.id}/start`, {});
+    await addTaskArtifact(page, sketch!.id, "SKETCH_VERSION");
     const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${sketch!.id}`);
 
     const first = page.request.post(`/api/tasks/${sketch!.id}/end`, {

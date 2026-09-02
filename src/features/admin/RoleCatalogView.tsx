@@ -88,5 +88,3 @@ export function RoleCatalogList() {
     </QueryState>
   );
 }
-
-export { formatRoleLabel, getRoleDefinition };

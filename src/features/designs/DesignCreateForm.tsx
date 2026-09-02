@@ -255,7 +255,7 @@ export function DesignCreateForm() {
 
   if (!canCreate) {
     return (
-      <div className="page-shell page-shell--narrow">
+      <div className="page-shell">
         <PageHeader title="Create Design Concept" subtitle="Start a new collection in the design pipeline" />
         <PermissionDenied permission={PERMISSIONS.DESIGN_CREATE} />
         <p className="form-hint mt-4">
@@ -266,7 +266,7 @@ export function DesignCreateForm() {
   }
 
   return (
-    <div className="page-shell page-shell--narrow">
+    <div className="page-shell">
       <PageHeader
         title="Create Design Concept"
         subtitle="Add collection details, pick a workflow, and we'll set you as the design head"
@@ -303,6 +303,7 @@ export function DesignCreateForm() {
             </div>
           )}
 
+          <div className="form-layout form-layout--split">
           <AppCard title="Basics" description="Collection identity and concept references">
             <div className="form-grid">
               <FormTextField
@@ -451,6 +452,7 @@ export function DesignCreateForm() {
             </div>
           </AppCard>
 
+          <div className="form-layout-span">
           <AppCard title="Assignment" description="Priority and how tasks are generated">
             <div className="form-grid">
               <div
@@ -647,7 +649,7 @@ export function DesignCreateForm() {
                                 { value: "__auto__", label: "Auto by role" },
                                 ...(employees.data ?? []).map((emp) => ({
                                   value: String(emp.id),
-                                  label: `${emp.name} (${emp.employeeCode})`,
+                                  label: emp.name,
                                 })),
                               ]}
                               placeholder="Auto by role"
@@ -675,6 +677,8 @@ export function DesignCreateForm() {
               </div>
             </div>
           </AppCard>
+          </div>
+          </div>
         </form>
       </QueryState>
     </div>

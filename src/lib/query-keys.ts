@@ -50,10 +50,7 @@ export const queryKeys = {
   },
   approvals: {
     pending: ["approvals", "pending"] as const,
-    stage: ["approvals", "stage"] as const,
-    ready: ["approvals", "ready"] as const,
     hub: ["approvals", "hub"] as const,
-    levels: ["approvals", "levels"] as const,
     all: ["approvals"] as const,
   },
   costs: {
@@ -83,6 +80,5 @@ export const queryKeys = {
     roles: ["admin", "roles"] as const,
     rbacMatrix: ["admin", "rbac-matrix"] as const,
     rolePermissions: (roleId: number) => ["admin", "roles", roleId, "permissions"] as const,
-    suggestCode: ["admin", "employees", "suggest-code"] as const,
   },
 } as const;

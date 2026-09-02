@@ -22,10 +22,10 @@ type ModalProps = {
 };
 
 const sizeClasses = {
-  sm: "sm:max-w-md",
-  md: "sm:max-w-lg",
-  lg: "sm:max-w-2xl",
-  xl: "sm:max-w-3xl",
+  sm: "sm:max-w-lg",
+  md: "sm:max-w-2xl",
+  lg: "sm:max-w-4xl",
+  xl: "sm:max-w-6xl",
 };
 
 /**
@@ -51,7 +51,7 @@ export function Modal({
     >
       <DialogContent
         className={cn(
-          "max-h-[min(90vh,48rem)] gap-0 p-0",
+          "max-h-[min(92vh,56rem)] gap-0 p-0",
           sizeClasses[size],
         )}
         showCloseButton
@@ -89,7 +89,7 @@ export function ModalFormGrid({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("grid gap-4 sm:grid-cols-2", className)}>{children}</div>
+    <div className={cn("grid gap-4 sm:grid-cols-2 xl:grid-cols-3", className)}>{children}</div>
   );
 }
 

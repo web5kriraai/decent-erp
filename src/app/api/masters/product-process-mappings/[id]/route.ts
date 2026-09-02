@@ -1,4 +1,4 @@
-import { jsonOk, serializeBigInt, withApiHandler, ApiError } from "@/lib/api-utils";
+import { jsonOk, withApiHandler, ApiError } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";

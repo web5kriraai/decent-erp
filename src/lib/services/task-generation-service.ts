@@ -36,7 +36,11 @@ export type TaskCreateRow = {
 
 /** Strip client-only fields before Prisma insert. */
 export function toPrismaTaskCreateRows(tasks: TaskCreateRow[]): Omit<TaskCreateRow, "isApproval">[] {
-  return tasks.map(({ isApproval: _ignored, ...row }) => row);
+  return tasks.map((task) => {
+    const row: Omit<TaskCreateRow, "isApproval"> & { isApproval?: boolean } = { ...task };
+    delete row.isApproval;
+    return row;
+  });
 }
 
 function addWorkingDays(base: Date, dayOffset: number): Date {
@@ -90,7 +94,8 @@ export async function buildTasksFromPatternTasks(
       assignedRoleId: pt.defaultRoleId,
       assignedEmployeeId: assignee,
       expectedMinutes: pt.expectedMinutes,
-      priority: options?.designPriority ?? pt.priority,
+      // Pattern step priority wins; design priority is the fallback default.
+      priority: pt.priority ?? options?.designPriority ?? "MEDIUM",
       sequence: pt.sequence,
       dependencySequence: pt.dependencySequence,
       plannedStart,

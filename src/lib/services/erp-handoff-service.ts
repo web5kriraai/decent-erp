@@ -159,7 +159,7 @@ export async function syncProductionHandoff(
 
     return updated;
   } catch (error) {
-    const updated = await prisma.productionHandoff.update({
+    await prisma.productionHandoff.update({
       where: { id: handoffId },
       data: {
         status: "FAILED",
