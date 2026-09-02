@@ -13,9 +13,9 @@ import { useWorkflowPatterns } from "@/hooks/use-masters";
 import { apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
-import { Modal, ModalFooterActions, ModalForm } from "@/components/ui/Modal";
-import { FormTextField } from "@/components/ui/form-text-field";
+import { Modal, ModalFooterActions } from "@/components/ui/Modal";
 import { AppButton } from "@/components/ui/AppButton";
+import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { CreateWorkflowPatternModal } from "@/features/admin/CreateWorkflowPatternModal";
 import type { CreateWorkflowPatternPayload, WorkflowPattern } from "@/lib/types/api";
 
@@ -27,9 +27,7 @@ export function WorkflowPatternsView() {
   const queryClient = useQueryClient();
   const toast = useApiToast();
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<WorkflowPattern | null>(null);
-  const [editSteps, setEditSteps] = useState<WorkflowPattern | null>(null);
-  const [editName, setEditName] = useState("");
+  const [editPattern, setEditPattern] = useState<WorkflowPattern | null>(null);
   const [cloneTarget, setCloneTarget] = useState<WorkflowPattern | null>(null);
 
   const createPattern = useMutation({
@@ -43,32 +41,36 @@ export function WorkflowPatternsView() {
     onError: (error) => toast.errorFromApi(error, "Could not create workflow pattern"),
   });
 
-  const updatePatternTasks = useMutation({
-    mutationFn: (payload: {
+  const saveEditPattern = useMutation({
+    mutationFn: async (payload: {
       id: number;
+      name: string;
+      previousName: string;
       tasks: CreateWorkflowPatternPayload["tasks"];
-    }) =>
-      apiPatch<WorkflowPattern>(`/api/workflow-patterns/${payload.id}/tasks`, {
+    }) => {
+      if (payload.name !== payload.previousName) {
+        await apiPatch(`/api/workflow-patterns/${payload.id}`, { name: payload.name });
+      }
+      return apiPatch<WorkflowPattern>(`/api/workflow-patterns/${payload.id}/tasks`, {
         tasks: payload.tasks,
-      }),
+      });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.workflowPatterns });
-      toast.success("Pattern steps updated", `${data.name} — ${data.tasks.length} steps`);
-      setEditSteps(null);
+      toast.success("Workflow pattern updated", `${data.name} — ${data.tasks.length} steps`);
+      setEditPattern(null);
     },
-    onError: (error) => toast.errorFromApi(error, "Could not update pattern steps"),
+    onError: (error) => toast.errorFromApi(error, "Could not update workflow pattern"),
   });
 
   const updatePattern = useMutation({
-    mutationFn: (payload: { id: number; name?: string; active?: boolean }) =>
+    mutationFn: (payload: { id: number; active?: boolean }) =>
       apiPatch<WorkflowPattern>(`/api/workflow-patterns/${payload.id}`, {
-        name: payload.name,
         active: payload.active,
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.workflowPatterns });
       toast.success("Workflow pattern updated", data.name);
-      setEditing(null);
     },
     onError: (error) => toast.errorFromApi(error, "Could not update workflow pattern"),
   });
@@ -138,38 +140,11 @@ export function WorkflowPatternsView() {
               header: "",
               align: "right",
               render: (row) => (
-                <div className="inline-actions">
-                  <AppButton
-                    type="button"
-                    appVariant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setEditing(row);
-                      setEditName(row.name);
-                    }}
-                  >
-                    Rename
-                  </AppButton>
-                  <AppButton
-                    type="button"
-                    appVariant="ghost"
-                    size="sm"
-                    onClick={() => setEditSteps(row)}
-                  >
-                    Edit steps
-                  </AppButton>
-                  <AppButton
-                    type="button"
-                    appVariant="ghost"
-                    size="sm"
-                    onClick={() => setCloneTarget(row)}
-                  >
-                    Clone as v+
-                  </AppButton>
-                  <AppButton
-                    type="button"
-                    appVariant="secondary"
-                    size="sm"
+                <TableIconActionGroup>
+                  <TableIconAction action="edit" onClick={() => setEditPattern(row)} />
+                  <TableIconAction action="clone" onClick={() => setCloneTarget(row)} />
+                  <TableIconAction
+                    action={row.active === false ? "activate" : "deactivate"}
                     disabled={updatePattern.isPending}
                     onClick={() =>
                       updatePattern.mutate({
@@ -177,10 +152,8 @@ export function WorkflowPatternsView() {
                         active: row.active === false,
                       })
                     }
-                  >
-                    {row.active === false ? "Activate" : "Deactivate"}
-                  </AppButton>
-                </div>
+                  />
+                </TableIconActionGroup>
               ),
             },
           ]}
@@ -199,47 +172,22 @@ export function WorkflowPatternsView() {
       />
 
       <CreateWorkflowPatternModal
-        open={!!editSteps}
-        onClose={() => setEditSteps(null)}
+        open={!!editPattern}
+        onClose={() => setEditPattern(null)}
         onSubmit={() => {}}
         isPending={false}
-        editPattern={editSteps}
-        onSubmitTasks={(patternId, tasks) =>
-          updatePatternTasks.mutate({ id: patternId, tasks })
+        editPattern={editPattern}
+        onSubmitEdit={(patternId, payload) =>
+          editPattern &&
+          saveEditPattern.mutate({
+            id: patternId,
+            name: payload.name,
+            previousName: editPattern.name,
+            tasks: payload.tasks,
+          })
         }
-        isTasksPending={updatePatternTasks.isPending}
+        isEditPending={saveEditPattern.isPending}
       />
-
-      <Modal
-        open={!!editing}
-        title="Rename pattern"
-        onClose={() => setEditing(null)}
-        size="sm"
-        footer={
-          <ModalFooterActions>
-            <AppButton type="button" appVariant="ghost" size="sm" onClick={() => setEditing(null)}>
-              Cancel
-            </AppButton>
-            <AppButton
-              type="button"
-              size="sm"
-              disabled={!editName.trim() || updatePattern.isPending}
-              onClick={() => editing && updatePattern.mutate({ id: editing.id, name: editName.trim() })}
-            >
-              Save
-            </AppButton>
-          </ModalFooterActions>
-        }
-      >
-        <ModalForm>
-          <FormTextField
-            id="pattern-rename"
-            label="Name"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-          />
-        </ModalForm>
-      </Modal>
 
       <Modal
         open={!!cloneTarget}

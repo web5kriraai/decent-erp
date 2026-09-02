@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { ClipboardCheck } from "lucide-react";
 import { DataTable } from "@/components/DataTable";
 import {
   Modal,
@@ -18,6 +19,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
+import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
 import {
@@ -216,13 +218,18 @@ export function ApprovalsView() {
                       header: "",
                       align: "right",
                       render: (row) => (
-                        <AppButtonLink
-                          href={ROUTES.designs.detail(row.designId)}
-                          appVariant="primary"
-                          size="sm"
-                        >
-                          Review
-                        </AppButtonLink>
+                        <TableIconActionGroup>
+                          <AppButtonLink
+                            href={ROUTES.designs.detail(row.designId)}
+                            appVariant="primary"
+                            size="icon-sm"
+                            className="table-icon-action"
+                            title="Review"
+                            aria-label="Review"
+                          >
+                            <ClipboardCheck aria-hidden />
+                          </AppButtonLink>
+                        </TableIconActionGroup>
                       ),
                     },
                   ]}
@@ -260,19 +267,20 @@ export function ApprovalsView() {
                       header: "",
                       align: "right",
                       render: (row) => (
-                        <AppButton
-                          type="button"
-                          appVariant="primary"
-                          size="sm"
-                          disabled={
-                            requestApproval.isPending && requestingDesignId === row.designId
-                          }
-                          onClick={() => handleRequestApproval(row.designId)}
-                        >
-                          {requestApproval.isPending && requestingDesignId === row.designId
-                            ? "Submitting…"
-                            : "Request approval"}
-                        </AppButton>
+                        <TableIconActionGroup>
+                          <TableIconAction
+                            action="requestApproval"
+                            disabled={
+                              requestApproval.isPending && requestingDesignId === row.designId
+                            }
+                            label={
+                              requestApproval.isPending && requestingDesignId === row.designId
+                                ? "Submitting…"
+                                : "Request approval"
+                            }
+                            onClick={() => handleRequestApproval(row.designId)}
+                          />
+                        </TableIconActionGroup>
                       ),
                     },
                   ]}
@@ -322,18 +330,16 @@ export function ApprovalsView() {
                       header: "",
                       align: "right",
                       render: (row) => (
-                        <AppButton
-                          type="button"
-                          appVariant="primary"
-                          size="sm"
-                          onClick={() => {
-                            setSelected(row);
-                            setDecision("APPROVED");
-                            setRemark("");
-                          }}
-                        >
-                          Review
-                        </AppButton>
+                        <TableIconActionGroup>
+                          <TableIconAction
+                            action="review"
+                            onClick={() => {
+                              setSelected(row);
+                              setDecision("APPROVED");
+                              setRemark("");
+                            }}
+                          />
+                        </TableIconActionGroup>
                       ),
                     },
                   ]}

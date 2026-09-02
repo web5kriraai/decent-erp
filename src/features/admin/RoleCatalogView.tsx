@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil, X } from "lucide-react";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { QueryState } from "@/components/ui/QueryState";
@@ -32,11 +33,13 @@ export function RoleCatalogList() {
                 <AppButton
                   type="button"
                   appVariant="secondary"
-                  size="sm"
+                  size="icon-sm"
                   className="ml-auto"
                   onClick={() => setEditingRoleId(isEditing ? null : role.id)}
+                  title={isEditing ? "Close editor" : "Edit permissions"}
+                  aria-label={isEditing ? "Close editor" : "Edit permissions"}
                 >
-                  {isEditing ? "Close editor" : "Edit permissions"}
+                  {isEditing ? <X aria-hidden /> : <Pencil aria-hidden />}
                 </AppButton>
               </header>
 

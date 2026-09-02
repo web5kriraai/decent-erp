@@ -48,7 +48,7 @@ export function AppButton({
 
 type AppButtonLinkProps = ComponentProps<typeof Link> & {
   appVariant?: AppButtonVariant;
-  size?: "sm" | "default" | "lg" | "xs";
+  size?: "sm" | "default" | "lg" | "xs" | "icon" | "icon-xs" | "icon-sm" | "icon-lg";
 };
 
 export function AppButtonLink({

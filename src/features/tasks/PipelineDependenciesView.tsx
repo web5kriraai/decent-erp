@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { ArrowRight, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
@@ -92,22 +93,28 @@ export function PipelineDependenciesView() {
                 header: "",
                 align: "right",
                 render: (row) => (
-                  <div className="inline-flex flex-wrap justify-end gap-1">
+                  <div className="table-icon-actions">
                     {row.nextTaskId ? (
                       <AppButtonLink
                         href={ROUTES.work.taskDetail(row.nextTaskId)}
                         appVariant="ghost"
-                        size="sm"
+                        size="icon-sm"
+                        className="table-icon-action"
+                        title="Next task"
+                        aria-label="Next task"
                       >
-                        Next task
+                        <ArrowRight aria-hidden />
                       </AppButtonLink>
                     ) : null}
                     <AppButtonLink
                       href={ROUTES.work.taskDetail(row.taskId)}
                       appVariant="ghost"
-                      size="sm"
+                      size="icon-sm"
+                      className="table-icon-action"
+                      title="Owner task"
+                      aria-label="Owner task"
                     >
-                      Owner task
+                      <UserRound aria-hidden />
                     </AppButtonLink>
                   </div>
                 ),

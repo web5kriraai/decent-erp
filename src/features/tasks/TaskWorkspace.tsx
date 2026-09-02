@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { Eye } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { TimerWidget } from "@/components/TimerWidget";
@@ -31,6 +32,9 @@ const KANBAN_COLUMNS = [
   ["ON_HOLD", "On Hold"],
 ] as const;
 
+/** Max task cards per lane before "+ N more" (matches pipeline board). */
+const WORKSPACE_LANE_PREVIEW = 15;
+
 type ActionTab = "actionRequired" | "blocked" | "upcoming" | "completed";
 
 const ACTION_TABS: { id: ActionTab; label: string }[] = [
@@ -55,8 +59,15 @@ function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
             <p className="action-center-list-meta">{item.stage}</p>
             <p className="action-center-list-detail">{item.blockedMessage}</p>
           </div>
-          <AppButtonLink href={ROUTES.work.taskDetail(item.taskId)} appVariant="ghost" size="sm">
-            View
+          <AppButtonLink
+            href={ROUTES.work.taskDetail(item.taskId)}
+            appVariant="ghost"
+            size="icon-sm"
+            className="table-icon-action"
+            title="View task"
+            aria-label="View task"
+          >
+            <Eye aria-hidden />
           </AppButtonLink>
         </li>
       ))}
@@ -299,41 +310,48 @@ export function TaskWorkspace() {
                   No tasks ready for you right now. Check Blocked or Upcoming tabs.
                 </p>
               ) : (
-                <div className="kanban-board scroll-x-region">
-                  <div className="kanban kanban--compact">
-                    {KANBAN_COLUMNS.map(([bucket, label]) => (
-                      <div key={bucket} className="kanban-column">
-                        <div className="kanban-column-header">
-                          <span className="kanban-column-title">{label}</span>
-                          <span className="kanban-column-count">
-                            {kanbanGroups[bucket]?.length ?? 0}
-                          </span>
+                <div className="task-workspace-kanban">
+                  <div className="kanban kanban--workspace">
+                    {KANBAN_COLUMNS.map(([bucket, label]) => {
+                      const laneTasks = kanbanGroups[bucket] ?? [];
+                      const visibleTasks = laneTasks.slice(0, WORKSPACE_LANE_PREVIEW);
+                      const hiddenCount = Math.max(0, laneTasks.length - WORKSPACE_LANE_PREVIEW);
+
+                      return (
+                        <div key={bucket} className="kanban-column">
+                          <div className="kanban-column-header">
+                            <span className="kanban-column-title">{label}</span>
+                            <span className="kanban-column-count">{laneTasks.length}</span>
+                          </div>
+                          <div className="kanban-cards">
+                            {visibleTasks.map((task) => {
+                              const isActiveCard = task.id === activeTask?.id && isTimerActive;
+                              const showStartButton =
+                                bucket === "READY" || bucket === "CORRECTION_REQUIRED";
+                              return (
+                                <TaskActionCard
+                                  key={task.id}
+                                  task={task}
+                                  selected={selectedTaskId === task.id}
+                                  active={isActiveCard}
+                                  showStartButton={showStartButton}
+                                  isPending={isPending}
+                                  onSelect={() => setSelectedTaskId(task.id)}
+                                  onStart={() => void handleStart(task)}
+                                  onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
+                                />
+                              );
+                            })}
+                            {laneTasks.length === 0 ? (
+                              <p className="kanban-empty">No tasks</p>
+                            ) : null}
+                            {hiddenCount > 0 ? (
+                              <p className="kanban-lane-more">+{hiddenCount} more tasks</p>
+                            ) : null}
+                          </div>
                         </div>
-                        <div className="kanban-cards scroll-region">
-                          {(kanbanGroups[bucket] ?? []).map((task) => {
-                            const isActiveCard = task.id === activeTask?.id && isTimerActive;
-                            const showStartButton =
-                              bucket === "READY" || bucket === "CORRECTION_REQUIRED";
-                            return (
-                              <TaskActionCard
-                                key={task.id}
-                                task={task}
-                                selected={selectedTaskId === task.id}
-                                active={isActiveCard}
-                                showStartButton={showStartButton}
-                                isPending={isPending}
-                                onSelect={() => setSelectedTaskId(task.id)}
-                                onStart={() => void handleStart(task)}
-                                onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
-                              />
-                            );
-                          })}
-                          {(kanbanGroups[bucket] ?? []).length === 0 ? (
-                            <p className="kanban-empty">No tasks</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

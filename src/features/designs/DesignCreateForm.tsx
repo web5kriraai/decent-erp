@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { AppCard } from "@/components/ui/AppCard";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
@@ -549,38 +550,27 @@ export function DesignCreateForm() {
                           title={`Task ${index + 1}`}
                           contentClassName="space-y-3"
                           headerAction={
-                            <div className="inline-actions gap-1">
-                              <AppButton
-                                type="button"
-                                appVariant="ghost"
-                                size="sm"
+                            <TableIconActionGroup>
+                              <TableIconAction
+                                action="moveUp"
                                 disabled={index === 0}
                                 onClick={() => moveManualTask(task.id, "up")}
-                                aria-label={`Move task ${index + 1} up`}
-                              >
-                                ↑
-                              </AppButton>
-                              <AppButton
-                                type="button"
-                                appVariant="ghost"
-                                size="sm"
+                                label={`Move task ${index + 1} up`}
+                              />
+                              <TableIconAction
+                                action="moveDown"
                                 disabled={index === manualTasks.length - 1}
                                 onClick={() => moveManualTask(task.id, "down")}
-                                aria-label={`Move task ${index + 1} down`}
-                              >
-                                ↓
-                              </AppButton>
+                                label={`Move task ${index + 1} down`}
+                              />
                               {manualTasks.length > 1 && (
-                                <AppButton
-                                  type="button"
-                                  appVariant="ghost"
-                                  size="sm"
+                                <TableIconAction
+                                  action="remove"
                                   onClick={() => removeManualTaskRow(task.id)}
-                                >
-                                  Remove
-                                </AppButton>
+                                  label={`Remove task ${index + 1}`}
+                                />
                               )}
-                            </div>
+                            </TableIconActionGroup>
                           }
                         >
                           <div className="form-grid form-grid--2 form-grid--tight">

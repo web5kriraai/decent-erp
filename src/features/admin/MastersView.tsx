@@ -8,6 +8,7 @@ import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import {
   Modal,
+  ModalAlert,
   ModalFooterActions,
   ModalForm,
   ModalFormGrid,
@@ -17,6 +18,7 @@ import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useProcessMasters } from "@/hooks/use-masters";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
@@ -60,6 +62,14 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
     sequence: string;
     defaultRoleId: number | "";
     active: boolean;
+  } | null>(null);
+
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    title: string;
+    description: string;
+    warning?: string;
+    confirmLabel: string;
+    onConfirm: () => void;
   } | null>(null);
 
   const roles = rolesQuery.data ?? [];
@@ -229,19 +239,26 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
     subProcesses?: Array<{ active?: boolean }>;
   }) {
     const activeChildren = (process.subProcesses ?? []).filter((s) => s.active !== false).length;
-    const cascadeNote =
-      activeChildren > 0
-        ? `\n\n${activeChildren} active sub-process${activeChildren === 1 ? "" : "es"} will also be deactivated.`
-        : "";
-    const ok = window.confirm(
-      `Deactivate process "${process.name}"?\n\nIt will be hidden from new designs and workflows. Existing tasks keep their history.${cascadeNote}`,
-    );
-    if (!ok) return;
-    setProcessActive.mutate({
-      id: process.id,
-      active: false,
-      name: process.name,
-      sequence: process.sequence,
+    setPendingConfirm({
+      title: `Deactivate "${process.name}"?`,
+      description:
+        "It will be hidden from new designs and workflows. Existing tasks keep their history.",
+      warning:
+        activeChildren > 0
+          ? `${activeChildren} active sub-process${activeChildren === 1 ? "" : "es"} will also be deactivated.`
+          : undefined,
+      confirmLabel: "Deactivate",
+      onConfirm: () => {
+        setProcessActive.mutate(
+          {
+            id: process.id,
+            active: false,
+            name: process.name,
+            sequence: process.sequence,
+          },
+          { onSuccess: () => setPendingConfirm(null) },
+        );
+      },
     });
   }
 
@@ -251,16 +268,91 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
     sequence: number;
     defaultRoleId?: number | null;
   }) {
-    const ok = window.confirm(
-      `Deactivate sub-process "${sub.name}"?\n\nIt will be hidden from new work. Existing tasks keep their history.`,
-    );
-    if (!ok) return;
-    setSubProcessActive.mutate({
-      id: sub.id,
-      active: false,
-      name: sub.name,
-      sequence: sub.sequence,
-      defaultRoleId: sub.defaultRoleId ?? null,
+    setPendingConfirm({
+      title: `Deactivate "${sub.name}"?`,
+      description: "It will be hidden from new work. Existing tasks keep their history.",
+      confirmLabel: "Deactivate",
+      onConfirm: () => {
+        setSubProcessActive.mutate(
+          {
+            id: sub.id,
+            active: false,
+            name: sub.name,
+            sequence: sub.sequence,
+            defaultRoleId: sub.defaultRoleId ?? null,
+          },
+          { onSuccess: () => setPendingConfirm(null) },
+        );
+      },
+    });
+  }
+
+  function confirmDeactivateProcessFromEdit(edit: {
+    id: number;
+    name: string;
+    sequence: string;
+    active: boolean;
+  }) {
+    const processRow = processes.find((p) => p.id === edit.id);
+    const activeChildren = (processRow?.subProcesses ?? []).filter(
+      (s) => (s as { active?: boolean }).active !== false,
+    ).length;
+    setPendingConfirm({
+      title: `Deactivate "${edit.name}"?`,
+      description:
+        "It will be hidden from new designs and workflows. Existing tasks keep their history.",
+      warning:
+        activeChildren > 0
+          ? `${activeChildren} active sub-process${activeChildren === 1 ? "" : "es"} will also be deactivated.`
+          : undefined,
+      confirmLabel: "Deactivate",
+      onConfirm: () => {
+        updateProcess.mutate(
+          {
+            id: edit.id,
+            name: edit.name,
+            sequence: Number(edit.sequence) || 1,
+            active: false,
+          },
+          {
+            onSuccess: () => {
+              setPendingConfirm(null);
+              setEditProcess(null);
+            },
+          },
+        );
+      },
+    });
+  }
+
+  function confirmDeactivateSubProcessFromEdit(edit: {
+    id: number;
+    name: string;
+    sequence: string;
+    defaultRoleId: number | "";
+    active: boolean;
+  }) {
+    setPendingConfirm({
+      title: `Deactivate "${edit.name}"?`,
+      description: "It will be hidden from new work. Existing tasks keep their history.",
+      confirmLabel: "Deactivate",
+      onConfirm: () => {
+        updateSubProcess.mutate(
+          {
+            id: edit.id,
+            name: edit.name,
+            sequence: Number(edit.sequence) || 1,
+            defaultRoleId: edit.defaultRoleId === "" ? null : edit.defaultRoleId,
+            active: false,
+          },
+          {
+            onSuccess: () => {
+              setPendingConfirm(null);
+              setEditSubProcess(null);
+            },
+          },
+        );
+      },
     });
   }
 
@@ -386,11 +478,9 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                               />
                             </td>
                             <td className="text-right">
-                              <div className="inline-actions">
-                                <AppButton
-                                  type="button"
-                                  appVariant="ghost"
-                                  size="sm"
+                              <TableIconActionGroup>
+                                <TableIconAction
+                                  action="edit"
                                   onClick={() =>
                                     setEditProcess({
                                       id: process.id,
@@ -399,25 +489,18 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                       active: isActive,
                                     })
                                   }
-                                >
-                                  Edit
-                                </AppButton>
+                                />
                                 {isActive ? (
                                   <>
-                                    <AppButton
-                                      type="button"
-                                      appVariant="secondary"
-                                      size="sm"
+                                    <TableIconAction
+                                      action="add"
+                                      label="Add sub-process"
                                       onClick={() =>
                                         openSubProcessModal(process.id, subProcesses.length + 1)
                                       }
-                                    >
-                                      Add Sub-process
-                                    </AppButton>
-                                    <AppButton
-                                      type="button"
-                                      appVariant="outline"
-                                      size="sm"
+                                    />
+                                    <TableIconAction
+                                      action="deactivate"
                                       disabled={setProcessActive.isPending}
                                       onClick={() =>
                                         confirmDeactivateProcess({
@@ -427,15 +510,11 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                           subProcesses,
                                         })
                                       }
-                                    >
-                                      Deactivate
-                                    </AppButton>
+                                    />
                                   </>
                                 ) : (
-                                  <AppButton
-                                    type="button"
-                                    appVariant="secondary"
-                                    size="sm"
+                                  <TableIconAction
+                                    action="reactivate"
                                     disabled={setProcessActive.isPending}
                                     onClick={() =>
                                       setProcessActive.mutate({
@@ -445,11 +524,9 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                         sequence: process.sequence,
                                       })
                                     }
-                                  >
-                                    Reactivate
-                                  </AppButton>
+                                  />
                                 )}
-                              </div>
+                              </TableIconActionGroup>
                             </td>
                           </tr>
                           {isExpanded && (
@@ -492,11 +569,9 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                             />
                                           </td>
                                           <td className="text-right">
-                                            <div className="inline-actions">
-                                              <AppButton
-                                                type="button"
-                                                appVariant="ghost"
-                                                size="sm"
+                                            <TableIconActionGroup>
+                                              <TableIconAction
+                                                action="edit"
                                                 onClick={() =>
                                                   setEditSubProcess({
                                                     id: sub.id,
@@ -506,14 +581,10 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                                     active: subActive,
                                                   })
                                                 }
-                                              >
-                                                Edit
-                                              </AppButton>
+                                              />
                                               {subActive ? (
-                                                <AppButton
-                                                  type="button"
-                                                  appVariant="outline"
-                                                  size="sm"
+                                                <TableIconAction
+                                                  action="deactivate"
                                                   disabled={setSubProcessActive.isPending}
                                                   onClick={() =>
                                                     confirmDeactivateSubProcess({
@@ -523,14 +594,10 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                                       defaultRoleId: sub.defaultRoleId,
                                                     })
                                                   }
-                                                >
-                                                  Deactivate
-                                                </AppButton>
+                                                />
                                               ) : (
-                                                <AppButton
-                                                  type="button"
-                                                  appVariant="secondary"
-                                                  size="sm"
+                                                <TableIconAction
+                                                  action="reactivate"
                                                   disabled={setSubProcessActive.isPending}
                                                   onClick={() =>
                                                     setSubProcessActive.mutate({
@@ -541,11 +608,9 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                                       defaultRoleId: sub.defaultRoleId ?? null,
                                                     })
                                                   }
-                                                >
-                                                  Reactivate
-                                                </AppButton>
+                                                />
                                               )}
-                                            </div>
+                                            </TableIconActionGroup>
                                           </td>
                                         </tr>
                                       );
@@ -636,24 +701,18 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                   ? (processRow as { active?: boolean }).active !== false
                   : true;
                 if (wasActive && !editProcess.active) {
-                  const activeChildren = (processRow?.subProcesses ?? []).filter(
-                    (s) => (s as { active?: boolean }).active !== false,
-                  ).length;
-                  const cascadeNote =
-                    activeChildren > 0
-                      ? `\n\n${activeChildren} active sub-process${activeChildren === 1 ? "" : "es"} will also be deactivated.`
-                      : "";
-                  const ok = window.confirm(
-                    `Deactivate process "${editProcess.name}"?\n\nIt will be hidden from new designs and workflows. Existing tasks keep their history.${cascadeNote}`,
-                  );
-                  if (!ok) return;
+                  confirmDeactivateProcessFromEdit(editProcess);
+                  return;
                 }
-                updateProcess.mutate({
-                  id: editProcess.id,
-                  name: editProcess.name,
-                  sequence: Number(editProcess.sequence) || 1,
-                  active: editProcess.active,
-                });
+                updateProcess.mutate(
+                  {
+                    id: editProcess.id,
+                    name: editProcess.name,
+                    sequence: Number(editProcess.sequence) || 1,
+                    active: editProcess.active,
+                  },
+                  { onSuccess: () => setEditProcess(null) },
+                );
               }}
             >
               {updateProcess.isPending ? "Saving…" : "Save"}
@@ -776,21 +835,22 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                   }
                 }
                 if (wasActive && !editSubProcess.active) {
-                  const ok = window.confirm(
-                    `Deactivate sub-process "${editSubProcess.name}"?\n\nIt will be hidden from new work. Existing tasks keep their history.`,
-                  );
-                  if (!ok) return;
+                  confirmDeactivateSubProcessFromEdit(editSubProcess);
+                  return;
                 }
-                updateSubProcess.mutate({
-                  id: editSubProcess.id,
-                  name: editSubProcess.name,
-                  sequence: Number(editSubProcess.sequence) || 1,
-                  defaultRoleId:
-                    editSubProcess.defaultRoleId === ""
-                      ? null
-                      : editSubProcess.defaultRoleId,
-                  active: editSubProcess.active,
-                });
+                updateSubProcess.mutate(
+                  {
+                    id: editSubProcess.id,
+                    name: editSubProcess.name,
+                    sequence: Number(editSubProcess.sequence) || 1,
+                    defaultRoleId:
+                      editSubProcess.defaultRoleId === ""
+                        ? null
+                        : editSubProcess.defaultRoleId,
+                    active: editSubProcess.active,
+                  },
+                  { onSuccess: () => setEditSubProcess(null) },
+                );
               }}
             >
               {updateSubProcess.isPending ? "Saving…" : "Save"}
@@ -849,6 +909,47 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
               Active
             </label>
           </ModalForm>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={!!pendingConfirm}
+        title={pendingConfirm?.title ?? "Confirm"}
+        description={pendingConfirm?.description}
+        size="sm"
+        onClose={() => setPendingConfirm(null)}
+        footer={
+          <ModalFooterActions>
+            <AppButton
+              type="button"
+              appVariant="outline"
+              onClick={() => setPendingConfirm(null)}
+            >
+              Cancel
+            </AppButton>
+            <AppButton
+              type="button"
+              appVariant="danger"
+              disabled={
+                setProcessActive.isPending ||
+                setSubProcessActive.isPending ||
+                updateProcess.isPending ||
+                updateSubProcess.isPending
+              }
+              onClick={() => pendingConfirm?.onConfirm()}
+            >
+              {setProcessActive.isPending ||
+              setSubProcessActive.isPending ||
+              updateProcess.isPending ||
+              updateSubProcess.isPending
+                ? "Working…"
+                : (pendingConfirm?.confirmLabel ?? "Confirm")}
+            </AppButton>
+          </ModalFooterActions>
+        }
+      >
+        {pendingConfirm?.warning ? (
+          <ModalAlert variant="warning">{pendingConfirm.warning}</ModalAlert>
         ) : null}
       </Modal>
       </>

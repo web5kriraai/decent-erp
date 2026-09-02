@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
+import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import {
   useAdminEmployees,
   useAdminRoles,
@@ -193,27 +194,16 @@ export function EmployeesAdminView() {
                 header: "",
                 align: "right",
                 render: (row) => (
-                  <div className="table-actions">
-                    <AppButton
-                      type="button"
-                      appVariant="ghost"
-                      size="sm"
-                      onClick={() => openEditModal(row)}
-                    >
-                      Edit
-                    </AppButton>
+                  <TableIconActionGroup>
+                    <TableIconAction action="edit" onClick={() => openEditModal(row)} />
                     {!isSelf(row.id) && (
-                      <AppButton
-                        type="button"
-                        appVariant="secondary"
-                        size="sm"
+                      <TableIconAction
+                        action={row.active ? "deactivate" : "activate"}
                         disabled={updateEmployee.isPending}
                         onClick={() => toggleActive(row)}
-                      >
-                        {row.active ? "Deactivate" : "Activate"}
-                      </AppButton>
+                      />
                     )}
-                  </div>
+                  </TableIconActionGroup>
                 ),
               },
             ]}

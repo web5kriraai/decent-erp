@@ -53,11 +53,11 @@ type CreateWorkflowPatternModalProps = {
   onSubmit: (payload: CreateWorkflowPatternPayload) => void;
   isPending: boolean;
   editPattern?: WorkflowPattern | null;
-  onSubmitTasks?: (
+  onSubmitEdit?: (
     patternId: number,
-    tasks: CreateWorkflowPatternPayload["tasks"],
+    payload: { name: string; tasks: CreateWorkflowPatternPayload["tasks"] },
   ) => void;
-  isTasksPending?: boolean;
+  isEditPending?: boolean;
 };
 
 export function CreateWorkflowPatternModal({
@@ -66,8 +66,8 @@ export function CreateWorkflowPatternModal({
   onSubmit,
   isPending,
   editPattern = null,
-  onSubmitTasks,
-  isTasksPending = false,
+  onSubmitEdit,
+  isEditPending = false,
 }: CreateWorkflowPatternModalProps) {
   const processesQuery = useProcessMasters(open);
   const productTypesQuery = useProductTypes(open);
@@ -122,7 +122,7 @@ export function CreateWorkflowPatternModal({
 
   const canSubmit = useMemo(() => {
     if (editPattern) {
-      if (tasks.length === 0) return false;
+      if (!name.trim() || tasks.length === 0) return false;
       return tasks.every(
         (task) =>
           task.processId &&
@@ -213,8 +213,8 @@ export function CreateWorkflowPatternModal({
       return;
     }
 
-    if (editPattern && onSubmitTasks) {
-      onSubmitTasks(editPattern.id, taskPayload);
+    if (editPattern && onSubmitEdit) {
+      onSubmitEdit(editPattern.id, { name: name.trim(), tasks: taskPayload });
       return;
     }
 
@@ -227,15 +227,15 @@ export function CreateWorkflowPatternModal({
   }
 
   const isEditMode = !!editPattern;
-  const submitPending = isEditMode ? isTasksPending : isPending;
+  const submitPending = isEditMode ? isEditPending : isPending;
 
   return (
     <Modal
       open={open}
-      title={isEditMode ? `Edit Steps — ${editPattern.name}` : "Create Workflow Pattern"}
+      title={isEditMode ? "Edit workflow pattern" : "Create Workflow Pattern"}
       description={
         isEditMode
-          ? "Replace task steps for this pattern. In-flight designs keep their existing tasks."
+          ? "Update the pattern name and task steps. In-flight designs keep their existing tasks."
           : "Define a reusable sequence of process steps for new designs."
       }
       onClose={handleClose}
@@ -251,7 +251,7 @@ export function CreateWorkflowPatternModal({
                 ? "Saving…"
                 : "Creating…"
               : isEditMode
-                ? "Save Steps"
+                ? "Save changes"
                 : "Create Pattern"}
           </Button>
         </ModalFooterActions>
@@ -265,7 +265,15 @@ export function CreateWorkflowPatternModal({
           </ModalAlert>
         ) : null}
 
-        {!isEditMode ? (
+        {isEditMode ? (
+          <FormTextField
+            id="patternNameEdit"
+            label="Pattern Name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        ) : (
           <>
             <FormTextField
               id="patternName"
@@ -298,7 +306,7 @@ export function CreateWorkflowPatternModal({
               />
             </ModalFormGrid>
           </>
-        ) : null}
+        )}
 
         <ModalSection
           title="Task Steps"

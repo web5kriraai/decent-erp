@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/Modal";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { ROUTES } from "@/config/routes";
 import { useLiveTeamTime } from "@/hooks/use-time";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -177,22 +178,20 @@ export function AdminTimeLiveView() {
                           align: "right" as const,
                           render: (row: LiveRow) =>
                             row.task ? (
-                              <AppButton
-                                type="button"
-                                appVariant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setAdjustTarget({
-                                    taskId: row.task!.taskId,
-                                    ideaRef: row.task!.ideaRef,
-                                    activeSeconds: row.task!.activeSeconds,
-                                  });
-                                  setAdjustSeconds("0");
-                                  setAdjustRemark("");
-                                }}
-                              >
-                                Adjust time
-                              </AppButton>
+                              <TableIconActionGroup>
+                                <TableIconAction
+                                  action="adjustTime"
+                                  onClick={() => {
+                                    setAdjustTarget({
+                                      taskId: row.task!.taskId,
+                                      ideaRef: row.task!.ideaRef,
+                                      activeSeconds: row.task!.activeSeconds,
+                                    });
+                                    setAdjustSeconds("0");
+                                    setAdjustRemark("");
+                                  }}
+                                />
+                              </TableIconActionGroup>
                             ) : (
                               "—"
                             ),

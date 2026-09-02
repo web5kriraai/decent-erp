@@ -15,6 +15,7 @@ import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
@@ -176,20 +177,18 @@ export function MasterCatalogView() {
                 header: "",
                 align: "right",
                 render: (row) => (
-                  <AppButton
-                    type="button"
-                    appVariant="secondary"
-                    size="sm"
-                    disabled={updateProductType.isPending}
-                    onClick={() =>
-                      updateProductType.mutate({
-                        id: row.id,
-                        active: row.active === false,
-                      })
-                    }
-                  >
-                    {row.active === false ? "Activate" : "Deactivate"}
-                  </AppButton>
+                  <TableIconActionGroup>
+                    <TableIconAction
+                      action={row.active === false ? "activate" : "deactivate"}
+                      disabled={updateProductType.isPending}
+                      onClick={() =>
+                        updateProductType.mutate({
+                          id: row.id,
+                          active: row.active === false,
+                        })
+                      }
+                    />
+                  </TableIconActionGroup>
                 ),
               },
             ]}
@@ -235,20 +234,18 @@ export function MasterCatalogView() {
                 header: "",
                 align: "right",
                 render: (row) => (
-                  <AppButton
-                    type="button"
-                    appVariant="secondary"
-                    size="sm"
-                    disabled={updateSeason.isPending}
-                    onClick={() =>
-                      updateSeason.mutate({
-                        id: row.id,
-                        active: row.active === false,
-                      })
-                    }
-                  >
-                    {row.active === false ? "Activate" : "Deactivate"}
-                  </AppButton>
+                  <TableIconActionGroup>
+                    <TableIconAction
+                      action={row.active === false ? "activate" : "deactivate"}
+                      disabled={updateSeason.isPending}
+                      onClick={() =>
+                        updateSeason.mutate({
+                          id: row.id,
+                          active: row.active === false,
+                        })
+                      }
+                    />
+                  </TableIconActionGroup>
                 ),
               },
             ]}
@@ -297,16 +294,14 @@ export function MasterCatalogView() {
                 header: "",
                 align: "right",
                 render: (row) => (
-                  <AppButton
-                    type="button"
-                    appVariant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    disabled={deleteMapping.isPending}
-                    onClick={() => deleteMapping.mutate(row.id)}
-                  >
-                    Remove
-                  </AppButton>
+                  <TableIconActionGroup>
+                    <TableIconAction
+                      action="remove"
+                      className="text-destructive"
+                      disabled={deleteMapping.isPending}
+                      onClick={() => deleteMapping.mutate(row.id)}
+                    />
+                  </TableIconActionGroup>
                 ),
               },
             ]}
