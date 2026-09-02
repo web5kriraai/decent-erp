@@ -8,6 +8,8 @@ const schema = z.object({
     .enum(["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING", "DONE", "REJECTED"])
     .optional(),
   rootCause: z.string().optional(),
+  extraMinutes: z.number().int().min(0).optional().nullable(),
+  extraCost: z.number().nonnegative().optional().nullable(),
 });
 
 export async function PATCH(
@@ -19,7 +21,12 @@ export async function PATCH(
     const body = await parseBody(request, schema);
     const correction = await updateCorrection(
       BigInt(id),
-      body,
+      {
+        status: body.status,
+        rootCause: body.rootCause,
+        extraMinutes: body.extraMinutes ?? undefined,
+        extraCost: body.extraCost ?? undefined,
+      },
       ctx.employeeId,
       ctx.correlationId,
     );

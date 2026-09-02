@@ -29,7 +29,15 @@ export function FileUploader({ designId, onUploaded, disabled }: FileUploaderPro
           body: formData,
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? "Upload failed");
+        if (!res.ok) {
+          throw new ApiClientError(
+            json.error ?? "Upload failed",
+            res.status,
+            json.correlationId,
+            json.details,
+            json.code,
+          );
+        }
         toast.success("File uploaded", file.name);
         onUploaded?.();
       } catch (error) {

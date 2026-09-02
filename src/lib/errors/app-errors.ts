@@ -130,8 +130,20 @@ export function humanizeClientError(input: {
 
   const title = code ? APP_ERROR_MESSAGES[code] : sanitizeLegacyMessage(input.message, input.status);
 
+  const missingList = Array.isArray(input.details)
+    ? (input.details as unknown[]).filter((item): item is string => typeof item === "string")
+    : [];
+
   let hint: string | undefined;
-  if (input.status === 403 && code === APP_ERROR_CODES.PERMISSION_DENIED) {
+  if (
+    code === APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED &&
+    (missingList.length > 0 || input.message.includes("Missing:"))
+  ) {
+    hint =
+      missingList.length > 0
+        ? `Missing:\n• ${missingList.join("\n• ")}`
+        : input.message;
+  } else if (input.status === 403 && code === APP_ERROR_CODES.PERMISSION_DENIED) {
     hint = "Sign out and back in after your admin updates your role.";
   } else if (input.status === 409 && code === APP_ERROR_CODES.CONCURRENCY_CONFLICT) {
     hint = "Refresh the page and try again.";

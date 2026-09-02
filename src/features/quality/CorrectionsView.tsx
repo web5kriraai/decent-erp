@@ -97,6 +97,20 @@ export function CorrectionsView() {
                 render: (row) => row.correctionType.replace(/_/g, " "),
               },
               {
+                key: "extraMinutes",
+                header: "Extra min",
+                align: "right",
+                render: (row) =>
+                  row.extraMinutes != null ? String(row.extraMinutes) : "—",
+              },
+              {
+                key: "extraCost",
+                header: "Extra cost",
+                align: "right",
+                render: (row) =>
+                  row.extraCost != null ? Number(row.extraCost).toFixed(2) : "—",
+              },
+              {
                 key: "responsibleEmployee",
                 header: "Responsible",
                 render: (row) =>
