@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { QueryState } from "@/components/ui/QueryState";
 import { RolePermissionEditor } from "@/features/admin/RolePermissionEditor";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
@@ -23,18 +25,19 @@ export function RoleCatalogList() {
           const isEditing = editingRoleId === role.id;
 
           return (
-            <article key={role.id} className="card role-catalog-item">
+            <AppCard key={role.id} className="role-catalog-item">
               <header className="role-catalog-header">
                 <h2>{catalog?.displayName ?? role.name}</h2>
                 <code className="role-code-tag">{role.code}</code>
-                <button
+                <AppButton
                   type="button"
-                  className="btn btn-secondary btn-sm"
-                  style={{ marginLeft: "auto" }}
+                  appVariant="secondary"
+                  size="sm"
+                  className="ml-auto"
                   onClick={() => setEditingRoleId(isEditing ? null : role.id)}
                 >
                   {isEditing ? "Close editor" : "Edit permissions"}
-                </button>
+                </AppButton>
               </header>
 
               {catalog && (
@@ -59,11 +62,11 @@ export function RoleCatalogList() {
                     </div>
                     <div>
                       <h4>Assigned ({role.permissionCount})</h4>
-                      <p style={{ margin: 0, color: "var(--color-neutral-600)" }}>
+                      <p className="m-0 text-sm text-[var(--color-neutral-600)]">
                         {role.employeeCount} active employee{role.employeeCount === 1 ? "" : "s"}
                       </p>
-                      <h4 style={{ marginTop: "1rem" }}>Sidebar modules</h4>
-                      <p style={{ margin: 0, color: "var(--color-neutral-600)" }}>
+                      <h4 className="mt-4">Sidebar modules</h4>
+                      <p className="m-0 text-sm text-[var(--color-neutral-600)]">
                         {catalog.navFocus.join(", ")}
                       </p>
                     </div>
@@ -78,7 +81,7 @@ export function RoleCatalogList() {
                   roleName={catalog?.displayName ?? formatRoleLabel(role.code)}
                 />
               )}
-            </article>
+            </AppCard>
           );
         })}
       </div>

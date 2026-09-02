@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RbacMatrixGrid } from "@/features/admin/RbacMatrixGrid";
 import { RoleCatalogList } from "@/features/admin/RoleCatalogView";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -30,28 +31,27 @@ export function RolesAdminView() {
         subtitle="Grant or revoke what each role can do across the system"
       />
 
-      <div className="action-center-tabs-list mb-4" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "matrix"}
-          className={`action-center-tab-trigger ${tab === "matrix" ? "action-center-tab--active" : ""}`}
-          onClick={() => setTab("matrix")}
-        >
-          Access matrix
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "catalog"}
-          className={`action-center-tab-trigger ${tab === "catalog" ? "action-center-tab--active" : ""}`}
-          onClick={() => setTab("catalog")}
-        >
-          Role guide
-        </button>
-      </div>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as RolesTab)}
+        className="action-center-tabs-root"
+      >
+        <TabsList className="action-center-tabs-list mb-4">
+          <TabsTrigger value="matrix" className="action-center-tab-trigger">
+            Access matrix
+          </TabsTrigger>
+          <TabsTrigger value="catalog" className="action-center-tab-trigger">
+            Role guide
+          </TabsTrigger>
+        </TabsList>
 
-      {tab === "matrix" ? <RbacMatrixGrid /> : <RoleCatalogList />}
+        <TabsContent value="matrix">
+          <RbacMatrixGrid />
+        </TabsContent>
+        <TabsContent value="catalog">
+          <RoleCatalogList />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

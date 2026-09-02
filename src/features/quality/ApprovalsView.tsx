@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
-import { Button } from "@/components/ui/button";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -186,7 +187,7 @@ export function ApprovalsView() {
 
           {hubTabs.stage ? (
             <TabsContent value="stage">
-              <div className="card">
+              <AppCard>
                 <DataTable
                   columns={[
                     {
@@ -215,12 +216,13 @@ export function ApprovalsView() {
                       header: "",
                       align: "right",
                       render: (row) => (
-                        <Link
+                        <AppButtonLink
                           href={ROUTES.designs.detail(row.designId)}
-                          className="btn btn-primary btn-sm"
+                          appVariant="primary"
+                          size="sm"
                         >
                           Review
-                        </Link>
+                        </AppButtonLink>
                       ),
                     },
                   ]}
@@ -229,13 +231,13 @@ export function ApprovalsView() {
                   emptyTitle="No stage approvals waiting"
                   emptyDescription="When work is submitted for your review stage, the approval task appears here."
                 />
-              </div>
+              </AppCard>
             </TabsContent>
           ) : null}
 
           {hubTabs.ready ? (
             <TabsContent value="ready">
-              <div className="card">
+              <AppCard>
                 <DataTable
                   columns={[
                     {
@@ -258,9 +260,10 @@ export function ApprovalsView() {
                       header: "",
                       align: "right",
                       render: (row) => (
-                        <button
+                        <AppButton
                           type="button"
-                          className="btn btn-primary btn-sm"
+                          appVariant="primary"
+                          size="sm"
                           disabled={
                             requestApproval.isPending && requestingDesignId === row.designId
                           }
@@ -269,7 +272,7 @@ export function ApprovalsView() {
                           {requestApproval.isPending && requestingDesignId === row.designId
                             ? "Submitting…"
                             : "Request approval"}
-                        </button>
+                        </AppButton>
                       ),
                     },
                   ]}
@@ -278,13 +281,13 @@ export function ApprovalsView() {
                   emptyTitle="No designs ready for sign-off"
                   emptyDescription="When all workflow stages are complete, designs appear here so you can submit them to the management approval chain."
                 />
-              </div>
+              </AppCard>
             </TabsContent>
           ) : null}
 
           {hubTabs.management ? (
             <TabsContent value="management">
-              <div className="card">
+              <AppCard>
                 <DataTable
                   columns={[
                     {
@@ -319,9 +322,10 @@ export function ApprovalsView() {
                       header: "",
                       align: "right",
                       render: (row) => (
-                        <button
+                        <AppButton
                           type="button"
-                          className="btn btn-primary btn-sm"
+                          appVariant="primary"
+                          size="sm"
                           onClick={() => {
                             setSelected(row);
                             setDecision("APPROVED");
@@ -329,7 +333,7 @@ export function ApprovalsView() {
                           }}
                         >
                           Review
-                        </button>
+                        </AppButton>
                       ),
                     },
                   ]}
@@ -338,7 +342,7 @@ export function ApprovalsView() {
                   emptyTitle="No management sign-offs waiting"
                   emptyDescription="Designs at your management approval level appear here after final approval is requested."
                 />
-              </div>
+              </AppCard>
             </TabsContent>
           ) : null}
         </Tabs>
@@ -355,16 +359,17 @@ export function ApprovalsView() {
         onClose={() => setSelected(null)}
         footer={
           <ModalFooterActions>
-            <Button type="button" variant="outline" onClick={() => setSelected(null)}>
+            <AppButton type="button" appVariant="outline" onClick={() => setSelected(null)}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
+              appVariant="primary"
               disabled={submitApproval.isPending || (decision !== "APPROVED" && !remark.trim())}
               onClick={handleSubmit}
             >
               {submitApproval.isPending ? "Submitting…" : "Submit Decision"}
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >

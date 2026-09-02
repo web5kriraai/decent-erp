@@ -5,7 +5,10 @@ import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
-import { usePipelineDependencies } from "@/hooks/use-tasks";
+import { AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
+import { DataTable } from "@/components/DataTable";
+import { usePipelineDependencies, type TeamPipelineDependencyItem } from "@/hooks/use-tasks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ROUTES } from "@/config/routes";
 
@@ -18,6 +21,8 @@ const SUPERVISOR_PERMISSIONS = [
 function hasSupervisorAccess(permissions: string[]) {
   return SUPERVISOR_PERMISSIONS.some((p) => permissions.includes(p));
 }
+
+type DepRow = TeamPipelineDependencyItem & Record<string, unknown>;
 
 export function PipelineDependenciesView() {
   const { data: session } = useSession();
@@ -52,56 +57,69 @@ export function PipelineDependenciesView() {
         skeletonVariant="table"
         onRetry={() => depsQuery.refetch()}
       >
-        <div className="card">
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Design</th>
-                  <th>Owner</th>
-                  <th>Stage</th>
-                  <th>Status</th>
-                  <th>Waiting for</th>
-                  <th>Next action</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={`${item.taskId}-${item.employeeId}`}>
-                    <td>
-                      <Link href={ROUTES.designs.detail(item.design.id)} className="data-table-link">
-                        {item.design.ideaRef}
-                      </Link>
-                      <p className="data-table-subtext">{item.design.collectionName}</p>
-                    </td>
-                    <td>
-                      {item.employeeName}
-                      <p className="data-table-subtext">{item.employeeCode}</p>
-                    </td>
-                    <td>{item.myStage}</td>
-                    <td>{item.myStatus.replace(/_/g, " ")}</td>
-                    <td>{item.waitingFor}</td>
-                    <td>{item.nextAction}</td>
-                    <td className="data-table-actions">
-                      {item.nextTaskId ? (
-                        <Link
-                          href={ROUTES.work.taskDetail(item.nextTaskId)}
-                          className="btn btn-ghost btn-sm"
-                        >
-                          Next task
-                        </Link>
-                      ) : null}
-                      <Link href={ROUTES.work.taskDetail(item.taskId)} className="btn btn-ghost btn-sm">
-                        Owner task
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AppCard contentClassName="p-0">
+          <DataTable<DepRow>
+            rows={items as DepRow[]}
+            getRowKey={(row) => `${row.taskId}-${row.employeeId}`}
+            columns={[
+              {
+                key: "design",
+                header: "Design",
+                render: (row) => (
+                  <>
+                    <Link href={ROUTES.designs.detail(row.design.id)} className="data-table-link">
+                      {row.design.ideaRef}
+                    </Link>
+                    <p className="data-table-subtext">{row.design.collectionName}</p>
+                  </>
+                ),
+              },
+              {
+                key: "owner",
+                header: "Owner",
+                render: (row) => (
+                  <>
+                    {row.employeeName}
+                    <p className="data-table-subtext">{row.employeeCode}</p>
+                  </>
+                ),
+              },
+              { key: "myStage", header: "Stage" },
+              {
+                key: "myStatus",
+                header: "Status",
+                render: (row) => row.myStatus.replace(/_/g, " "),
+              },
+              { key: "waitingFor", header: "Waiting for" },
+              { key: "nextAction", header: "Next action" },
+              {
+                key: "actions",
+                header: "",
+                align: "right",
+                render: (row) => (
+                  <div className="inline-flex flex-wrap justify-end gap-1">
+                    {row.nextTaskId ? (
+                      <AppButtonLink
+                        href={ROUTES.work.taskDetail(row.nextTaskId)}
+                        appVariant="ghost"
+                        size="sm"
+                      >
+                        Next task
+                      </AppButtonLink>
+                    ) : null}
+                    <AppButtonLink
+                      href={ROUTES.work.taskDetail(row.taskId)}
+                      appVariant="ghost"
+                      size="sm"
+                    >
+                      Owner task
+                    </AppButtonLink>
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </AppCard>
       </QueryState>
     </div>
   );

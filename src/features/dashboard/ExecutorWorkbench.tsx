@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import {
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
@@ -246,10 +247,14 @@ export function ExecutorWorkbench() {
       subtitle="Your work for today"
       actions={
         canCreateDesign ? (
-          <Link href={ROUTES.designs.new} className="btn btn-primary inline-flex items-center gap-1.5">
+          <AppButtonLink
+            href={ROUTES.designs.new}
+            appVariant="primary"
+            className="inline-flex items-center gap-1.5"
+          >
             <IconPlus size={16} />
             New Design
-          </Link>
+          </AppButtonLink>
         ) : undefined
       }
       isLoading={isLoading}
@@ -346,14 +351,14 @@ export function ExecutorWorkbench() {
           <h2 className="workbench-section-title">Action queue</h2>
           <div className="workbench-queue-grid">
             {canExecute && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>My tasks</CardTitle>
-                  <Link href={ROUTES.work.tasks} className="btn btn-ghost btn-sm">
+              <AppCard
+                title="My tasks"
+                headerAction={
+                  <AppButtonLink href={ROUTES.work.tasks} appVariant="ghost" size="sm">
                     Open board
-                  </Link>
-                </CardHeader>
-                <CardContent>
+                  </AppButtonLink>
+                }
+              >
                   {openTasks.length === 0 ? (
                     <QueueEmpty message="No tasks ready yet — prior stages must finish first." />
                   ) : (
@@ -402,19 +407,22 @@ export function ExecutorWorkbench() {
                         ))}
                     </ul>
                   )}
-                </CardContent>
-              </Card>
+              </AppCard>
             )}
 
             {showManagementApprovals && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>Management approvals</CardTitle>
-                  <Link href={`${ROUTES.quality.approvals}?tab=management`} className="btn btn-ghost btn-sm">
+              <AppCard
+                title="Management approvals"
+                headerAction={
+                  <AppButtonLink
+                    href={`${ROUTES.quality.approvals}?tab=management`}
+                    appVariant="ghost"
+                    size="sm"
+                  >
                     Review all
-                  </Link>
-                </CardHeader>
-                <CardContent>
+                  </AppButtonLink>
+                }
+              >
                   {approvals.length === 0 ? (
                     <QueueEmpty message="Nothing waiting on your approval." />
                   ) : (
@@ -437,19 +445,18 @@ export function ExecutorWorkbench() {
                       ))}
                     </ul>
                   )}
-                </CardContent>
-              </Card>
+              </AppCard>
             )}
 
             {canCorrections && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>My corrections</CardTitle>
-                  <Link href={ROUTES.quality.corrections} className="btn btn-ghost btn-sm">
+              <AppCard
+                title="My corrections"
+                headerAction={
+                  <AppButtonLink href={ROUTES.quality.corrections} appVariant="ghost" size="sm">
                     View all
-                  </Link>
-                </CardHeader>
-                <CardContent>
+                  </AppButtonLink>
+                }
+              >
                   {corrections.length === 0 ? (
                     <QueueEmpty message="No open corrections assigned to you." />
                   ) : (
@@ -472,19 +479,18 @@ export function ExecutorWorkbench() {
                       ))}
                     </ul>
                   )}
-                </CardContent>
-              </Card>
+              </AppCard>
             )}
 
             {canViewPipeline && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>Active pipeline</CardTitle>
-                  <Link href={ROUTES.designs.list} className="btn btn-ghost btn-sm">
+              <AppCard
+                title="Active pipeline"
+                headerAction={
+                  <AppButtonLink href={ROUTES.designs.list} appVariant="ghost" size="sm">
                     All designs
-                  </Link>
-                </CardHeader>
-                <CardContent>
+                  </AppButtonLink>
+                }
+              >
                   {activeDesigns.length === 0 ? (
                     <QueueEmpty message="No active designs in the pipeline." />
                   ) : (
@@ -502,19 +508,18 @@ export function ExecutorWorkbench() {
                       ))}
                     </ul>
                   )}
-                </CardContent>
-              </Card>
+              </AppCard>
             )}
 
             {canRelease && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>Ready to release</CardTitle>
-                  <Link href={ROUTES.production.release} className="btn btn-ghost btn-sm">
+              <AppCard
+                title="Ready to release"
+                headerAction={
+                  <AppButtonLink href={ROUTES.production.release} appVariant="ghost" size="sm">
                     Release desk
-                  </Link>
-                </CardHeader>
-                <CardContent>
+                  </AppButtonLink>
+                }
+              >
                   {readyToRelease.length === 0 ? (
                     <QueueEmpty message="No approved designs waiting for release." />
                   ) : (
@@ -537,19 +542,18 @@ export function ExecutorWorkbench() {
                       ))}
                     </ul>
                   )}
-                </CardContent>
-              </Card>
+              </AppCard>
             )}
 
             {canCost && !canViewPipeline && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle>Designs for costing</CardTitle>
-                  <Link href={ROUTES.finance.costing} className="btn btn-ghost btn-sm">
+              <AppCard
+                title="Designs for costing"
+                headerAction={
+                  <AppButtonLink href={ROUTES.finance.costing} appVariant="ghost" size="sm">
                     Open costing
-                  </Link>
-                </CardHeader>
-                <CardContent>
+                  </AppButtonLink>
+                }
+              >
                   {designs.length === 0 ? (
                     <QueueEmpty message="No designs available for costing yet." />
                   ) : (
@@ -567,8 +571,7 @@ export function ExecutorWorkbench() {
                       ))}
                     </ul>
                   )}
-                </CardContent>
-              </Card>
+              </AppCard>
             )}
           </div>
         </section>

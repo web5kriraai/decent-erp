@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { ImageGallery } from "@/components/ImageGallery";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -150,28 +151,22 @@ export function InlineStageApprovalCard({
   const cardTitle = uiConfig.title ?? `${stageName} — your action`;
 
   return (
-    <section className="mb-6 overflow-hidden rounded-lg border-2 border-primary/25 bg-gradient-to-br from-primary/5 via-card to-card shadow-sm">
-      <div className="border-b border-primary/15 bg-primary/5 px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <CheckCircle2Icon className="size-5 text-primary" aria-hidden />
-              <h2 className="text-lg font-semibold text-foreground">{cardTitle}</h2>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {canApprove
-                ? `Review the design and record your ${stageName.toLowerCase()} decision without leaving this page.`
-                : approvalBlockedMessage}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge status={approvalTask.status} />
-            {workTask ? <StatusBadge status={resolveListItemDisplayStatus(workTask)} /> : null}
-          </div>
+    <AppCard
+      className="mb-6 overflow-hidden border-2 border-primary/25 bg-gradient-to-br from-primary/5 via-card to-card shadow-sm"
+      title={cardTitle}
+      description={
+        canApprove
+          ? `Review the design and record your ${stageName.toLowerCase()} decision without leaving this page.`
+          : approvalBlockedMessage
+      }
+      headerAction={
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge status={approvalTask.status} />
+          {workTask ? <StatusBadge status={resolveListItemDisplayStatus(workTask)} /> : null}
         </div>
-      </div>
-
-      <div className="space-y-5 px-5 py-4">
+      }
+    >
+      <div className="space-y-5">
         {uiConfig.showCompare ? <TaskCompareVersionsPanel designId={designId} /> : null}
 
         {uiConfig.showGallery ? (
@@ -192,8 +187,9 @@ export function InlineStageApprovalCard({
 
         <div className="flex flex-wrap gap-2 border-t border-border pt-4">
           {showApprove ? (
-            <Button
+            <AppButton
               type="button"
+              appVariant="primary"
               size="lg"
               disabled={busy || !canApprove}
               title={!canApprove ? approvalBlockedMessage : undefined}
@@ -202,34 +198,34 @@ export function InlineStageApprovalCard({
             >
               <CheckCircle2Icon className="size-4" aria-hidden />
               Approve {stageName.toLowerCase()}
-            </Button>
+            </AppButton>
           ) : null}
           {showCorrection ? (
-            <Button
+            <AppButton
               type="button"
-              variant="outline"
+              appVariant="outline"
               size="lg"
               disabled={busy || !canApprove || !remark.trim()}
               onClick={handleSendBack}
             >
               <RotateCcwIcon className="size-4" aria-hidden />
               Request correction
-            </Button>
+            </AppButton>
           ) : null}
           {showReject ? (
-            <Button
+            <AppButton
               type="button"
-              variant="destructive"
+              appVariant="danger"
               size="lg"
               disabled={busy || !canApprove || !remark.trim()}
               onClick={handleReject}
             >
               <XCircleIcon className="size-4" aria-hidden />
               Reject
-            </Button>
+            </AppButton>
           ) : null}
         </div>
       </div>
-    </section>
+    </AppCard>
   );
 }

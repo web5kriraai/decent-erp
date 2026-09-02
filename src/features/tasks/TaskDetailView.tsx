@@ -23,7 +23,8 @@ import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersions
 import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
 import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { ActionUnavailable } from "@/components/ui/ActionUnavailable";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { ROUTES } from "@/config/routes";
 import {
   resolveTaskContextActions,
@@ -230,9 +231,9 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         emptyTitle="Task not found"
         emptyDescription="This task does not exist or you do not have access."
         emptyAction={
-          <Link href={backHref} className="btn btn-primary">
+          <AppButtonLink href={backHref} appVariant="primary">
             {backLabel}
-          </Link>
+          </AppButtonLink>
         }
         onRetry={() => detailQuery.refetch()}
         skeletonVariant="cards"
@@ -263,12 +264,16 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                       Unassigned
                     </span>
                   )}
-                  <Link href={ROUTES.designs.detail(task.design.id)} className="btn btn-secondary btn-sm">
+                  <AppButtonLink
+                    href={ROUTES.designs.detail(task.design.id)}
+                    appVariant="secondary"
+                    size="sm"
+                  >
                     View Design
-                  </Link>
-                  <Link href={backHref} className="btn btn-ghost btn-sm">
+                  </AppButtonLink>
+                  <AppButtonLink href={backHref} appVariant="ghost" size="sm">
                     {backLabel}
-                  </Link>
+                  </AppButtonLink>
                 </>
               }
             />
@@ -310,14 +315,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
               />
             ) : null}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(280px, 360px) 1fr",
-                gap: "1.5rem",
-                alignItems: "start",
-              }}
-            >
+            <div className="grid items-start gap-6 [grid-template-columns:minmax(280px,360px)_1fr]">
               {canControl ? (
                 <TimerWidget
                   status={isRunning ? "RUNNING" : isOnHold ? "ON_HOLD" : "IDLE"}
@@ -344,64 +342,49 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   }
                 />
               ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Time summary</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {!isAssignee && canViewTeam && (
-                      <p className="mb-3 text-sm text-muted-foreground">
-                        Read-only view - you are not the assignee for this task.
-                      </p>
-                    )}
-                    {!isAssignee && !canViewTeam && (
-                      <p className="mb-3 text-sm text-muted-foreground">
-                        This task is not assigned to you.
-                      </p>
-                    )}
-                    <dl className="detail-list">
-                      <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
-                      <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
-                      <DetailItem label="Expected" value={`${task.expectedMinutes} min`} />
-                    </dl>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Task Details</CardTitle>
-                </CardHeader>
-                <CardContent>
+                <AppCard title="Time summary">
+                  {!isAssignee && canViewTeam && (
+                    <p className="mb-3 text-sm text-muted-foreground">
+                      Read-only view - you are not the assignee for this task.
+                    </p>
+                  )}
+                  {!isAssignee && !canViewTeam && (
+                    <p className="mb-3 text-sm text-muted-foreground">
+                      This task is not assigned to you.
+                    </p>
+                  )}
                   <dl className="detail-list">
-                    <DetailItem label="Process" value={task.process.name} />
-                    <DetailItem label="Sub-process" value={task.subProcess.name} />
-                    <DetailItem label="Expected Time" value={`${task.expectedMinutes} min`} />
-                    <DetailItem label="Priority" value={task.priority} />
                     <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
                     <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
+                    <DetailItem label="Expected" value={`${task.expectedMinutes} min`} />
                   </dl>
-                  {canControl && taskContextActions.length > 0 ? (
-                    <ContextualActionsPanel
-                      title="Task actions"
-                      className="mt-4"
-                      actions={taskContextActions}
-                      onAction={handleTaskContextAction}
-                      showDisabled
-                    />
-                  ) : null}
-                </CardContent>
-              </Card>
+                </AppCard>
+              )}
+
+              <AppCard title="Task Details">
+                <dl className="detail-list">
+                  <DetailItem label="Process" value={task.process.name} />
+                  <DetailItem label="Sub-process" value={task.subProcess.name} />
+                  <DetailItem label="Expected Time" value={`${task.expectedMinutes} min`} />
+                  <DetailItem label="Priority" value={task.priority} />
+                  <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
+                  <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
+                </dl>
+                {canControl && taskContextActions.length > 0 ? (
+                  <ContextualActionsPanel
+                    title="Task actions"
+                    className="mt-4"
+                    actions={taskContextActions}
+                    onAction={handleTaskContextAction}
+                    showDisabled
+                  />
+                ) : null}
+              </AppCard>
             </div>
 
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle>Time event timeline</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TaskTimeTimeline events={task.timeline} summary={task.timeSummary} />
-              </CardContent>
-            </Card>
+            <AppCard title="Time event timeline" className="mt-6">
+              <TaskTimeTimeline events={task.timeline} summary={task.timeSummary} />
+            </AppCard>
           </>
         )}
       </QueryState>

@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 
 export default function DashboardError({
   error,
@@ -16,20 +17,19 @@ export default function DashboardError({
 
   return (
     <div className="page-shell">
-      <div className="card error-state-card">
-        <h1>Something went wrong</h1>
-        <p className="text-muted-inline stack-section-sm">
+      <AppCard title="Something went wrong" className="error-state-card">
+        <p className="text-sm text-muted-foreground">
           {error.message || "This page could not load. Try refreshing or return to the dashboard."}
         </p>
-        <div className="form-actions form-actions--end">
-          <button type="button" className="btn btn-primary" onClick={() => reset()}>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <AppButton type="button" onClick={() => reset()}>
             Try again
-          </button>
-          <Link href="/dashboard" className="btn btn-secondary">
+          </AppButton>
+          <AppButtonLink href="/dashboard" appVariant="secondary">
             Go to Overview
-          </Link>
+          </AppButtonLink>
         </div>
-      </div>
+      </AppCard>
     </div>
   );
 }

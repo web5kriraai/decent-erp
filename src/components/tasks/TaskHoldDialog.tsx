@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import type { HoldReason } from "@/lib/types/api";
 
 type TaskHoldDialogProps = {
@@ -47,12 +47,12 @@ export function TaskHoldDialog({
       onClose={onClose}
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+          <AppButton type="button" appVariant="outline" onClick={onClose} disabled={isPending}>
             Cancel
-          </Button>
-          <Button type="button" disabled={!holdReasonId || isPending} onClick={onSubmit}>
+          </AppButton>
+          <AppButton type="button" disabled={!holdReasonId || isPending} onClick={onSubmit}>
             {isPending ? "Holding…" : "Confirm Hold"}
-          </Button>
+          </AppButton>
         </ModalFooterActions>
       }
     >

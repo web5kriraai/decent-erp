@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { IconPlus, IconSearch } from "@/components/icons";
+import { Input } from "@/components/ui/input";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useDesignsList } from "@/hooks/use-designs";
@@ -51,10 +53,10 @@ export function DesignListView() {
         title="Design Concepts"
         subtitle="Manage idea-to-release design pipeline"
         actions={
-          <Link href={ROUTES.designs.new} className="btn btn-primary">
+          <AppButtonLink href={ROUTES.designs.new} appVariant="primary">
             <IconPlus size={16} />
             New Design
-          </Link>
+          </AppButtonLink>
         }
       />
 
@@ -92,10 +94,10 @@ export function DesignListView() {
           emptyTitle="No designs match your filters"
           emptyDescription="Create a new design concept or adjust search filters."
           emptyAction={
-            <Link href={ROUTES.designs.new} className="btn btn-primary">
+            <AppButtonLink href={ROUTES.designs.new} appVariant="primary">
               <IconPlus size={16} />
               New Design
-            </Link>
+            </AppButtonLink>
           }
           toolbar={
             <div className="page-toolbar">
@@ -103,9 +105,9 @@ export function DesignListView() {
                 <span className="toolbar-search-icon">
                   <IconSearch size={16} />
                 </span>
-                <input
+                <Input
                   type="search"
-                  className="form-input"
+                  className="h-8 border-0 bg-transparent shadow-none focus-visible:ring-0"
                   placeholder="Search idea ref or collection…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}

@@ -6,6 +6,7 @@ import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
+import { AppCard } from "@/components/ui/AppCard";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -82,7 +83,7 @@ export function AuditLogView() {
         onRetry={() => auditQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="card">
+        <AppCard>
           <DataTable
             columns={[
               {
@@ -100,7 +101,7 @@ export function AuditLogView() {
             emptyTitle="No audit records"
             emptyDescription="System actions will appear here as they occur."
           />
-        </div>
+        </AppCard>
       </QueryState>
     </div>
   );

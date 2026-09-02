@@ -16,9 +16,10 @@ import {
   useGlobalSearchShortcut,
 } from "@/components/layout/GlobalSearchCommand";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { AppButton } from "@/components/ui/AppButton";
 import { IconSearch, IconLogout } from "@/components/icons";
-import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { cn } from "@/lib/utils";
 
 function getInitials(name: string) {
   return name
@@ -52,7 +53,11 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`sidebar ${collapsed ? "sidebar--collapsed" : ""} ${mobileOpen ? "sidebar--mobile-open" : ""}`}
+        className={cn(
+          "sidebar",
+          collapsed && "sidebar--collapsed",
+          mobileOpen && "sidebar--mobile-open",
+        )}
         aria-label="Main navigation"
       >
         <div className="sidebar-brand">
@@ -67,15 +72,17 @@ export function Sidebar() {
               </div>
             )}
           </Link>
-          <button
+          <AppButton
             type="button"
-            className="sidebar-collapse-btn"
+            appVariant="ghost"
+            size="icon-sm"
+            className="sidebar-collapse-btn text-inherit hover:bg-white/10"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand" : "Collapse"}
           >
             {collapsed ? "›" : "‹"}
-          </button>
+          </AppButton>
         </div>
 
         <nav className="sidebar-nav scroll-region" aria-label="Workspace sections">
@@ -92,7 +99,7 @@ export function Sidebar() {
                     <li key={item.id}>
                       <Link
                         href={item.href}
-                        className={`sidebar-link ${active ? "sidebar-link--active" : ""}`}
+                        className={cn("sidebar-link", active && "sidebar-link--active")}
                         aria-current={active ? "page" : undefined}
                         title={collapsed ? item.label : undefined}
                         onClick={closeMobile}
@@ -145,26 +152,29 @@ export function TopBar() {
   const name = session?.user?.name ?? "User";
   const role = session?.user?.roleCode ?? "employee";
   const [searchOpen, setSearchOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const openSearch = useCallback(() => setSearchOpen(true), []);
   useGlobalSearchShortcut(openSearch);
 
   return (
     <header className="topbar">
-      <button
+      <AppButton
         type="button"
-        className="topbar-menu-btn btn btn-ghost btn-icon"
+        appVariant="ghost"
+        size="icon"
+        className="topbar-menu-btn"
         onClick={toggleMobile}
         aria-label="Open navigation menu"
       >
         ☰
-      </button>
+      </AppButton>
 
       <Breadcrumbs items={breadcrumbs} variant="topbar" className="topbar-breadcrumbs" />
 
       <div className="topbar-search topbar-search--desktop">
-        <Button
+        <AppButton
           type="button"
-          variant="outline"
+          appVariant="outline"
           className="topbar-search-trigger h-8 w-full justify-start gap-2 px-2.5 font-normal text-muted-foreground"
           onClick={() => setSearchOpen(true)}
           aria-label="Open global search"
@@ -174,31 +184,63 @@ export function TopBar() {
           <kbd className="ml-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium sm:inline">
             Ctrl K
           </kbd>
-        </Button>
+        </AppButton>
       </div>
 
       <GlobalSearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
 
       <div className="topbar-actions">
         <NotificationBell />
-        <div className="topbar-user">
-          <div className="topbar-avatar" aria-hidden>
-            {getInitials(name)}
-          </div>
-          <div className="topbar-user-info topbar-user-info--desktop">
-            <span className="topbar-user-name">{name}</span>
-            <span className="topbar-user-role">{formatRole(role)}</span>
-          </div>
+        <div className="relative">
+          <AppButton
+            type="button"
+            appVariant="ghost"
+            className="topbar-user h-auto gap-2 px-1.5 py-1"
+            aria-expanded={userMenuOpen}
+            aria-haspopup="menu"
+            onClick={() => setUserMenuOpen((open) => !open)}
+          >
+            <div className="topbar-avatar" aria-hidden>
+              {getInitials(name)}
+            </div>
+            <div className="topbar-user-info topbar-user-info--desktop text-left">
+              <span className="topbar-user-name block leading-tight">{name}</span>
+              <span className="topbar-user-role block leading-tight">{formatRole(role)}</span>
+            </div>
+          </AppButton>
+          {userMenuOpen ? (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-40 cursor-default"
+                aria-label="Close user menu"
+                onClick={() => setUserMenuOpen(false)}
+              />
+              <div
+                role="menu"
+                className="absolute right-0 z-50 mt-1 min-w-48 overflow-hidden rounded-lg border bg-card p-1 shadow-md"
+              >
+                <div className="border-b px-2.5 py-2">
+                  <p className="text-sm font-medium">{name}</p>
+                  <p className="text-xs text-muted-foreground">{formatRole(role)}</p>
+                </div>
+                <AppButton
+                  type="button"
+                  appVariant="ghost"
+                  className="w-full justify-start gap-2"
+                  role="menuitem"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    void signOut({ callbackUrl: ROUTES.login });
+                  }}
+                >
+                  <IconLogout size={16} />
+                  Sign out
+                </AppButton>
+              </div>
+            </>
+          ) : null}
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost btn-icon"
-          onClick={() => signOut({ callbackUrl: ROUTES.login })}
-          aria-label="Sign out"
-          title="Sign out"
-        >
-          <IconLogout size={18} />
-        </button>
       </div>
     </header>
   );

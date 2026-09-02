@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { MastersView } from "@/features/admin/MastersView";
 import { MasterCatalogView } from "@/features/admin/MasterCatalogView";
 
@@ -22,16 +23,17 @@ export function MasterDataAdminView() {
         subtitle="Processes, product types, seasons, and product–process mappings"
       />
 
-      <div className="toolbar" style={{ marginBottom: "1rem" }}>
+      <div className="toolbar mb-4">
         {TABS.map((item) => (
-          <button
+          <AppButton
             key={item.id}
             type="button"
-            className={`btn btn-sm ${tab === item.id ? "btn-primary" : "btn-secondary"}`}
+            size="sm"
+            appVariant={tab === item.id ? "primary" : "secondary"}
             onClick={() => setTab(item.id)}
           >
             {item.label}
-          </button>
+          </AppButton>
         ))}
       </div>
 

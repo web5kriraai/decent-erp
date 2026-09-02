@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
@@ -81,9 +81,9 @@ export function CheckerWorkbench() {
       title="Sample checker desk"
       subtitle="Punch checks, sample checks, management sign-off, and completed reviews"
       actions={
-        <Link href={ROUTES.work.tasks} className="btn btn-primary btn-sm">
+        <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
           My Action Center
-        </Link>
+        </AppButtonLink>
       }
       isLoading={tasksQuery.isLoading || correctionsQuery.isLoading || approvalsQuery.isLoading}
       isError={tasksQuery.isError || correctionsQuery.isError || approvalsQuery.isError}

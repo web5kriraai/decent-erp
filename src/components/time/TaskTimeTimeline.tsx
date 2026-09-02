@@ -18,7 +18,7 @@ const EVENT_LABELS: Record<string, string> = {
 export function TaskTimeTimeline({ events, summary }: TaskTimeTimelineProps) {
   if (events.length === 0) {
     return (
-      <p style={{ color: "var(--color-neutral-500)", margin: 0 }}>
+      <p className="m-0 text-sm text-[var(--color-neutral-500)]">
         No time events recorded yet. Start the task to begin server-tracked timing.
       </p>
     );
@@ -59,7 +59,7 @@ export function TaskTimeTimeline({ events, summary }: TaskTimeTimelineProps) {
 
       {summary && summary.holdByReason.length > 0 && (
         <div className="time-hold-breakdown">
-          <h4 style={{ margin: "1rem 0 0.5rem", fontSize: "var(--font-size-body)" }}>Hold breakdown</h4>
+          <h4 className="mb-2 mt-4 text-sm font-semibold text-foreground">Hold breakdown</h4>
           <ul className="detail-task-list">
             {summary.holdByReason.map((h) => (
               <li key={h.code}>

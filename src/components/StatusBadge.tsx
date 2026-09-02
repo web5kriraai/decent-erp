@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const STATUS_TOKENS: Record<string, { bg: string; text: string; dot: string }> = {
   DRAFT: { bg: "var(--color-info-bg)", text: "var(--color-info)", dot: "var(--color-info)" },
@@ -31,20 +32,26 @@ const STATUS_TOKENS: Record<string, { bg: string; text: string; dot: string }> =
 type StatusBadgeProps = {
   status: string;
   label?: string;
+  className?: string;
 };
 
-export function StatusBadge({ status, label }: StatusBadgeProps) {
+export function StatusBadge({ status, label, className }: StatusBadgeProps) {
   const tokens = STATUS_TOKENS[status] ?? STATUS_TOKENS.CLOSED;
   const display = label ?? status.replace(/_/g, " ");
 
   return (
-    <span
-      className="badge"
+    <Badge
+      variant="outline"
+      className={cn("gap-1.5 border-transparent font-medium", className)}
       style={{ background: tokens.bg, color: tokens.text }}
       aria-label={`Status: ${display}`}
     >
-      <span className="badge-dot" style={{ background: tokens.dot }} />
+      <span
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ background: tokens.dot }}
+        aria-hidden
+      />
       {display}
-    </span>
+    </Badge>
   );
 }

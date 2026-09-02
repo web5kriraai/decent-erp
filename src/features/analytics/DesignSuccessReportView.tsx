@@ -17,7 +17,7 @@ import {
   ModalFormGrid,
 } from "@/components/ui/Modal";
 import { FormTextField } from "@/components/ui/form-text-field";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
@@ -93,9 +93,10 @@ export function DesignSuccessReportView() {
         subtitle="Production quantity, sales, and margin by design (manual or ERP-fed)"
         actions={
           <>
-            <button
+            <AppButton
               type="button"
-              className="btn btn-secondary btn-sm"
+              appVariant="secondary"
+              size="sm"
               disabled={erpSync.isPending}
               onClick={() => {
                 const designId = form.designId || rows[0]?.designId;
@@ -107,10 +108,10 @@ export function DesignSuccessReportView() {
               }}
             >
               Sync from ERP
-            </button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setUpsertOpen(true)}>
+            </AppButton>
+            <AppButton type="button" appVariant="primary" size="sm" onClick={() => setUpsertOpen(true)}>
               Add / Update Metric
-            </button>
+            </AppButton>
           </>
         }
       />
@@ -189,10 +190,10 @@ export function DesignSuccessReportView() {
         onClose={() => setUpsertOpen(false)}
         footer={
           <ModalFooterActions>
-            <Button variant="outline" onClick={() => setUpsertOpen(false)}>Cancel</Button>
-            <Button disabled={!form.designId || upsert.isPending} onClick={() => upsert.mutate()}>
+            <AppButton appVariant="outline" onClick={() => setUpsertOpen(false)}>Cancel</AppButton>
+            <AppButton disabled={!form.designId || upsert.isPending} onClick={() => upsert.mutate()}>
               Save
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >

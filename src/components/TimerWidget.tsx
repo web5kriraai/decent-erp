@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { cn } from "@/lib/utils";
 import { PauseIcon, PlayIcon, SquareIcon } from "lucide-react";
 
@@ -89,22 +89,22 @@ export function TimerWidget({
 
       <div className="timer-actions">
         {status === "RUNNING" && onHold ? (
-          <Button type="button" variant="outline" size="sm" onClick={onHold}>
+          <AppButton type="button" appVariant="outline" size="sm" onClick={onHold}>
             <PauseIcon />
             Hold
-          </Button>
+          </AppButton>
         ) : null}
         {status === "ON_HOLD" && onResume ? (
-          <Button type="button" size="sm" onClick={onResume}>
+          <AppButton type="button" size="sm" onClick={onResume}>
             <PlayIcon />
             Resume
-          </Button>
+          </AppButton>
         ) : null}
         {isActive && onEnd ? (
-          <Button type="button" variant="destructive" size="sm" onClick={onEnd}>
+          <AppButton type="button" appVariant="danger" size="sm" onClick={onEnd}>
             <SquareIcon />
             End Task
-          </Button>
+          </AppButton>
         ) : null}
         {status === "IDLE" ? (
           <p className="timer-idle-hint">Start a task from the board to begin tracking time.</p>

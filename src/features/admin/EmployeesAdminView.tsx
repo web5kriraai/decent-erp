@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -156,9 +157,9 @@ export function EmployeesAdminView() {
         title="Employees"
         subtitle="Create accounts, assign roles, reset passwords, and activate or deactivate users"
         actions={
-          <button type="button" className="btn btn-primary" onClick={openCreateModal}>
+          <AppButton type="button" appVariant="primary" onClick={openCreateModal}>
             Add Employee
-          </button>
+          </AppButton>
         }
       />
 
@@ -172,7 +173,7 @@ export function EmployeesAdminView() {
         }}
         skeletonVariant="table"
       >
-        <div className="card">
+        <AppCard>
           <DataTable
             columns={[
               { key: "employeeCode", header: "Code" },
@@ -213,22 +214,24 @@ export function EmployeesAdminView() {
                 align: "right",
                 render: (row) => (
                   <div className="table-actions">
-                    <button
+                    <AppButton
                       type="button"
-                      className="btn btn-ghost btn-sm"
+                      appVariant="ghost"
+                      size="sm"
                       onClick={() => openEditModal(row)}
                     >
                       Edit
-                    </button>
+                    </AppButton>
                     {!isSelf(row.id) && (
-                      <button
+                      <AppButton
                         type="button"
-                        className="btn btn-secondary btn-sm"
+                        appVariant="secondary"
+                        size="sm"
                         disabled={updateEmployee.isPending}
                         onClick={() => toggleActive(row)}
                       >
                         {row.active ? "Deactivate" : "Activate"}
-                      </button>
+                      </AppButton>
                     )}
                   </div>
                 ),
@@ -239,9 +242,9 @@ export function EmployeesAdminView() {
             emptyTitle="No employees yet"
             emptyDescription="Add your first employee to give them login access and a role."
             emptyAction={
-              <button type="button" className="btn btn-primary" onClick={openCreateModal}>
+              <AppButton type="button" appVariant="primary" onClick={openCreateModal}>
                 Add Employee
-              </button>
+              </AppButton>
             }
           />
 
@@ -250,7 +253,7 @@ export function EmployeesAdminView() {
             apply on their next login. Your own System Admin account cannot be deactivated or
             demoted.
           </p>
-        </div>
+        </AppCard>
       </QueryState>
 
       <EmployeeFormModal
@@ -332,16 +335,16 @@ function EmployeeFormModal({
       size="lg"
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <AppButton type="button" appVariant="outline" onClick={onClose}>
             Cancel
-          </Button>
-          <Button
+          </AppButton>
+          <AppButton
             type="button"
             disabled={!canSubmit || isPending}
             onClick={onSubmit}
           >
             {isPending ? "Saving…" : submitLabel}
-          </Button>
+          </AppButton>
         </ModalFooterActions>
       }
     >

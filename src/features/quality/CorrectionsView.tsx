@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { DataTable } from "@/components/DataTable";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -49,13 +51,13 @@ export function CorrectionsView() {
         title="Corrections"
         subtitle="Corrections you raised, own on a task, or are responsible for fixing"
         actions={
-          <button type="button" className="btn btn-primary" onClick={() => setRaiseOpen(true)}>
+          <AppButton type="button" appVariant="primary" onClick={() => setRaiseOpen(true)}>
             Raise Correction
-          </button>
+          </AppButton>
         }
       />
 
-      <div className="card contextual-actions-wrap stack-section">
+      <AppCard className="contextual-actions-wrap stack-section">
         <ContextualActionsPanel
           title="Correction actions"
           actions={correctionActions}
@@ -63,7 +65,7 @@ export function CorrectionsView() {
             if (action.enabled && action.code === "RAISE_CORRECTION") setRaiseOpen(true);
           }}
         />
-      </div>
+      </AppCard>
 
       <QueryState
         isLoading={correctionsQuery.isLoading}
@@ -72,7 +74,7 @@ export function CorrectionsView() {
         onRetry={() => correctionsQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="card">
+        <AppCard>
           <DataTable
             columns={[
               {
@@ -129,12 +131,12 @@ export function CorrectionsView() {
             emptyTitle="No corrections"
             emptyDescription="When you raise a correction or one is assigned to you, it appears here."
             emptyAction={
-              <button type="button" className="btn btn-primary" onClick={() => setRaiseOpen(true)}>
+              <AppButton type="button" appVariant="primary" onClick={() => setRaiseOpen(true)}>
                 Raise Correction
-              </button>
+              </AppButton>
             }
           />
-        </div>
+        </AppCard>
       </QueryState>
 
       <RaiseCorrectionModal open={raiseOpen} onClose={() => setRaiseOpen(false)} />

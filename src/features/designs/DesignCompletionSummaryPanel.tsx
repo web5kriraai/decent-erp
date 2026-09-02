@@ -2,6 +2,8 @@
 
 import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
+import { AppCard } from "@/components/ui/AppCard";
+import { DataTable } from "@/components/DataTable";
 import { TimeMetricGrid } from "@/components/time/TaskTimeTimeline";
 import { useDesignCompletionSummary } from "@/hooks/use-designs";
 import { formatDuration } from "@/lib/services/time-calculation";
@@ -30,21 +32,20 @@ export function DesignCompletionSummaryPanel({
   const summaryQuery = useDesignCompletionSummary(designId, enabled && isComplete);
 
   return (
-    <section className="card stack-section">
-      <div className="flex flex-wrap items-start justify-between gap-3 stack-section-sm">
-        <div>
-          <h2 className="text-base font-semibold text-foreground">Completion summary</h2>
-          <p className="text-sm text-muted-foreground">
-            {isComplete
-              ? "Work and time recorded for this design across all phases."
-              : `${doneCount} of ${progress.total} phases finished — summary unlocks when all phases are complete.`}
-          </p>
-        </div>
-        {!isComplete ? (
+    <AppCard
+      className="stack-section"
+      title="Completion summary"
+      description={
+        isComplete
+          ? "Work and time recorded for this design across all phases."
+          : `${doneCount} of ${progress.total} phases finished — summary unlocks when all phases are complete.`
+      }
+      headerAction={
+        !isComplete ? (
           <StatusBadge status="IN_PROGRESS" label={`${doneCount}/${progress.total}`} />
-        ) : null}
-      </div>
-
+        ) : null
+      }
+    >
       {!isComplete ? (
         <div
           className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
@@ -73,69 +74,81 @@ export function DesignCompletionSummaryPanel({
               />
 
               <div>
-                <h3 className="mb-2 text-sm font-semibold">By employee</h3>
-                <div className="data-table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Employee</th>
-                        <th>Completed</th>
-                        <th>Skipped</th>
-                        <th>Active time</th>
-                        <th>Hold time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summaryQuery.data.employees.map((row) => (
-                        <tr key={row.employeeId}>
-                          <td>
-                            {row.name}
-                            <span className="block text-xs text-muted-foreground">{row.roleName}</span>
-                          </td>
-                          <td>{row.tasksCompleted}</td>
-                          <td>{row.tasksSkippedAsAssignee}</td>
-                          <td>{formatDuration(row.activeSeconds)}</td>
-                          <td>{formatDuration(row.holdSeconds)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <h3 className="mb-2 text-sm font-semibold text-foreground">By employee</h3>
+                <DataTable
+                  columns={[
+                    {
+                      key: "name",
+                      header: "Employee",
+                      render: (row) => (
+                        <>
+                          {row.name}
+                          <span className="data-table-subtext">{row.roleName}</span>
+                        </>
+                      ),
+                    },
+                    { key: "tasksCompleted", header: "Completed" },
+                    { key: "tasksSkippedAsAssignee", header: "Skipped" },
+                    {
+                      key: "activeSeconds",
+                      header: "Active time",
+                      render: (row) => formatDuration(row.activeSeconds),
+                    },
+                    {
+                      key: "holdSeconds",
+                      header: "Hold time",
+                      render: (row) => formatDuration(row.holdSeconds),
+                    },
+                  ]}
+                  rows={summaryQuery.data.employees}
+                  getRowKey={(row) => String(row.employeeId)}
+                  emptyTitle="No employee time yet"
+                  emptyDescription="No per-employee totals for this design."
+                />
               </div>
 
               <div>
-                <h3 className="mb-2 text-sm font-semibold">By phase</h3>
-                <div className="data-table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Phase</th>
-                        <th>Assignee</th>
-                        <th>Status</th>
-                        <th>Active time</th>
-                        <th>Expected</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summaryQuery.data.phases.map((phase) => (
-                        <tr key={phase.taskId}>
-                          <td>
-                            #{phase.sequence} {phase.name}
-                            {phase.skipReason ? (
-                              <span className="block text-xs text-muted-foreground">{phase.skipReason}</span>
-                            ) : null}
-                          </td>
-                          <td>{phase.assignee?.name ?? "Unassigned"}</td>
-                          <td>
-                            <StatusBadge status={phase.status} />
-                          </td>
-                          <td>{formatDuration(phase.activeSeconds)}</td>
-                          <td>{phase.expectedMinutes} min</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <h3 className="mb-2 text-sm font-semibold text-foreground">By phase</h3>
+                <DataTable
+                  columns={[
+                    {
+                      key: "name",
+                      header: "Phase",
+                      render: (row) => (
+                        <>
+                          #{row.sequence} {row.name}
+                          {row.skipReason ? (
+                            <span className="data-table-subtext">{row.skipReason}</span>
+                          ) : null}
+                        </>
+                      ),
+                    },
+                    {
+                      key: "assignee",
+                      header: "Assignee",
+                      render: (row) => row.assignee?.name ?? "Unassigned",
+                    },
+                    {
+                      key: "status",
+                      header: "Status",
+                      render: (row) => <StatusBadge status={row.status} />,
+                    },
+                    {
+                      key: "activeSeconds",
+                      header: "Active time",
+                      render: (row) => formatDuration(row.activeSeconds),
+                    },
+                    {
+                      key: "expectedMinutes",
+                      header: "Expected",
+                      render: (row) => `${row.expectedMinutes} min`,
+                    },
+                  ]}
+                  rows={summaryQuery.data.phases}
+                  getRowKey={(row) => row.taskId}
+                  emptyTitle="No phases"
+                  emptyDescription="No phase breakdown for this design."
+                />
               </div>
 
               {summaryQuery.data.overrideHistory.length > 0 ? (
@@ -145,8 +158,8 @@ export function DesignCompletionSummaryPanel({
                     {summaryQuery.data.overrideHistory.map((entry, index) => (
                       <li key={`${entry.atUtc}-${index}`}>
                         <span>
-                          {entry.action.replace(/_/g, " ")} — {entry.fromStage ?? "?"} → {entry.toStage ?? "?"}{" "}
-                          by {entry.actor}
+                          {entry.action.replace(/_/g, " ")} — {entry.fromStage ?? "?"} →{" "}
+                          {entry.toStage ?? "?"} by {entry.actor}
                         </span>
                         <span className="text-xs text-muted-foreground">{entry.reason}</span>
                       </li>
@@ -158,6 +171,6 @@ export function DesignCompletionSummaryPanel({
           )}
         </QueryState>
       )}
-    </section>
+    </AppCard>
   );
 }

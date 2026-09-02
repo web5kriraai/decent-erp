@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   buildWorkflowSteps,
@@ -15,7 +16,6 @@ import {
   Clock3Icon,
   InfoIcon,
   LockIcon,
-  ShieldCheckIcon,
 } from "lucide-react";
 
 type DesignWorkflowPanelProps = {
@@ -37,106 +37,96 @@ export function DesignWorkflowPanel({
   );
 
   return (
-    <section className="workflow-panel">
-      <div className="workflow-panel-header">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <ShieldCheckIcon className="size-4 text-primary" aria-hidden />
-            <h2 className="text-base font-semibold text-foreground">Workflow</h2>
-          </div>
-          {workflowContext.summary ? (
-            <p className="text-sm text-muted-foreground">{workflowContext.summary}</p>
+    <AppCard
+      title="Workflow"
+      description={workflowContext.summary ?? undefined}
+      headerAction={<StatusBadge status={design.status} />}
+      contentClassName="space-y-4"
+    >
+      {(workflowContext.currentStage ||
+        workflowContext.currentOwner ||
+        workflowContext.nextAction) && (
+        <dl className="workflow-context-grid">
+          {workflowContext.currentStage ? (
+            <>
+              <dt>Current stage</dt>
+              <dd>{workflowContext.currentStage}</dd>
+            </>
           ) : null}
-        </div>
-        <StatusBadge status={design.status} />
-      </div>
+          {workflowContext.currentOwner ? (
+            <>
+              <dt>Current owner</dt>
+              <dd>{workflowContext.currentOwner}</dd>
+            </>
+          ) : null}
+          {workflowContext.nextAction ? (
+            <>
+              <dt>Next action</dt>
+              <dd>{workflowContext.nextAction}</dd>
+            </>
+          ) : null}
+          {workflowContext.nextOwner ? (
+            <>
+              <dt>Next owner</dt>
+              <dd>{workflowContext.nextOwner}</dd>
+            </>
+          ) : null}
+        </dl>
+      )}
 
-      <div className="workflow-panel-body">
-        {(workflowContext.currentStage ||
-          workflowContext.currentOwner ||
-          workflowContext.nextAction) && (
-          <dl className="workflow-context-grid">
-            {workflowContext.currentStage ? (
-              <>
-                <dt>Current stage</dt>
-                <dd>{workflowContext.currentStage}</dd>
-              </>
-            ) : null}
-            {workflowContext.currentOwner ? (
-              <>
-                <dt>Current owner</dt>
-                <dd>{workflowContext.currentOwner}</dd>
-              </>
-            ) : null}
-            {workflowContext.nextAction ? (
-              <>
-                <dt>Next action</dt>
-                <dd>{workflowContext.nextAction}</dd>
-              </>
-            ) : null}
-            {workflowContext.nextOwner ? (
-              <>
-                <dt>Next owner</dt>
-                <dd>{workflowContext.nextOwner}</dd>
-              </>
-            ) : null}
-          </dl>
-        )}
-
-        <ol className="workflow-step-grid">
-          {steps.map((step) => (
-            <li
-              key={step.task.id}
-              className={cn(
-                "workflow-step-card",
-                step.isCurrent && "workflow-step-card--current",
-                step.isUpcoming && "workflow-step-card--upcoming",
-                step.isDone && "workflow-step-card--done",
-              )}
-            >
-              <div className="workflow-step-card-head">
-                <div className="min-w-0">
-                  <p className="workflow-step-title">
-                    <span className="workflow-step-seq">#{step.sequence} </span>
-                    {step.label}
-                  </p>
-                  <p className="workflow-step-meta">
-                    {step.assigneeName ?? "Unassigned"}
-                    {step.isApproval ? " · Approval" : ""}
-                    {step.task.skipReason ? ` · ${step.task.skipReason}` : ""}
-                  </p>
-                </div>
-                <StepStatusIcon step={step} />
+      <ol className="workflow-step-grid">
+        {steps.map((step) => (
+          <li
+            key={step.task.id}
+            className={cn(
+              "workflow-step-card",
+              step.isCurrent && "workflow-step-card--current",
+              step.isUpcoming && "workflow-step-card--upcoming",
+              step.isDone && "workflow-step-card--done",
+            )}
+          >
+            <div className="workflow-step-card-head">
+              <div className="min-w-0">
+                <p className="workflow-step-title">
+                  <span className="workflow-step-seq">#{step.sequence} </span>
+                  {step.label}
+                </p>
+                <p className="workflow-step-meta">
+                  {step.assigneeName ?? "Unassigned"}
+                  {step.isApproval ? " · Approval" : ""}
+                  {step.task.skipReason ? ` · ${step.task.skipReason}` : ""}
+                </p>
               </div>
-              <div className="workflow-step-card-foot">
-                <StatusBadge status={step.displayStatus} />
-                {canAssign && step.canReassign && onAssignTask ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    className="workflow-reassign-btn"
-                    onClick={() => onAssignTask(step.task)}
-                  >
-                    Reassign
-                  </Button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ol>
-
-        {workflowContext.nextActionHint ? (
-          <div className="workflow-next-hint" role="note">
-            <InfoIcon className="workflow-next-hint-icon" aria-hidden />
-            <div>
-              <p className="workflow-next-hint-title">Next action</p>
-              <p className="workflow-next-hint-text">{workflowContext.nextActionHint}</p>
+              <StepStatusIcon step={step} />
             </div>
+            <div className="workflow-step-card-foot">
+              <StatusBadge status={step.displayStatus} />
+              {canAssign && step.canReassign && onAssignTask ? (
+                <AppButton
+                  type="button"
+                  appVariant="outline"
+                  size="xs"
+                  className="workflow-reassign-btn"
+                  onClick={() => onAssignTask(step.task)}
+                >
+                  Reassign
+                </AppButton>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      {workflowContext.nextActionHint ? (
+        <div className="workflow-next-hint" role="note">
+          <InfoIcon className="workflow-next-hint-icon" aria-hidden />
+          <div>
+            <p className="workflow-next-hint-title">Next action</p>
+            <p className="workflow-next-hint-text">{workflowContext.nextActionHint}</p>
           </div>
-        ) : null}
-      </div>
-    </section>
+        </div>
+      ) : null}
+    </AppCard>
   );
 }
 

@@ -7,7 +7,7 @@ import {
   ModalForm,
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { useEmployeeOptions } from "@/hooks/use-corrections";
 import { useAssignTask } from "@/hooks/use-tasks";
 import type { DesignTask } from "@/lib/types/api";
@@ -42,16 +42,17 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
       onClose={onClose}
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <AppButton type="button" appVariant="outline" onClick={onClose}>
             Cancel
-          </Button>
-          <Button
+          </AppButton>
+          <AppButton
             type="button"
+            appVariant="primary"
             disabled={!employeeId || assignTask.isPending}
             onClick={handleSubmit}
           >
             {assignTask.isPending ? "Assigning…" : "Assign"}
-          </Button>
+          </AppButton>
         </ModalFooterActions>
       }
     >

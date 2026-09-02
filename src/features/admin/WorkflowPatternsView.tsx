@@ -15,7 +15,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { Modal, ModalFooterActions, ModalForm } from "@/components/ui/Modal";
 import { FormTextField } from "@/components/ui/form-text-field";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { CreateWorkflowPatternModal } from "@/features/admin/CreateWorkflowPatternModal";
 import type { CreateWorkflowPatternPayload, WorkflowPattern } from "@/lib/types/api";
 
@@ -97,9 +97,9 @@ export function WorkflowPatternsView() {
         title="Workflow Patterns"
         subtitle="Create and maintain versioned task sequences used when generating design work"
         actions={
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setOpen(true)}>
+          <AppButton type="button" appVariant="primary" size="sm" onClick={() => setOpen(true)}>
             Add Pattern
-          </button>
+          </AppButton>
         }
       />
 
@@ -139,33 +139,37 @@ export function WorkflowPatternsView() {
               align: "right",
               render: (row) => (
                 <div className="inline-actions">
-                  <button
+                  <AppButton
                     type="button"
-                    className="btn btn-ghost btn-sm"
+                    appVariant="ghost"
+                    size="sm"
                     onClick={() => {
                       setEditing(row);
                       setEditName(row.name);
                     }}
                   >
                     Rename
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     type="button"
-                    className="btn btn-ghost btn-sm"
+                    appVariant="ghost"
+                    size="sm"
                     onClick={() => setEditSteps(row)}
                   >
                     Edit steps
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     type="button"
-                    className="btn btn-ghost btn-sm"
+                    appVariant="ghost"
+                    size="sm"
                     onClick={() => setCloneTarget(row)}
                   >
                     Clone as v+
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     type="button"
-                    className="btn btn-secondary btn-sm"
+                    appVariant="secondary"
+                    size="sm"
                     disabled={updatePattern.isPending}
                     onClick={() =>
                       updatePattern.mutate({
@@ -175,7 +179,7 @@ export function WorkflowPatternsView() {
                     }
                   >
                     {row.active === false ? "Activate" : "Deactivate"}
-                  </button>
+                  </AppButton>
                 </div>
               ),
             },
@@ -213,17 +217,17 @@ export function WorkflowPatternsView() {
         size="sm"
         footer={
           <ModalFooterActions>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(null)}>
+            <AppButton type="button" appVariant="ghost" size="sm" onClick={() => setEditing(null)}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
               size="sm"
               disabled={!editName.trim() || updatePattern.isPending}
               onClick={() => editing && updatePattern.mutate({ id: editing.id, name: editName.trim() })}
             >
               Save
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >
@@ -245,17 +249,17 @@ export function WorkflowPatternsView() {
         size="sm"
         footer={
           <ModalFooterActions>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setCloneTarget(null)}>
+            <AppButton type="button" appVariant="ghost" size="sm" onClick={() => setCloneTarget(null)}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
               size="sm"
               disabled={clonePattern.isPending}
               onClick={() => cloneTarget && clonePattern.mutate(cloneTarget.id)}
             >
               {clonePattern.isPending ? "Cloning…" : "Clone pattern"}
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >

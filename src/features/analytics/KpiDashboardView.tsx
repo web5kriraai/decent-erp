@@ -16,11 +16,12 @@ import { StatCard } from "@/components/ui/StatCard";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { DataTable } from "@/components/DataTable";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { PERMISSIONS } from "@/lib/permissions";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
-import Link from "next/link";
 import { ROUTES } from "@/config/routes";
 import { SPEC_KPI_METRICS } from "@/lib/kpi-metrics";
 
@@ -86,39 +87,35 @@ export function KpiDashboardView() {
         subtitle="Nine weighted metrics (spec §9.1) across roles and period"
         actions={
           <>
-            <Link href={ROUTES.analytics.reportsHub} className="btn btn-secondary btn-sm">
+            <AppButtonLink href={ROUTES.analytics.reportsHub} appVariant="secondary" size="sm">
               Reports Hub
-            </Link>
-            <Link href={ROUTES.analytics.kpiDesignHead} className="btn btn-secondary btn-sm">
+            </AppButtonLink>
+            <AppButtonLink href={ROUTES.analytics.kpiDesignHead} appVariant="secondary" size="sm">
               Design Head
-            </Link>
-            <button
+            </AppButtonLink>
+            <AppButton
               type="button"
-              className="btn btn-primary btn-sm"
+              appVariant="primary"
+              size="sm"
               disabled={recompute.isPending}
               onClick={() => recompute.mutate()}
             >
               Recompute KPI
-            </button>
+            </AppButton>
           </>
         }
       />
 
-      <div className="card stack-section">
-        <div className="card-header">
-          <span className="card-title">Metric definitions (weights = 100%)</span>
-        </div>
-        <div className="card-body" style={{ padding: "1rem 1.25rem" }}>
-          <ul style={{ margin: 0, paddingLeft: "1.25rem", lineHeight: 1.6, columns: 2 }}>
-            {metricCoverage.map((metric) => (
-              <li key={metric.code}>
-                <strong>{metric.label}</strong> — {metric.weight}%
-                {metric.scored > 0 ? ` (${metric.scored} scores)` : ""}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      <AppCard className="stack-section" title="Metric definitions (weights = 100%)">
+        <ul className="m-0 columns-2 list-disc space-y-1 pl-5 text-sm leading-relaxed">
+          {metricCoverage.map((metric) => (
+            <li key={metric.code}>
+              <strong>{metric.label}</strong> — {metric.weight}%
+              {metric.scored > 0 ? ` (${metric.scored} scores)` : ""}
+            </li>
+          ))}
+        </ul>
+      </AppCard>
 
       <QueryState
         isLoading={kpiQuery.isLoading}
@@ -141,8 +138,7 @@ export function KpiDashboardView() {
         </div>
 
         {chartData.length > 0 && (
-          <div className="card stack-section kpi-chart-card">
-            <span className="card-title">Weighted score by employee</span>
+          <AppCard className="stack-section kpi-chart-card" title="Weighted score by employee">
             <ResponsiveContainer width="100%" height="85%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -152,7 +148,7 @@ export function KpiDashboardView() {
                 <Bar dataKey="score" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          </AppCard>
         )}
 
         <DataTable<KpiRow & Record<string, unknown>>

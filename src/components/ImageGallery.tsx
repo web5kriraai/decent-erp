@@ -6,6 +6,7 @@ import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignImageRecord } from "@/lib/types/api";
 import { FileUploader } from "@/components/FileUploader";
+import { AppButton } from "@/components/ui/AppButton";
 import { useApiToast } from "@/components/ui/ToastProvider";
 
 type ImageGalleryProps = {
@@ -48,7 +49,7 @@ export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) 
       {canUpload && (
         <FileUploader designId={designId} onUploaded={() => imagesQuery.refetch()} />
       )}
-      <div className="image-gallery" style={{ marginTop: "1rem" }}>
+      <div className="image-gallery mt-4">
         {(imagesQuery.data ?? []).map((image) => {
           const isRejected = image.reviewStatus === "REJECTED";
           return (
@@ -75,29 +76,31 @@ export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) 
                 {!isRejected ? <span>{image.fileName}</span> : null}
                 {image.isPrimary && <span className="badge">Primary</span>}
                 {canUpload && !image.isPrimary && !isRejected && (
-                  <button
+                  <AppButton
                     type="button"
-                    className="btn btn-ghost btn-sm"
+                    appVariant="ghost"
+                    size="sm"
                     onClick={() => void handleSetPrimary(image.id)}
                   >
                     Set primary
-                  </button>
+                  </AppButton>
                 )}
                 {canUpload && (
-                  <button
+                  <AppButton
                     type="button"
-                    className="btn btn-ghost btn-sm"
+                    appVariant="ghost"
+                    size="sm"
                     onClick={() => handleDelete(image.id)}
                   >
                     Remove
-                  </button>
+                  </AppButton>
                 )}
               </div>
             </div>
           );
         })}
         {!imagesQuery.isLoading && (imagesQuery.data?.length ?? 0) === 0 && (
-          <p style={{ color: "var(--color-neutral-500)", margin: 0 }}>No files uploaded yet</p>
+          <p className="m-0 text-sm text-[var(--color-neutral-500)]">No files uploaded yet</p>
         )}
       </div>
     </div>

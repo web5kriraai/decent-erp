@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { useRequestDesignApproval } from "@/hooks/use-approvals";
 import { resolveDesignContextActions } from "@/lib/workflow-actions";
 import type { DesignSummary } from "@/lib/types/api";
@@ -18,6 +17,14 @@ type CompactDesignActionsProps = {
   onAssignTask?: (taskId: string) => void;
   className?: string;
 };
+
+function appVariantForAction(
+  variant: ResolvedWorkflowAction["variant"],
+): "primary" | "outline" | "secondary" {
+  if (variant === "primary") return "primary";
+  if (variant === "outline") return "outline";
+  return "secondary";
+}
 
 export function CompactDesignActions({
   design,
@@ -66,53 +73,43 @@ export function CompactDesignActions({
         {enabled.map((action) => {
           if (action.href && action.code !== WORKFLOW_ACTION_CODES.REQUEST_APPROVAL) {
             return (
-              <Link
+              <AppButtonLink
                 key={`${action.code}-${action.taskId ?? action.designId}`}
                 href={action.href}
-                className={cn(
-                  "btn btn-sm",
-                  action.variant === "primary" && "btn-primary",
-                  action.variant === "outline" && "btn-outline",
-                  action.variant === "secondary" && "btn-secondary",
-                )}
+                appVariant={appVariantForAction(action.variant)}
+                size="sm"
               >
                 {action.label}
-              </Link>
+              </AppButtonLink>
             );
           }
           return (
-            <Button
+            <AppButton
               key={`${action.code}-${action.taskId ?? action.designId}`}
               type="button"
               size="sm"
-              variant={
-                action.variant === "primary"
-                  ? "default"
-                  : action.variant === "outline"
-                    ? "outline"
-                    : "secondary"
-              }
+              appVariant={appVariantForAction(action.variant)}
               disabled={
                 action.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL && requestApproval.isPending
               }
               onClick={() => handleAction(action)}
             >
               {action.label}
-            </Button>
+            </AppButton>
           );
         })}
         {disabled.map((action) => (
-          <Button
+          <AppButton
             key={`disabled-${action.code}`}
             type="button"
             size="sm"
-            variant="outline"
+            appVariant="outline"
             disabled
             title={action.disabledReason}
             onClick={() => setDisabledHint(action.disabledReason ?? null)}
           >
             {action.label}
-          </Button>
+          </AppButton>
         ))}
       </div>
       {disabledHint ? (

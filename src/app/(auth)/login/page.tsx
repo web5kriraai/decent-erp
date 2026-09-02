@@ -4,6 +4,16 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { IconCheck, IconDesigns } from "@/components/icons";
+import { AppButton } from "@/components/ui/AppButton";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ROUTES } from "@/config/routes";
 
 export default function LoginPage() {
@@ -43,7 +53,7 @@ export default function LoginPage() {
           <h1>Decent ERP</h1>
           <p>
             End-to-end design lifecycle management for Saree, Suit, Kurti, Lehenga
-            and textile products - from concept to production release.
+            and textile products — from concept to production release.
           </p>
         </div>
         <div className="login-features">
@@ -63,50 +73,50 @@ export default function LoginPage() {
       </div>
 
       <div className="login-form-panel">
-        <div className="login-form-card">
-          <h2>Sign in</h2>
-          <p className="login-form-subtitle">Design Management Module</p>
+        <Card className="w-full max-w-md shadow-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-xl">Sign in</CardTitle>
+            <CardDescription>Design Management Module</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error ? (
+              <div
+                className="mb-4 rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger-bg)] px-3 py-2 text-sm text-[var(--color-danger)]"
+                role="alert"
+              >
+                {error}
+              </div>
+            ) : null}
 
-          {error && (
-            <div className="alert alert-error login-error-alert" role="alert">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="form-group">
-              <label htmlFor="email" className="form-label">
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="form-input"
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="password" className="form-label">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="form-input"
-                autoComplete="current-password"
-                required
-              />
-            </div>
-            <button type="submit" className="btn btn-primary btn-lg w-full" disabled={loading}>
-              {loading ? "Signing in…" : "Sign in to workspace"}
-            </button>
-          </form>
-        </div>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              <AppButton type="submit" size="lg" className="w-full" disabled={loading}>
+                {loading ? "Signing in…" : "Sign in to workspace"}
+              </AppButton>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

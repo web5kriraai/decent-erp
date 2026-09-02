@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
@@ -63,9 +63,9 @@ export function MachineOperatorWorkbench() {
       title="Machine operator desk"
       subtitle="Sample runs, receive steps, and re-sample rework"
       actions={
-        <Link href={ROUTES.work.tasks} className="btn btn-primary btn-sm">
+        <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
           My Tasks
-        </Link>
+        </AppButtonLink>
       }
       isLoading={tasksQuery.isLoading}
       isError={tasksQuery.isError}

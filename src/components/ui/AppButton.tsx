@@ -5,7 +5,7 @@ import type { ComponentProps } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** Legacy `.btn-*` names mapped to shadcn Button variants during migration. */
+/** App-facing variant names mapped to shadcn Button variants. */
 export type AppButtonVariant =
   | "primary"
   | "secondary"
@@ -36,17 +36,14 @@ export function AppButton({
   className,
   ...props
 }: AppButtonProps) {
-  const legacyClass =
-    appVariant === "warning"
-      ? "btn-warning"
-      : appVariant === "outline"
-        ? "btn-outline"
-        : undefined;
-
   return (
     <Button
       variant={variant ?? shadcnVariant[appVariant]}
-      className={cn(legacyClass, className)}
+      className={cn(
+        appVariant === "warning" &&
+          "bg-[var(--color-warning-bg)] text-[var(--color-warning)] hover:bg-[var(--color-warning-bg)]/80",
+        className,
+      )}
       {...props}
     />
   );
@@ -54,7 +51,7 @@ export function AppButton({
 
 type AppButtonLinkProps = ComponentProps<typeof Link> & {
   appVariant?: AppButtonVariant;
-  size?: "sm" | "default" | "lg";
+  size?: "sm" | "default" | "lg" | "xs";
 };
 
 export function AppButtonLink({
@@ -64,23 +61,19 @@ export function AppButtonLink({
   children,
   ...props
 }: AppButtonLinkProps) {
-  const legacy =
-    appVariant === "primary"
-      ? "btn-primary"
-      : appVariant === "secondary"
-        ? "btn-secondary"
-        : appVariant === "ghost"
-          ? "btn-ghost"
-          : appVariant === "danger"
-            ? "btn-danger"
-            : appVariant === "outline"
-              ? "btn-outline"
-              : "btn-warning";
-
-  const sizeClass = size === "sm" ? "btn-sm" : size === "lg" ? "btn-lg" : "";
-
   return (
-    <Link className={cn("btn", legacy, sizeClass, className)} {...props}>
+    <Link
+      className={cn(
+        buttonVariants({
+          variant: shadcnVariant[appVariant],
+          size,
+        }),
+        appVariant === "warning" &&
+          "bg-[var(--color-warning-bg)] text-[var(--color-warning)] hover:bg-[var(--color-warning-bg)]/80",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </Link>
   );

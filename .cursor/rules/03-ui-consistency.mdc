@@ -1,0 +1,34 @@
+---
+description: Visual consistency — same fonts, table chrome, and surfaces on every page. Apply to all UI work.
+globs: **/*.{tsx,jsx,css}
+alwaysApply: true
+---
+
+# UI consistency (locked palette, one look)
+
+**Never invent a new look for one screen.** Same page = same font size, text color, table header/body bg, borders, and spacing as every other page.
+
+## Hard rules
+
+1. **Palette locked** — use CSS vars only (`--color-*`, `--primary`, `--muted`, `--border`). No new hex. No one-off `bg-*` / `text-*` that fights tokens.
+2. **One table system** — all data grids use `DataTable` (or `className="app-table"` on shadcn Table). Do not mix raw `<table className="data-table">` + custom inline styles with DataTable on the same product.
+3. **Typography scale only**
+   - Page title: PageHeader (H1)
+   - Section: AppCard title / H2
+   - Body: 14px (`text-sm` / `--font-size-body`)
+   - Caption/meta: 12px muted (`text-xs` / `--font-size-caption`)
+   - Do not invent `text-[13px]`, random weights, or inline `style={{ fontSize }}`.
+4. **Surfaces** — page canvas `--color-page-canvas`; cards/tables `--color-surface` / `bg-card`; table header `bg-muted` / `--color-neutral-100`; zebra `--color-neutral-50`.
+5. **Primitives only** — `AppButton` / `AppButtonLink`, `AppCard`, `DataTable`, `StatusBadge`, `PriorityBadge`, `PageHeader`, Form*/Input/Label, shadcn Tabs. No new `.btn` / `.card` / ad-hoc panels.
+6. **Before finish** — open two list pages side by side; table header font/bg and body text must match. If they differ, fix the shared primitive, not one page.
+
+## Meta prompt (paste for redesign / UI bugs)
+
+```
+UI consistency pass on Decent ERP (palette locked — do not change --color-* hex).
+1) Audit the page vs DataTable + AppCard + PageHeader.
+2) Replace one-off table/font/bg styles with shared primitives only.
+3) Body 14px, captions 12px muted, table header muted bg + caption weight, zebra rows via .app-table.
+4) No inline style for colors/fonts; no new component look for one screen.
+5) npm test && npx tsc --noEmit. Report files touched.
+```

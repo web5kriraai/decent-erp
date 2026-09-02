@@ -10,7 +10,7 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { FormTextField } from "@/components/ui/form-text-field";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { useUpdateDesign } from "@/hooks/use-designs";
 import type { DesignSummary, WorkType } from "@/lib/types/api";
 
@@ -59,16 +59,17 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
       size="lg"
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <AppButton type="button" appVariant="outline" onClick={onClose}>
             Cancel
-          </Button>
-          <Button
+          </AppButton>
+          <AppButton
             type="button"
+            appVariant="primary"
             disabled={!collectionName.trim() || updateDesign.isPending}
             onClick={handleSave}
           >
             {updateDesign.isPending ? "Saving…" : "Save"}
-          </Button>
+          </AppButton>
         </ModalFooterActions>
       }
     >

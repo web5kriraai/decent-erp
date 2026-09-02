@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { IconCosting, IconTasks } from "@/components/icons";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
@@ -60,10 +60,14 @@ export function CostingTeamDashboard() {
       firstName={firstName}
       subtitle="Costing queue, margin review, and development cost capture"
       actions={
-        <Link href={ROUTES.finance.costing} className="btn btn-primary inline-flex items-center gap-1.5">
+        <AppButtonLink
+          href={ROUTES.finance.costing}
+          appVariant="primary"
+          className="inline-flex items-center gap-1.5"
+        >
           <IconCosting size={16} />
           Open Costing
-        </Link>
+        </AppButtonLink>
       }
       isLoading={tasksQuery.isLoading || designsQuery.isLoading || timeQuery.isLoading}
       isError={tasksQuery.isError || designsQuery.isError || timeQuery.isError}

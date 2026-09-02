@@ -9,8 +9,8 @@ export function SkeletonRows({ rows = 5, variant = "table" }: SkeletonRowsProps)
       <div className="stat-grid">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="stat-card">
-            <div className="skeleton" style={{ height: 12, width: "60%" }} />
-            <div className="skeleton" style={{ height: 28, width: "40%", marginTop: 8 }} />
+            <div className="skeleton h-3 w-3/5" />
+            <div className="skeleton mt-2 h-7 w-2/5" />
           </div>
         ))}
       </div>
@@ -22,8 +22,8 @@ export function SkeletonRows({ rows = 5, variant = "table" }: SkeletonRowsProps)
       <div className="kanban">
         {Array.from({ length: 3 }).map((_, col) => (
           <div key={col} className="kanban-column">
-            <div className="skeleton" style={{ height: 20, margin: "0.75rem 1rem" }} />
-            <div style={{ padding: "0.75rem" }}>
+            <div className="skeleton mx-4 my-3 h-5" />
+            <div className="p-3">
               {Array.from({ length: 2 }).map((__, row) => (
                 <div key={row} className="skeleton skeleton-row" />
               ))}
@@ -35,7 +35,7 @@ export function SkeletonRows({ rows = 5, variant = "table" }: SkeletonRowsProps)
   }
 
   return (
-    <div className="data-table-wrap" style={{ padding: "1rem" }}>
+    <div className="data-table-wrap p-4">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="skeleton skeleton-row" />
       ))}

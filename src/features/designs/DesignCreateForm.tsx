@@ -2,10 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextArea } from "@/components/ui/form-text-area";
+import { FormTextField } from "@/components/ui/form-text-field";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { useCreateDesign } from "@/hooks/use-designs";
 import {
@@ -49,6 +53,18 @@ const WORK_TYPE_OPTIONS: { value: WorkType; label: string }[] = [
   { value: "REPEAT", label: "Repeat" },
   { value: "REVIVAL", label: "Revival" },
   { value: "CUSTOM", label: "Custom" },
+];
+
+const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+  { value: "URGENT", label: "Urgent" },
+];
+
+const ASSIGNMENT_MODE_OPTIONS: { value: AssignmentMode; label: string }[] = [
+  { value: "AUTOMATIC", label: "Automatic (workflow pattern)" },
+  { value: "MANUAL", label: "Manual (custom task list)" },
 ];
 
 export function DesignCreateForm() {
@@ -242,7 +258,7 @@ export function DesignCreateForm() {
       <div className="page-shell page-shell--narrow">
         <PageHeader title="Create Design Concept" subtitle="Start a new collection in the design pipeline" />
         <PermissionDenied permission={PERMISSIONS.DESIGN_CREATE} />
-        <p className="form-hint" style={{ marginTop: "1rem" }}>
+        <p className="form-hint mt-4">
           {sessionPermissionsStaleHint()}
         </p>
       </div>
@@ -255,9 +271,9 @@ export function DesignCreateForm() {
         title="Create Design Concept"
         subtitle="Add collection details, pick a workflow, and we'll set you as the design head"
         actions={
-          <Link href={ROUTES.designs.list} className="btn btn-secondary">
+          <AppButtonLink href={ROUTES.designs.list} appVariant="secondary">
             Cancel
-          </Link>
+          </AppButtonLink>
         }
       />
 
@@ -277,7 +293,7 @@ export function DesignCreateForm() {
         }}
         skeletonVariant="table"
       >
-        <form onSubmit={handleSubmit} className="card form-card">
+        <form onSubmit={handleSubmit} className="form-card space-y-4">
           {createDesign.isError && createDesign.error instanceof ApiClientError && (
             <div className="stack-section">
               <ErrorBanner
@@ -287,142 +303,98 @@ export function DesignCreateForm() {
             </div>
           )}
 
-          <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label" htmlFor="collection">
-                Collection Name *
-              </label>
-              <input
+          <AppCard title="Basics" description="Collection identity and concept references">
+            <div className="form-grid">
+              <FormTextField
                 id="collection"
-                className="form-input"
+                label="Collection Name"
+                required
                 value={collectionName}
                 onChange={(e) => setCollectionName(e.target.value)}
                 placeholder="e.g. Royal Festive 2026"
+                error={
+                  showErrors
+                    ? (validationErrors.collectionName ?? fieldErrors.collectionName?.[0])
+                    : undefined
+                }
               />
-              {(showErrors && (validationErrors.collectionName || fieldErrors.collectionName)) && (
-                <span className="form-error">
-                  {validationErrors.collectionName ?? fieldErrors.collectionName?.[0]}
-                </span>
-              )}
-            </div>
 
-            <div className="form-grid form-grid--2">
-              <div className="form-group">
-                <label className="form-label" htmlFor="styleName">
-                  Style Name
-                </label>
-                <input
+              <div className="form-grid form-grid--2">
+                <FormTextField
                   id="styleName"
-                  className="form-input"
+                  label="Style Name"
                   value={styleName}
                   onChange={(e) => setStyleName(e.target.value)}
                   placeholder="e.g. Anarkali Set A"
                 />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="targetGrade">
-                  Target Grade
-                </label>
-                <input
+                <FormTextField
                   id="targetGrade"
-                  className="form-input"
+                  label="Target Grade"
                   value={targetGrade}
                   onChange={(e) => setTargetGrade(e.target.value)}
                   placeholder="e.g. Premium / A / Bridal"
                 />
               </div>
-            </div>
 
-            <div className="form-grid form-grid--2">
-              <div className="form-group">
-                <label className="form-label" htmlFor="workType">
-                  Work Type
-                </label>
-                <select
+              <div className="form-grid form-grid--2">
+                <FormSelect
                   id="workType"
-                  className="form-select"
-                  value={workType}
-                  onChange={(e) => setWorkType(e.target.value as WorkType | "")}
-                >
-                  <option value="">Select work type…</option>
-                  {WORK_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="estimatedCost">
-                  Estimated Cost (₹)
-                </label>
-                <input
+                  label="Work Type"
+                  value={workType || null}
+                  onValueChange={(v) => setWorkType(v as WorkType)}
+                  options={WORK_TYPE_OPTIONS}
+                  placeholder="Select work type…"
+                />
+                <FormTextField
                   id="estimatedCost"
+                  label="Estimated Cost (₹)"
                   type="number"
                   min={0}
                   step="0.01"
-                  className="form-input"
                   value={estimatedCost}
                   onChange={(e) => setEstimatedCost(e.target.value)}
                   placeholder="Optional estimate for margin"
                 />
               </div>
-            </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="concept">
-                Concept Note
-              </label>
-              <textarea
+              <FormTextArea
                 id="concept"
-                className="form-textarea"
+                label="Concept Note"
                 rows={3}
                 value={conceptNote}
                 onChange={(e) => setConceptNote(e.target.value)}
                 placeholder="Premium zari + thread concept…"
               />
-            </div>
 
-            <div className="form-grid form-grid--2">
-              <div className="form-group">
-                <label className="form-label" htmlFor="trendReference">
-                  Trend Reference
-                </label>
-                <input
+              <div className="form-grid form-grid--2">
+                <FormTextField
                   id="trendReference"
-                  className="form-input"
+                  label="Trend Reference"
                   value={trendReference}
                   onChange={(e) => setTrendReference(e.target.value)}
                   placeholder="e.g. Minimal bridal, pastel tones"
                 />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="celebrityReference">
-                  Celebrity Reference
-                </label>
-                <input
+                <FormTextField
                   id="celebrityReference"
-                  className="form-input"
+                  label="Celebrity Reference"
                   value={celebrityReference}
                   onChange={(e) => setCelebrityReference(e.target.value)}
                   placeholder="e.g. Celebrity look from event X"
                 />
               </div>
             </div>
+          </AppCard>
 
-            <div className="form-grid form-grid--2">
-              <div className="form-group">
-                <label className="form-label" htmlFor="productType">
-                  Product Type *
-                </label>
-                <select
+          <AppCard title="Product" description="Product type, season, and components">
+            <div className="form-grid">
+              <div className="form-grid form-grid--2">
+                <FormSelect
                   id="productType"
-                  className="form-select"
-                  value={productTypeId}
-                  onChange={(e) => {
-                    const next = e.target.value ? Number(e.target.value) : "";
+                  label="Product Type"
+                  required
+                  value={productTypeId ? String(productTypeId) : null}
+                  onValueChange={(v) => {
+                    const next = v ? Number(v) : "";
                     setProductTypeId(next);
                     if (next) {
                       setComponentTypeIds((prev) =>
@@ -433,317 +405,276 @@ export function DesignCreateForm() {
                       );
                     }
                   }}
-                >
-                  <option value="">Select type…</option>
-                  {productTypes.data?.map((pt) => (
-                    <option key={pt.id} value={pt.id}>
-                      {pt.name}
-                    </option>
-                  ))}
-                </select>
-                {showErrors && validationErrors.productTypeId && (
-                  <span className="form-error">{validationErrors.productTypeId}</span>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="season">
-                  Season *
-                </label>
-                <select
+                  options={(productTypes.data ?? []).map((pt) => ({
+                    value: String(pt.id),
+                    label: pt.name,
+                  }))}
+                  placeholder="Select type…"
+                  error={showErrors ? validationErrors.productTypeId : undefined}
+                />
+                <FormSelect
                   id="season"
-                  className="form-select"
-                  value={seasonId}
-                  onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  <option value="">Select season…</option>
-                  {seasons.data?.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-                {showErrors && validationErrors.seasonId && (
-                  <span className="form-error">{validationErrors.seasonId}</span>
+                  label="Season"
+                  required
+                  value={seasonId ? String(seasonId) : null}
+                  onValueChange={(v) => setSeasonId(v ? Number(v) : "")}
+                  options={(seasons.data ?? []).map((s) => ({
+                    value: String(s.id),
+                    label: s.name,
+                  }))}
+                  placeholder="Select season…"
+                  error={showErrors ? validationErrors.seasonId : undefined}
+                />
+              </div>
+
+              <div className="form-group space-y-2">
+                <span className="form-label text-sm font-medium">Component Types</span>
+                {availableComponentTypes.length === 0 ? (
+                  <p className="form-hint text-xs text-muted-foreground">
+                    No component types available.
+                  </p>
+                ) : (
+                  <div className="form-grid form-grid--checkboxes">
+                    {availableComponentTypes.map((ct) => (
+                      <label key={ct.id} className="form-checkbox-row form-group--flat">
+                        <input
+                          type="checkbox"
+                          checked={componentTypeIds.includes(ct.id)}
+                          onChange={() => toggleComponentType(ct.id)}
+                        />
+                        <span>{ct.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
+          </AppCard>
 
-            <div className="form-group">
-              <span className="form-label">Component Types</span>
-              {availableComponentTypes.length === 0 ? (
-                <p className="form-hint">No component types available.</p>
-              ) : (
-                <div className="form-grid form-grid--checkboxes">
-                  {availableComponentTypes.map((ct) => (
-                    <label key={ct.id} className="form-checkbox-row form-group--flat">
-                      <input
-                        type="checkbox"
-                        checked={componentTypeIds.includes(ct.id)}
-                        onChange={() => toggleComponentType(ct.id)}
-                      />
-                      <span>{ct.name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div
-              className={
-                assignmentMode === "AUTOMATIC"
-                  ? "form-grid form-grid--3"
-                  : "form-grid form-grid--2"
-              }
-            >
-              <div className="form-group">
-                <label className="form-label" htmlFor="priority">
-                  Priority
-                </label>
-                <select
+          <AppCard title="Assignment" description="Priority and how tasks are generated">
+            <div className="form-grid">
+              <div
+                className={
+                  assignmentMode === "AUTOMATIC"
+                    ? "form-grid form-grid--3"
+                    : "form-grid form-grid--2"
+                }
+              >
+                <FormSelect
                   id="priority"
-                  className="form-select"
+                  label="Priority"
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value as Priority)}
-                >
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="URGENT">Urgent</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="assignmentMode">
-                  Task Assignment
-                </label>
-                <select
+                  onValueChange={(v) => setPriority(v as Priority)}
+                  options={PRIORITY_OPTIONS}
+                />
+                <FormSelect
                   id="assignmentMode"
-                  className="form-select"
+                  label="Task Assignment"
                   value={assignmentMode}
-                  onChange={(e) => setAssignmentMode(e.target.value as AssignmentMode)}
-                >
-                  <option value="AUTOMATIC">Automatic (workflow pattern)</option>
-                  <option value="MANUAL">Manual (custom task list)</option>
-                </select>
+                  onValueChange={(v) => setAssignmentMode(v as AssignmentMode)}
+                  options={ASSIGNMENT_MODE_OPTIONS}
+                />
+                {assignmentMode === "AUTOMATIC" && (
+                  <FormSelect
+                    id="pattern"
+                    label="Workflow Pattern"
+                    required
+                    value={
+                      availablePatterns.length === 0
+                        ? null
+                        : effectiveWorkflowPatternId || workflowPatternId
+                          ? String(effectiveWorkflowPatternId || workflowPatternId)
+                          : null
+                    }
+                    onValueChange={(v) =>
+                      setWorkflowPatternId(v ? Number(v) : "")
+                    }
+                    options={availablePatterns.map((p) => ({
+                      value: String(p.id),
+                      label: `${p.name} (v${p.versionNo})${p.productType ? ` · ${p.productType.name}` : ""}`,
+                    }))}
+                    placeholder={
+                      availablePatterns.length === 0
+                        ? "No pattern for this product type"
+                        : "Select pattern…"
+                    }
+                    disabled={availablePatterns.length === 0}
+                    hint={
+                      availablePatterns.length === 0
+                        ? "Switch Task Assignment to Manual, or ask Admin to create a pattern for this product type."
+                        : undefined
+                    }
+                    error={
+                      showErrors
+                        ? (validationErrors.workflowPatternId ??
+                          fieldErrors.workflowPatternId?.[0])
+                        : undefined
+                    }
+                  />
+                )}
               </div>
 
-              {assignmentMode === "AUTOMATIC" && (
-                <div className="form-group">
-                  <label className="form-label" htmlFor="pattern">
-                    Workflow Pattern *
-                  </label>
-                  {availablePatterns.length === 0 ? (
-                    <>
-                      <select
-                        id="pattern"
-                        className="form-select"
-                        value=""
-                        disabled
-                        aria-invalid={showErrors ? true : undefined}
-                      >
-                        <option value="">No pattern for this product type</option>
-                      </select>
-                      <p className="form-hint">
-                        Switch Task Assignment to Manual, or ask Admin to create a
-                        pattern for this product type.
-                      </p>
-                    </>
-                  ) : (
-                    <select
-                      id="pattern"
-                      className="form-select"
-                      value={effectiveWorkflowPatternId || workflowPatternId}
-                      onChange={(e) =>
-                        setWorkflowPatternId(e.target.value ? Number(e.target.value) : "")
-                      }
+              {assignmentMode === "MANUAL" && (
+                <div>
+                  <div className="form-row-header">
+                    <span className="form-label text-sm font-medium">Manual Tasks *</span>
+                    <AppButton
+                      type="button"
+                      appVariant="secondary"
+                      size="sm"
+                      onClick={addManualTaskRow}
                     >
-                      <option value="">Select pattern…</option>
-                      {availablePatterns.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} (v{p.versionNo})
-                          {p.productType ? ` · ${p.productType.name}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                      Add Task
+                    </AppButton>
+                  </div>
+
                   {showErrors &&
-                    (validationErrors.workflowPatternId || fieldErrors.workflowPatternId) && (
-                      <span className="form-error">
-                        {validationErrors.workflowPatternId ??
-                          fieldErrors.workflowPatternId?.[0]}
+                    (validationErrors.manualTasks || fieldErrors.manualTasks) && (
+                      <span className="form-error form-error-block text-xs text-destructive">
+                        {validationErrors.manualTasks ?? fieldErrors.manualTasks?.[0]}
                       </span>
                     )}
-                </div>
-              )}
-            </div>
 
-            {assignmentMode === "MANUAL" && (
-              <div>
-                <div className="form-row-header">
-                  <span className="form-label">Manual Tasks *</span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={addManualTaskRow}
-                  >
-                    Add Task
-                  </button>
-                </div>
+                  <div className="form-grid form-grid--relaxed">
+                    {manualTasks.map((task, index) => {
+                      const process = processList.find((p) => p.id === task.processId);
+                      const subProcesses = process?.subProcesses ?? [];
 
-                {(showErrors && (validationErrors.manualTasks || fieldErrors.manualTasks)) && (
-                  <span className="form-error form-error-block">
-                    {validationErrors.manualTasks ?? fieldErrors.manualTasks?.[0]}
-                  </span>
-                )}
-
-                <div className="form-grid form-grid--relaxed">
-                  {manualTasks.map((task, index) => {
-                    const process = processList.find((p) => p.id === task.processId);
-                    const subProcesses = process?.subProcesses ?? [];
-
-                    return (
-                      <div
-                        key={task.id}
-                        className="card manual-task-card"
-                      >
-                        <div className="form-row-header" style={{ marginBottom: 0 }}>
-                          <strong>Task {index + 1}</strong>
-                          <div className="inline-actions" style={{ gap: "0.25rem" }}>
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-sm"
-                              disabled={index === 0}
-                              onClick={() => moveManualTask(task.id, "up")}
-                              aria-label={`Move task ${index + 1} up`}
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-sm"
-                              disabled={index === manualTasks.length - 1}
-                              onClick={() => moveManualTask(task.id, "down")}
-                              aria-label={`Move task ${index + 1} down`}
-                            >
-                              ↓
-                            </button>
-                            {manualTasks.length > 1 && (
-                              <button
+                      return (
+                        <AppCard
+                          key={task.id}
+                          flat
+                          title={`Task ${index + 1}`}
+                          contentClassName="space-y-3"
+                          headerAction={
+                            <div className="inline-actions gap-1">
+                              <AppButton
                                 type="button"
-                                className="btn btn-ghost btn-sm"
-                                onClick={() => removeManualTaskRow(task.id)}
+                                appVariant="ghost"
+                                size="sm"
+                                disabled={index === 0}
+                                onClick={() => moveManualTask(task.id, "up")}
+                                aria-label={`Move task ${index + 1} up`}
                               >
-                                Remove
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="form-grid form-grid--2 form-grid--tight">
-                          <div className="form-group form-group--flat">
-                            <label className="form-label">Process *</label>
-                            <select
-                              className="form-select"
-                              value={task.processId}
-                              onChange={(e) =>
-                                handleManualProcessChange(
-                                  task,
-                                  e.target.value ? Number(e.target.value) : "",
-                                )
+                                ↑
+                              </AppButton>
+                              <AppButton
+                                type="button"
+                                appVariant="ghost"
+                                size="sm"
+                                disabled={index === manualTasks.length - 1}
+                                onClick={() => moveManualTask(task.id, "down")}
+                                aria-label={`Move task ${index + 1} down`}
+                              >
+                                ↓
+                              </AppButton>
+                              {manualTasks.length > 1 && (
+                                <AppButton
+                                  type="button"
+                                  appVariant="ghost"
+                                  size="sm"
+                                  onClick={() => removeManualTaskRow(task.id)}
+                                >
+                                  Remove
+                                </AppButton>
+                              )}
+                            </div>
+                          }
+                        >
+                          <div className="form-grid form-grid--2 form-grid--tight">
+                            <FormSelect
+                              id={`${task.id}-process`}
+                              label="Process"
+                              required
+                              value={task.processId ? String(task.processId) : null}
+                              onValueChange={(v) =>
+                                handleManualProcessChange(task, v ? Number(v) : "")
                               }
-                            >
-                              <option value="">Select process…</option>
-                              {processList.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="form-group form-group--flat">
-                            <label className="form-label">Sub-process *</label>
-                            <select
-                              className="form-select"
-                              value={task.subProcessId}
-                              disabled={!task.processId}
-                              onChange={(e) =>
+                              options={processList.map((p) => ({
+                                value: String(p.id),
+                                label: p.name,
+                              }))}
+                              placeholder="Select process…"
+                            />
+                            <FormSelect
+                              id={`${task.id}-subprocess`}
+                              label="Sub-process"
+                              required
+                              value={task.subProcessId ? String(task.subProcessId) : null}
+                              onValueChange={(v) =>
                                 updateManualTask(task.id, {
-                                  subProcessId: e.target.value ? Number(e.target.value) : "",
+                                  subProcessId: v ? Number(v) : "",
                                 })
                               }
-                            >
-                              <option value="">Select sub-process…</option>
-                              {subProcesses.map((sp) => (
-                                <option key={sp.id} value={sp.id}>
-                                  {sp.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="form-grid form-grid--2 form-grid--tight">
-                          <div className="form-group form-group--flat">
-                            <label className="form-label">Expected Minutes *</label>
-                            <input
-                              type="number"
-                              min={1}
-                              className="form-input"
-                              value={task.expectedMinutes}
-                              onChange={(e) =>
-                                updateManualTask(task.id, { expectedMinutes: e.target.value })
-                              }
+                              options={subProcesses.map((sp) => ({
+                                value: String(sp.id),
+                                label: sp.name,
+                              }))}
+                              placeholder="Select sub-process…"
+                              disabled={!task.processId}
                             />
                           </div>
 
-                          <div className="form-group form-group--flat">
-                            <label className="form-label">Assign To</label>
-                            <select
-                              className="form-select"
-                              value={task.assignedEmployeeId}
+                          <div className="form-grid form-grid--2 form-grid--tight">
+                            <FormTextField
+                              id={`${task.id}-minutes`}
+                              label="Expected Minutes"
+                              required
+                              type="number"
+                              min={1}
+                              value={task.expectedMinutes}
                               onChange={(e) =>
                                 updateManualTask(task.id, {
-                                  assignedEmployeeId: e.target.value
-                                    ? Number(e.target.value)
-                                    : "",
+                                  expectedMinutes: e.target.value,
                                 })
                               }
-                            >
-                              <option value="">Auto by role</option>
-                              {employees.data?.map((emp) => (
-                                <option key={emp.id} value={emp.id}>
-                                  {emp.name} ({emp.employeeCode})
-                                </option>
-                              ))}
-                            </select>
+                            />
+                            <FormSelect
+                              id={`${task.id}-assignee`}
+                              label="Assign To"
+                              value={
+                                task.assignedEmployeeId
+                                  ? String(task.assignedEmployeeId)
+                                  : "__auto__"
+                              }
+                              onValueChange={(v) =>
+                                updateManualTask(task.id, {
+                                  assignedEmployeeId:
+                                    !v || v === "__auto__" ? "" : Number(v),
+                                })
+                              }
+                              options={[
+                                { value: "__auto__", label: "Auto by role" },
+                                ...(employees.data ?? []).map((emp) => ({
+                                  value: String(emp.id),
+                                  label: `${emp.name} (${emp.employeeCode})`,
+                                })),
+                              ]}
+                              placeholder="Auto by role"
+                            />
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        </AppCard>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+
+              <p className="form-hint text-xs text-muted-foreground">
+                First task is auto-assigned to you as Design Head. Timer and KPI events are
+                server-authoritative.
+              </p>
+
+              <div className="form-actions">
+                <AppButton type="submit" appVariant="primary" disabled={createDesign.isPending}>
+                  {createDesign.isPending ? "Creating…" : "Create & Generate Tasks"}
+                </AppButton>
+                <AppButtonLink href={ROUTES.designs.list} appVariant="secondary">
+                  Cancel
+                </AppButtonLink>
               </div>
-            )}
-
-            <p className="form-hint">
-              First task is auto-assigned to you as Design Head. Timer and KPI events are
-              server-authoritative.
-            </p>
-
-            <div className="form-actions">
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={createDesign.isPending}
-              >
-                {createDesign.isPending ? "Creating…" : "Create & Generate Tasks"}
-              </button>
-              <Link href="/designs" className="btn btn-secondary">
-                Cancel
-              </Link>
             </div>
-          </div>
+          </AppCard>
         </form>
       </QueryState>
     </div>

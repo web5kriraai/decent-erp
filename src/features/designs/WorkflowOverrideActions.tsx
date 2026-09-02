@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import {
   isDesignClosedForOverride,
   isQcCheckTask,
@@ -96,9 +96,9 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        <Button
+        <AppButton
           type="button"
-          variant="outline"
+          appVariant="outline"
           size="sm"
           disabled={qcOptions.length === 0 || isPending}
           onClick={() => {
@@ -107,10 +107,10 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
           }}
         >
           Send to QC phase
-        </Button>
-        <Button
+        </AppButton>
+        <AppButton
           type="button"
-          variant="outline"
+          appVariant="outline"
           size="sm"
           disabled={bypassOptions.length === 0 || isPending}
           onClick={() => {
@@ -119,7 +119,7 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
           }}
         >
           Bypass to phase
-        </Button>
+        </AppButton>
       </div>
 
       <Modal
@@ -129,16 +129,17 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
         onClose={resetAndClose}
         footer={
           <ModalFooterActions>
-            <Button type="button" variant="outline" onClick={resetAndClose} disabled={isPending}>
+            <AppButton type="button" appVariant="outline" onClick={resetAndClose} disabled={isPending}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
+              appVariant="primary"
               disabled={!targetTaskId || !reasonOk || isPending}
               onClick={submitSendQc}
             >
               {sendQc.isPending ? "Sending…" : "Send to QC"}
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >
@@ -174,16 +175,17 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
         onClose={resetAndClose}
         footer={
           <ModalFooterActions>
-            <Button type="button" variant="outline" onClick={resetAndClose} disabled={isPending}>
+            <AppButton type="button" appVariant="outline" onClick={resetAndClose} disabled={isPending}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
+              appVariant="primary"
               disabled={!targetTaskId || !reasonOk || isPending}
               onClick={submitBypass}
             >
               {bypass.isPending ? "Bypassing…" : "Bypass to phase"}
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -14,7 +13,8 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
@@ -141,13 +141,15 @@ export function MasterCatalogView() {
 
   return (
     <div className="stack-section">
-      <section className="card stack-section">
-        <div className="card-header">
-          <span className="card-title">Product Types</span>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setProductTypeOpen(true)}>
+      <AppCard
+        className="stack-section"
+        title="Product Types"
+        headerAction={
+          <AppButton type="button" appVariant="primary" size="sm" onClick={() => setProductTypeOpen(true)}>
             Add Product Type
-          </button>
-        </div>
+          </AppButton>
+        }
+      >
         <QueryState
           isLoading={productTypesQuery.isLoading}
           isError={productTypesQuery.isError}
@@ -174,9 +176,10 @@ export function MasterCatalogView() {
                 header: "",
                 align: "right",
                 render: (row) => (
-                  <button
+                  <AppButton
                     type="button"
-                    className="btn btn-secondary btn-sm"
+                    appVariant="secondary"
+                    size="sm"
                     disabled={updateProductType.isPending}
                     onClick={() =>
                       updateProductType.mutate({
@@ -186,7 +189,7 @@ export function MasterCatalogView() {
                     }
                   >
                     {row.active === false ? "Activate" : "Deactivate"}
-                  </button>
+                  </AppButton>
                 ),
               },
             ]}
@@ -195,15 +198,17 @@ export function MasterCatalogView() {
             emptyTitle="No product types"
           />
         </QueryState>
-      </section>
+      </AppCard>
 
-      <section className="card stack-section">
-        <div className="card-header">
-          <span className="card-title">Seasons</span>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setSeasonOpen(true)}>
+      <AppCard
+        className="stack-section"
+        title="Seasons"
+        headerAction={
+          <AppButton type="button" appVariant="primary" size="sm" onClick={() => setSeasonOpen(true)}>
             Add Season
-          </button>
-        </div>
+          </AppButton>
+        }
+      >
         <QueryState
           isLoading={seasonsQuery.isLoading}
           isError={seasonsQuery.isError}
@@ -230,9 +235,10 @@ export function MasterCatalogView() {
                 header: "",
                 align: "right",
                 render: (row) => (
-                  <button
+                  <AppButton
                     type="button"
-                    className="btn btn-secondary btn-sm"
+                    appVariant="secondary"
+                    size="sm"
                     disabled={updateSeason.isPending}
                     onClick={() =>
                       updateSeason.mutate({
@@ -242,7 +248,7 @@ export function MasterCatalogView() {
                     }
                   >
                     {row.active === false ? "Activate" : "Deactivate"}
-                  </button>
+                  </AppButton>
                 ),
               },
             ]}
@@ -251,15 +257,17 @@ export function MasterCatalogView() {
             emptyTitle="No seasons"
           />
         </QueryState>
-      </section>
+      </AppCard>
 
-      <section className="card stack-section">
-        <div className="card-header">
-          <span className="card-title">Product–Process Mappings</span>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setMappingOpen(true)}>
+      <AppCard
+        className="stack-section"
+        title="Product–Process Mappings"
+        headerAction={
+          <AppButton type="button" appVariant="primary" size="sm" onClick={() => setMappingOpen(true)}>
             Add Mapping
-          </button>
-        </div>
+          </AppButton>
+        }
+      >
         <QueryState
           isLoading={mappingsQuery.isLoading}
           isError={mappingsQuery.isError}
@@ -289,14 +297,16 @@ export function MasterCatalogView() {
                 header: "",
                 align: "right",
                 render: (row) => (
-                  <button
+                  <AppButton
                     type="button"
-                    className="btn btn-ghost btn-sm text-destructive"
+                    appVariant="ghost"
+                    size="sm"
+                    className="text-destructive"
                     disabled={deleteMapping.isPending}
                     onClick={() => deleteMapping.mutate(row.id)}
                   >
                     Remove
-                  </button>
+                  </AppButton>
                 ),
               },
             ]}
@@ -305,7 +315,7 @@ export function MasterCatalogView() {
             emptyTitle="No mappings"
           />
         </QueryState>
-      </section>
+      </AppCard>
 
       <Modal
         open={productTypeOpen}
@@ -313,10 +323,10 @@ export function MasterCatalogView() {
         onClose={() => setProductTypeOpen(false)}
         footer={
           <ModalFooterActions>
-            <Button variant="outline" onClick={() => setProductTypeOpen(false)}>Cancel</Button>
-            <Button disabled={!ptCode || !ptName || createProductType.isPending} onClick={() => createProductType.mutate()}>
+            <AppButton appVariant="outline" onClick={() => setProductTypeOpen(false)}>Cancel</AppButton>
+            <AppButton disabled={!ptCode || !ptName || createProductType.isPending} onClick={() => createProductType.mutate()}>
               Create
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >
@@ -332,10 +342,10 @@ export function MasterCatalogView() {
         onClose={() => setSeasonOpen(false)}
         footer={
           <ModalFooterActions>
-            <Button variant="outline" onClick={() => setSeasonOpen(false)}>Cancel</Button>
-            <Button disabled={!seasonCode || !seasonName || createSeason.isPending} onClick={() => createSeason.mutate()}>
+            <AppButton appVariant="outline" onClick={() => setSeasonOpen(false)}>Cancel</AppButton>
+            <AppButton disabled={!seasonCode || !seasonName || createSeason.isPending} onClick={() => createSeason.mutate()}>
               Create
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >
@@ -351,13 +361,13 @@ export function MasterCatalogView() {
         onClose={() => setMappingOpen(false)}
         footer={
           <ModalFooterActions>
-            <Button variant="outline" onClick={() => setMappingOpen(false)}>Cancel</Button>
-            <Button
+            <AppButton appVariant="outline" onClick={() => setMappingOpen(false)}>Cancel</AppButton>
+            <AppButton
               disabled={!mapProductTypeId || !mapProcessId || createMapping.isPending}
               onClick={() => createMapping.mutate()}
             >
               Add
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >

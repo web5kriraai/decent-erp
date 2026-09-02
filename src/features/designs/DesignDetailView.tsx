@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useBreadcrumbReplacement } from "@/components/layout/BreadcrumbProvider";
 import { QueryState } from "@/components/ui/QueryState";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { ROUTES } from "@/config/routes";
@@ -76,13 +77,18 @@ export function DesignDetailView({
                   <StatusBadge status={designQuery.data.status} />
                   <PriorityBadge priority={designQuery.data.priority} />
                   {canEdit && (
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditOpen(true)}>
+                    <AppButton
+                      type="button"
+                      appVariant="secondary"
+                      size="sm"
+                      onClick={() => setEditOpen(true)}
+                    >
                       Edit Concept
-                    </button>
+                    </AppButton>
                   )}
-                  <Link href={ROUTES.designs.list} className="btn btn-secondary btn-sm">
+                  <AppButtonLink href={ROUTES.designs.list} appVariant="secondary" size="sm">
                     Back
-                  </Link>
+                  </AppButtonLink>
                 </>
               }
             />
@@ -90,7 +96,7 @@ export function DesignDetailView({
             {showConceptSetup && (
               <div className="alert alert-info stack-section" role="status" id="concept-setup">
                 <strong>Next — add reference images</strong>
-                <p style={{ margin: "0.25rem 0 0" }}>
+                <p className="mt-1 mb-0 text-sm">
                   Upload product and inspiration photos below. Mark one as primary when you&apos;re
                   happy with the set.
                 </p>
@@ -142,10 +148,9 @@ export function DesignDetailView({
             />
 
             {showDesignFiles ? (
-              <section className="card">
-                <h3 className="card-title stack-section-sm">Design Files</h3>
+              <AppCard title="Design Files">
                 <ImageGallery designId={designId} canUpload={canUploadFiles} />
-              </section>
+              </AppCard>
             ) : null}
 
             <AssignTaskModal

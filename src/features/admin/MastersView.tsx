@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useProcessMasters } from "@/hooks/use-masters";
@@ -166,27 +167,29 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
             title="Process Masters"
             subtitle="Main processes, sub-processes, and workflow configuration"
             actions={
-              <button
+              <AppButton
                 type="button"
-                className="btn btn-primary btn-sm"
+                appVariant="primary"
+                size="sm"
                 onClick={() => setProcessModalOpen(true)}
               >
                 Add Process
-              </button>
+              </AppButton>
             }
           />
           {renderContent()}
         </div>
       ) : (
         <>
-          <div className="flex justify-end" style={{ marginBottom: "0.75rem" }}>
-            <button
+          <div className="mb-3 flex justify-end">
+            <AppButton
               type="button"
-              className="btn btn-primary btn-sm"
+              appVariant="primary"
+              size="sm"
               onClick={() => setProcessModalOpen(true)}
             >
               Add Process
-            </button>
+            </AppButton>
           </div>
           {renderContent()}
         </>
@@ -205,7 +208,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         onRetry={() => processesQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="card">
+        <AppCard>
           <div className="data-table-wrap">
             {processes.length === 0 ? (
               <p className="text-muted-inline">
@@ -213,17 +216,17 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                 task generation.
               </p>
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table className="data-table">
+              <div className="overflow-x-auto">
+                <table className="data-table app-table">
                   <thead>
                     <tr>
-                      <th style={{ width: 40 }} aria-label="Expand" />
-                      <th style={{ textAlign: "center" }}>#</th>
+                      <th className="w-10" aria-label="Expand" />
+                      <th className="text-center">#</th>
                       <th>Code</th>
                       <th>Process Name</th>
                       <th>Sub-processes</th>
                       <th>Status</th>
-                      <th style={{ textAlign: "right" }}>Actions</th>
+                      <th className="text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -236,17 +239,18 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                         <Fragment key={process.id}>
                           <tr>
                             <td>
-                              <button
+                              <AppButton
                                 type="button"
-                                className="btn btn-ghost btn-sm"
+                                appVariant="ghost"
+                                size="sm"
                                 aria-expanded={isExpanded}
                                 aria-label={isExpanded ? "Collapse sub-processes" : "Expand sub-processes"}
                                 onClick={() => toggleExpanded(process.id)}
                               >
                                 {isExpanded ? "▾" : "▸"}
-                              </button>
+                              </AppButton>
                             </td>
-                            <td style={{ textAlign: "center" }}>{process.sequence}</td>
+                            <td className="text-center">{process.sequence}</td>
                             <td>{process.code}</td>
                             <td>{process.name}</td>
                             <td>{subProcesses.length}</td>
@@ -256,11 +260,12 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                 label={isActive ? "Active" : "Inactive"}
                               />
                             </td>
-                            <td style={{ textAlign: "right" }}>
+                            <td className="text-right">
                               <div className="inline-actions">
-                                <button
+                                <AppButton
                                   type="button"
-                                  className="btn btn-ghost btn-sm"
+                                  appVariant="ghost"
+                                  size="sm"
                                   onClick={() =>
                                     setEditProcess({
                                       id: process.id,
@@ -271,36 +276,37 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                   }
                                 >
                                   Edit
-                                </button>
-                                <button
+                                </AppButton>
+                                <AppButton
                                   type="button"
-                                  className="btn btn-secondary btn-sm"
+                                  appVariant="secondary"
+                                  size="sm"
                                   onClick={() =>
                                     openSubProcessModal(process.id, subProcesses.length + 1)
                                   }
                                 >
                                   Add Sub-process
-                                </button>
+                                </AppButton>
                               </div>
                             </td>
                           </tr>
                           {isExpanded && (
                             <tr>
-                              <td colSpan={7} style={{ background: "var(--color-neutral-50)", padding: "0.75rem 1rem" }}>
+                              <td colSpan={7} className="bg-[var(--color-neutral-50)] px-4 py-3">
                                 {subProcesses.length === 0 ? (
                                   <p className="text-muted-inline">
                                     No sub-processes configured for this process.
                                   </p>
                                 ) : (
-                                  <table className="data-table" style={{ margin: 0 }}>
+                                  <table className="data-table app-table m-0">
                                     <thead>
                                       <tr>
-                                        <th style={{ textAlign: "center" }}>#</th>
+                                        <th className="text-center">#</th>
                                         <th>Code</th>
                                         <th>Name</th>
                                         <th>Default Role</th>
                                         <th>Status</th>
-                                        <th style={{ textAlign: "right" }}>Actions</th>
+                                        <th className="text-right">Actions</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -308,7 +314,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                         const subActive = (sub as { active?: boolean }).active !== false;
                                         return (
                                         <tr key={sub.id}>
-                                          <td style={{ textAlign: "center" }}>{sub.sequence}</td>
+                                          <td className="text-center">{sub.sequence}</td>
                                           <td>{sub.code}</td>
                                           <td>{sub.name}</td>
                                           <td>
@@ -323,10 +329,11 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                               label={subActive ? "Active" : "Inactive"}
                                             />
                                           </td>
-                                          <td style={{ textAlign: "right" }}>
-                                            <button
+                                          <td className="text-right">
+                                            <AppButton
                                               type="button"
-                                              className="btn btn-ghost btn-sm"
+                                              appVariant="ghost"
+                                              size="sm"
                                               onClick={() =>
                                                 setEditSubProcess({
                                                   id: sub.id,
@@ -338,7 +345,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                               }
                                             >
                                               Edit
-                                            </button>
+                                            </AppButton>
                                           </td>
                                         </tr>
                                       );
@@ -357,7 +364,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
               </div>
             )}
           </div>
-        </div>
+        </AppCard>
       </QueryState>
     );
   }
@@ -372,16 +379,16 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => setProcessModalOpen(false)}
         footer={
           <ModalFooterActions>
-            <Button type="button" variant="outline" onClick={() => setProcessModalOpen(false)}>
+            <AppButton type="button" appVariant="outline" onClick={() => setProcessModalOpen(false)}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
               disabled={!code || !name || createProcess.isPending}
               onClick={() => createProcess.mutate()}
             >
               {createProcess.isPending ? "Creating…" : "Create"}
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >
@@ -416,10 +423,10 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => setEditProcess(null)}
         footer={
           <ModalFooterActions>
-            <Button type="button" variant="outline" onClick={() => setEditProcess(null)}>
+            <AppButton type="button" appVariant="outline" onClick={() => setEditProcess(null)}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
               disabled={!editProcess?.name || updateProcess.isPending}
               onClick={() =>
@@ -433,7 +440,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
               }
             >
               {updateProcess.isPending ? "Saving…" : "Save"}
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >
@@ -472,20 +479,20 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => setSubProcessModalOpen(false)}
         footer={
           <ModalFooterActions>
-            <Button
+            <AppButton
               type="button"
-              variant="outline"
+              appVariant="outline"
               onClick={() => setSubProcessModalOpen(false)}
             >
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
               disabled={!subCode || !subName || createSubProcess.isPending}
               onClick={() => createSubProcess.mutate()}
             >
               {createSubProcess.isPending ? "Creating…" : "Create"}
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >
@@ -535,10 +542,10 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         onClose={() => setEditSubProcess(null)}
         footer={
           <ModalFooterActions>
-            <Button type="button" variant="outline" onClick={() => setEditSubProcess(null)}>
+            <AppButton type="button" appVariant="outline" onClick={() => setEditSubProcess(null)}>
               Cancel
-            </Button>
-            <Button
+            </AppButton>
+            <AppButton
               type="button"
               disabled={!editSubProcess?.name || updateSubProcess.isPending}
               onClick={() =>
@@ -556,7 +563,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
               }
             >
               {updateSubProcess.isPending ? "Saving…" : "Save"}
-            </Button>
+            </AppButton>
           </ModalFooterActions>
         }
       >

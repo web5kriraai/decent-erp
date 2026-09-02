@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/config/routes";
 import { ProductionReturnModal } from "@/features/production/ProductionReturnModal";
 import { useAcceptProductionHandoff } from "@/hooks/use-production";
@@ -57,27 +56,27 @@ function InboxList({
             action={
               <div className="workbench-list-actions">
                 {onAccept && item.needsAcceptance ? (
-                  <Button
+                  <AppButton
                     type="button"
-                    variant="default"
+                    appVariant="primary"
                     size="xs"
                     className="workbench-list-action"
                     disabled={acceptingDesignId === item.designId}
                     onClick={() => onAccept(item)}
                   >
                     Accept
-                  </Button>
+                  </AppButton>
                 ) : null}
                 {onReturn ? (
-                  <Button
+                  <AppButton
                     type="button"
-                    variant="outline"
+                    appVariant="outline"
                     size="xs"
                     className="workbench-list-action"
                     onClick={() => onReturn(item)}
                   >
                     Return
-                  </Button>
+                  </AppButton>
                 ) : null}
               </div>
             }
@@ -117,9 +116,9 @@ export function ProductionHeadDashboard() {
       title="Production desk"
       subtitle="Handoff acceptance, production instruction, and release workflow"
       actions={
-        <Link href={ROUTES.work.tasks} className="btn btn-primary btn-sm">
+        <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
           My Action Center
-        </Link>
+        </AppButtonLink>
       }
       isLoading={inboxQuery.isLoading || tasksQuery.isLoading}
       isError={inboxQuery.isError || tasksQuery.isError}

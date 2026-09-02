@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AppButton } from "@/components/ui/AppButton";
 import { QueryState } from "@/components/ui/QueryState";
 import {
   useRolePermissionMatrix,
@@ -59,14 +60,15 @@ export function RolePermissionEditor({ roleId, roleCode, roleName }: Props) {
         <h3>{roleName}</h3>
         <code className="role-code-tag">{roleCode}</code>
         {dirty && (
-          <button
+          <AppButton
             type="button"
-            className="btn btn-primary btn-sm"
+            appVariant="primary"
+            size="sm"
             disabled={updatePermissions.isPending || selected.size === 0}
             onClick={handleSave}
           >
             {updatePermissions.isPending ? "Saving…" : "Save permissions"}
-          </button>
+          </AppButton>
         )}
       </div>
 
@@ -102,7 +104,7 @@ export function RolePermissionEditor({ roleId, roleCode, roleName }: Props) {
           })}
         </div>
         {roleCode === "ADMIN" && (
-          <p className="form-hint" style={{ marginTop: "0.75rem" }}>
+          <p className="form-hint mt-3">
             System Admin must retain MASTER_ADMIN permission.
           </p>
         )}

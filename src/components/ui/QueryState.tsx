@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { SkeletonRows } from "@/components/SkeletonRows";
+import { AppCard } from "@/components/ui/AppCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ApiClientError } from "@/lib/api-client";
 import { humanizeApiError } from "@/lib/humanize-api-error";
@@ -44,9 +45,11 @@ export function QueryState({
 
     if (error instanceof ApiClientError && error.isForbidden) {
       return (
-        <div className="alert alert-warning" role="alert">
-          {messageForCode(APP_ERROR_CODES.PERMISSION_DENIED)}
-        </div>
+        <AppCard flat>
+          <p className="text-sm text-[var(--color-warning)]" role="alert">
+            {messageForCode(APP_ERROR_CODES.PERMISSION_DENIED)}
+          </p>
+        </AppCard>
       );
     }
 
@@ -61,13 +64,11 @@ export function QueryState({
 
   if (isEmpty) {
     return (
-      <div className="card">
-        <EmptyState
-          title={emptyTitle ?? "No data"}
-          description={emptyDescription}
-          action={emptyAction}
-        />
-      </div>
+      <EmptyState
+        title={emptyTitle ?? "No data"}
+        description={emptyDescription}
+        action={emptyAction}
+      />
     );
   }
 

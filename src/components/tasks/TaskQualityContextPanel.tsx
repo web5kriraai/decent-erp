@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { apiGet } from "@/lib/api-client";
@@ -45,38 +46,33 @@ export function TaskQualityContextPanel({ designId, subProcessCode }: TaskQualit
   const matReq = design.tasks?.find((t) => t.subProcess?.code === "MAT_REQ");
 
   return (
-    <section className="card task-quality-context stack-section-sm">
-      <div className="card-header">
-        <span className="card-title">Quality context</span>
+    <AppCard title="Quality context" className="task-quality-context stack-section-sm">
+      <dl className="workflow-context-grid">
+        <dt>Sketch</dt>
+        <dd>{sketch?.status.replace(/_/g, " ") ?? "—"}</dd>
+        <dt>Punching</dt>
+        <dd>{punch?.status.replace(/_/g, " ") ?? "—"}</dd>
+        <dt>Machine sample</dt>
+        <dd>{machineSample?.status.replace(/_/g, " ") ?? "—"}</dd>
+        <dt>Material</dt>
+        <dd>{matReq?.status.replace(/_/g, " ") ?? "—"}</dd>
+        {canViewCorrections ? (
+          <>
+            <dt>My open corrections</dt>
+            <dd>{openCorrections.length}</dd>
+          </>
+        ) : null}
+      </dl>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <AppButtonLink href={ROUTES.designs.detail(designId)} appVariant="ghost" size="sm">
+          Design files
+        </AppButtonLink>
+        {canViewCorrections && openCorrections.length > 0 ? (
+          <AppButtonLink href={ROUTES.quality.corrections} appVariant="ghost" size="sm">
+            View my corrections
+          </AppButtonLink>
+        ) : null}
       </div>
-      <div className="card-body" style={{ padding: "1rem 1.25rem" }}>
-        <dl className="workflow-context-grid">
-          <dt>Sketch</dt>
-          <dd>{sketch?.status.replace(/_/g, " ") ?? "—"}</dd>
-          <dt>Punching</dt>
-          <dd>{punch?.status.replace(/_/g, " ") ?? "—"}</dd>
-          <dt>Machine sample</dt>
-          <dd>{machineSample?.status.replace(/_/g, " ") ?? "—"}</dd>
-          <dt>Material</dt>
-          <dd>{matReq?.status.replace(/_/g, " ") ?? "—"}</dd>
-          {canViewCorrections ? (
-            <>
-              <dt>My open corrections</dt>
-              <dd>{openCorrections.length}</dd>
-            </>
-          ) : null}
-        </dl>
-        <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <Link href={ROUTES.designs.detail(designId)} className="btn btn-ghost btn-sm">
-            Design files
-          </Link>
-          {canViewCorrections && openCorrections.length > 0 ? (
-            <Link href={ROUTES.quality.corrections} className="btn btn-ghost btn-sm">
-              View my corrections
-            </Link>
-          ) : null}
-        </div>
-      </div>
-    </section>
+    </AppCard>
   );
 }

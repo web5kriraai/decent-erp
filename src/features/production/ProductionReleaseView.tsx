@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { DataTable } from "@/components/DataTable";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -61,44 +63,34 @@ export function ProductionReleaseView() {
         subtitle="Complete production instruction and release via My Tasks. ERP module sync runs after release."
       />
 
-      <div className="card stack-section">
-        <div className="card-header">
-          <span className="card-title">ERP integration</span>
-        </div>
-        <div className="card-body" style={{ padding: "1rem 1.25rem" }}>
-          <p style={{ margin: "0 0 0.75rem" }}>
-            Mode:{" "}
-            <StatusBadge
-              status={erpMode === "live" ? "ACTIVE" : "CHECKING"}
-              label={erpMode === "live" ? "Live ERP" : "Simulated (LOCAL-*)"}
-            />
-          </p>
-          <p className="text-muted-inline" style={{ margin: 0 }}>
-            {erpStatusQuery.data?.message ??
-              "Configure ERP_API_BASE_URL for live Grey → Cutting → Sales → downstream module sync."}
-          </p>
-        </div>
-      </div>
+      <AppCard title="ERP integration" className="stack-section">
+        <p className="mb-3 text-sm">
+          Mode:{" "}
+          <StatusBadge
+            status={erpMode === "live" ? "ACTIVE" : "CHECKING"}
+            label={erpMode === "live" ? "Live ERP" : "Simulated (LOCAL-*)"}
+          />
+        </p>
+        <p className="text-muted-inline m-0">
+          {erpStatusQuery.data?.message ??
+            "Configure ERP_API_BASE_URL for live Grey → Cutting → Sales → downstream module sync."}
+        </p>
+      </AppCard>
 
-      <div className="card contextual-actions-wrap stack-section">
+      <AppCard className="contextual-actions-wrap stack-section">
         <ContextualActionsPanel title="Production desk actions" actions={productionActions} />
-      </div>
+      </AppCard>
 
-      <div className="card stack-section">
-        <div className="card-header">
-          <span className="card-title">How release works</span>
-        </div>
-        <div className="card-body" style={{ padding: "1rem 1.25rem" }}>
-          <ol style={{ margin: 0, paddingLeft: "1.25rem", lineHeight: 1.6 }}>
-            <li>Design Head completes <strong>Production Handoff</strong> after management approval.</li>
-            <li>Production Head completes <strong>Production Instruction</strong> on My Tasks.</li>
-            <li>Production Head completes <strong>Production Release</strong> on My Tasks — this triggers ERP handoff.</li>
-          </ol>
-          <p style={{ margin: "0.75rem 0 0" }}>
-            <Link href={ROUTES.work.tasks} className="data-table-link">Open My Tasks</Link>
-          </p>
-        </div>
-      </div>
+      <AppCard title="How release works" className="stack-section">
+        <ol className="m-0 list-decimal space-y-1 pl-5 text-sm leading-relaxed">
+          <li>Design Head completes <strong>Production Handoff</strong> after management approval.</li>
+          <li>Production Head completes <strong>Production Instruction</strong> on My Tasks.</li>
+          <li>Production Head completes <strong>Production Release</strong> on My Tasks — this triggers ERP handoff.</li>
+        </ol>
+        <p className="mt-3 text-sm">
+          <Link href={ROUTES.work.tasks} className="data-table-link">Open My Tasks</Link>
+        </p>
+      </AppCard>
 
       <QueryState
         isLoading={designsQuery.isLoading}
@@ -107,10 +99,7 @@ export function ProductionReleaseView() {
         onRetry={() => designsQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="card stack-section">
-          <div className="card-header">
-            <span className="card-title">Approved — production workflow</span>
-          </div>
+        <AppCard title="Approved — production workflow" className="stack-section">
           <DataTable
             columns={[
               {
@@ -135,9 +124,9 @@ export function ProductionReleaseView() {
                 header: "Next step",
                 align: "right",
                 render: () => (
-                  <Link href={ROUTES.work.tasks} className="btn btn-ghost btn-sm">
+                  <AppButtonLink href={ROUTES.work.tasks} appVariant="ghost" size="sm">
                     My Tasks
-                  </Link>
+                  </AppButtonLink>
                 ),
               },
             ]}
@@ -146,7 +135,7 @@ export function ProductionReleaseView() {
             emptyTitle="No approved designs in production queue"
             emptyDescription="Designs appear here after management approval. Release is completed on My Tasks."
           />
-        </div>
+        </AppCard>
       </QueryState>
 
       <QueryState
@@ -156,10 +145,7 @@ export function ProductionReleaseView() {
         onRetry={() => releasedQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Awaiting Go-Live</span>
-          </div>
+        <AppCard title="Awaiting Go-Live">
           <DataTable
             columns={[
               {
@@ -206,18 +192,19 @@ export function ProductionReleaseView() {
                     liveReviewCompleted: row.liveReviewCompleted,
                   });
                   return (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
-                      <button
+                    <div className="flex max-w-56 flex-col items-end gap-1">
+                      <AppButton
                         type="button"
-                        className="btn btn-primary btn-sm"
+                        appVariant="primary"
+                        size="sm"
                         disabled={markLive.isPending || !availability.available}
                         title={availability.reason}
                         onClick={() => markLive.mutate(row.id)}
                       >
                         Mark Live
-                      </button>
+                      </AppButton>
                       {!availability.available && availability.reason ? (
-                        <span className="text-xs text-muted-foreground" style={{ maxWidth: "14rem", textAlign: "right" }}>
+                        <span className="text-right text-xs text-muted-foreground">
                           {availability.reason}
                         </span>
                       ) : null}
@@ -231,7 +218,7 @@ export function ProductionReleaseView() {
             emptyTitle="No designs awaiting go-live"
             emptyDescription="Production-released designs will appear here for final live marking."
           />
-        </div>
+        </AppCard>
       </QueryState>
 
       <QueryState
@@ -241,20 +228,23 @@ export function ProductionReleaseView() {
         onRetry={() => handoffsQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="card stack-section">
-          <div className="card-header">
-            <span className="card-title">ERP Handoffs (Grey / Cutting / Sales + downstream)</span>
-            {handoffDesignIds.length > 0 ? (
-              <button
+        <AppCard
+          title="ERP Handoffs (Grey / Cutting / Sales + downstream)"
+          className="stack-section"
+          headerAction={
+            handoffDesignIds.length > 0 ? (
+              <AppButton
                 type="button"
-                className="btn btn-secondary btn-sm"
+                appVariant="secondary"
+                size="sm"
                 disabled={syncDesignHandoffs.isPending}
                 onClick={() => syncDesignHandoffs.mutate(handoffDesignIds[0])}
               >
                 Sync all modules (latest design)
-              </button>
-            ) : null}
-          </div>
+              </AppButton>
+            ) : null
+          }
+        >
           <DataTable
             columns={[
               {
@@ -297,14 +287,15 @@ export function ProductionReleaseView() {
                 align: "right",
                 render: (row) =>
                   row.status === "FAILED" || row.status === "QUEUED" ? (
-                    <button
+                    <AppButton
                       type="button"
-                      className="btn btn-secondary btn-sm"
+                      appVariant="secondary"
+                      size="sm"
                       disabled={retrySync.isPending}
                       onClick={() => retrySync.mutate(row.id)}
                     >
                       Retry sync
-                    </button>
+                    </AppButton>
                   ) : null,
               },
             ]}
@@ -313,7 +304,7 @@ export function ProductionReleaseView() {
             emptyTitle="No ERP handoffs yet"
             emptyDescription="Handoffs are created when designs are released to production."
           />
-        </div>
+        </AppCard>
       </QueryState>
     </div>
   );

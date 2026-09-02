@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
 import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AppCard } from "@/components/ui/AppCard";
 import {
   getStageApprovalBlockedMessage,
   isStageApprovalActionable,
@@ -121,72 +121,69 @@ export function TaskStageApprovalPanel({
         <TaskCompareVersionsPanel designId={designId} />
       ) : null}
 
-      <Card className="mb-4 border-primary/20">
-        <CardHeader className="border-b border-primary/10 bg-primary/5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>{panelTitle}</CardTitle>
-            <StatusBadge status={status} />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-4">
-          {notMyTask && !canAssign ? (
-            <p className="text-sm text-muted-foreground">
-              This approval is assigned to another checker.
-            </p>
-          ) : (
-            <>
-              {!canApprove && approvalBlockedMessage ? (
-                <p className="text-sm text-muted-foreground" role="status">
-                  {approvalBlockedMessage}
-                </p>
+      <AppCard
+        className="mb-4 border-primary/20"
+        title={panelTitle}
+        headerAction={<StatusBadge status={status} />}
+        contentClassName="space-y-4"
+      >
+        {notMyTask && !canAssign ? (
+          <p className="text-sm text-muted-foreground">
+            This approval is assigned to another checker.
+          </p>
+        ) : (
+          <>
+            {!canApprove && approvalBlockedMessage ? (
+              <p className="text-sm text-muted-foreground" role="status">
+                {approvalBlockedMessage}
+              </p>
+            ) : null}
+            <FormTextArea
+              id={`stage-decision-${taskId}`}
+              label="Review notes"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+              placeholder="Required for reject or correction request…"
+              rows={3}
+            />
+            <div className="flex flex-wrap gap-2">
+              {showApprove ? (
+                <AppButton
+                  type="button"
+                  disabled={busy || !canApprove}
+                  title={!canApprove ? approvalBlockedMessage : undefined}
+                  onClick={() => submitDecision("APPROVED")}
+                >
+                  <CheckCircle2Icon className="size-4" aria-hidden />
+                  Approve {stageName.toLowerCase()}
+                </AppButton>
               ) : null}
-              <FormTextArea
-                id={`stage-decision-${taskId}`}
-                label="Review notes"
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder="Required for reject or correction request…"
-                rows={3}
-              />
-              <div className="flex flex-wrap gap-2">
-                {showApprove ? (
-                  <Button
-                    type="button"
-                    disabled={busy || !canApprove}
-                    title={!canApprove ? approvalBlockedMessage : undefined}
-                    onClick={() => submitDecision("APPROVED")}
-                  >
-                    <CheckCircle2Icon className="size-4" aria-hidden />
-                    Approve {stageName.toLowerCase()}
-                  </Button>
-                ) : null}
-                {showCorrection ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy || !canApprove || !remark.trim()}
-                    onClick={() => submitDecision("CORRECTION_REQUIRED")}
-                  >
-                    <RotateCcwIcon className="size-4" aria-hidden />
-                    Request correction
-                  </Button>
-                ) : null}
-                {showReject ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={busy || !canApprove || !remark.trim()}
-                    onClick={() => submitDecision("REJECT")}
-                  >
-                    <XCircleIcon className="size-4" aria-hidden />
-                    Reject
-                  </Button>
-                ) : null}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              {showCorrection ? (
+                <AppButton
+                  type="button"
+                  appVariant="outline"
+                  disabled={busy || !canApprove || !remark.trim()}
+                  onClick={() => submitDecision("CORRECTION_REQUIRED")}
+                >
+                  <RotateCcwIcon className="size-4" aria-hidden />
+                  Request correction
+                </AppButton>
+              ) : null}
+              {showReject ? (
+                <AppButton
+                  type="button"
+                  appVariant="danger"
+                  disabled={busy || !canApprove || !remark.trim()}
+                  onClick={() => submitDecision("REJECT")}
+                >
+                  <XCircleIcon className="size-4" aria-hidden />
+                  Reject
+                </AppButton>
+              ) : null}
+            </div>
+          </>
+        )}
+      </AppCard>
     </>
   );
 }

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { cn } from "@/lib/utils";
 import { CheckIcon } from "lucide-react";
 import type { ChecklistItemMaster } from "@/hooks/use-masters";
@@ -144,12 +144,12 @@ export function TaskEndDialog({
       size={showFileUpload ? "xl" : "lg"}
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={handleClose} disabled={isPending || isUploading}>
+          <AppButton type="button" appVariant="outline" onClick={handleClose} disabled={isPending || isUploading}>
             Cancel
-          </Button>
-          <Button type="button" disabled={!canSubmit} onClick={onSubmit}>
+          </AppButton>
+          <AppButton type="button" disabled={!canSubmit} onClick={onSubmit}>
             {submitLabel()}
-          </Button>
+          </AppButton>
         </ModalFooterActions>
       }
     >
@@ -276,16 +276,16 @@ export function TaskEndDialog({
             title="Quality Checklist"
             description="Check all items to complete normally. If only some pass, add notes for the rest."
             action={
-              <Button
+              <AppButton
                 type="button"
-                variant="ghost"
+                appVariant="ghost"
                 size="sm"
                 className="h-7 shrink-0 px-2 text-xs"
                 onClick={markAllPassed}
                 disabled={isPending || isUploading || allChecklistPassed}
               >
                 Mark all passed
-              </Button>
+              </AppButton>
             }
           >
             <div className="grid gap-2">

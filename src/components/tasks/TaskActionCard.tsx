@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { ROUTES } from "@/config/routes";
 import type { DesignTask, Priority } from "@/lib/types/api";
 import { resolveEffectiveTaskPriority } from "@/lib/task-priority";
@@ -117,7 +117,7 @@ export function TaskActionCard({
       <div className="task-card-meta">
         <StatusBadge status={resolveListItemDisplayStatus(task)} />
         {showStartButton ? (
-          <Button
+          <AppButton
             type="button"
             size="sm"
             className={cn(!canStart && "task-card-start--disabled")}
@@ -129,7 +129,7 @@ export function TaskActionCard({
             }}
           >
             {startLabel}
-          </Button>
+          </AppButton>
         ) : null}
       </div>
 

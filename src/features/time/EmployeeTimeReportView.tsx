@@ -5,6 +5,10 @@ import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
+import { AppCard } from "@/components/ui/AppCard";
+import { DataTable } from "@/components/DataTable";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useTimeReport } from "@/hooks/use-time";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
@@ -12,6 +16,19 @@ import { formatDuration } from "@/lib/services/time-calculation";
 function toDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
 }
+
+type ReportRow = {
+  employeeId: number;
+  name: string;
+  employeeCode: string;
+  role: { name: string };
+  tasksWorked: number;
+  tasksCompleted: number;
+  workdaysClosed: number;
+  activeSeconds: number;
+  holdSeconds: number;
+  holdByReason: Array<{ name: string; seconds: number }>;
+} & Record<string, unknown>;
 
 export function EmployeeTimeReportView() {
   const { data: session } = useSession();
@@ -45,28 +62,28 @@ export function EmployeeTimeReportView() {
         subtitle="Active vs hold time aggregated from TaskTimeEvent records"
       />
 
-      <div className="card card--flat stack-section-sm">
-        <div className="toolbar" style={{ borderBottom: "none", paddingTop: 0 }}>
-          <label className="form-group" style={{ margin: 0 }}>
-            <span className="form-label">From</span>
-            <input
+      <AppCard flat className="stack-section-sm">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="report-from">From</Label>
+            <Input
+              id="report-from"
               type="date"
-              className="form-input"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
             />
-          </label>
-          <label className="form-group" style={{ margin: 0 }}>
-            <span className="form-label">To</span>
-            <input
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="report-to">To</Label>
+            <Input
+              id="report-to"
               type="date"
-              className="form-input"
               value={to}
               onChange={(e) => setTo(e.target.value)}
             />
-          </label>
+          </div>
         </div>
-      </div>
+      </AppCard>
 
       <QueryState
         isLoading={reportQuery.isLoading}
@@ -74,55 +91,53 @@ export function EmployeeTimeReportView() {
         error={reportQuery.error}
         onRetry={() => reportQuery.refetch()}
       >
-        {reportQuery.data && reportQuery.data.rows.length === 0 ? (
-          <div className="card">
-            <p className="text-muted-foreground" style={{ margin: 0 }}>
-              No time records found for the selected date range. Try widening the range or confirm
-              employees have logged task time during this period.
-            </p>
-          </div>
-        ) : (
-          reportQuery.data && (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Role</th>
-                  <th>Tasks worked</th>
-                  <th>Completed</th>
-                  <th>Workdays closed</th>
-                  <th>Active</th>
-                  <th>Hold</th>
-                  <th>Top hold reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reportQuery.data.rows.map((row) => (
-                  <tr key={row.employeeId}>
-                    <td>
+        {reportQuery.data && (
+          <AppCard contentClassName="p-0">
+            <DataTable<ReportRow>
+              rows={(reportQuery.data.rows ?? []) as ReportRow[]}
+              getRowKey={(row) => String(row.employeeId)}
+              emptyTitle="No time records found"
+              emptyDescription="Try widening the date range or confirm employees logged task time in this period."
+              columns={[
+                {
+                  key: "name",
+                  header: "Employee",
+                  render: (row) => (
+                    <>
                       <strong>{row.name}</strong>
-                      <div style={{ fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
-                        {row.employeeCode}
-                      </div>
-                    </td>
-                    <td>{row.role.name.replace(/_/g, " ")}</td>
-                    <td>{row.tasksWorked}</td>
-                    <td>{row.tasksCompleted}</td>
-                    <td>{row.workdaysClosed}</td>
-                    <td>{formatDuration(row.activeSeconds)}</td>
-                    <td>{formatDuration(row.holdSeconds)}</td>
-                    <td>
-                      {row.holdByReason[0]
-                        ? `${row.holdByReason[0].name} (${formatDuration(row.holdByReason[0].seconds)})`
-                        : "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          )
+                      <p className="data-table-subtext">{row.employeeCode}</p>
+                    </>
+                  ),
+                },
+                {
+                  key: "role",
+                  header: "Role",
+                  render: (row) => row.role.name.replace(/_/g, " "),
+                },
+                { key: "tasksWorked", header: "Tasks worked" },
+                { key: "tasksCompleted", header: "Completed" },
+                { key: "workdaysClosed", header: "Workdays closed" },
+                {
+                  key: "activeSeconds",
+                  header: "Active",
+                  render: (row) => formatDuration(row.activeSeconds),
+                },
+                {
+                  key: "holdSeconds",
+                  header: "Hold",
+                  render: (row) => formatDuration(row.holdSeconds),
+                },
+                {
+                  key: "holdByReason",
+                  header: "Top hold reason",
+                  render: (row) =>
+                    row.holdByReason[0]
+                      ? `${row.holdByReason[0].name} (${formatDuration(row.holdByReason[0].seconds)})`
+                      : "-",
+                },
+              ]}
+            />
+          </AppCard>
         )}
       </QueryState>
     </div>

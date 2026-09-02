@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
+import { AppCard } from "@/components/ui/AppCard";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ROUTES } from "@/config/routes";
 import { IconKpi } from "@/components/icons";
@@ -51,18 +52,15 @@ export function ReportsHubView() {
         subtitle="Management analytics beyond the core KPI dashboard"
       />
 
-      <div className="card-grid stack-section">
+      <div className="grid gap-4 sm:grid-cols-2 stack-section">
         {REPORT_CARDS.map((card) => (
-          <Link key={card.href} href={card.href} className="card card-link">
-            <div className="card-header">
-              <span className="card-title inline-flex items-center gap-2">
-                <IconKpi size={18} />
-                {card.title}
-              </span>
-            </div>
-            <div className="card-body">
-              <p style={{ margin: 0, color: "var(--color-neutral-600)" }}>{card.description}</p>
-            </div>
+          <Link key={card.href} href={card.href} className="block no-underline">
+            <AppCard
+              title={card.title}
+              headerAction={<IconKpi size={18} className="text-muted-foreground" />}
+            >
+              <p className="m-0 text-sm text-muted-foreground">{card.description}</p>
+            </AppCard>
           </Link>
         ))}
       </div>

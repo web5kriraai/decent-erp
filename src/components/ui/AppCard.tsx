@@ -1,50 +1,51 @@
 import type { HTMLAttributes, ReactNode } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type AppCardProps = HTMLAttributes<HTMLDivElement> & {
-  /** Use legacy `.card--flat` styling (border only, no shadow). */
+  /** Border only, no soft elevation. */
   flat?: boolean;
-  /** Render as shadcn Card instead of legacy `.card` div. */
-  asShadcn?: boolean;
   title?: ReactNode;
+  description?: ReactNode;
   headerAction?: ReactNode;
   children: ReactNode;
+  contentClassName?: string;
 };
 
-/** Bridge legacy `.card` and shadcn `Card` during UI migration. */
+/** Standard page section card built on shadcn Card. */
 export function AppCard({
   flat,
-  asShadcn,
   title,
+  description,
   headerAction,
   className,
+  contentClassName,
   children,
   ...props
 }: AppCardProps) {
-  if (asShadcn) {
-    return (
-      <Card className={cn(flat && "shadow-none", className)} {...props}>
-        {title ? (
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle>{title}</CardTitle>
-            {headerAction}
-          </CardHeader>
-        ) : null}
-        <CardContent>{children}</CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <div className={cn("card", flat && "card--flat", className)} {...props}>
-      {title ? (
-        <div className="card-header">
-          <span className="card-title">{title}</span>
-          {headerAction}
-        </div>
+    <Card
+      className={cn(flat && "shadow-none ring-foreground/5", className)}
+      {...props}
+    >
+      {title || description || headerAction ? (
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 border-b pb-3">
+          <div className="min-w-0 space-y-1">
+            {title ? <CardTitle>{title}</CardTitle> : null}
+            {description ? <CardDescription>{description}</CardDescription> : null}
+          </div>
+          {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
+        </CardHeader>
       ) : null}
-      {children}
-    </div>
+      <CardContent className={cn(!(title || description || headerAction) && "pt-0", contentClassName)}>
+        {children}
+      </CardContent>
+    </Card>
   );
 }

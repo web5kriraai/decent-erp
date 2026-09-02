@@ -1,4 +1,5 @@
 import { IconLock } from "@/components/icons";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { accessRestrictedMessage } from "@/lib/user-messages";
 
 type PermissionDeniedProps = {
@@ -8,14 +9,10 @@ type PermissionDeniedProps = {
 
 export function PermissionDenied({ permission, message }: PermissionDeniedProps) {
   return (
-    <div className="card">
-      <div className="empty-state">
-        <div className="empty-state-icon">
-          <IconLock size={28} />
-        </div>
-        <h2 className="empty-state-title">This area isn&apos;t open for your role</h2>
-        <p className="empty-state-desc">{message ?? accessRestrictedMessage(permission)}</p>
-      </div>
-    </div>
+    <EmptyState
+      title="This area isn't open for your role"
+      description={message ?? accessRestrictedMessage(permission)}
+      icon={<IconLock size={28} />}
+    />
   );
 }

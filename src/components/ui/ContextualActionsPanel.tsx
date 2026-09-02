@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { ActionUnavailable } from "@/components/ui/ActionUnavailable";
-import { Button } from "@/components/ui/button";
+import { AppButton, AppButtonLink, type AppButtonVariant } from "@/components/ui/AppButton";
 import { cn } from "@/lib/utils";
 import type { ResolvedWorkflowAction } from "@/lib/workflow-actions/types";
 
@@ -13,6 +12,14 @@ type ContextualActionsPanelProps = {
   onAction?: (action: ResolvedWorkflowAction) => void;
   showDisabled?: boolean;
 };
+
+function toAppVariant(variant: ResolvedWorkflowAction["variant"]): AppButtonVariant {
+  if (variant === "destructive") return "danger";
+  if (variant === "warning") return "warning";
+  if (variant === "outline") return "outline";
+  if (variant === "primary") return "primary";
+  return "secondary";
+}
 
 export function ContextualActionsPanel({
   title = "Actions",
@@ -34,40 +41,26 @@ export function ContextualActionsPanel({
           {enabled.map((action) => {
             if (action.href && !onAction) {
               return (
-                <Link
+                <AppButtonLink
                   key={`${action.code}-${action.taskId ?? action.designId ?? action.label}`}
                   href={action.href}
-                  className={cn(
-                    "btn btn-sm",
-                    action.variant === "primary" && "btn-primary",
-                    action.variant === "secondary" && "btn-secondary",
-                    action.variant === "outline" && "btn-outline",
-                    action.variant === "destructive" && "btn-danger",
-                    action.variant === "warning" && "btn-warning",
-                  )}
+                  appVariant={toAppVariant(action.variant)}
+                  size="sm"
                 >
                   {action.label}
-                </Link>
+                </AppButtonLink>
               );
             }
             return (
-              <Button
+              <AppButton
                 key={`${action.code}-${action.taskId ?? action.designId ?? action.label}`}
                 type="button"
                 size="sm"
-                variant={
-                  action.variant === "primary"
-                    ? "default"
-                    : action.variant === "destructive"
-                      ? "destructive"
-                      : action.variant === "outline"
-                        ? "outline"
-                        : "secondary"
-                }
+                appVariant={toAppVariant(action.variant)}
                 onClick={() => onAction?.(action)}
               >
                 {action.label}
-              </Button>
+              </AppButton>
             );
           })}
         </div>

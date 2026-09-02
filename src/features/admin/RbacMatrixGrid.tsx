@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { QueryState } from "@/components/ui/QueryState";
 import {
   useFullRbacMatrix,
@@ -111,76 +113,80 @@ export function RbacMatrixGrid() {
         onRetry={() => matrixQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="rbac-matrix-scroll scroll-region">
-          <table className="rbac-matrix-table">
-            <thead>
-              <tr>
-                <th scope="col">Permission</th>
-                {roles.map((role) => (
-                  <th key={role.id} scope="col" className="rbac-matrix-role-col">
-                    <span className="rbac-matrix-role-name">{role.displayName}</span>
-                    <code className="role-code-tag">{role.code}</code>
-                    <div className="rbac-matrix-role-actions">
-                      {dirtyRoles.has(role.id) ? (
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-xs"
-                          disabled={isSaving}
-                          onClick={() => void saveRole(role.id)}
-                        >
-                          Save
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs"
-                          disabled={isSaving}
-                          onClick={() => void handleRestore(role.id)}
-                        >
-                          Reset
-                        </button>
-                      )}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.permissionCode}>
-                  <th scope="row" className="rbac-matrix-perm-cell">
-                    <strong>{row.permissionName}</strong>
-                    <span>{formatPermissionLabel(row.permissionCode)}</span>
-                    <code className="role-code-tag">{row.permissionCode}</code>
-                  </th>
-                  {roles.map((role) => {
-                    const cellRole = row.roles.find((r) => r.roleId === role.id);
-                    const checked = cellRole ? isAssigned(row.permissionCode, role.id) : false;
-                    const locked =
-                      role.code === ROLE_CODES.ADMIN &&
-                      row.permissionCode === PERMISSIONS.MASTER_ADMIN;
-
-                    return (
-                      <td key={role.id} className="rbac-matrix-cell">
-                        <label className="rbac-matrix-toggle">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={locked || isSaving}
-                            aria-label={`${row.permissionCode} for ${role.code}`}
-                            onChange={() =>
-                              toggleCell(row.permissionCode, role.id, role.code)
-                            }
-                          />
-                        </label>
-                      </td>
-                    );
-                  })}
+        <AppCard contentClassName="p-0">
+          <div className="rbac-matrix-scroll scroll-region">
+            <table className="rbac-matrix-table">
+              <thead>
+                <tr>
+                  <th scope="col">Permission</th>
+                  {roles.map((role) => (
+                    <th key={role.id} scope="col" className="rbac-matrix-role-col">
+                      <span className="rbac-matrix-role-name">{role.displayName}</span>
+                      <code className="role-code-tag">{role.code}</code>
+                      <div className="rbac-matrix-role-actions">
+                        {dirtyRoles.has(role.id) ? (
+                          <AppButton
+                            type="button"
+                            appVariant="primary"
+                            size="xs"
+                            disabled={isSaving}
+                            onClick={() => void saveRole(role.id)}
+                          >
+                            Save
+                          </AppButton>
+                        ) : (
+                          <AppButton
+                            type="button"
+                            appVariant="ghost"
+                            size="xs"
+                            disabled={isSaving}
+                            onClick={() => void handleRestore(role.id)}
+                          >
+                            Reset
+                          </AppButton>
+                        )}
+                      </div>
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.permissionCode}>
+                    <th scope="row" className="rbac-matrix-perm-cell">
+                      <strong>{row.permissionName}</strong>
+                      <span>{formatPermissionLabel(row.permissionCode)}</span>
+                      <code className="role-code-tag">{row.permissionCode}</code>
+                    </th>
+                    {roles.map((role) => {
+                      const cellRole = row.roles.find((r) => r.roleId === role.id);
+                      const checked = cellRole ? isAssigned(row.permissionCode, role.id) : false;
+                      const locked =
+                        role.code === ROLE_CODES.ADMIN &&
+                        row.permissionCode === PERMISSIONS.MASTER_ADMIN;
+
+                      return (
+                        <td key={role.id} className="rbac-matrix-cell">
+                          <label className="rbac-matrix-toggle">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={locked || isSaving}
+                              aria-label={`${row.permissionCode} for ${role.code}`}
+                              onChange={() =>
+                                toggleCell(row.permissionCode, role.id, role.code)
+                              }
+                            />
+                          </label>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </AppCard>
       </QueryState>
     </div>
   );

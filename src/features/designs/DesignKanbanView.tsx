@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
@@ -123,9 +124,9 @@ export function DesignKanbanView() {
         title="Design Pipeline"
         subtitle="Kanban view by lifecycle status with current workflow stage on each card"
         actions={
-          <Link href={ROUTES.designs.list} className="btn btn-secondary btn-sm">
+          <AppButtonLink href={ROUTES.designs.list} appVariant="secondary" size="sm">
             Table view
-          </Link>
+          </AppButtonLink>
         }
       />
 
@@ -171,7 +172,7 @@ export function DesignKanbanView() {
                         </span>
                         <PriorityBadge priority={design.priority} />
                       </div>
-                      <p className="text-caption-muted" style={{ margin: "0.5rem 0 0" }}>
+                      <p className="text-caption-muted mt-2 mb-0">
                         {design.designHead.name}
                       </p>
                     </article>

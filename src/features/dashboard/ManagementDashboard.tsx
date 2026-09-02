@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -34,9 +34,9 @@ export function ManagementDashboard() {
       title="Executive overview"
       subtitle="Final decisions, production readiness, and portfolio health"
       actions={
-        <Link href={ROUTES.analytics.kpi} className="btn btn-secondary btn-sm">
+        <AppButtonLink href={ROUTES.analytics.kpi} appVariant="secondary" size="sm">
           KPI dashboard
-        </Link>
+        </AppButtonLink>
       }
       isLoading={summaryQuery.isLoading || approvalsQuery.isLoading}
       isError={summaryQuery.isError || approvalsQuery.isError}
@@ -128,9 +128,9 @@ export function ManagementDashboard() {
                 ? ` ${summary.releasedCount} already released to shop floor.`
                 : ""}
             </p>
-            <Link href={ROUTES.production.release} className="btn btn-secondary btn-sm">
+            <AppButtonLink href={ROUTES.production.release} appVariant="secondary" size="sm">
               View production desk
-            </Link>
+            </AppButtonLink>
           </WorkbenchQueueCard>
 
           <WorkbenchQueueCard
@@ -167,9 +167,9 @@ export function ManagementDashboard() {
               {summary?.underDevelopment ?? 0} design(s) actively moving through development
               stages before final approval.
             </p>
-            <Link href={ROUTES.designs.kanban} className="btn btn-ghost btn-sm">
+            <AppButtonLink href={ROUTES.designs.kanban} appVariant="ghost" size="sm">
               Open pipeline
-            </Link>
+            </AppButtonLink>
           </WorkbenchQueueCard>
         </div>
       </section>

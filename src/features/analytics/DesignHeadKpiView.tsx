@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatCard } from "@/components/ui/StatCard";
+import { AppCard } from "@/components/ui/AppCard";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { DataTable } from "@/components/DataTable";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -83,7 +84,7 @@ export function DesignHeadKpiView() {
               />
             </div>
 
-            <div className="card">
+            <AppCard>
               <DataTable
                 columns={[
                   { key: "employee", header: "Design Head", render: (r) => r.employee.name },
@@ -101,7 +102,7 @@ export function DesignHeadKpiView() {
                 emptyTitle="No design head KPI data"
                 emptyDescription="Run KPI recompute from the admin KPI dashboard."
               />
-            </div>
+            </AppCard>
           </>
         )}
       </QueryState>

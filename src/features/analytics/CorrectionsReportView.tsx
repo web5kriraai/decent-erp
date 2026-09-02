@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { StatCard } from "@/components/ui/StatCard";
+import { AppCard } from "@/components/ui/AppCard";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -56,10 +57,7 @@ export function CorrectionsReportView() {
               />
             </div>
 
-            <div className="card stack-section">
-              <div className="card-header">
-                <span className="card-title">By correction type</span>
-              </div>
+            <AppCard className="stack-section" title="By correction type">
               <ul className="detail-task-list">
                 {Object.entries(summary.byType).map(([type, count]) => (
                   <li key={type}>
@@ -68,7 +66,7 @@ export function CorrectionsReportView() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </AppCard>
 
             <DataTable
               columns={[

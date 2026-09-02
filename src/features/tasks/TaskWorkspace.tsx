@@ -10,7 +10,7 @@ import { PermissionDenied } from "@/components/PermissionDenied";
 import { TaskActionCard, TaskActionListItem } from "@/components/tasks/TaskActionCard";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
-import { Button } from "@/components/ui/button";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
 import {
@@ -55,9 +55,9 @@ function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
             <p className="action-center-list-meta">{item.stage}</p>
             <p className="action-center-list-detail">{item.blockedMessage}</p>
           </div>
-          <Link href={ROUTES.work.taskDetail(item.taskId)} className="btn btn-ghost btn-sm">
+          <AppButtonLink href={ROUTES.work.taskDetail(item.taskId)} appVariant="ghost" size="sm">
             View
-          </Link>
+          </AppButtonLink>
         </li>
       ))}
     </ul>
@@ -223,16 +223,16 @@ export function TaskWorkspace() {
         title="My Action Center"
         subtitle="Work you can act on now, blocked items, and upcoming stages."
         actions={
-          <Button
+          <AppButton
             type="button"
-            variant="secondary"
+            appVariant="secondary"
             size="sm"
             onClick={() => closeWorkday.mutate()}
             disabled={closeWorkday.isPending || !!runningTask}
             title={runningTask ? "Stop running task before closing workday" : undefined}
           >
             Close Workday
-          </Button>
+          </AppButton>
         }
       />
 

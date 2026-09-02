@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { DataTable } from "@/components/DataTable";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -85,17 +87,17 @@ export function CostingView() {
       </div>
 
       {!selectedDesignId ? (
-        <div className="card">
-          <p className="text-muted-foreground" style={{ margin: 0 }}>
+        <AppCard>
+          <p className="m-0 text-sm text-muted-foreground">
             Select a design from the dropdown above to view costing entries, margin review, and add
             new cost lines.
           </p>
-        </div>
+        </AppCard>
       ) : (
         <>
-          <div className="card contextual-actions-wrap stack-section">
+          <AppCard className="contextual-actions-wrap stack-section">
             <ContextualActionsPanel title="Costing actions" actions={costingActions} />
-          </div>
+          </AppCard>
 
           <div className="stat-grid stack-section">
             <StatCard
@@ -131,11 +133,8 @@ export function CostingView() {
           </div>
 
           {summary && summary.entryCount > 0 && (
-            <div className="card stack-section">
-              <div className="card-header">
-                <span className="card-title">Cost Breakdown & Margin Review</span>
-              </div>
-              <div className="stat-grid" style={{ marginTop: "1rem" }}>
+            <AppCard title="Cost Breakdown & Margin Review" className="stack-section">
+              <div className="stat-grid">
                 {Object.entries(summary.byType).map(([type, amount]) => (
                   <StatCard
                     key={type}
@@ -149,19 +148,18 @@ export function CostingView() {
                   />
                 ))}
               </div>
-              <p style={{ margin: "1rem 0 0", fontSize: "var(--font-size-caption)", color: "var(--color-neutral-500)" }}>
+              <p className="mt-4 text-xs text-[var(--color-neutral-500)]">
                 Actual development cost ₹{summary.totalDevCost.toFixed(2)}
                 {summary.estimatedCost != null
                   ? ` vs estimate ₹${summary.estimatedCost.toFixed(2)}`
                   : " — set an estimate on the design for margin %"}
                 .
               </p>
-            </div>
+            </AppCard>
           )}
 
-          <div className="card form-card stack-section">
-            <span className="card-title">Add Cost Entry</span>
-            <form onSubmit={handleAddCost} style={{ marginTop: "1rem" }}>
+          <AppCard title="Add Cost Entry" className="form-card stack-section">
+            <form onSubmit={handleAddCost}>
               <div className="form-grid form-grid--2">
                 <div className="form-group">
                   <label className="form-label" htmlFor="costType">
@@ -206,11 +204,11 @@ export function CostingView() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
-              <button type="submit" className="btn btn-primary" disabled={addCost.isPending}>
+              <AppButton type="submit" appVariant="primary" disabled={addCost.isPending}>
                 Add Entry
-              </button>
+              </AppButton>
             </form>
-          </div>
+          </AppCard>
 
           <QueryState
             isLoading={costsQuery.isLoading}
@@ -218,7 +216,7 @@ export function CostingView() {
             error={costsQuery.error}
             onRetry={() => costsQuery.refetch()}
           >
-            <div className="card">
+            <AppCard>
               <DataTable
                 columns={[
                   { key: "costType", header: "Type" },
@@ -240,12 +238,12 @@ export function CostingView() {
                 emptyTitle="No cost entries"
                 emptyDescription="Add development, material, machine, or correction costs above."
               />
-              <p style={{ marginTop: "1rem" }}>
+              <p className="mt-4">
                 <Link href={ROUTES.designs.detail(selectedDesignId)} className="data-table-link">
                   View design detail
                 </Link>
               </p>
-            </div>
+            </AppCard>
           </QueryState>
         </>
       )}

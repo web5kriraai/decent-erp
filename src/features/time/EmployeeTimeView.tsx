@@ -7,11 +7,24 @@ import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { TimeMetricGrid } from "@/components/time/TaskTimeTimeline";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
+import { DataTable } from "@/components/DataTable";
 import { ROUTES } from "@/config/routes";
 import { useMyTimeSummary } from "@/hooks/use-time";
 import { useTaskMutations } from "@/hooks/use-tasks";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
+
+type TodayTaskRow = {
+  taskId: string;
+  ideaRef: string;
+  subProcessName: string;
+  status: string;
+  activeSeconds: number;
+  holdSeconds: number;
+  expectedMinutes: number;
+} & Record<string, unknown>;
 
 export function EmployeeTimeView() {
   const { data: session } = useSession();
@@ -37,9 +50,10 @@ export function EmployeeTimeView() {
         subtitle="Server-authoritative active work, hold time, and workday status"
         actions={
           data && !data.workdayClosed ? (
-            <button
+            <AppButton
               type="button"
-              className="btn btn-secondary btn-sm"
+              appVariant="secondary"
+              size="sm"
               disabled={closeWorkday.isPending || data.currentTask?.status === "RUNNING"}
               onClick={() => closeWorkday.mutate()}
               title={
@@ -49,7 +63,7 @@ export function EmployeeTimeView() {
               }
             >
               Close Workday
-            </button>
+            </AppButton>
           ) : data?.workdayClosed ? (
             <StatusBadge status="COMPLETED" label="Workday closed" />
           ) : undefined
@@ -78,11 +92,11 @@ export function EmployeeTimeView() {
             </div>
 
             {data.currentTask && (
-              <div className="card stack-section">
-                <div className="card-header">
-                  <span className="card-title">Current task</span>
-                  <StatusBadge status={data.currentTask.status} />
-                </div>
+              <AppCard
+                className="stack-section"
+                title="Current task"
+                headerAction={<StatusBadge status={data.currentTask.status} />}
+              >
                 <p className="workbench-row-meta">
                   {data.currentTask.ideaRef} · {data.currentTask.subProcessName}
                 </p>
@@ -90,20 +104,20 @@ export function EmployeeTimeView() {
                   Active: {formatDuration(data.currentTask.activeSeconds)} · Hold:{" "}
                   {formatDuration(data.currentTask.holdSeconds)}
                 </p>
-                <Link
+                <AppButtonLink
                   href={ROUTES.work.taskDetail(data.currentTask.taskId)}
-                  className="btn btn-secondary btn-sm"
-                  style={{ marginTop: "1rem" }}
+                  appVariant="secondary"
+                  size="sm"
+                  className="mt-4"
                 >
                   Open task workspace
-                </Link>
-              </div>
+                </AppButtonLink>
+              </AppCard>
             )}
 
             {data.totals.holdByReason.length > 0 && (
-              <div className="card stack-section">
-                <span className="card-title">Hold reasons today</span>
-                <ul className="detail-task-list" style={{ marginTop: "0.75rem" }}>
+              <AppCard className="stack-section" title="Hold reasons today">
+                <ul className="detail-task-list mt-3">
                   {data.totals.holdByReason.map((h) => (
                     <li key={h.code}>
                       <span>{h.name}</span>
@@ -111,50 +125,48 @@ export function EmployeeTimeView() {
                     </li>
                   ))}
                 </ul>
-              </div>
+              </AppCard>
             )}
 
-            <div className="card stack-section">
-              <span className="card-title">Tasks with time logged today</span>
-              {data.tasksToday.length === 0 ? (
-                <p style={{ color: "var(--color-neutral-500)", margin: "0.75rem 0 0" }}>
-                  No task time recorded yet today.
-                </p>
-              ) : (
-                <div className="data-table-wrap" style={{ marginTop: "0.75rem" }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Design</th>
-                        <th>Step</th>
-                        <th>Status</th>
-                        <th>Active</th>
-                        <th>Hold</th>
-                        <th>Expected</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.tasksToday.map((task) => (
-                        <tr key={task.taskId}>
-                          <td>
-                            <Link href={ROUTES.work.taskDetail(task.taskId)} className="data-table-link">
-                              {task.ideaRef}
-                            </Link>
-                          </td>
-                          <td>{task.subProcessName}</td>
-                          <td>
-                            <StatusBadge status={task.status} />
-                          </td>
-                          <td>{formatDuration(task.activeSeconds)}</td>
-                          <td>{formatDuration(task.holdSeconds)}</td>
-                          <td>{task.expectedMinutes} min</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <AppCard className="stack-section" title="Tasks with time logged today" contentClassName="p-0">
+              <DataTable<TodayTaskRow>
+                rows={data.tasksToday as TodayTaskRow[]}
+                getRowKey={(row) => row.taskId}
+                emptyTitle="No task time recorded yet today"
+                columns={[
+                  {
+                    key: "ideaRef",
+                    header: "Design",
+                    render: (row) => (
+                      <Link href={ROUTES.work.taskDetail(row.taskId)} className="data-table-link">
+                        {row.ideaRef}
+                      </Link>
+                    ),
+                  },
+                  { key: "subProcessName", header: "Step" },
+                  {
+                    key: "status",
+                    header: "Status",
+                    render: (row) => <StatusBadge status={row.status} />,
+                  },
+                  {
+                    key: "activeSeconds",
+                    header: "Active",
+                    render: (row) => formatDuration(row.activeSeconds),
+                  },
+                  {
+                    key: "holdSeconds",
+                    header: "Hold",
+                    render: (row) => formatDuration(row.holdSeconds),
+                  },
+                  {
+                    key: "expectedMinutes",
+                    header: "Expected",
+                    render: (row) => `${row.expectedMinutes} min`,
+                  },
+                ]}
+              />
+            </AppCard>
           </>
         )}
       </QueryState>

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Children } from "react";
+import { AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function WorkbenchEmpty({ message }: { message: string }) {
   return <p className="workbench-empty">{message}</p>;
@@ -66,23 +67,22 @@ export function WorkbenchQueueCard({
   children: ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle>{title}</CardTitle>
-        {href ? (
-          <Link href={href} className="btn btn-ghost btn-sm">
+    <AppCard
+      title={title}
+      headerAction={
+        href ? (
+          <AppButtonLink href={href} appVariant="ghost" size="sm">
             {linkLabel ?? "View all"}
-          </Link>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        {Children.count(children) > 0 ? (
-          children
-        ) : (
-          <WorkbenchEmpty message={emptyMessage} />
-        )}
-      </CardContent>
-    </Card>
+          </AppButtonLink>
+        ) : null
+      }
+    >
+      {Children.count(children) > 0 ? (
+        children
+      ) : (
+        <WorkbenchEmpty message={emptyMessage} />
+      )}
+    </AppCard>
   );
 }
 
@@ -105,7 +105,9 @@ export function WorkbenchListItem({
     <li className={action ? "workbench-list-row" : undefined}>
       <div className={action ? "workbench-list-item" : undefined}>
         <div>
-          <Link href={primaryHref} className="data-table-link">{primaryLabel}</Link>
+          <Link href={primaryHref} className="data-table-link">
+            {primaryLabel}
+          </Link>
           {meta ? <p className="workbench-row-meta">{meta}</p> : null}
           {detail ? <p className="workbench-row-meta">{detail}</p> : null}
         </div>

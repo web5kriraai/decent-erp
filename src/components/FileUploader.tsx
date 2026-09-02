@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { AppButton } from "@/components/ui/AppButton";
 import { useApiToast } from "@/components/ui/ToastProvider";
 
 type FileUploaderProps = {
@@ -66,17 +67,18 @@ export function FileUploader({ designId, onUploaded, disabled }: FileUploaderPro
         disabled={disabled || uploading}
         onChange={(e) => handleFiles(e.target.files)}
       />
-      <p style={{ margin: "0 0 0.75rem", color: "var(--color-neutral-600)" }}>
+      <p className="mb-3 text-sm text-[var(--color-neutral-600)]">
         Drag & drop or browse — JPEG, PNG, WebP (max 10 MB)
       </p>
-      <button
+      <AppButton
         type="button"
-        className="btn btn-secondary btn-sm"
+        appVariant="secondary"
+        size="sm"
         disabled={disabled || uploading}
         onClick={() => inputRef.current?.click()}
       >
         {uploading ? "Uploading…" : "Choose File"}
-      </button>
+      </AppButton>
     </div>
   );
 }

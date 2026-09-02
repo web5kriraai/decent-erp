@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { IconPlus } from "@/components/icons";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -49,10 +49,14 @@ export function DesignHeadDashboard() {
       firstName={firstName}
       subtitle="Pipeline oversight, approvals, handoffs, and blocked work"
       actions={
-        <Link href={ROUTES.designs.new} className="btn btn-primary inline-flex items-center gap-1.5">
+        <AppButtonLink
+          href={ROUTES.designs.new}
+          appVariant="primary"
+          className="inline-flex items-center gap-1.5"
+        >
           <IconPlus size={16} />
           New Design
-        </Link>
+        </AppButtonLink>
       }
       isLoading={
         summaryQuery.isLoading ||
