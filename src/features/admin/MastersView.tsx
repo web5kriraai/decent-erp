@@ -19,11 +19,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useProcessMasters } from "@/hooks/use-masters";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
-import { apiPost } from "@/lib/api-client";
+import { apiPost, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
 
-export function MastersView() {
+export function MastersView({ embedded = false }: { embedded?: boolean }) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const enabled = permissions.includes(PERMISSIONS.MASTER_ADMIN);
@@ -45,6 +45,21 @@ export function MastersView() {
   const [subName, setSubName] = useState("");
   const [subSequence, setSubSequence] = useState("1");
   const [defaultRoleId, setDefaultRoleId] = useState<number | "">("");
+
+  const [editProcess, setEditProcess] = useState<{
+    id: number;
+    name: string;
+    sequence: string;
+    active: boolean;
+  } | null>(null);
+
+  const [editSubProcess, setEditSubProcess] = useState<{
+    id: number;
+    name: string;
+    sequence: string;
+    defaultRoleId: number | "";
+    active: boolean;
+  } | null>(null);
 
   const roles = rolesQuery.data ?? [];
   const roleNameById = new Map(roles.map((role) => [role.id, role.displayName]));
@@ -86,6 +101,43 @@ export function MastersView() {
     onError: (error) => toast.errorFromApi(error, "Could not create sub-process"),
   });
 
+  const updateProcess = useMutation({
+    mutationFn: (payload: { id: number; name: string; sequence: number; active: boolean }) =>
+      apiPatch(`/api/masters/processes/${payload.id}`, {
+        name: payload.name,
+        sequence: payload.sequence,
+        active: payload.active,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.masters.processes });
+      toast.success("Process updated");
+      setEditProcess(null);
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not update process"),
+  });
+
+  const updateSubProcess = useMutation({
+    mutationFn: (payload: {
+      id: number;
+      name: string;
+      sequence: number;
+      defaultRoleId: number | null;
+      active: boolean;
+    }) =>
+      apiPatch(`/api/masters/sub-processes/${payload.id}`, {
+        name: payload.name,
+        sequence: payload.sequence,
+        defaultRoleId: payload.defaultRoleId,
+        active: payload.active,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.masters.processes });
+      toast.success("Sub-process updated");
+      setEditSubProcess(null);
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not update sub-process"),
+  });
+
   function openSubProcessModal(processId: number, nextSequence: number) {
     setSelectedProcessId(processId);
     setSubSequence(String(nextSequence));
@@ -107,21 +159,45 @@ export function MastersView() {
   const processes = processesQuery.data ?? [];
 
   return (
-    <div className="page-shell">
-      <PageHeader
-        title="Process Masters"
-        subtitle="Main processes, sub-processes, and workflow configuration"
-        actions={
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={() => setProcessModalOpen(true)}
-          >
-            Add Process
-          </button>
-        }
-      />
+    <>
+      {!embedded ? (
+        <div className="page-shell">
+          <PageHeader
+            title="Process Masters"
+            subtitle="Main processes, sub-processes, and workflow configuration"
+            actions={
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setProcessModalOpen(true)}
+              >
+                Add Process
+              </button>
+            }
+          />
+          {renderContent()}
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-end" style={{ marginBottom: "0.75rem" }}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => setProcessModalOpen(true)}
+            >
+              Add Process
+            </button>
+          </div>
+          {renderContent()}
+        </>
+      )}
 
+      {renderModals()}
+    </>
+  );
+
+  function renderContent() {
+    return (
       <QueryState
         isLoading={processesQuery.isLoading}
         isError={processesQuery.isError}
@@ -154,6 +230,7 @@ export function MastersView() {
                     {processes.map((process) => {
                       const isExpanded = expandedProcessId === process.id;
                       const subProcesses = process.subProcesses ?? [];
+                      const isActive = (process as { active?: boolean }).active !== false;
 
                       return (
                         <Fragment key={process.id}>
@@ -174,18 +251,37 @@ export function MastersView() {
                             <td>{process.name}</td>
                             <td>{subProcesses.length}</td>
                             <td>
-                              <StatusBadge status="ACTIVE" label="Active" />
+                              <StatusBadge
+                                status={isActive ? "ACTIVE" : "CLOSED"}
+                                label={isActive ? "Active" : "Inactive"}
+                              />
                             </td>
                             <td style={{ textAlign: "right" }}>
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
-                                onClick={() =>
-                                  openSubProcessModal(process.id, subProcesses.length + 1)
-                                }
-                              >
-                                Add Sub-process
-                              </button>
+                              <div className="inline-actions">
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={() =>
+                                    setEditProcess({
+                                      id: process.id,
+                                      name: process.name,
+                                      sequence: String(process.sequence),
+                                      active: isActive,
+                                    })
+                                  }
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() =>
+                                    openSubProcessModal(process.id, subProcesses.length + 1)
+                                  }
+                                >
+                                  Add Sub-process
+                                </button>
+                              </div>
                             </td>
                           </tr>
                           {isExpanded && (
@@ -203,10 +299,14 @@ export function MastersView() {
                                         <th>Code</th>
                                         <th>Name</th>
                                         <th>Default Role</th>
+                                        <th>Status</th>
+                                        <th style={{ textAlign: "right" }}>Actions</th>
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {subProcesses.map((sub) => (
+                                      {subProcesses.map((sub) => {
+                                        const subActive = (sub as { active?: boolean }).active !== false;
+                                        return (
                                         <tr key={sub.id}>
                                           <td style={{ textAlign: "center" }}>{sub.sequence}</td>
                                           <td>{sub.code}</td>
@@ -217,8 +317,32 @@ export function MastersView() {
                                                 `Role #${sub.defaultRoleId}`)
                                               : "—"}
                                           </td>
+                                          <td>
+                                            <StatusBadge
+                                              status={subActive ? "ACTIVE" : "CLOSED"}
+                                              label={subActive ? "Active" : "Inactive"}
+                                            />
+                                          </td>
+                                          <td style={{ textAlign: "right" }}>
+                                            <button
+                                              type="button"
+                                              className="btn btn-ghost btn-sm"
+                                              onClick={() =>
+                                                setEditSubProcess({
+                                                  id: sub.id,
+                                                  name: sub.name,
+                                                  sequence: String(sub.sequence),
+                                                  defaultRoleId: sub.defaultRoleId ?? "",
+                                                  active: subActive,
+                                                })
+                                              }
+                                            >
+                                              Edit
+                                            </button>
+                                          </td>
                                         </tr>
-                                      ))}
+                                      );
+                                      })}
                                     </tbody>
                                   </table>
                                 )}
@@ -235,7 +359,12 @@ export function MastersView() {
           </div>
         </div>
       </QueryState>
+    );
+  }
 
+  function renderModals() {
+    return (
+      <>
       <Modal
         open={processModalOpen}
         title="Add Process"
@@ -279,6 +408,61 @@ export function MastersView() {
             onChange={(e) => setSequence(e.target.value)}
           />
         </ModalForm>
+      </Modal>
+
+      <Modal
+        open={!!editProcess}
+        title="Edit Process"
+        onClose={() => setEditProcess(null)}
+        footer={
+          <ModalFooterActions>
+            <Button type="button" variant="outline" onClick={() => setEditProcess(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!editProcess?.name || updateProcess.isPending}
+              onClick={() =>
+                editProcess &&
+                updateProcess.mutate({
+                  id: editProcess.id,
+                  name: editProcess.name,
+                  sequence: Number(editProcess.sequence) || 1,
+                  active: editProcess.active,
+                })
+              }
+            >
+              {updateProcess.isPending ? "Saving…" : "Save"}
+            </Button>
+          </ModalFooterActions>
+        }
+      >
+        {editProcess ? (
+          <ModalForm>
+            <FormTextField
+              id="editProcName"
+              label="Name"
+              required
+              value={editProcess.name}
+              onChange={(e) => setEditProcess({ ...editProcess, name: e.target.value })}
+            />
+            <FormTextField
+              id="editProcSeq"
+              label="Sequence"
+              type="number"
+              value={editProcess.sequence}
+              onChange={(e) => setEditProcess({ ...editProcess, sequence: e.target.value })}
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={editProcess.active}
+                onChange={(e) => setEditProcess({ ...editProcess, active: e.target.checked })}
+              />
+              Active
+            </label>
+          </ModalForm>
+        ) : null}
       </Modal>
 
       <Modal
@@ -344,6 +528,92 @@ export function MastersView() {
           </ModalFormGrid>
         </ModalForm>
       </Modal>
-    </div>
-  );
+
+      <Modal
+        open={!!editSubProcess}
+        title="Edit Sub-process"
+        onClose={() => setEditSubProcess(null)}
+        footer={
+          <ModalFooterActions>
+            <Button type="button" variant="outline" onClick={() => setEditSubProcess(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!editSubProcess?.name || updateSubProcess.isPending}
+              onClick={() =>
+                editSubProcess &&
+                updateSubProcess.mutate({
+                  id: editSubProcess.id,
+                  name: editSubProcess.name,
+                  sequence: Number(editSubProcess.sequence) || 1,
+                  defaultRoleId:
+                    editSubProcess.defaultRoleId === ""
+                      ? null
+                      : editSubProcess.defaultRoleId,
+                  active: editSubProcess.active,
+                })
+              }
+            >
+              {updateSubProcess.isPending ? "Saving…" : "Save"}
+            </Button>
+          </ModalFooterActions>
+        }
+      >
+        {editSubProcess ? (
+          <ModalForm>
+            <FormTextField
+              id="editSubName"
+              label="Name"
+              required
+              value={editSubProcess.name}
+              onChange={(e) => setEditSubProcess({ ...editSubProcess, name: e.target.value })}
+            />
+            <ModalFormGrid>
+              <FormTextField
+                id="editSubSeq"
+                label="Sequence"
+                type="number"
+                value={editSubProcess.sequence}
+                onChange={(e) =>
+                  setEditSubProcess({ ...editSubProcess, sequence: e.target.value })
+                }
+              />
+              <FormSelect
+                id="editSubRole"
+                label="Default Role"
+                value={
+                  editSubProcess.defaultRoleId === ""
+                    ? null
+                    : String(editSubProcess.defaultRoleId)
+                }
+                onValueChange={(v) =>
+                  setEditSubProcess({
+                    ...editSubProcess,
+                    defaultRoleId: v ? Number(v) : "",
+                  })
+                }
+                options={roles.map((role) => ({
+                  value: String(role.id),
+                  label: role.displayName,
+                }))}
+                placeholder="Select role (optional)"
+              />
+            </ModalFormGrid>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={editSubProcess.active}
+                onChange={(e) =>
+                  setEditSubProcess({ ...editSubProcess, active: e.target.checked })
+                }
+              />
+              Active
+            </label>
+          </ModalForm>
+        ) : null}
+      </Modal>
+      </>
+    );
+  }
 }

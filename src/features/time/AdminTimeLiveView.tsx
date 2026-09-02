@@ -1,22 +1,60 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { StatCard } from "@/components/ui/StatCard";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+  ModalFormGrid,
+} from "@/components/ui/Modal";
+import { FormTextField } from "@/components/ui/form-text-field";
+import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/config/routes";
 import { useLiveTeamTime } from "@/hooks/use-time";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
+import { apiPost } from "@/lib/api-client";
+import { useApiToast } from "@/components/ui/ToastProvider";
 
 export function AdminTimeLiveView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const enabled = permissions.includes(PERMISSIONS.TIME_VIEW_TEAM);
+  const canAdjust = permissions.includes(PERMISSIONS.MASTER_ADMIN);
   const liveQuery = useLiveTeamTime(enabled);
+  const toast = useApiToast();
+
+  const [adjustTarget, setAdjustTarget] = useState<{
+    taskId: string;
+    ideaRef: string;
+    activeSeconds: number;
+  } | null>(null);
+  const [adjustSeconds, setAdjustSeconds] = useState("0");
+  const [adjustRemark, setAdjustRemark] = useState("");
+
+  const adjustTime = useMutation({
+    mutationFn: () =>
+      apiPost(`/api/tasks/${adjustTarget!.taskId}/time-adjust`, {
+        remark: adjustRemark.trim(),
+        adjustActiveSeconds: Number(adjustSeconds),
+      }),
+    onSuccess: () => {
+      toast.success("Time adjusted", "Admin adjustment recorded in audit log");
+      setAdjustTarget(null);
+      setAdjustSeconds("0");
+      setAdjustRemark("");
+      liveQuery.refetch();
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not adjust time"),
+  });
 
   if (!enabled) {
     return (
@@ -32,7 +70,7 @@ export function AdminTimeLiveView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Live Team Time"
-        subtitle="Who is working now - server-tracked timers across all employees"
+        subtitle="Who is working now — server-tracked timers across all employees"
         actions={
           <Link href={ROUTES.analytics.timeReport} className="btn btn-secondary btn-sm">
             Time reports
@@ -71,6 +109,7 @@ export function AdminTimeLiveView() {
                     <th>Active</th>
                     <th>Hold</th>
                     <th>Due</th>
+                    {canAdjust ? <th style={{ textAlign: "right" }}>Admin</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -110,6 +149,29 @@ export function AdminTimeLiveView() {
                           ? new Date(row.task.dueAt).toLocaleDateString()
                           : "-"}
                       </td>
+                      {canAdjust ? (
+                        <td style={{ textAlign: "right" }}>
+                          {row.task ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => {
+                                setAdjustTarget({
+                                  taskId: row.task!.taskId,
+                                  ideaRef: row.task!.ideaRef,
+                                  activeSeconds: row.task!.activeSeconds,
+                                });
+                                setAdjustSeconds("0");
+                                setAdjustRemark("");
+                              }}
+                            >
+                              Adjust time
+                            </button>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
@@ -118,6 +180,50 @@ export function AdminTimeLiveView() {
           </>
         )}
       </QueryState>
+
+      <Modal
+        open={!!adjustTarget}
+        title="Admin time adjustment"
+        description={
+          adjustTarget
+            ? `Record a manual adjustment for ${adjustTarget.ideaRef} (current active: ${formatDuration(adjustTarget.activeSeconds)})`
+            : undefined
+        }
+        onClose={() => setAdjustTarget(null)}
+        footer={
+          <ModalFooterActions>
+            <Button type="button" variant="outline" onClick={() => setAdjustTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!adjustRemark.trim() || adjustTime.isPending}
+              onClick={() => adjustTime.mutate()}
+            >
+              {adjustTime.isPending ? "Saving…" : "Record adjustment"}
+            </Button>
+          </ModalFooterActions>
+        }
+      >
+        <ModalForm>
+          <ModalFormGrid>
+            <FormTextField
+              id="adjustSeconds"
+              label="Adjust active seconds"
+              type="number"
+              value={adjustSeconds}
+              onChange={(e) => setAdjustSeconds(e.target.value)}
+            />
+            <FormTextField
+              id="adjustRemark"
+              label="Remark"
+              required
+              value={adjustRemark}
+              onChange={(e) => setAdjustRemark(e.target.value)}
+            />
+          </ModalFormGrid>
+        </ModalForm>
+      </Modal>
     </div>
   );
 }

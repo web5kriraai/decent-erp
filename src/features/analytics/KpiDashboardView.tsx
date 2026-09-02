@@ -86,6 +86,9 @@ export function KpiDashboardView() {
         subtitle="Nine weighted metrics (spec §9.1) across roles and period"
         actions={
           <>
+            <Link href={ROUTES.analytics.reportsHub} className="btn btn-secondary btn-sm">
+              Reports Hub
+            </Link>
             <Link href={ROUTES.analytics.kpiDesignHead} className="btn btn-secondary btn-sm">
               Design Head
             </Link>

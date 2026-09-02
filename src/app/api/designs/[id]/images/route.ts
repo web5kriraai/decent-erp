@@ -9,15 +9,10 @@ import {
   deleteObject,
   StorageError,
 } from "@/lib/storage";
-
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
-const ALLOWED_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-  "application/octet-stream",
-]);
+import {
+  resolveUploadCategory,
+  validateUploadFile,
+} from "@/lib/file-upload-policy";
 
 async function listDesignImages(designId: bigint) {
   const images = await prisma.designImage.findMany({
@@ -56,15 +51,17 @@ export async function POST(
       const formData = await request.formData();
       const file = formData.get("file") as File | null;
       const isPrimary = formData.get("isPrimary") === "true";
+      const uploadCategory = formData.get("category")?.toString() ?? null;
 
       if (!file) throw new ApiError("File is required", 400);
-      if (file.size > MAX_FILE_SIZE) {
-        throw new ApiError("File exceeds 20MB limit", 400);
-      }
-      const ext = file.name.split(".").pop()?.toLowerCase();
-      const allowedExt = ["jpg", "jpeg", "png", "webp", "pdf", "emb", "dst"];
-      if (!ALLOWED_TYPES.has(file.type) && (!ext || !allowedExt.includes(ext))) {
-        throw new ApiError("File type not allowed", 400);
+
+      const category = resolveUploadCategory(uploadCategory, file.name);
+      const validation = validateUploadFile(
+        { name: file.name, type: file.type || "", size: file.size },
+        category,
+      );
+      if (!validation.ok) {
+        throw new ApiError(validation.message, file.size > 50 * 1024 * 1024 ? 413 : 400);
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());

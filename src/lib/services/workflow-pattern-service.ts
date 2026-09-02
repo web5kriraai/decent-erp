@@ -39,7 +39,7 @@ export async function getWorkflowPatterns(options?: { includeInactive?: boolean 
   });
 }
 
-async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
+export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
   if (tasks.length === 0) {
     throw new ApiError("At least one task step is required", 422);
   }
@@ -230,6 +230,74 @@ export async function updateWorkflowPattern(
     userId,
     correlationId,
     before: existing,
+    after: pattern,
+  });
+
+  return pattern;
+}
+
+export async function cloneWorkflowPattern(
+  sourceId: number,
+  userId: number,
+  correlationId: string,
+) {
+  const source = await prisma.workflowPattern.findUnique({
+    where: { id: sourceId },
+    include: { tasks: { orderBy: { sequence: "asc" } } },
+  });
+  if (!source) throw new ApiError("Workflow pattern not found", 404);
+  if (source.tasks.length === 0) {
+    throw new ApiError("Cannot clone a pattern with no task steps", 422);
+  }
+
+  const nextVersion = source.versionNo + 1;
+
+  const pattern = await prisma.$transaction(async (tx) => {
+    await tx.workflowPattern.update({
+      where: { id: sourceId },
+      data: { active: false },
+    });
+
+    return tx.workflowPattern.create({
+      data: {
+        name: source.name,
+        productTypeId: source.productTypeId,
+        versionNo: nextVersion,
+        active: true,
+        tasks: {
+          create: source.tasks.map((task) => ({
+            processId: task.processId,
+            subProcessId: task.subProcessId,
+            defaultRoleId: task.defaultRoleId,
+            expectedMinutes: task.expectedMinutes,
+            sequence: task.sequence,
+            dayOffset: task.dayOffset,
+            priority: task.priority,
+            dependencySequence: task.dependencySequence,
+          })),
+        },
+      },
+      include: {
+        tasks: {
+          orderBy: { sequence: "asc" },
+          include: {
+            process: { select: { id: true, code: true, name: true } },
+            subProcess: { select: { id: true, code: true, name: true } },
+            defaultRole: { select: { id: true, code: true, name: true } },
+          },
+        },
+        productType: { select: { id: true, code: true, name: true } },
+      },
+    });
+  });
+
+  await writeAuditLogDirect({
+    entityType: "WorkflowPattern",
+    entityId: String(pattern.id),
+    action: "CLONE",
+    userId,
+    correlationId,
+    before: { sourceId, sourceVersion: source.versionNo },
     after: pattern,
   });
 

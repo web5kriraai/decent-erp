@@ -51,6 +51,10 @@ export const PAGE_META = {
     title: "My Time Today",
     description: "Your active time, holds, and workday summary",
   },
+  pipelineDependencies: {
+    title: "Pipeline Dependencies",
+    description: "Team tasks waiting on prior stages, approvals, or the next assignee",
+  },
   corrections: {
     title: "Corrections",
     description: "Corrections you raised, own on a task, or are responsible for fixing",
@@ -78,6 +82,18 @@ export const PAGE_META = {
   timeReport: {
     title: "Time Report",
     description: "Team time reports by employee and process",
+  },
+  reportsCorrections: {
+    title: "Correction Analysis",
+    description: "Mistake vs improvement trends, extra time, and cost impact",
+  },
+  reportsDesignSuccess: {
+    title: "Design Success Report",
+    description: "Production quantity, sales, and margin by design",
+  },
+  reportsHub: {
+    title: "Reports Hub",
+    description: "Management reports and scorecards beyond core KPI",
   },
   productionRelease: {
     title: "Production Release",

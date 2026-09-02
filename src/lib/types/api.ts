@@ -30,6 +30,32 @@ export type DesignListResponse = {
   total: number;
 };
 
+export type KanbanWorkflowInfo = {
+  currentStage: string | null;
+  currentStatus: string | null;
+  currentOwner: string | null;
+  summary: string | null;
+  completedStages: number;
+  totalStages: number;
+  activeStages: Array<{
+    label: string;
+    status: string;
+    assigneeName: string | null;
+  }>;
+};
+
+export type KanbanDesignItem = {
+  id: string;
+  ideaRef: string;
+  collectionName: string;
+  status: string;
+  priority: Priority;
+  version: number;
+  productType: { name: string };
+  designHead: { name: string };
+  workflow: KanbanWorkflowInfo;
+};
+
 export type DesignTask = {
   id: string;
   status: string;
@@ -166,6 +192,9 @@ export type WorkflowPatternTask = {
   processId: number;
   subProcessId: number;
   defaultRoleId: number;
+  dayOffset?: number;
+  priority?: Priority;
+  dependencySequence?: number | null;
   process?: { id: number; code: string; name: string };
   subProcess?: { id: number; code: string; name: string };
   defaultRole?: { id: number; code: string; name: string };
@@ -191,11 +220,14 @@ export type CreateWorkflowPatternPayload = {
     defaultRoleId: number;
     expectedMinutes: number;
     sequence: number;
+    dayOffset?: number;
+    priority?: Priority;
+    dependencySequence?: number | null;
   }>;
 };
 
-export type ProductType = { id: number; code: string; name: string };
-export type Season = { id: number; code: string; name: string };
+export type ProductType = { id: number; code: string; name: string; active?: boolean };
+export type Season = { id: number; code: string; name: string; active?: boolean };
 export type EmployeeOption = { id: number; name: string; employeeCode: string };
 
 export type AdminEmployeeRow = {

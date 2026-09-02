@@ -10,15 +10,20 @@ import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   useApprovedDesigns,
+  useErpIntegrationStatus,
   useMarkDesignLive,
   useProductionHandoffs,
   useReleasedDesigns,
   useRetryHandoffSync,
+  useSyncDesignHandoffs,
 } from "@/hooks/use-production";
 import { getMarkLiveAvailability } from "@/lib/action-availability";
 import { resolveProductionContextActions } from "@/lib/workflow-actions";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
+function isSimulatedErpReference(ref: string | null | undefined): boolean {
+  return !!ref && ref.startsWith("LOCAL-");
+}
 
 export function ProductionReleaseView() {
   const { data: session } = useSession();
@@ -30,6 +35,11 @@ export function ProductionReleaseView() {
   const markLive = useMarkDesignLive();
   const handoffsQuery = useProductionHandoffs(canRelease);
   const retrySync = useRetryHandoffSync();
+  const erpStatusQuery = useErpIntegrationStatus(canRelease);
+  const syncDesignHandoffs = useSyncDesignHandoffs();
+
+  const erpMode = erpStatusQuery.data?.mode ?? "simulated";
+  const handoffDesignIds = [...new Set((handoffsQuery.data ?? []).map((h) => h.design.id))];
 
   const productionActions = resolveProductionContextActions({
     permissions,
@@ -50,6 +60,25 @@ export function ProductionReleaseView() {
         title="Production Desk"
         subtitle="Complete production instruction and release via My Tasks. ERP module sync runs after release."
       />
+
+      <div className="card stack-section">
+        <div className="card-header">
+          <span className="card-title">ERP integration</span>
+        </div>
+        <div className="card-body" style={{ padding: "1rem 1.25rem" }}>
+          <p style={{ margin: "0 0 0.75rem" }}>
+            Mode:{" "}
+            <StatusBadge
+              status={erpMode === "live" ? "ACTIVE" : "CHECKING"}
+              label={erpMode === "live" ? "Live ERP" : "Simulated (LOCAL-*)"}
+            />
+          </p>
+          <p className="text-muted-inline" style={{ margin: 0 }}>
+            {erpStatusQuery.data?.message ??
+              "Configure ERP_API_BASE_URL for live Grey → Cutting → Sales → downstream module sync."}
+          </p>
+        </div>
+      </div>
 
       <div className="card contextual-actions-wrap stack-section">
         <ContextualActionsPanel title="Production desk actions" actions={productionActions} />
@@ -214,7 +243,17 @@ export function ProductionReleaseView() {
       >
         <div className="card stack-section">
           <div className="card-header">
-            <span className="card-title">ERP Handoffs (Grey / Cutting / Sales)</span>
+            <span className="card-title">ERP Handoffs (Grey / Cutting / Sales + downstream)</span>
+            {handoffDesignIds.length > 0 ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={syncDesignHandoffs.isPending}
+                onClick={() => syncDesignHandoffs.mutate(handoffDesignIds[0])}
+              >
+                Sync all modules (latest design)
+              </button>
+            ) : null}
           </div>
           <DataTable
             columns={[
@@ -234,7 +273,24 @@ export function ProductionReleaseView() {
                 header: "Sync Status",
                 render: (row) => <StatusBadge status={row.status} />,
               },
-              { key: "erpReference", header: "ERP Ref", render: (r) => r.erpReference ?? "—" },
+              {
+                key: "error",
+                header: "Last error",
+                render: (row) =>
+                  row.payload?.error ? (
+                    <span className="text-xs text-muted-foreground">{row.payload.error}</span>
+                  ) : (
+                    "—"
+                  ),
+              },
+              { key: "erpReference", header: "ERP Ref", render: (r) => (
+                <span className="inline-flex items-center gap-2">
+                  <span>{r.erpReference ?? "—"}</span>
+                  {isSimulatedErpReference(r.erpReference) ? (
+                    <StatusBadge status="CHECKING" label="Simulated" />
+                  ) : null}
+                </span>
+              ) },
               {
                 key: "actions",
                 header: "",

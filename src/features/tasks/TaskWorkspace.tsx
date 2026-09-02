@@ -17,7 +17,6 @@ import {
   useActionCenter,
   useTaskMutations,
   type ActionCenterBlockedItem,
-  type ActionCenterWaitingItem,
 } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -32,11 +31,10 @@ const KANBAN_COLUMNS = [
   ["ON_HOLD", "On Hold"],
 ] as const;
 
-type ActionTab = "actionRequired" | "waitingForOthers" | "blocked" | "upcoming" | "completed";
+type ActionTab = "actionRequired" | "blocked" | "upcoming" | "completed";
 
 const ACTION_TABS: { id: ActionTab; label: string }[] = [
   { id: "actionRequired", label: "Action required" },
-  { id: "waitingForOthers", label: "Waiting for others" },
   { id: "blocked", label: "Blocked" },
   { id: "upcoming", label: "Upcoming" },
   { id: "completed", label: "Completed" },
@@ -45,42 +43,6 @@ const ACTION_TABS: { id: ActionTab; label: string }[] = [
 function formatCollectionLabel(name: string) {
   if (/workday\s+\d{10,}/i.test(name)) return null;
   return name;
-}
-
-function WaitingList({ items }: { items: ActionCenterWaitingItem[] }) {
-  if (items.length === 0) {
-    return <p className="action-center-empty">Nothing waiting on others right now.</p>;
-  }
-  return (
-    <ul className="action-center-list">
-      {items.map((item) => (
-        <li key={item.taskId} className="action-center-list-item">
-          <div>
-            <Link href={ROUTES.designs.detail(item.design.id)} className="data-table-link">
-              {item.design.ideaRef}
-            </Link>
-            <p className="action-center-list-meta">
-              {item.myStage} · {item.myStatus.replace(/_/g, " ")}
-            </p>
-            <p className="action-center-list-detail">
-              Waiting for <strong>{item.waitingFor}</strong> — {item.nextAction}
-            </p>
-          </div>
-          {item.nextTaskId ? (
-            <Link href={ROUTES.work.taskDetail(item.nextTaskId)} className="btn btn-ghost btn-sm">
-              View next
-            </Link>
-          ) : null}
-          <Link href={ROUTES.work.taskDetail(item.taskId)} className="btn btn-ghost btn-sm">
-            My task
-          </Link>
-          <Link href={ROUTES.designs.detail(item.design.id)} className="btn btn-ghost btn-sm">
-            Design
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
@@ -184,7 +146,6 @@ export function TaskWorkspace() {
   const tabCounts = useMemo(
     () => ({
       actionRequired: center?.actionRequired.length ?? 0,
-      waitingForOthers: center?.waitingForOthers.length ?? 0,
       blocked: center?.blocked.length ?? 0,
       upcoming: center?.upcoming.length ?? 0,
       completed: center?.completed.length ?? 0,
@@ -268,18 +229,13 @@ export function TaskWorkspace() {
   }
 
   const hasAnyWork =
-    tabCounts.actionRequired +
-      tabCounts.waitingForOthers +
-      tabCounts.blocked +
-      tabCounts.upcoming +
-      tabCounts.completed >
-    0;
+    tabCounts.actionRequired + tabCounts.blocked + tabCounts.upcoming + tabCounts.completed > 0;
 
   return (
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="My Action Center"
-        subtitle="Work you can act on now, what you are waiting on, and what is still queued."
+        subtitle="Work you can act on now, blocked items, and upcoming stages."
         actions={
           <Button
             type="button"
@@ -352,7 +308,7 @@ export function TaskWorkspace() {
 
               {tasks.length === 0 ? (
                 <p className="action-center-empty action-center-empty--inline">
-                  No tasks ready for you right now. Check Waiting, Blocked, or Upcoming tabs.
+                  No tasks ready for you right now. Check Blocked or Upcoming tabs.
                 </p>
               ) : (
                 <div className="kanban">
@@ -434,10 +390,6 @@ export function TaskWorkspace() {
                 </Link>
               </p>
             ) : null}
-          </TabsContent>
-
-          <TabsContent value="waitingForOthers">
-            <WaitingList items={center?.waitingForOthers ?? []} />
           </TabsContent>
 
           <TabsContent value="blocked">

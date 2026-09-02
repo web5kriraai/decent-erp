@@ -30,6 +30,7 @@ export function WorkflowPatternsView() {
   const [editing, setEditing] = useState<WorkflowPattern | null>(null);
   const [editSteps, setEditSteps] = useState<WorkflowPattern | null>(null);
   const [editName, setEditName] = useState("");
+  const [cloneTarget, setCloneTarget] = useState<WorkflowPattern | null>(null);
 
   const createPattern = useMutation({
     mutationFn: (payload: CreateWorkflowPatternPayload) =>
@@ -70,6 +71,16 @@ export function WorkflowPatternsView() {
       setEditing(null);
     },
     onError: (error) => toast.errorFromApi(error, "Could not update workflow pattern"),
+  });
+
+  const clonePattern = useMutation({
+    mutationFn: (id: number) => apiPost<WorkflowPattern>(`/api/workflow-patterns/${id}/clone`, {}),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.masters.workflowPatterns });
+      toast.success("Pattern cloned", `${data.name} v${data.versionNo} is now active`);
+      setCloneTarget(null);
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not clone workflow pattern"),
   });
 
   if (!enabled) {
@@ -147,6 +158,13 @@ export function WorkflowPatternsView() {
                   </button>
                   <button
                     type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setCloneTarget(row)}
+                  >
+                    Clone as v+
+                  </button>
+                  <button
+                    type="button"
                     className="btn btn-secondary btn-sm"
                     disabled={updatePattern.isPending}
                     onClick={() =>
@@ -217,6 +235,36 @@ export function WorkflowPatternsView() {
             onChange={(e) => setEditName(e.target.value)}
           />
         </ModalForm>
+      </Modal>
+
+      <Modal
+        open={!!cloneTarget}
+        title="Clone as new version"
+        description="Creates a new active version with the same steps. The current version will be deactivated. Designs already in progress keep their existing tasks."
+        onClose={() => setCloneTarget(null)}
+        size="sm"
+        footer={
+          <ModalFooterActions>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setCloneTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={clonePattern.isPending}
+              onClick={() => cloneTarget && clonePattern.mutate(cloneTarget.id)}
+            >
+              {clonePattern.isPending ? "Cloning…" : "Clone pattern"}
+            </Button>
+          </ModalFooterActions>
+        }
+      >
+        {cloneTarget ? (
+          <p className="text-sm text-muted-foreground">
+            Clone <strong>{cloneTarget.name}</strong> v{cloneTarget.versionNo} to v
+            {cloneTarget.versionNo + 1}?
+          </p>
+        ) : null}
       </Modal>
     </div>
   );

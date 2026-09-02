@@ -11,6 +11,7 @@ import {
   createDesignViaApi,
   login,
 } from "./helpers/auth";
+import { advanceDesignToProdReleaseGate } from "./helpers/workflow";
 
 test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
   test("TC-01: valid credentials login reaches dashboard", async ({ page }) => {
@@ -30,7 +31,7 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
       conceptNote: "Playwright TC-03",
     });
     expect(design.id).toBeTruthy();
-    expect(design.status).toBe("DRAFT");
+    expect(design.status).toBe("ACTIVE");
     expect(design.ideaRef).toMatch(/^IDEA-/);
   });
 
@@ -135,39 +136,6 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
       priority: "LOW",
     });
 
-    await apiPatchJson(page, `/api/designs/${design.id}/status`, {
-      status: "APPROVED",
-      version: design.version ?? 1,
-    });
-
-    await login(page, USERS.production.email, USERS.production.password);
-    const releaseRes = await page.request.post("/api/production/release", {
-      data: { designId: design.id },
-      headers: { "Content-Type": "application/json" },
-    });
-    expect(releaseRes.status()).toBe(422);
-  });
-
-  test("TC-12: production release requires PROD_RELEASE task (not direct API shortcut)", async ({
-    page,
-  }) => {
-    await login(page, USERS.designHead.email, USERS.designHead.password);
-    const design = await createDesignViaApi(page, `TC12 Release ${Date.now()}`, {
-      priority: "HIGH",
-    });
-
-    await apiPatchJson(page, `/api/designs/${design.id}/status`, {
-      status: "APPROVED",
-      version: design.version ?? 1,
-    });
-
-    await login(page, USERS.costing.email, USERS.costing.password);
-    await apiPostJson(page, `/api/designs/${design.id}/costs`, {
-      costType: "MATERIAL",
-      description: "TC-12 fabric",
-      amount: 1500,
-    });
-
     await login(page, USERS.production.email, USERS.production.password);
     const releaseRes = await page.request.post("/api/production/release", {
       data: { designId: design.id },
@@ -175,7 +143,24 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
     });
     expect(releaseRes.status()).toBe(422);
     const body = await releaseRes.json();
-    expect(body.error).toMatch(/production release|not available|workflow/i);
+    expect(body.error).toMatch(/costing|not available|release/i);
+  });
+
+  test("TC-12: production release requires PROD_RELEASE task (not direct API shortcut)", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+
+    const { designId } = await advanceDesignToProdReleaseGate(page, `TC12 Release ${Date.now()}`);
+
+    await login(page, USERS.production.email, USERS.production.password);
+    const releaseRes = await page.request.post("/api/production/release", {
+      data: { designId },
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(releaseRes.status()).toBe(422);
+    const body = await releaseRes.json();
+    expect(body.error).toMatch(/PROD_RELEASE|production release task|not available|workflow/i);
   });
 
   test("TC-13: kanban board loads pipeline columns", async ({ page }) => {

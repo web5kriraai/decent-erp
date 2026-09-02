@@ -54,6 +54,31 @@ const createDesignSchema = z
         message: "At least one manual task is required",
       });
     }
+    if (body.assignmentMode === "MANUAL" && body.manualTasks?.length) {
+      body.manualTasks.forEach((task, index) => {
+        if (!task.processId) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["manualTasks", index, "processId"],
+            message: "Process is required",
+          });
+        }
+        if (!task.subProcessId) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["manualTasks", index, "subProcessId"],
+            message: "Sub-process is required",
+          });
+        }
+        if (!task.expectedMinutes || task.expectedMinutes <= 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["manualTasks", index, "expectedMinutes"],
+            message: "Expected minutes must be greater than zero",
+          });
+        }
+      });
+    }
   });
 
 export async function POST(request: Request) {

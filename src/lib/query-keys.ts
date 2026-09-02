@@ -12,6 +12,7 @@ export const queryKeys = {
     all: ["tasks"] as const,
     my: ["tasks", "my"] as const,
     actionCenter: ["tasks", "action-center"] as const,
+    pipelineDependencies: ["tasks", "pipeline-dependencies"] as const,
     detail: (id: string) => ["tasks", "detail", id] as const,
   },
   time: {
@@ -24,7 +25,11 @@ export const queryKeys = {
     workflowPatterns: ["masters", "workflow-patterns"] as const,
     holdReasons: ["masters", "hold-reasons"] as const,
     productTypes: ["masters", "product-types"] as const,
+    productTypesAdmin: ["masters", "product-types", "all"] as const,
     seasons: ["masters", "seasons"] as const,
+    seasonsAdmin: ["masters", "seasons", "all"] as const,
+    productProcessMappings: (productTypeId?: number) =>
+      ["masters", "product-process-mappings", productTypeId] as const,
     componentTypes: ["masters", "component-types"] as const,
     checklistItems: ["masters", "checklist-items"] as const,
     employees: ["masters", "employees"] as const,
@@ -32,6 +37,11 @@ export const queryKeys = {
   kpi: {
     employees: ["kpi", "employees"] as const,
     designHead: ["kpi", "design-head"] as const,
+  },
+  reports: {
+    corrections: ["reports", "corrections"] as const,
+    designSuccess: (year: number, month: number) =>
+      ["reports", "design-success", year, month] as const,
   },
   corrections: {
     all: ["corrections"] as const,
@@ -53,6 +63,7 @@ export const queryKeys = {
     approved: ["production", "approved"] as const,
     released: ["production", "released"] as const,
     handoffs: (designId?: string) => ["production", "handoffs", designId] as const,
+    erpStatus: ["production", "erp-status"] as const,
     inbox: ["production", "inbox"] as const,
     returnOptions: (designId: string) => ["production", "return-options", designId] as const,
   },

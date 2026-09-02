@@ -107,7 +107,7 @@ Access is controlled by **permissions**, not role names directly. Each employee 
 | `PRODUCTION_RELEASE` | Production release queue |
 | `TIME_VIEW_TEAM` | Live team time + time reports |
 | `KPI_ADMIN` | KPI dashboards and monthly recompute |
-| `MASTER_ADMIN` | Employees, roles catalog, process masters, workflow patterns (read), audit log |
+| `MASTER_ADMIN` | Employees, roles catalog, process masters, workflow patterns (create, edit, activate/deactivate), audit log |
 | `WORKFLOW_OVERRIDE` | Send design to any QC phase or bypass workflow to any phase (Design Head + Admin) |
 
 ### Roles (seeded)
@@ -120,6 +120,7 @@ Access is controlled by **permissions**, not role names directly. Each employee 
 | **Punching Designer** | Wilcom / digitizing | Task execute, corrections |
 | **Machine Operator** | Sample floor | Task execute only |
 | **Sample Checker** | QC gate | Task execute, corrections, approve |
+| **Punching Checker** | Punch QC | Task execute, corrections |
 | **Costing Team** | Finance / costing | Cost view |
 | **Production Head** | Shop-floor handoff | Production release, cost view |
 | **Management** | Owner / director | Approve, KPI, team time, costing, production release |
@@ -138,6 +139,7 @@ All demo users except admin share password **`Demo@123`**.
 | `punch@decent-erp.local` | Punching Designer |
 | `machine@decent-erp.local` | Machine Operator |
 | `checker@decent-erp.local` | Sample Checker |
+| `punchchecker@decent-erp.local` | Punching Checker |
 | `costing@decent-erp.local` | Costing Team |
 | `production@decent-erp.local` | Production Head |
 | `management@decent-erp.local` | Management |
@@ -176,7 +178,7 @@ Change all passwords before production. After an admin changes a user's role, th
 - **Employees** - create, edit, activate/deactivate, assign role, reset password
 - **Roles & Access** - read-only role catalog with permission matrix
 - **Process Masters** - create processes; hold reasons and approval levels via API
-- **Workflow Patterns** - create patterns, rename/activate, and edit task steps (`GET/POST /api/workflow-patterns`, `PATCH /api/workflow-patterns/{id}/tasks`); one pattern seeded: *Standard Saree Development*
+- **Workflow Patterns** - create patterns, rename/activate, clone as new version, and edit task steps (`GET/POST /api/workflow-patterns`, `PATCH /api/workflow-patterns/{id}/tasks`, `POST /api/workflow-patterns/{id}/clone`); four patterns seeded: *Standard Saree*, *Standard Suit*, *Standard Kurti*, *Standard Lehenga*
 - **Audit Log** - filterable admin action history
 
 ### Infrastructure
@@ -243,6 +245,8 @@ E2E: `npm run test:e2e:reuse -- e2e/full-workflow-pipeline.spec.ts`
 | `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
 | `npm run db:migrate:dev` | Create/apply migrations in development |
 | `npm run db:seed` | Seed roles, users, masters, sample data |
+| `npm run db:fresh` | Wipe designs/tasks/time; **keep** users, roles, permissions, masters |
+| `npm run db:fresh:sample` | Same as `db:fresh` + restore demo design `IDEA-SAMPLE-001` |
 | `npm run worker` | BullMQ notification consumer |
 | `npm test` | Vitest unit tests |
 | `npm run lint` | ESLint |

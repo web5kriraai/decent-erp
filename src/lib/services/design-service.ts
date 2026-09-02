@@ -149,13 +149,28 @@ export async function createDesignWithTasks(
     await createDesignProcessInstances(tx, design.id, tasksToCreate);
     await tx.designTask.createMany({ data: tasksToCreate });
 
+    const firstReady =
+      tasksToCreate.find((t) => t.status === "ASSIGNED") ?? tasksToCreate[0];
+    const firstSubProcess = await tx.designSubProcessMaster.findUnique({
+      where: { id: firstReady.subProcessId },
+      select: { code: true, name: true },
+    });
+
+    const activatedDesign = await tx.designConcept.update({
+      where: { id: design.id },
+      data: {
+        status: "ACTIVE",
+        currentStage: firstSubProcess?.code ?? "CONCEPT",
+      },
+    });
+
     await writeAuditLog(tx, {
       entityType: "DesignConcept",
       entityId: design.id.toString(),
       action: "CREATE",
       userId: createdById,
       correlationId,
-      after: design,
+      after: activatedDesign,
     });
 
     await tx.notificationOutbox.create({
@@ -165,7 +180,7 @@ export async function createDesignWithTasks(
       },
     });
 
-    return design;
+    return activatedDesign;
   }).then(async (design) => {
     await enqueueOutboxAndNotify(
       "DESIGN_CREATED",
@@ -412,6 +427,16 @@ export async function listDesignsForKanban() {
     include: {
       productType: { select: { name: true } },
       designHead: { select: { name: true } },
+      tasks: {
+        orderBy: { sequence: "asc" },
+        include: {
+          assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
+          process: { select: { id: true, name: true, code: true } },
+          subProcess: {
+            select: { id: true, name: true, code: true, isApproval: true, isFileRequired: true },
+          },
+        },
+      },
     },
   });
 }
@@ -425,6 +450,28 @@ export async function generateTasksFromPattern(
   return prisma.$transaction(async (tx) => {
     const design = await tx.designConcept.findUnique({ where: { id: designId } });
     if (!design) throw new ApiError("Design not found", 404);
+
+    const existingTaskCount = await tx.designTask.count({ where: { designId } });
+    if (existingTaskCount > 0) {
+      throw new ApiError("Design already has workflow tasks. Cannot regenerate from pattern.", 422);
+    }
+
+    const pattern = await tx.workflowPattern.findUnique({
+      where: { id: workflowPatternId },
+    });
+    if (!pattern) throw new ApiError("Workflow pattern not found", 404);
+    if (!pattern.active) {
+      throw new ApiError("Workflow pattern is inactive and cannot be used", 422);
+    }
+    if (
+      pattern.productTypeId != null &&
+      pattern.productTypeId !== design.productTypeId
+    ) {
+      throw new ApiError(
+        "Workflow pattern does not apply to this design's product type",
+        422,
+      );
+    }
 
     const patternTasks = await tx.workflowPatternTask.findMany({
       where: { workflowPatternId },

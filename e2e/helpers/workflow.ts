@@ -520,3 +520,94 @@ export async function getCompletionSummary(page: Page, designId: string) {
     overrideHistory: Array<{ action: string }>;
   }>(page, `/api/designs/${designId}/completion-summary`);
 }
+
+const WORKFLOW_ROLE_MAP: Record<string, string> = {
+  CONCEPT_REVIEW: USERS.designHead.email,
+  SKETCH: USERS.sketch.email,
+  SKETCH_APPROVAL: USERS.designHead.email,
+  PUNCH: USERS.punch.email,
+  PUNCH_CHECK: USERS.checker.email,
+  MAT_REQ: USERS.designHead.email,
+  FABRIC_ISSUE: USERS.production.email,
+  MACHINE_SAMPLE: USERS.machine.email,
+  SAMPLE_RECEIVE: USERS.machine.email,
+  SAMPLE_CHECK: USERS.checker.email,
+  COSTING: USERS.costing.email,
+  FINAL_APPROVAL: USERS.designHead.email,
+  PROD_HANDOFF: USERS.designHead.email,
+  PROD_INSTRUCTION: USERS.production.email,
+  PROD_RELEASE: USERS.production.email,
+};
+
+async function employeeIdFor(page: Page, email: string) {
+  await login(page, USERS.admin.email, USERS.admin.password);
+  const employees = await apiGetJson<Array<{ id: number; email: string }>>(
+    page,
+    "/api/admin/employees",
+  );
+  const row = employees.find((e) => e.email === email);
+  if (!row) throw new Error(`Missing employee ${email}`);
+  return row.id;
+}
+
+/**
+ * Advance a design through workflow up to PROD_INSTRUCTION complete and handoff accepted,
+ * with costing added, but leave PROD_RELEASE incomplete. Used for production release gate tests.
+ */
+export async function advanceDesignToProdReleaseGate(
+  page: Page,
+  collectionName: string,
+) {
+  const { createDesignViaApi } = await import("./auth");
+
+  await login(page, USERS.designHead.email, USERS.designHead.password);
+  const design = await createDesignViaApi(page, collectionName);
+
+  const resolveEmployeeId = async (p: Page, email: string) => employeeIdFor(p, email);
+
+  await runWorkOrderThroughSampleReceive(page, design.id, WORKFLOW_ROLE_MAP, resolveEmployeeId);
+
+  const sampleDone = await completeTaskForUser(
+    page,
+    USERS.checker.email,
+    design.id,
+    "SAMPLE_CHECK",
+    { sampleOutcome: "APPROVE" },
+  );
+  if (!sampleDone) throw new Error("SAMPLE_CHECK task was not completed");
+
+  await finalizeDevelopmentForSignOff(page, design.id, resolveEmployeeId, {
+    costAmount: 1500,
+    costDescription: "E2E prod release gate costing",
+  });
+
+  await submitManagementApprovals(page, design.id);
+
+  const handoffDone = await completeTaskForUser(
+    page,
+    USERS.designHead.email,
+    design.id,
+    "PROD_HANDOFF",
+  );
+  if (!handoffDone) throw new Error("PROD_HANDOFF task was not completed");
+
+  await login(page, USERS.production.email, USERS.production.password);
+  await apiPostJson(page, "/api/production/accept-handoff", { designId: design.id });
+
+  const instructionDone = await completeTaskForUser(
+    page,
+    USERS.production.email,
+    design.id,
+    "PROD_INSTRUCTION",
+  );
+  if (!instructionDone) throw new Error("PROD_INSTRUCTION task was not completed");
+
+  const prodRelease = await getDesignTaskByCode(page, design.id, "PROD_RELEASE");
+  if (!prodRelease) throw new Error("PROD_RELEASE task missing");
+  if (prodRelease.status === "COMPLETED") {
+    throw new Error("PROD_RELEASE should remain incomplete for prod release gate test");
+  }
+
+  const snapshot = await getDesign(page, design.id);
+  return { designId: design.id, status: snapshot.status };
+}

@@ -35,6 +35,21 @@ export type ActionCenterData = {
   completed: DesignTask[];
 };
 
+export type TeamPipelineDependencyItem = ActionCenterWaitingItem & {
+  employeeId: number;
+  employeeName: string;
+  employeeCode: string;
+};
+
+export function usePipelineDependencies(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.tasks.pipelineDependencies,
+    queryFn: () => apiGet<TeamPipelineDependencyItem[]>("/api/tasks/pipeline-dependencies"),
+    enabled,
+    refetchInterval: 60_000,
+  });
+}
+
 export function useActionCenter(enabled = true) {
   return useQuery({
     queryKey: queryKeys.tasks.actionCenter,

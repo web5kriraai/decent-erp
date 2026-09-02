@@ -21,6 +21,7 @@ export function FileUploader({ designId, onUploaded, disabled }: FileUploaderPro
       try {
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("category", "PRODUCT_IMAGE");
         const res = await fetch(`/api/designs/${designId}/images`, {
           method: "POST",
           body: formData,
@@ -60,13 +61,13 @@ export function FileUploader({ designId, onUploaded, disabled }: FileUploaderPro
       <input
         ref={inputRef}
         type="file"
-        accept=".jpg,.jpeg,.png,.webp,.pdf,.emb,.dst,image/*,application/pdf"
+        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
         hidden
         disabled={disabled || uploading}
         onChange={(e) => handleFiles(e.target.files)}
       />
       <p style={{ margin: "0 0 0.75rem", color: "var(--color-neutral-600)" }}>
-        Drag & drop or browse - JPG, PNG, PDF, EMB, DST (max 20MB)
+        Drag & drop or browse — JPEG, PNG, WebP (max 10 MB)
       </p>
       <button
         type="button"

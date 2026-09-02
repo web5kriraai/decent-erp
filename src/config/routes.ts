@@ -31,6 +31,7 @@ export const ROUTES = {
     tasks: "/work/tasks",
     taskDetail: (taskId: string) => `/work/tasks/${taskId}`,
     myTime: "/work/time",
+    pipelineDependencies: "/work/pipeline-dependencies",
   },
   quality: {
     corrections: "/quality/corrections",
@@ -44,6 +45,9 @@ export const ROUTES = {
     kpiEmployees: "/analytics/kpi/employees",
     kpiDesignHead: "/analytics/kpi/design-head",
     timeReport: "/analytics/time",
+    reportsCorrections: "/analytics/reports/corrections",
+    reportsDesignSuccess: "/analytics/reports/design-success",
+    reportsHub: "/analytics/reports",
   },
   admin: {
     masters: "/admin/masters",
@@ -76,6 +80,8 @@ export type NavLink = {
   href: string;
   icon?: NavIcon;
   permission?: PermissionCode;
+  /** Visible when the user has any of these permissions (OR). */
+  anyPermission?: PermissionCode[];
   /** Match exact path only (not children) */
   exact?: boolean;
 };
@@ -185,6 +191,17 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Team & Reports",
     items: [
       {
+        id: "pipeline-dependencies",
+        label: "Pipeline Dependencies",
+        href: ROUTES.work.pipelineDependencies,
+        icon: IconTasks,
+        anyPermission: [
+          PERMISSIONS.DESIGN_CREATE,
+          PERMISSIONS.KPI_ADMIN,
+          PERMISSIONS.MASTER_ADMIN,
+        ],
+      },
+      {
         id: "time-live",
         label: "Live Team Time",
         href: ROUTES.admin.timeLive,
@@ -202,6 +219,28 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "kpi",
         label: "Performance KPI",
         href: ROUTES.analytics.kpi,
+        icon: IconKpi,
+        permission: PERMISSIONS.KPI_ADMIN,
+      },
+      {
+        id: "reports-hub",
+        label: "Reports Hub",
+        href: ROUTES.analytics.reportsHub,
+        icon: IconKpi,
+        permission: PERMISSIONS.KPI_ADMIN,
+        exact: true,
+      },
+      {
+        id: "reports-corrections",
+        label: "Correction Analysis",
+        href: ROUTES.analytics.reportsCorrections,
+        icon: IconKpi,
+        permission: PERMISSIONS.KPI_ADMIN,
+      },
+      {
+        id: "reports-design-success",
+        label: "Design Success",
+        href: ROUTES.analytics.reportsDesignSuccess,
         icon: IconKpi,
         permission: PERMISSIONS.KPI_ADMIN,
       },
@@ -289,6 +328,10 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "Overview", href: ROUTES.dashboard },
     { label: "My Time Today" },
   ],
+  [ROUTES.work.pipelineDependencies]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Pipeline Dependencies" },
+  ],
   [ROUTES.quality.corrections]: [
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Corrections" },
@@ -318,6 +361,21 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   [ROUTES.analytics.timeReport]: [
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Time Report" },
+  ],
+  [ROUTES.analytics.reportsHub]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Reports Hub" },
+  ],
+  [ROUTES.analytics.reportsCorrections]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Correction Analysis" },
+  ],
+  [ROUTES.analytics.reportsDesignSuccess]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Design Success" },
   ],
   [ROUTES.admin.masters]: [
     { label: "Overview", href: ROUTES.dashboard },
@@ -361,9 +419,12 @@ export function isNavActive(pathname: string, href: string, exact?: boolean): bo
 export function getVisibleNavSections(permissions: string[]): NavSection[] {
   return NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter(
-      (item) => !item.permission || permissions.includes(item.permission),
-    ),
+    items: section.items.filter((item) => {
+      if (item.anyPermission?.length) {
+        return item.anyPermission.some((p) => permissions.includes(p));
+      }
+      return !item.permission || permissions.includes(item.permission);
+    }),
   })).filter((section) => section.items.length > 0);
 }
 

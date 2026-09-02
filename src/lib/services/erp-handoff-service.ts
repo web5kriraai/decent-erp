@@ -2,9 +2,20 @@ import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
 import { ApiError } from "@/lib/api-utils";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
+import { upsertDesignSuccessMetric } from "@/lib/services/production-service";
+import {
+  ERP_MODULE_SYNC_ORDER,
+  PRIMARY_ERP_MODULES,
+} from "@/lib/services/erp-integration-config";
 
-/** Primary ERP modules wired for real handoff (spec §2 Integration). */
-export const PRIMARY_ERP_MODULES = ["GREY_MATERIAL", "CUTTING", "SALES"] as const;
+export {
+  ERP_MODULE_SYNC_ORDER,
+  getErpIntegrationMode,
+  isSimulatedErpReference,
+  PRIMARY_ERP_MODULES,
+  DOWNSTREAM_ERP_MODULES,
+} from "@/lib/services/erp-integration-config";
+export type { ErpIntegrationMode } from "@/lib/services/erp-integration-config";
 
 type ErpModule = (typeof PRIMARY_ERP_MODULES)[number] | string;
 
@@ -177,8 +188,8 @@ export async function syncProductionHandoff(
   }
 }
 
-/** Sync Grey, Cutting, Sales handoffs for a design (called after production release). */
-export async function syncPrimaryErpModules(
+/** Sync all ERP handoffs for a design in module order (primary first, then downstream). */
+export async function syncAllErpModules(
   designId: bigint,
   actorId: number,
   correlationId: string,
@@ -186,19 +197,109 @@ export async function syncPrimaryErpModules(
   const handoffs = await prisma.productionHandoff.findMany({
     where: {
       designId,
-      erpModule: { in: [...PRIMARY_ERP_MODULES] },
-      status: "QUEUED",
+      erpModule: { in: [...ERP_MODULE_SYNC_ORDER] },
+      status: { in: ["QUEUED", "FAILED"] },
     },
   });
+
+  const orderIndex = new Map(ERP_MODULE_SYNC_ORDER.map((module, index) => [module, index]));
+  handoffs.sort(
+    (a, b) => (orderIndex.get(a.erpModule as (typeof ERP_MODULE_SYNC_ORDER)[number]) ?? 99) -
+      (orderIndex.get(b.erpModule as (typeof ERP_MODULE_SYNC_ORDER)[number]) ?? 99),
+  );
 
   const results = [];
   for (const handoff of handoffs) {
     try {
       const synced = await syncProductionHandoff(handoff.id, actorId, correlationId);
-      results.push({ handoffId: handoff.id.toString(), status: synced.status, erpModule: handoff.erpModule });
+      results.push({
+        handoffId: handoff.id.toString(),
+        status: synced.status,
+        erpModule: handoff.erpModule,
+        erpReference: synced.erpReference,
+      });
+      if (handoff.erpModule === "SALES" && synced.status === "SYNCED") {
+        await ingestDesignSuccessFromErp(designId, synced.designNumber).catch(() => undefined);
+      }
     } catch {
-      results.push({ handoffId: handoff.id.toString(), status: "FAILED", erpModule: handoff.erpModule });
+      results.push({
+        handoffId: handoff.id.toString(),
+        status: "FAILED",
+        erpModule: handoff.erpModule,
+      });
     }
   }
   return results;
+}
+
+/** @deprecated Use syncAllErpModules */
+export async function syncPrimaryErpModules(
+  designId: bigint,
+  actorId: number,
+  correlationId: string,
+) {
+  return syncAllErpModules(designId, actorId, correlationId);
+}
+
+export async function syncDesignHandoffs(
+  designId: bigint,
+  actorId: number,
+  correlationId: string,
+) {
+  return syncAllErpModules(designId, actorId, correlationId);
+}
+
+type ErpDesignSuccessPayload = {
+  productionQty?: number;
+  salesQty?: number;
+  salesValue?: number;
+  returnQty?: number;
+  marginPercent?: number;
+  repeatOrders?: number;
+  periodYear?: number;
+  periodMonth?: number;
+};
+
+export async function ingestDesignSuccessFromErp(designId: bigint, designNumber: string) {
+  const base = process.env.ERP_API_BASE_URL?.replace(/\/$/, "");
+  const now = new Date();
+  const periodYear = now.getUTCFullYear();
+  const periodMonth = now.getUTCMonth() + 1;
+
+  if (!base) {
+    return null;
+  }
+
+  const url = `${base}/sales/designs/${encodeURIComponent(designNumber)}/success-metrics?year=${periodYear}&month=${periodMonth}`;
+  const res = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(process.env.ERP_API_KEY ? { Authorization: `Bearer ${process.env.ERP_API_KEY}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const json = (await res.json()) as ErpDesignSuccessPayload;
+  if (
+    json.productionQty == null &&
+    json.salesQty == null &&
+    json.salesValue == null &&
+    json.marginPercent == null
+  ) {
+    return null;
+  }
+
+  return upsertDesignSuccessMetric(designId, {
+    periodYear: json.periodYear ?? periodYear,
+    periodMonth: json.periodMonth ?? periodMonth,
+    productionQty: json.productionQty,
+    salesQty: json.salesQty,
+    salesValue: json.salesValue,
+    returnQty: json.returnQty,
+    marginPercent: json.marginPercent,
+    repeatOrders: json.repeatOrders,
+  });
 }

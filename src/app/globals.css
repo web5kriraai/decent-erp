@@ -1742,6 +1742,46 @@ a.sidebar-brand-link:hover {
   gap: 0.5rem;
 }
 
+.task-card-workflow {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.task-card-workflow-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.task-card-stage {
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.task-card-workflow-owner,
+.task-card-progress,
+.task-card-workflow-summary {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  line-height: 1.4;
+}
+
+.task-card-active-stages {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  display: grid;
+  gap: 0.15rem;
+}
+
 .task-card--selected {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px var(--color-primary-light);

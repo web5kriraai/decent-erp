@@ -623,7 +623,7 @@ export function DesignCreateForm() {
 
                         <div className="form-grid form-grid--2 form-grid--tight">
                           <div className="form-group form-group--flat">
-                            <label className="form-label">Process</label>
+                            <label className="form-label">Process *</label>
                             <select
                               className="form-select"
                               value={task.processId}
@@ -643,7 +643,7 @@ export function DesignCreateForm() {
                             </select>
                           </div>
                           <div className="form-group form-group--flat">
-                            <label className="form-label">Sub-process</label>
+                            <label className="form-label">Sub-process *</label>
                             <select
                               className="form-select"
                               value={task.subProcessId}
@@ -666,7 +666,7 @@ export function DesignCreateForm() {
 
                         <div className="form-grid form-grid--2 form-grid--tight">
                           <div className="form-group form-group--flat">
-                            <label className="form-label">Expected Minutes</label>
+                            <label className="form-label">Expected Minutes *</label>
                             <input
                               type="number"
                               min={1}

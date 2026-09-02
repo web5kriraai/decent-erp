@@ -16,7 +16,7 @@ import {
   WORKFLOW_ACTION_CODES,
   type ResolvedWorkflowAction,
 } from "@/lib/workflow-actions";
-import type { DesignSummary, DesignTask } from "@/lib/types/api";
+import type { DesignSummary, DesignTask, KanbanWorkflowInfo } from "@/lib/types/api";
 
 const SATISFIED_STATUSES = new Set(["COMPLETED", "CHECKING", "CANCELLED", "SKIPPED"]);
 const ACTIONABLE_STATUSES = new Set([
@@ -674,5 +674,48 @@ export function getDesignWorkflowContext(input: {
     blockingOwner: null,
     waitingMessage: null,
     nextActionHint,
+  };
+}
+
+const KANBAN_ACTIVE_STATUSES = new Set([
+  "RUNNING",
+  "ASSIGNED",
+  "ON_HOLD",
+  "CHECKING",
+  "CORRECTION_REQUIRED",
+]);
+
+export function buildKanbanWorkflowInfo(input: {
+  status: string;
+  tasks?: DesignTask[];
+}): KanbanWorkflowInfo {
+  const ctx = getDesignWorkflowContext(input);
+  const steps = buildWorkflowSteps(input.tasks);
+
+  const completedStages = steps.filter((s) => s.isDone).length;
+  const totalStages = steps.length;
+
+  const activeStages = steps
+    .filter(
+      (s) =>
+        s.isCurrent ||
+        KANBAN_ACTIVE_STATUSES.has(s.status) ||
+        KANBAN_ACTIVE_STATUSES.has(s.displayStatus),
+    )
+    .slice(0, 3)
+    .map((s) => ({
+      label: s.label,
+      status: s.displayStatus,
+      assigneeName: s.assigneeName ?? null,
+    }));
+
+  return {
+    currentStage: ctx.currentStage,
+    currentStatus: ctx.currentStatus,
+    currentOwner: ctx.currentOwner,
+    summary: ctx.summary,
+    completedStages,
+    totalStages,
+    activeStages,
   };
 }

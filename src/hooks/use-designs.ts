@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
-import type { DesignListResponse, DesignSummary, CreateDesignPayload, DesignCompletionSummary } from "@/lib/types/api";
+import type { DesignListResponse, DesignSummary, CreateDesignPayload, DesignCompletionSummary, KanbanDesignItem } from "@/lib/types/api";
 import { useApiToast } from "@/components/ui/ToastProvider";
 
 export function useDesignsList(enabled = true) {
@@ -25,19 +25,7 @@ export function useDesign(id: string, enabled = true) {
 export function useDesignKanban(enabled = true) {
   return useQuery({
     queryKey: queryKeys.designs.kanban,
-    queryFn: () =>
-      apiGet<
-        Array<{
-          id: string;
-          ideaRef: string;
-          collectionName: string;
-          status: string;
-          priority: string;
-          version: number;
-          productType: { name: string };
-          designHead: { name: string };
-        }>
-      >("/api/designs/kanban"),
+    queryFn: () => apiGet<KanbanDesignItem[]>("/api/designs/kanban"),
     enabled,
   });
 }

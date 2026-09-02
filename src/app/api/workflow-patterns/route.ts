@@ -13,7 +13,7 @@ const taskSchema = z.object({
   expectedMinutes: z.number().int().positive(),
   sequence: z.number().int().positive(),
   dayOffset: z.number().int().nonnegative().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   dependencySequence: z.number().int().positive().nullable().optional(),
 });
 

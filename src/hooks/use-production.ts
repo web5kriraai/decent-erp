@@ -89,6 +89,7 @@ export type ProductionHandoffRow = {
   designNumber: string;
   status: string;
   erpReference: string | null;
+  payload?: { error?: string } | null;
   design: { id: string; ideaRef: string; collectionName: string; status: string };
 };
 
@@ -181,5 +182,41 @@ export function useRetryHandoffSync() {
       toast.success("ERP sync complete", `${data.erpModule} → ${data.erpReference ?? "synced"}`);
     },
     onError: (error) => toast.errorFromApi(error, "ERP sync failed"),
+  });
+}
+
+export type ErpIntegrationStatus = {
+  mode: "simulated" | "live";
+  baseUrlConfigured: boolean;
+  primaryModules: string[];
+  downstreamModules: string[];
+  syncOrder: string[];
+  message: string;
+};
+
+export function useErpIntegrationStatus(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.production.erpStatus,
+    queryFn: () => apiGet<ErpIntegrationStatus>("/api/erp/integration-status"),
+    enabled,
+  });
+}
+
+export function useSyncDesignHandoffs() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: (designId: string) =>
+      apiPost<Array<{ handoffId: string; status: string; erpModule: string }>>(
+        "/api/production/handoffs/sync-design",
+        { designId },
+      ),
+    onSuccess: (results) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffs() });
+      const synced = results.filter((r) => r.status === "SYNCED").length;
+      toast.success("ERP sync batch complete", `${synced}/${results.length} modules synced`);
+    },
+    onError: (error) => toast.errorFromApi(error, "ERP batch sync failed"),
   });
 }

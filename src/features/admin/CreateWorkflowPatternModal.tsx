@@ -14,7 +14,7 @@ import { FormTextField } from "@/components/ui/form-text-field";
 import { Button } from "@/components/ui/button";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { useProcessMasters, useProductTypes } from "@/hooks/use-masters";
-import type { CreateWorkflowPatternPayload, WorkflowPattern } from "@/lib/types/api";
+import type { CreateWorkflowPatternPayload, Priority, WorkflowPattern } from "@/lib/types/api";
 
 type TaskDraft = {
   id: string;
@@ -22,7 +22,17 @@ type TaskDraft = {
   subProcessId: number | "";
   defaultRoleId: number | "";
   expectedMinutes: string;
+  dayOffset: string;
+  priority: Priority | "";
+  dependencySequence: string;
 };
+
+const PRIORITY_OPTIONS: Array<{ value: Priority; label: string }> = [
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+  { value: "URGENT", label: "Urgent" },
+];
 
 function emptyTask(index: number): TaskDraft {
   return {
@@ -31,6 +41,9 @@ function emptyTask(index: number): TaskDraft {
     subProcessId: "",
     defaultRoleId: "",
     expectedMinutes: "60",
+    dayOffset: "0",
+    priority: "MEDIUM",
+    dependencySequence: "",
   };
 }
 
@@ -93,6 +106,10 @@ export function CreateWorkflowPatternModal({
           subProcessId: task.subProcessId,
           defaultRoleId: task.defaultRoleId,
           expectedMinutes: String(task.expectedMinutes),
+          dayOffset: String(task.dayOffset ?? 0),
+          priority: task.priority ?? "MEDIUM",
+          dependencySequence:
+            task.dependencySequence != null ? String(task.dependencySequence) : "",
         })),
       );
       setFormError(null);
@@ -168,13 +185,33 @@ export function CreateWorkflowPatternModal({
       return;
     }
 
-    const taskPayload = tasks.map((task, index) => ({
-      processId: Number(task.processId),
-      subProcessId: Number(task.subProcessId),
-      defaultRoleId: Number(task.defaultRoleId),
-      expectedMinutes: Number(task.expectedMinutes),
-      sequence: index + 1,
-    }));
+    let taskPayload: CreateWorkflowPatternPayload["tasks"];
+    try {
+      taskPayload = tasks.map((task, index) => {
+        const sequence = index + 1;
+        const dependencySequence =
+          task.dependencySequence.trim() === "" ? null : Number(task.dependencySequence);
+        if (
+          dependencySequence != null &&
+          (dependencySequence >= sequence || dependencySequence < 1)
+        ) {
+          throw new Error(`Step ${sequence}: dependency must be a prior step number.`);
+        }
+        return {
+          processId: Number(task.processId),
+          subProcessId: Number(task.subProcessId),
+          defaultRoleId: Number(task.defaultRoleId),
+          expectedMinutes: Number(task.expectedMinutes),
+          sequence,
+          dayOffset: Number(task.dayOffset) || 0,
+          priority: (task.priority || "MEDIUM") as Priority,
+          dependencySequence,
+        };
+      });
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Invalid task configuration.");
+      return;
+    }
 
     if (editPattern && onSubmitTasks) {
       onSubmitTasks(editPattern.id, taskPayload);
@@ -356,6 +393,42 @@ export function CreateWorkflowPatternModal({
                       onChange={(e) =>
                         updateTask(task.id, { expectedMinutes: e.target.value })
                       }
+                    />
+                  </ModalFormGrid>
+
+                  <ModalFormGrid>
+                    <FormTextField
+                      id={`task-${task.id}-dayOffset`}
+                      label="Day Offset"
+                      type="number"
+                      min={0}
+                      value={task.dayOffset}
+                      onChange={(e) => updateTask(task.id, { dayOffset: e.target.value })}
+                    />
+                    <FormSelect
+                      id={`task-${task.id}-priority`}
+                      label="Priority"
+                      value={task.priority || "MEDIUM"}
+                      onValueChange={(v) =>
+                        updateTask(task.id, { priority: (v as Priority) || "MEDIUM" })
+                      }
+                      options={PRIORITY_OPTIONS.map((p) => ({
+                        value: p.value,
+                        label: p.label,
+                      }))}
+                    />
+                    <FormSelect
+                      id={`task-${task.id}-dependency`}
+                      label="Depends On Step"
+                      value={task.dependencySequence === "" ? null : task.dependencySequence}
+                      onValueChange={(v) =>
+                        updateTask(task.id, { dependencySequence: v ?? "" })
+                      }
+                      options={Array.from({ length: index }, (_, i) => ({
+                        value: String(i + 1),
+                        label: `Step ${i + 1}`,
+                      }))}
+                      placeholder="None"
                     />
                   </ModalFormGrid>
                 </div>

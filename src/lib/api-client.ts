@@ -96,6 +96,11 @@ export async function apiPatch<T>(
   return parseResponse<T>(res);
 }
 
+export async function apiDelete<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { ...init, method: "DELETE" });
+  return parseResponse<T>(res);
+}
+
 export function getFieldErrors(details: unknown): Record<string, string[]> {
   if (!details || typeof details !== "object") return {};
   const flattened = details as { fieldErrors?: Record<string, string[]> };

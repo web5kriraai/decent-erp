@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import { useDesignKanban, useUpdateDesignStatus } from "@/hooks/use-designs";
 import { PERMISSIONS } from "@/lib/permissions";
+import type { KanbanDesignItem } from "@/lib/types/api";
 
 const KANBAN_COLUMNS = [
   "DRAFT",
@@ -23,16 +24,59 @@ const KANBAN_COLUMNS = [
   "LIVE",
 ] as const;
 
-type KanbanDesign = {
-  id: string;
-  ideaRef: string;
-  collectionName: string;
-  status: string;
-  priority: string;
-  version: number;
-  productType: { name: string };
-  designHead: { name: string };
-};
+function formatStageStatus(status: string | null): string {
+  if (!status) return "";
+  return status.replace(/_/g, " ");
+}
+
+function KanbanCardWorkflow({ design }: { design: KanbanDesignItem }) {
+  const { workflow } = design;
+  const hasWorkflow = workflow.totalStages > 0;
+  const stageLabel =
+    workflow.currentStage ??
+    (hasWorkflow ? "Workflow not started" : "No workflow tasks");
+
+  return (
+    <div className="task-card-workflow">
+      <div className="task-card-workflow-head">
+        <span className="task-card-stage">{stageLabel}</span>
+        {workflow.currentStatus ? (
+          <StatusBadge
+            status={workflow.currentStatus.toUpperCase().replace(/ /g, "_")}
+            label={formatStageStatus(workflow.currentStatus)}
+          />
+        ) : null}
+      </div>
+
+      {workflow.currentOwner ? (
+        <p className="task-card-workflow-owner">Owner: {workflow.currentOwner}</p>
+      ) : null}
+
+      {hasWorkflow ? (
+        <p className="task-card-progress">
+          {workflow.completedStages} / {workflow.totalStages} stages complete
+        </p>
+      ) : null}
+
+      {workflow.activeStages.length > 1 ? (
+        <ul className="task-card-active-stages">
+          {workflow.activeStages.map((stage) => (
+            <li key={`${stage.label}-${stage.status}`}>
+              <span>{stage.label}</span>
+              {stage.assigneeName ? (
+                <span className="text-caption-muted"> · {stage.assigneeName}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {workflow.summary ? (
+        <p className="task-card-workflow-summary">{workflow.summary}</p>
+      ) : null}
+    </div>
+  );
+}
 
 export function DesignKanbanView() {
   const { data: session } = useSession();
@@ -42,11 +86,11 @@ export function DesignKanbanView() {
   const [dragId, setDragId] = useState<string | null>(null);
 
   const grouped = useMemo(() => {
-    const map = Object.fromEntries(KANBAN_COLUMNS.map((s) => [s, [] as KanbanDesign[]])) as Record<
+    const map = Object.fromEntries(KANBAN_COLUMNS.map((s) => [s, [] as KanbanDesignItem[]])) as Record<
       string,
-      KanbanDesign[]
+      KanbanDesignItem[]
     >;
-    for (const design of (kanbanQuery.data ?? []) as KanbanDesign[]) {
+    for (const design of kanbanQuery.data ?? []) {
       if (map[design.status]) map[design.status].push(design);
     }
     return map;
@@ -54,7 +98,7 @@ export function DesignKanbanView() {
 
   function handleDrop(status: string) {
     if (!dragId) return;
-    const design = (kanbanQuery.data as KanbanDesign[] | undefined)?.find((d) => d.id === dragId);
+    const design = kanbanQuery.data?.find((d) => d.id === dragId);
     if (!design || design.status === status) {
       setDragId(null);
       return;
@@ -77,7 +121,7 @@ export function DesignKanbanView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Design Pipeline"
-        subtitle="Kanban view of design concepts by lifecycle stage"
+        subtitle="Kanban view by lifecycle status with current workflow stage on each card"
         actions={
           <Link href={ROUTES.designs.list} className="btn btn-secondary btn-sm">
             Table view
@@ -120,6 +164,7 @@ export function DesignKanbanView() {
                         {design.ideaRef}
                       </Link>
                       <p className="task-card-title">{design.collectionName}</p>
+                      <KanbanCardWorkflow design={design} />
                       <div className="task-card-meta">
                         <span className="text-caption-muted">
                           {design.productType.name}

@@ -95,6 +95,10 @@ export function TaskArtifactPanel({
       try {
         const formData = new FormData();
         formData.append("file", file);
+        formData.append(
+          "category",
+          artifactType === "PUNCHING_FILE" ? "PUNCHING" : "SKETCH",
+        );
         const uploadRes = await fetch(`/api/designs/${designId}/images`, {
           method: "POST",
           body: formData,
@@ -195,7 +199,10 @@ export function TaskArtifactPanel({
                 Drag & drop a file here, or browse to upload
               </p>
               <p className="text-xs text-muted-foreground">
-                {ARTIFACT_TYPE_LABELS[artifactType]} · JPG, PNG, PDF, EMB, DST — max 20 MB
+                {ARTIFACT_TYPE_LABELS[artifactType]} ·{" "}
+                {artifactType === "PUNCHING_FILE"
+                  ? "EMB, DST, PDF — max 50 MB"
+                  : "JPEG, PNG, WebP, PDF — max 25 MB"}
               </p>
               <Button
                 type="button"
