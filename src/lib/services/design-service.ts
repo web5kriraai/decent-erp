@@ -57,6 +57,7 @@ export async function createDesignWithTasks(
   input: CreateDesignInput,
   createdById: number,
   correlationId: string,
+  actorRoleCode?: string,
 ) {
   return prisma.$transaction(async (tx) => {
     if (input.assignmentMode === "AUTOMATIC" && input.workflowPatternId) {
@@ -192,7 +193,19 @@ export async function createDesignWithTasks(
       { designId: design.id.toString() },
       correlationId,
     );
-    await autoAdvanceConceptReview(design.id, createdById, correlationId);
+    try {
+      await autoAdvanceConceptReview(design.id, createdById, correlationId, {
+        roleCode: actorRoleCode,
+      });
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          msg: "Concept review auto-advance skipped after design create",
+          designId: design.id.toString(),
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
     return prisma.designConcept.findUniqueOrThrow({ where: { id: design.id } });
   });
 }

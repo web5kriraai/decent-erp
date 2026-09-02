@@ -34,6 +34,7 @@ import { useApprovedDesigns } from "@/hooks/use-production";
 import { useAdminDashboardStats } from "@/hooks/use-admin-dashboard";
 import { formatDuration } from "@/lib/services/time-calculation";
 import { isDashboardOpenTask } from "@/lib/task-list-filters";
+import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
 import { compareTasksByPriority, resolveEffectiveTaskPriority } from "@/lib/task-priority";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import type { ComponentType } from "react";
@@ -396,7 +397,7 @@ export function ExecutorWorkbench() {
                                 {task.process.name} · {task.design.collectionName}
                               </p>
                             </div>
-                            <StatusBadge status={task.effectiveStatus ?? task.status} />
+                            <StatusBadge status={resolveListItemDisplayStatus(task)} />
                           </li>
                         ))}
                     </ul>

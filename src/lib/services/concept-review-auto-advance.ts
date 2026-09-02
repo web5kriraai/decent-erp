@@ -85,7 +85,7 @@ export async function autoAdvanceConceptReview(
   designId: bigint,
   actorEmployeeId: number,
   correlationId: string,
-  options?: { remark?: string },
+  options?: { remark?: string; roleCode?: string },
 ): Promise<AutoAdvanceConceptReviewResult> {
   const stuck = await findStuckConceptReviewTask(designId);
   if (!stuck) {
@@ -98,11 +98,17 @@ export async function autoAdvanceConceptReview(
     return { advanced: false, reason: "not_found" };
   }
 
-  await completeStageApproval(stuck.taskId, actorEmployeeId, {
-    outputRemark: options?.remark ?? "Auto-approved on design create",
-    version: stuck.version,
-    decision: "APPROVED",
-  }, correlationId);
+  await completeStageApproval(
+    stuck.taskId,
+    actorEmployeeId,
+    {
+      outputRemark: options?.remark ?? "Auto-approved on design create",
+      version: stuck.version,
+      decision: "APPROVED",
+    },
+    correlationId,
+    options?.roleCode,
+  );
 
   await syncDesignCurrentStageToNextOpen(designId);
 

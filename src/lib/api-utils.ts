@@ -8,6 +8,7 @@ import {
   messageForCode,
 } from "@/lib/errors/app-errors";
 import { requirePermission, requireSession } from "./auth";
+import { loadEmployeeSessionPermissions } from "./session-permissions";
 import type { PermissionCode } from "./permissions";
 
 export type ApiContext = {
@@ -52,10 +53,11 @@ export async function withApiHandler<T>(
       );
     }
 
-    if (
-      permission &&
-      !requirePermission(session.user.permissions, permission)
-    ) {
+    const fresh = await loadEmployeeSessionPermissions(session.user.employeeId);
+    const permissions = fresh.permissions.length > 0 ? fresh.permissions : session.user.permissions;
+    const roleCode = fresh.roleCode ?? session.user.roleCode;
+
+    if (permission && !requirePermission(permissions, permission)) {
       const requiredList = Array.isArray(permission) ? permission : [permission];
       return jsonError(
         permissionDeniedMessage(requiredList),
@@ -68,8 +70,8 @@ export async function withApiHandler<T>(
 
     return await handler({
       employeeId: session.user.employeeId,
-      permissions: session.user.permissions,
-      roleCode: session.user.roleCode,
+      permissions,
+      roleCode,
       correlationId,
     });
   } catch (error) {

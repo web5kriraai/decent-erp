@@ -91,6 +91,7 @@ export async function POST(request: Request) {
       },
       ctx.employeeId,
       ctx.correlationId,
+      ctx.roleCode,
     );
     return jsonOk(serializeBigInt(design), ctx.correlationId, 201);
   });

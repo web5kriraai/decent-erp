@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { AdminEmployeeRow, AdminRoleOption } from "@/lib/types/api";
@@ -132,16 +133,32 @@ export function useRolePermissionMatrix(roleId: number, enabled = true) {
 export function useUpdateRolePermissions() {
   const queryClient = useQueryClient();
   const toast = useApiToast();
+  const { update: updateSession } = useSession();
+
+  async function refreshCurrentSession() {
+    try {
+      const fresh = await apiPost<{ permissions: string[]; roleCode: string | null }>(
+        "/api/auth/refresh-session",
+        {},
+      );
+      if (fresh.roleCode) {
+        await updateSession({ permissions: fresh.permissions, roleCode: fresh.roleCode });
+      }
+    } catch {
+      // Non-blocking — user can sign out/in if refresh fails.
+    }
+  }
 
   return useMutation({
     mutationFn: ({ roleId, permissionCodes }: { roleId: number; permissionCodes: string[] }) =>
       apiPatch<RolePermissionMatrix>(`/api/admin/roles/${roleId}/permissions`, {
         permissionCodes,
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.rbacMatrix });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.rolePermissions(data.role.id) });
+      await refreshCurrentSession();
       toast.success("Permissions saved", `${data.role.name} updated`);
     },
     onError: (error) => toast.errorFromApi(error, "Couldn't update permissions"),
@@ -151,14 +168,30 @@ export function useUpdateRolePermissions() {
 export function useRestoreRolePermissions() {
   const queryClient = useQueryClient();
   const toast = useApiToast();
+  const { update: updateSession } = useSession();
+
+  async function refreshCurrentSession() {
+    try {
+      const fresh = await apiPost<{ permissions: string[]; roleCode: string | null }>(
+        "/api/auth/refresh-session",
+        {},
+      );
+      if (fresh.roleCode) {
+        await updateSession({ permissions: fresh.permissions, roleCode: fresh.roleCode });
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
 
   return useMutation({
     mutationFn: (roleId: number) =>
       apiPost<RolePermissionMatrix>(`/api/admin/roles/${roleId}/permissions/restore`, {}),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.rbacMatrix });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.rolePermissions(data.role.id) });
+      await refreshCurrentSession();
       toast.success("Defaults restored", data.role.name);
     },
     onError: (error) => toast.errorFromApi(error, "Couldn't restore defaults"),

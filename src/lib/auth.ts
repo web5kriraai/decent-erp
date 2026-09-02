@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import { authConfig } from "@/lib/auth.config";
 import { prisma } from "./db";
 import type { PermissionCode } from "./permissions";
 
@@ -42,11 +43,7 @@ async function loadEmployeePermissions(roleId: number) {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
-  trustHost: true,
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfig,
   providers: [
     Credentials({
       name: "credentials",
@@ -84,46 +81,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user, trigger }) {
-      if (user) {
-        token.employeeId = user.employeeId;
-        token.roleCode = user.roleCode;
-        token.permissions = user.permissions;
-      }
-
-      if (trigger === "update" && token.employeeId) {
-        const employee = await prisma.employee.findUnique({
-          where: { id: token.employeeId as number },
-          include: { role: true },
-        });
-        if (employee?.active) {
-          token.permissions = await loadEmployeePermissions(employee.roleId);
-          token.roleCode = employee.role.code;
-        }
-      }
-
-      return token;
-    },
-    async session({ session, token }) {
-      session.user = {
-        id: token.sub ?? "",
-        employeeId: token.employeeId as number,
-        email: session.user.email ?? "",
-        name: session.user.name ?? "",
-        roleCode: token.roleCode as string,
-        permissions: (token.permissions as string[]) ?? [],
-        emailVerified: null,
-      };
-      return session;
-    },
-    authorized({ auth: session, request }) {
-      const isLoggedIn = !!session?.user;
-      const isLoginPage = request.nextUrl.pathname.startsWith("/login");
-      if (isLoginPage) return true;
-      return isLoggedIn;
-    },
-  },
 });
 
 export async function requireSession() {
@@ -139,6 +96,5 @@ export function requirePermission(
   required: PermissionCode | PermissionCode[],
 ) {
   const requiredList = Array.isArray(required) ? required : [required];
-  // Array = any of (OR). Matches API routes like [DESIGN_CREATE, TASK_EXECUTE].
   return requiredList.some((p) => permissions.includes(p));
 }

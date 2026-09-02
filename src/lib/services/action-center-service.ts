@@ -8,6 +8,7 @@ import {
 } from "@/lib/services/action-center";
 import { enrichActionCenterTaskList, enrichActionCenterHistoricalList } from "@/lib/services/action-center-enrichment";
 import { reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
+import { resolveEffectiveTaskStatus } from "@/lib/services/workflow-stage-gate";
 
 const taskInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true, priority: true } },
@@ -265,7 +266,7 @@ async function buildWaitingForOthersItems(employeeId: number): Promise<ActionCen
         collectionName: task.design.collectionName,
       },
       myStage: task.subProcess.name,
-      myStatus: task.status,
+      myStatus: resolveEffectiveTaskStatus(row, siblings),
       waitingFor: ctx.waitingFor,
       nextAction: ctx.nextAction,
       nextTaskId: ctx.nextTaskId,

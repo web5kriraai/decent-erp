@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
 import { StatCard } from "@/components/ui/StatCard";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
@@ -145,7 +146,7 @@ export function CheckerWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
-                    trailing={<StatusBadge status={task.status} />}
+                    trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}
               </ul>
@@ -168,7 +169,7 @@ export function CheckerWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
-                    trailing={<StatusBadge status={task.status} />}
+                    trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}
               </ul>

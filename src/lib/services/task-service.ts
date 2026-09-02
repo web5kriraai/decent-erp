@@ -780,6 +780,15 @@ export async function completeStageApproval(
 ) {
   const decision = input.decision ?? "APPROVED";
 
+  let effectiveRoleCode = roleCode;
+  if (!effectiveRoleCode) {
+    const actor = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { role: { select: { code: true } } },
+    });
+    effectiveRoleCode = actor?.role.code;
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const task = await tx.designTask.findUnique({
       where: { id: taskId },
@@ -790,7 +799,7 @@ export async function completeStageApproval(
       throw businessRule(APP_ERROR_CODES.APPROVAL_NOT_ALLOWED);
     }
 
-    if (!canRoleActOnStageApproval(roleCode, task.subProcess.code)) {
+    if (!canRoleActOnStageApproval(effectiveRoleCode, task.subProcess.code)) {
       throw createAppError(APP_ERROR_CODES.PERMISSION_DENIED, 403);
     }
 

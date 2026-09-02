@@ -8,6 +8,7 @@ import { useBreadcrumbReplacement } from "@/components/layout/BreadcrumbProvider
 import { QueryState } from "@/components/ui/QueryState";
 import { TimerWidget } from "@/components/TimerWidget";
 import { StatusBadge } from "@/components/StatusBadge";
+import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { SkeletonRows } from "@/components/SkeletonRows";
 import { TaskTimeTimeline } from "@/components/time/TaskTimeTimeline";
@@ -252,7 +253,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
               subtitle={task.design.collectionName}
               actions={
                 <>
-                  <StatusBadge status={task.effectiveStatus ?? task.status} />
+                  <StatusBadge status={resolveListItemDisplayStatus(task)} />
                   {task.assignedEmployee ? (
                     <span className="text-caption-muted">
                       {task.assignedEmployee.name}

@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { IconCosting, IconTasks } from "@/components/icons";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useDesignsList } from "@/hooks/use-designs";
@@ -44,7 +45,7 @@ export function CostingTeamDashboard() {
   );
   const checkingTasks = tasks.filter(
     (task) =>
-      task.subProcess?.code === "COSTING" && (task.effectiveStatus ?? task.status) === "CHECKING",
+      task.subProcess?.code === "COSTING" && resolveListItemDisplayStatus(task) === "CHECKING",
   );
 
   const designsForCosting = useMemo(() => {
@@ -108,7 +109,7 @@ export function CostingTeamDashboard() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={`${task.design.ideaRef} · ${task.subProcess.name}`}
                     meta={task.design.collectionName}
-                    trailing={<StatusBadge status={task.effectiveStatus ?? task.status} />}
+                    trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}
               </ul>

@@ -18,6 +18,7 @@ import {
   isStageApprovalCode,
 } from "@/lib/stage-approval-rbac";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
+import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
 import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
 
 type InlineStageApprovalCardProps = {
@@ -165,7 +166,7 @@ export function InlineStageApprovalCard({
           </div>
           <div className="flex flex-wrap gap-2">
             <StatusBadge status={approvalTask.status} />
-            {workTask ? <StatusBadge status={workTask.status} /> : null}
+            {workTask ? <StatusBadge status={resolveListItemDisplayStatus(workTask)} /> : null}
           </div>
         </div>
       </div>
