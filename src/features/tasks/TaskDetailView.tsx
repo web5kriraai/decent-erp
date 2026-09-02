@@ -145,7 +145,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         setHoldModalOpen(true);
         break;
       case WORKFLOW_ACTION_CODES.RESUME_TASK:
-        resume.mutate(task.id);
+        resume.mutate({ taskId: task.id, version: task.version });
         break;
       case WORKFLOW_ACTION_CODES.END_TASK:
         setEndModalOpen(true);
@@ -177,6 +177,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
       taskId: task.id,
       holdReasonId: Number(holdReasonId),
       remark: holdRemark || undefined,
+      version: task.version,
     });
     setHoldModalOpen(false);
     setHoldRemark("");
@@ -236,6 +237,8 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
           </AppButtonLink>
         }
         onRetry={() => detailQuery.refetch()}
+        notFoundHref={backHref}
+        notFoundLabel={backLabel}
         skeletonVariant="cards"
       >
         {task && designMismatch && (
@@ -329,7 +332,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                         }
                       : undefined
                   }
-                  onResume={isOnHold ? () => resume.mutate(task.id) : undefined}
+                  onResume={isOnHold ? () => resume.mutate({ taskId: task.id, version: task.version }) : undefined}
                   onEnd={
                     isRunning || isOnHold
                       ? () => {

@@ -48,7 +48,7 @@ export async function validateProductionReleaseReadiness(
     missing.push("Management / final approval (design must be Approved)");
   }
 
-  const hasCosting = await designHasCosting(designId);
+  const hasCosting = await designHasCosting(designId, db);
   if (!hasCosting) {
     missing.push("Development costing");
   }

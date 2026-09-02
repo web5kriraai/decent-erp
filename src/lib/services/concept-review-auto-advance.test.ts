@@ -118,4 +118,37 @@ describe("autoAdvanceConceptReview", () => {
       "DESIGN_HEAD",
     );
   });
+
+  it("falls back to DESIGN_HEAD when creator role cannot approve concept review", async () => {
+    vi.mocked(prisma.designTask.findMany).mockResolvedValue([
+      {
+        id: BigInt(1),
+        version: 2,
+        status: "ASSIGNED",
+        dependencySequence: 1,
+        sequence: 1,
+        subProcess: { code: "CONCEPT_REVIEW" },
+      },
+      {
+        id: BigInt(2),
+        version: 1,
+        status: "PENDING",
+        dependencySequence: 2,
+        sequence: 2,
+        subProcess: { code: "SKETCH" },
+      },
+    ] as never);
+    vi.mocked(prisma.designConcept.update).mockResolvedValue({} as never);
+    vi.mocked(completeStageApproval).mockResolvedValue({} as never);
+
+    await autoAdvanceConceptReview(BigInt(10), 5, "corr-admin", { roleCode: "ADMIN" });
+
+    expect(completeStageApproval).toHaveBeenCalledWith(
+      BigInt(1),
+      5,
+      expect.objectContaining({ decision: "APPROVED" }),
+      "corr-admin",
+      "DESIGN_HEAD",
+    );
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Modal,
   ModalFooterActions,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
+import { FormTextField } from "@/components/ui/form-text-field";
 import { Button } from "@/components/ui/button";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useDesign } from "@/hooks/use-designs";
@@ -34,13 +35,34 @@ const CORRECTION_TYPE_OPTIONS: {
   { value: "OTHER", label: "Other" },
 ];
 
+/** Preferred rework targets for the correction loop (spec: often back to Punching). */
+const ROUTE_CODES = ["SKETCH", "PUNCH", "MACHINE_SAMPLE", "COSTING"] as const;
+
+function suggestedRouteCode(sourceCode?: string | null): (typeof ROUTE_CODES)[number] {
+  switch (sourceCode) {
+    case "SKETCH_APPROVAL":
+    case "SKETCH":
+      return "SKETCH";
+    case "SAMPLE_CHECK":
+    case "MACHINE_SAMPLE":
+      return "MACHINE_SAMPLE";
+    case "PUNCH_CHECK":
+    case "PUNCH":
+    default:
+      return "PUNCH";
+  }
+}
+
 function buildInitialState(defaultDesignId?: string, defaultTaskId?: string) {
   return {
     designId: defaultDesignId ?? "",
     taskId: defaultTaskId ?? "",
     correctionType: "IMPROVEMENT" as RaiseCorrectionPayload["correctionType"],
     responsibleEmployeeId: "" as number | "",
+    routeToSubProcessId: "" as number | "",
     rootCause: "",
+    extraMinutes: "",
+    extraCost: "",
   };
 }
 
@@ -62,7 +84,11 @@ export function RaiseCorrectionModal({
   const [correctionType, setCorrectionType] =
     useState<RaiseCorrectionPayload["correctionType"]>("IMPROVEMENT");
   const [responsibleEmployeeId, setResponsibleEmployeeId] = useState<number | "">("");
+  const [routeToSubProcessId, setRouteToSubProcessId] = useState<number | "">("");
   const [rootCause, setRootCause] = useState("");
+  const [extraMinutes, setExtraMinutes] = useState("");
+  const [extraCost, setExtraCost] = useState("");
+  const [routeSeededFor, setRouteSeededFor] = useState("");
 
   if (openKey !== loadedKey) {
     setLoadedKey(openKey);
@@ -71,12 +97,39 @@ export function RaiseCorrectionModal({
     setTaskId(initial.taskId);
     setCorrectionType(initial.correctionType);
     setResponsibleEmployeeId(initial.responsibleEmployeeId);
+    setRouteToSubProcessId(initial.routeToSubProcessId);
     setRootCause(initial.rootCause);
+    setExtraMinutes(initial.extraMinutes);
+    setExtraCost(initial.extraCost);
+    setRouteSeededFor("");
   }
 
-  const designQuery = useDesign(designId, open && !!designId && !isPrefilled);
+  const designQuery = useDesign(designId, open && !!designId);
   const tasks = designQuery.data?.tasks ?? [];
   const isMistake = correctionType === "MISTAKE";
+
+  const selectedTask = tasks.find((t) => t.id === taskId);
+  const routeOptions = useMemo(() => {
+    const byCode = new Map<string, { id: number; name: string; code: string }>();
+    for (const t of tasks) {
+      const code = t.subProcess.code;
+      if (!(ROUTE_CODES as readonly string[]).includes(code)) continue;
+      if (!byCode.has(code)) {
+        byCode.set(code, { id: t.subProcess.id, name: t.subProcess.name, code });
+      }
+    }
+    return ROUTE_CODES.map((code) => byCode.get(code)).filter(
+      (r): r is { id: number; name: string; code: string } => !!r,
+    );
+  }, [tasks]);
+
+  const routeSeedKey = `${designId}:${taskId}:${routeOptions.map((r) => r.id).join(",")}`;
+  if (open && routeSeedKey !== routeSeededFor && routeOptions.length > 0 && taskId) {
+    setRouteSeededFor(routeSeedKey);
+    const suggested = suggestedRouteCode(selectedTask?.subProcess.code);
+    const match = routeOptions.find((r) => r.code === suggested) ?? routeOptions[0];
+    setRouteToSubProcessId(match.id);
+  }
 
   function handleClose() {
     setLoadedKey("closed");
@@ -91,14 +144,17 @@ export function RaiseCorrectionModal({
   }
 
   async function handleSubmit() {
-    if (!designId || !taskId || !rootCause.trim()) return;
+    if (!designId || !taskId || !rootCause.trim() || !routeToSubProcessId) return;
     if (isMistake && !responsibleEmployeeId) return;
     await raiseCorrection.mutateAsync({
       designId,
       taskId,
       correctionType,
       responsibleEmployeeId: responsibleEmployeeId ? Number(responsibleEmployeeId) : null,
+      routeToSubProcessId: Number(routeToSubProcessId),
       rootCause: rootCause.trim(),
+      extraMinutes: extraMinutes.trim() ? Number(extraMinutes) : null,
+      extraCost: extraCost.trim() ? Number(extraCost) : null,
     });
     handleClose();
   }
@@ -107,6 +163,7 @@ export function RaiseCorrectionModal({
     !!designId &&
     !!taskId &&
     !!rootCause.trim() &&
+    !!routeToSubProcessId &&
     (!isMistake || !!responsibleEmployeeId) &&
     !raiseCorrection.isPending;
 
@@ -114,7 +171,7 @@ export function RaiseCorrectionModal({
     <Modal
       open={open}
       title="Raise Correction"
-      description="Send work back with a clear reason so the responsible person can fix it."
+      description="Send work back to a stage (usually Punching) with a clear reason."
       onClose={handleClose}
       size="lg"
       footer={
@@ -136,7 +193,12 @@ export function RaiseCorrectionModal({
               label="Design"
               required
               value={designId || null}
-              onValueChange={setDesignId}
+              onValueChange={(v) => {
+                setDesignId(v);
+                setTaskId("");
+                setRouteToSubProcessId("");
+                setRouteSeededFor("");
+              }}
               options={(designsQuery.data?.items ?? []).map((d) => ({
                 value: d.id,
                 label: `${d.ideaRef} - ${d.collectionName}`,
@@ -146,10 +208,13 @@ export function RaiseCorrectionModal({
 
             <FormSelect
               id="corrTask"
-              label="Task"
+              label="Source task"
               required
               value={taskId || null}
-              onValueChange={setTaskId}
+              onValueChange={(v) => {
+                setTaskId(v);
+                setRouteSeededFor("");
+              }}
               options={tasks.map((t) => ({
                 value: t.id,
                 label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
@@ -159,6 +224,21 @@ export function RaiseCorrectionModal({
             />
           </>
         ) : null}
+
+        <FormSelect
+          id="corrRoute"
+          label="Route rework to"
+          required
+          value={routeToSubProcessId === "" ? null : String(routeToSubProcessId)}
+          onValueChange={(v) => setRouteToSubProcessId(v ? Number(v) : "")}
+          options={routeOptions.map((r) => ({
+            value: String(r.id),
+            label: r.name,
+          }))}
+          placeholder={designQuery.isLoading ? "Loading stages…" : "Select stage…"}
+          disabled={!designId || routeOptions.length === 0}
+          hint="Defaults to Punching when available — change if rework belongs elsewhere."
+        />
 
         <ModalFormGrid>
           <FormSelect
@@ -183,6 +263,30 @@ export function RaiseCorrectionModal({
             }))}
             placeholder="Select employee…"
             hint={isMistake ? undefined : "Optional for non-mistake corrections"}
+          />
+        </ModalFormGrid>
+
+        <ModalFormGrid>
+          <FormTextField
+            id="corrExtraMinutes"
+            label="Extra minutes"
+            type="number"
+            min={0}
+            value={extraMinutes}
+            onChange={(e) => setExtraMinutes(e.target.value)}
+            placeholder="0"
+            hint="Optional rework time impact"
+          />
+          <FormTextField
+            id="corrExtraCost"
+            label="Extra cost"
+            type="number"
+            min={0}
+            step="0.01"
+            value={extraCost}
+            onChange={(e) => setExtraCost(e.target.value)}
+            placeholder="0"
+            hint="Optional rework cost impact"
           />
         </ModalFormGrid>
 

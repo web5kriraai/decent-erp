@@ -45,7 +45,8 @@ export function DesignWorkflowPanel({
     >
       {(workflowContext.currentStage ||
         workflowContext.currentOwner ||
-        workflowContext.nextAction) && (
+        workflowContext.nextAction ||
+        workflowContext.waitingMessage) && (
         <dl className="workflow-context-grid">
           {workflowContext.currentStage ? (
             <>
@@ -55,7 +56,7 @@ export function DesignWorkflowPanel({
           ) : null}
           {workflowContext.currentOwner ? (
             <>
-              <dt>Current owner</dt>
+              <dt>Owner</dt>
               <dd>{workflowContext.currentOwner}</dd>
             </>
           ) : null}
@@ -69,6 +70,12 @@ export function DesignWorkflowPanel({
             <>
               <dt>Next owner</dt>
               <dd>{workflowContext.nextOwner}</dd>
+            </>
+          ) : null}
+          {workflowContext.waitingMessage ? (
+            <>
+              <dt>Status</dt>
+              <dd>{workflowContext.waitingMessage}</dd>
             </>
           ) : null}
         </dl>

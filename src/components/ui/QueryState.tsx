@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { SkeletonRows } from "@/components/SkeletonRows";
 import { AppCard } from "@/components/ui/AppCard";
@@ -19,6 +20,9 @@ type QueryStateProps = {
   emptyAction?: ReactNode;
   skeletonVariant?: "table" | "cards" | "stats";
   onRetry?: () => void;
+  /** When set, 404 errors offer a link back to this list path. */
+  notFoundHref?: string;
+  notFoundLabel?: string;
   children: ReactNode;
 };
 
@@ -32,6 +36,8 @@ export function QueryState({
   emptyAction,
   skeletonVariant = "table",
   onRetry,
+  notFoundHref,
+  notFoundLabel = "Back to list",
   children,
 }: QueryStateProps) {
   if (isLoading) {
@@ -49,6 +55,24 @@ export function QueryState({
           <p className="text-sm text-[var(--color-warning)]" role="alert">
             {messageForCode(APP_ERROR_CODES.PERMISSION_DENIED)}
           </p>
+        </AppCard>
+      );
+    }
+
+    if (error instanceof ApiClientError && error.isNotFound) {
+      return (
+        <AppCard flat>
+          <ErrorBanner message={humanized.title} correlationId={correlationId} onRetry={onRetry} />
+          {notFoundHref ? (
+            <p className="mt-3 text-sm">
+              <Link href={notFoundHref} className="data-table-link">
+                {notFoundLabel}
+              </Link>
+            </p>
+          ) : null}
+          {humanized.hint ? (
+            <p className="mt-2 text-xs text-muted-foreground">{humanized.hint}</p>
+          ) : null}
         </AppCard>
       );
     }

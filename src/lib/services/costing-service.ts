@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { ApiError } from "@/lib/api-utils";
+import type { Prisma } from "@prisma/client";
 
 const COST_TYPES = ["TIME", "MATERIAL", "MACHINE", "CORRECTION"] as const;
 export type CostType = (typeof COST_TYPES)[number];
@@ -101,9 +102,16 @@ export async function addCostEntry(
   });
 }
 
-export async function designHasCosting(designId: bigint) {
-  const summary = await getCostSummary(designId);
-  return summary.hasCosting;
+export async function designHasCosting(
+  designId: bigint,
+  tx?: Prisma.TransactionClient,
+) {
+  const db = tx ?? prisma;
+  const entry = await db.designCost.findFirst({
+    where: { designId, amount: { gt: 0 } },
+    select: { id: true },
+  });
+  return entry != null;
 }
 
 export async function updateDesignCostBaselines(

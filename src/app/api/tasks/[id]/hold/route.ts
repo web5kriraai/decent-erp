@@ -6,6 +6,7 @@ import { holdTask } from "@/lib/services/task-service";
 const schema = z.object({
   holdReasonId: z.number().int().positive(),
   remark: z.string().optional(),
+  version: z.number().int().nonnegative().optional(),
 });
 
 export async function POST(
@@ -21,6 +22,7 @@ export async function POST(
       body.holdReasonId,
       body.remark,
       ctx.correlationId,
+      body.version,
     );
     return jsonOk(serializeBigInt(task), ctx.correlationId);
   });

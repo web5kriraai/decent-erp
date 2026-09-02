@@ -502,7 +502,7 @@ export function DesignCreateForm() {
                     hint={
                       availablePatterns.length === 0
                         ? "Switch Task Assignment to Manual, or ask Admin to create a pattern for this product type."
-                        : undefined
+                        : "Prefer Spec 8-Step for demos (Concept→Final). Full includes materials + production ladder."
                     }
                     error={
                       showErrors

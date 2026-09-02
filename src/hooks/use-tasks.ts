@@ -109,25 +109,38 @@ export function useTaskMutations() {
       taskId,
       holdReasonId,
       remark,
+      version,
     }: {
       taskId: string;
       holdReasonId: number;
       remark?: string;
-    }) => apiPost<DesignTask>(`/api/tasks/${taskId}/hold`, { holdReasonId, remark }),
+      version: number;
+    }) => apiPost<DesignTask>(`/api/tasks/${taskId}/hold`, { holdReasonId, remark, version }),
     onSuccess: () => {
       invalidate();
       toast.success("Task on hold");
     },
-    onError: (error) => toast.errorFromApi(error, "Cannot hold task"),
+    onError: (error) => {
+      toast.errorFromApi(error, "Cannot hold task");
+      if (error instanceof ApiClientError && error.isConflict) {
+        invalidate();
+      }
+    },
   });
 
   const resume = useMutation({
-    mutationFn: (taskId: string) => apiPost<DesignTask>(`/api/tasks/${taskId}/resume`),
+    mutationFn: ({ taskId, version }: { taskId: string; version: number }) =>
+      apiPost<DesignTask>(`/api/tasks/${taskId}/resume`, { version }),
     onSuccess: () => {
       invalidate();
       toast.success("Task resumed");
     },
-    onError: (error) => toast.errorFromApi(error, "Cannot resume task"),
+    onError: (error) => {
+      toast.errorFromApi(error, "Cannot resume task");
+      if (error instanceof ApiClientError && error.isConflict) {
+        invalidate();
+      }
+    },
   });
 
   const end = useMutation({

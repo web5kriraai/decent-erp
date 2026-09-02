@@ -231,6 +231,23 @@ export async function submitApproval(
       }
     }
 
+    const existingActive = await tx.designApproval.findFirst({
+      where: {
+        designId: input.designId,
+        approvalLevelId: input.approvalLevelId,
+        decision: { in: ["PENDING", "APPROVED", "SKIPPED"] },
+      },
+      select: { id: true, decision: true },
+    });
+    if (existingActive) {
+      throw new ApiError(
+        existingActive.decision === "PENDING"
+          ? "An active approval is already pending at this level"
+          : "This approval level is already recorded for this design",
+        409,
+      );
+    }
+
     const approval = await tx.designApproval.create({
       data: {
         designId: input.designId,

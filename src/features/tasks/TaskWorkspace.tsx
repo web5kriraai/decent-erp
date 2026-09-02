@@ -158,6 +158,7 @@ export function TaskWorkspace() {
       taskId: activeTask.id,
       holdReasonId: Number(holdReasonId),
       remark: holdRemark || undefined,
+      version: activeTask.version,
     });
     setHoldModalOpen(false);
     setHoldRemark("");
@@ -279,7 +280,7 @@ export function TaskWorkspace() {
                       }
                     : undefined
                 }
-                onResume={onHoldTask ? () => resume.mutate(activeTask!.id) : undefined}
+                onResume={onHoldTask ? () => resume.mutate({ taskId: activeTask!.id, version: activeTask!.version }) : undefined}
                 onEnd={
                   runningTask || onHoldTask
                     ? () => {

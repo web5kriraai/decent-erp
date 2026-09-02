@@ -134,14 +134,21 @@ function workflowDisplayStatus(
   effectiveStatus: string,
   isCurrent: boolean,
   isUpcoming: boolean,
+  options?: { isApproval?: boolean },
 ): string {
   if (isUpcoming) return "UPCOMING";
   if (effectiveStatus === "SKIPPED") return "SKIPPED";
   if (effectiveStatus === "COMPLETED") return "COMPLETED";
+  // Only actively timed work is "In Progress" — assigned/ready approvals stay READY.
   if (isCurrent && (effectiveStatus === "RUNNING" || effectiveStatus === "ON_HOLD")) {
     return "IN_PROGRESS";
   }
-  if (isCurrent && effectiveStatus === "ASSIGNED") return "IN_PROGRESS";
+  if (isCurrent && effectiveStatus === "ASSIGNED") {
+    return options?.isApproval ? "READY" : "ASSIGNED";
+  }
+  if (isCurrent && effectiveStatus === "PENDING") {
+    return "READY";
+  }
   return effectiveStatus;
 }
 
@@ -202,7 +209,9 @@ export function buildWorkflowSteps(tasks: DesignTask[] | undefined): WorkflowSte
       isUpcoming,
       isDone,
       canReassign,
-      displayStatus: workflowDisplayStatus(effectiveStatus, isCurrent, isUpcoming),
+      displayStatus: workflowDisplayStatus(effectiveStatus, isCurrent, isUpcoming, {
+        isApproval: !!task.subProcess?.isApproval,
+      }),
       assigneeName: task.assignedEmployee?.name ?? null,
     };
   });
@@ -599,15 +608,15 @@ export function getDesignWorkflowContext(input: {
     );
     return {
       summary: `${workStep?.label ?? "Work"} submitted — waiting for review.`,
-      currentStage: workStep?.label ?? null,
-      currentStatus: "checking",
-      currentOwner: workStep?.assigneeName ?? null,
-      nextAction: gate?.subProcess?.name ?? "Stage approval",
+      currentStage: gate?.subProcess?.name ?? workStep?.label ?? null,
+      currentStatus: "ready",
+      currentOwner: gate?.assignedEmployee?.name ?? null,
+      nextAction: `${gate?.subProcess?.name ?? "Stage approval"} decision`,
       nextOwner: gate?.assignedEmployee?.name ?? null,
       blockingLabel: null,
       blockingOwner: null,
-      waitingMessage: `Waiting for ${gate?.assignedEmployee?.name ?? "approver"}: ${gate?.subProcess?.name ?? "stage approval"}.`,
-      nextActionHint: null,
+      waitingMessage: `Your ${workStep?.label ?? "work"} is done. Waiting for ${gate?.assignedEmployee?.name ?? "approver"}: ${gate?.subProcess?.name ?? "stage approval"}.`,
+      nextActionHint: `${gate?.assignedEmployee?.name ?? "Approver"} must complete ${gate?.subProcess?.name ?? "stage approval"} before the pipeline continues.`,
     };
   }
 

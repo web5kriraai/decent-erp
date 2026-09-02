@@ -135,6 +135,12 @@ export function humanizeClientError(input: {
     hint = "Sign out and back in after your admin updates your role.";
   } else if (input.status === 409 && code === APP_ERROR_CODES.CONCURRENCY_CONFLICT) {
     hint = "Refresh the page and try again.";
+  } else if (input.status === 409) {
+    hint = "Refresh to load the latest state, then try again.";
+  } else if (input.status === 413) {
+    hint = "Choose a smaller file within the allowed size limit.";
+  } else if (input.status === 404) {
+    hint = "Return to the list and open a current record.";
   } else if (input.status === 400 && code === APP_ERROR_CODES.VALIDATION_FAILED) {
     hint = "Check the highlighted fields and try again.";
   } else if (input.status >= 500) {

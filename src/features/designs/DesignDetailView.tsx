@@ -65,6 +65,8 @@ export function DesignDetailView({
         isError={designQuery.isError}
         error={designQuery.error}
         onRetry={() => designQuery.refetch()}
+        notFoundHref={ROUTES.designs.list}
+        notFoundLabel="Back to designs"
         skeletonVariant="stats"
       >
         {designQuery.data && (

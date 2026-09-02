@@ -382,11 +382,15 @@ export async function holdTask(
   holdReasonId: number,
   remark: string | undefined,
   correlationId: string,
+  version?: number,
 ) {
   return prisma.$transaction(async (tx) => {
     const task = await getTaskForEmployee(taskId, employeeId);
     if (task.status !== "RUNNING") {
       throw conflict(APP_ERROR_CODES.TASK_WRONG_STATUS, undefined, "Task must be running before it can be held.");
+    }
+    if (version != null && task.version !== version) {
+      throw conflict(APP_ERROR_CODES.CONCURRENCY_CONFLICT);
     }
 
     const reason = await tx.taskHoldReason.findFirst({
@@ -431,11 +435,24 @@ export async function resumeTask(
   taskId: bigint,
   employeeId: number,
   correlationId: string,
+  version?: number,
 ) {
   return prisma.$transaction(async (tx) => {
     const task = await getTaskForEmployee(taskId, employeeId);
     if (task.status !== "ON_HOLD") {
       throw conflict(APP_ERROR_CODES.TASK_WRONG_STATUS, undefined, "Only on-hold tasks can be resumed.");
+    }
+    if (version != null && task.version !== version) {
+      throw conflict(APP_ERROR_CODES.CONCURRENCY_CONFLICT);
+    }
+
+    const running = await tx.designTask.findFirst({
+      where: { assignedEmployeeId: employeeId, status: "RUNNING" },
+    });
+    if (running && running.id !== taskId) {
+      throw conflict(APP_ERROR_CODES.TASK_ALREADY_RUNNING, {
+        runningTaskId: running.id.toString(),
+      });
     }
 
     const now = new Date();

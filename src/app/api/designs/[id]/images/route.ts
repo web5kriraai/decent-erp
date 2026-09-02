@@ -61,7 +61,7 @@ export async function POST(
         category,
       );
       if (!validation.ok) {
-        throw new ApiError(validation.message, file.size > 50 * 1024 * 1024 ? 413 : 400);
+        throw new ApiError(validation.message, validation.status);
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());

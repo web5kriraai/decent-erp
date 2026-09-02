@@ -34,31 +34,35 @@ export function maxBytesForCategory(category: UploadCategory): number {
 export function validateUploadFile(
   file: { name: string; type: string; size: number },
   category: UploadCategory,
-): { ok: true } | { ok: false; message: string } {
+): { ok: true } | { ok: false; message: string; status: 400 | 413 } {
   const maxBytes = maxBytesForCategory(category);
   if (file.size > maxBytes) {
     const limitMb = Math.round(maxBytes / MB);
-    return { ok: false, message: `File exceeds ${limitMb}MB limit for ${category.toLowerCase().replace("_", " ")}` };
+    return {
+      ok: false,
+      status: 413,
+      message: `File exceeds ${limitMb}MB limit for ${category.toLowerCase().replace("_", " ")}`,
+    };
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
 
   if (category === "PRODUCT_IMAGE") {
     if (!PRODUCT_IMAGE_MIMES.has(file.type)) {
-      return { ok: false, message: "Product images must be JPEG, PNG, or WebP" };
+      return { ok: false, status: 400, message: "Product images must be JPEG, PNG, or WebP" };
     }
     return { ok: true };
   }
 
   if (category === "SKETCH") {
     if (!SKETCH_MIMES.has(file.type) && !["jpg", "jpeg", "png", "webp", "pdf"].includes(ext)) {
-      return { ok: false, message: "Sketch files must be JPEG, PNG, WebP, or PDF" };
+      return { ok: false, status: 400, message: "Sketch files must be JPEG, PNG, WebP, or PDF" };
     }
     return { ok: true };
   }
 
   if (!PUNCHING_EXTENSIONS.has(ext) && !SKETCH_MIMES.has(file.type)) {
-    return { ok: false, message: "Punching files must be EMB, DST, or PDF" };
+    return { ok: false, status: 400, message: "Punching files must be EMB, DST, or PDF" };
   }
 
   return { ok: true };

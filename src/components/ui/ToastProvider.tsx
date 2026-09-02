@@ -123,10 +123,14 @@ export function useApiToast() {
       showToast({ type: "info", title, message }),
     errorFromApi: (error: unknown, fallback = "Something went wrong") => {
       const humanized = humanizeApiError(error, fallback);
+      const isConflict =
+        error instanceof ApiClientError && error.isConflict;
       showToast({
         type: "error",
         title: humanized.title,
-        message: humanized.hint,
+        message:
+          humanized.hint ??
+          (isConflict ? "Refresh the page and try again." : undefined),
         correlationId: humanized.correlationId,
       });
     },

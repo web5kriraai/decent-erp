@@ -33,6 +33,10 @@ export class ApiClientError extends Error {
   get isBusinessRule() {
     return this.status === 422;
   }
+
+  get isPayloadTooLarge() {
+    return this.status === 413;
+  }
 }
 
 export type ApiSuccess<T> = {

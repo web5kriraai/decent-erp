@@ -30,6 +30,8 @@ export function useApprovedDesigns(enabled = true) {
           season: { name: string };
           designHead: { name: string };
           costs: unknown[];
+          releaseReady: boolean;
+          releaseMissing: string[];
         }>
       >("/api/production/release"),
     enabled,

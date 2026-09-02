@@ -57,7 +57,7 @@ export const PROCESS_SEED = [
   },
 ] as const;
 
-/** Spec §6.2 — full master workflow chain */
+/** Spec §6.2 — full master workflow chain (materials + production stages). */
 export function buildStandardWorkflowTasks(
   roles: RoleLookup,
   subs: Record<string, { id: number; processId: number }>,
@@ -79,6 +79,37 @@ export function buildStandardWorkflowTasks(
     { code: "PROD_INSTRUCTION", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 120, dayOffset: 10, priority: "HIGH" as const },
     { code: "PROD_RELEASE", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 60, dayOffset: 11, priority: "HIGH" as const },
     { code: "LIVE_REVIEW", role: ROLE_CODES.MANAGEMENT, expectedMinutes: 60, dayOffset: 12, priority: "HIGH" as const },
+  ];
+
+  return rows.map((row, index) => ({
+    processId: subs[row.code].processId,
+    subProcessId: subs[row.code].id,
+    defaultRoleId: roles[row.role].id,
+    expectedMinutes: row.expectedMinutes,
+    dayOffset: row.dayOffset,
+    priority: row.priority,
+    sequence: index + 1,
+  }));
+}
+
+/**
+ * Spec §6.2 automatic example — 8 core stages only.
+ * Optional shop stages (punch check, materials, sample receive, prod ladder)
+ * are omitted; production handoff tasks are appended after management approval.
+ */
+export function buildCanonicalEightStepWorkflowTasks(
+  roles: RoleLookup,
+  subs: Record<string, { id: number; processId: number }>,
+) {
+  const rows = [
+    { code: "CONCEPT_REVIEW", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 0, priority: "HIGH" as const },
+    { code: "SKETCH", role: ROLE_CODES.SKETCH_DESIGNER, expectedMinutes: 480, dayOffset: 1, priority: "HIGH" as const },
+    { code: "SKETCH_APPROVAL", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 2, priority: "HIGH" as const },
+    { code: "PUNCH", role: ROLE_CODES.PUNCHING_DESIGNER, expectedMinutes: 720, dayOffset: 3, priority: "HIGH" as const },
+    { code: "MACHINE_SAMPLE", role: ROLE_CODES.MACHINE_OPERATOR, expectedMinutes: 360, dayOffset: 5, priority: "MEDIUM" as const },
+    { code: "SAMPLE_CHECK", role: ROLE_CODES.SAMPLE_CHECKER, expectedMinutes: 180, dayOffset: 6, priority: "HIGH" as const },
+    { code: "COSTING", role: ROLE_CODES.COSTING_TEAM, expectedMinutes: 120, dayOffset: 7, priority: "MEDIUM" as const },
+    { code: "FINAL_APPROVAL", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 8, priority: "HIGH" as const },
   ];
 
   return rows.map((row, index) => ({

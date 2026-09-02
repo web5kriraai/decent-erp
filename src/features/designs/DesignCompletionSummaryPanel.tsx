@@ -42,7 +42,7 @@ export function DesignCompletionSummaryPanel({
       }
       headerAction={
         !isComplete ? (
-          <StatusBadge status="IN_PROGRESS" label={`${doneCount}/${progress.total}`} />
+          <StatusBadge status="READY" label={`${doneCount}/${progress.total} phases`} />
         ) : null
       }
     >

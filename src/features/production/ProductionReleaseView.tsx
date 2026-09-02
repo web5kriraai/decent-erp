@@ -120,6 +120,26 @@ export function ProductionReleaseView() {
                 render: (r) => (r.costs.length > 0 ? "Complete" : "Missing"),
               },
               {
+                key: "releaseReady",
+                header: "Release gate",
+                render: (r) =>
+                  r.releaseReady ? (
+                    <StatusBadge status="COMPLETED" label="Ready" />
+                  ) : (
+                    <div>
+                      <StatusBadge status="CHECKING" label="Blocked" />
+                      {r.releaseMissing?.length ? (
+                        <p className="data-table-subtext mt-1 max-w-56">
+                          Missing: {r.releaseMissing.slice(0, 3).join("; ")}
+                          {r.releaseMissing.length > 3
+                            ? ` (+${r.releaseMissing.length - 3})`
+                            : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                  ),
+              },
+              {
                 key: "actions",
                 header: "Next step",
                 align: "right",

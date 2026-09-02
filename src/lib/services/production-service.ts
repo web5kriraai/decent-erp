@@ -15,7 +15,7 @@ import {
 import { formatProductionReleaseMissing } from "@/lib/services/production-workflow";
 
 export async function listApprovedDesigns() {
-  return prisma.designConcept.findMany({
+  const designs = await prisma.designConcept.findMany({
     where: { status: { in: ["APPROVED", "PRODUCTION_ACCEPTED"] } },
     orderBy: { updatedAtUtc: "desc" },
     include: {
@@ -26,6 +26,17 @@ export async function listApprovedDesigns() {
       productionHandoffs: { take: 3, orderBy: { releasedAtUtc: "desc" } },
     },
   });
+
+  return Promise.all(
+    designs.map(async (design) => {
+      const readiness = await validateProductionReleaseReadiness(design.id);
+      return {
+        ...design,
+        releaseReady: readiness.ok,
+        releaseMissing: readiness.missing,
+      };
+    }),
+  );
 }
 
 export async function listReleasedDesignsForGoLive() {
@@ -65,16 +76,16 @@ export async function releaseToProduction(
   actorId: number,
   correlationId: string,
 ) {
-  const readiness = await validateProductionReleaseReadiness(designId);
-  if (!readiness.ok) {
-    throw businessRule(
-      APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
-      readiness.missing,
-      formatProductionReleaseMissing(readiness.missing),
-    );
-  }
-
   return prisma.$transaction(async (tx) => {
+    const readiness = await validateProductionReleaseReadiness(designId, tx);
+    if (!readiness.ok) {
+      throw businessRule(
+        APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
+        readiness.missing,
+        formatProductionReleaseMissing(readiness.missing),
+      );
+    }
+
     const design = await tx.designConcept.findUnique({ where: { id: designId } });
     if (!design) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
     if (design.status !== "APPROVED" && design.status !== "PRODUCTION_ACCEPTED") {

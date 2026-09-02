@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { AppButton } from "@/components/ui/AppButton";
 import { useApiToast } from "@/components/ui/ToastProvider";
+import { ApiClientError } from "@/lib/api-client";
 
 type FileUploaderProps = {
   designId: string;
