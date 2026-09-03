@@ -104,7 +104,6 @@ export function ProductionReleaseView() {
     <div className="page-shell page-shell--wide production-desk-page">
       <PageHeader
         title="Production Desk"
-        subtitle="Track handoff → instruction → release. Work the steps on My Tasks."
         actions={
           <div className="production-desk-header-actions">
             <ProductionErpModePill
@@ -184,7 +183,7 @@ export function ProductionReleaseView() {
         </QueryState>
       ) : showErpOps ? (
         <p className="production-desk-quiet-note">
-          No ERP handoffs yet — they appear after production release.{" "}
+          No ERP handoffs.{" "}
           <Link href={ROUTES.production.erpChain} className="production-desk-erp-link">
             ERP Chain
           </Link>

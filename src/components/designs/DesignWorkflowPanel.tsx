@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -28,6 +28,8 @@ type DesignWorkflowPanelProps = {
   onAssignTask?: (task: DesignTask) => void;
   /** When false, omit sign-off CTA (already shown elsewhere on the page). */
   showSignOffCta?: boolean;
+  /** Secondary workflow tools (e.g. override) — sits in the card header. */
+  headerActions?: ReactNode;
 };
 
 const SIGN_OFF_LEVELS = [
@@ -41,6 +43,7 @@ export function DesignWorkflowPanel({
   canAssign,
   onAssignTask,
   showSignOffCta = true,
+  headerActions,
 }: DesignWorkflowPanelProps) {
   const steps = useMemo(() => buildWorkflowSteps(design.tasks), [design.tasks]);
   const workflowContext = useMemo(
@@ -82,10 +85,18 @@ export function DesignWorkflowPanel({
     Boolean(workflowContext.currentOwner) ||
     (isSignOff && showSignOffCta);
 
+  const headerAction =
+    showHeaderBadge || headerActions ? (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {showHeaderBadge ? <StatusBadge status={workflowHeaderStatus} /> : null}
+        {headerActions}
+      </div>
+    ) : null;
+
   return (
     <AppCard
       title="Workflow"
-      headerAction={showHeaderBadge ? <StatusBadge status={workflowHeaderStatus} /> : null}
+      headerAction={headerAction}
       contentClassName="workflow-panel-body"
     >
       {showNowStrip ? (

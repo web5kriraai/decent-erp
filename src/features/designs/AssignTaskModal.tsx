@@ -34,12 +34,8 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
     <Modal
       open={open}
       title={task ? `Assign: ${task.subProcess.name}` : "Assign Task"}
-      description={
-        task
-          ? `Choose who will work on ${task.process.name} → ${task.subProcess.name}.`
-          : undefined
-      }
       onClose={onClose}
+      size="sm"
       footer={
         <ModalFooterActions>
           <AppButton type="button" appVariant="outline" onClick={onClose}>
@@ -63,7 +59,7 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
           required
           value={employeeId}
           onValueChange={setEmployeeId}
-          placeholder="Select employee…"
+          placeholder="Select…"
           options={(employeesQuery.data ?? []).map((e) => ({
             value: String(e.id),
             label: `${e.name} (${e.role.name})`,

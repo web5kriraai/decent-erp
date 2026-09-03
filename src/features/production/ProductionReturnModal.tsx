@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Modal, ModalFooterActions, ModalForm } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import {
   useProductionReturn,
   useProductionReturnOptions,
@@ -68,37 +68,29 @@ export function ProductionReturnModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title="Return for clarification"
-      description={
-        ideaRef
-          ? `${ideaRef} — route a correction without changing completed history.`
-          : "Route a correction without changing completed history."
-      }
-      size="lg"
+      title={ideaRef ? `Return · ${ideaRef}` : "Return for clarification"}
+      size="md"
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={handleClose}>
+          <AppButton type="button" appVariant="outline" onClick={handleClose}>
             Cancel
-          </Button>
-          <Button
+          </AppButton>
+          <AppButton
             type="button"
-            variant="destructive"
+            appVariant="danger"
             disabled={!canSubmit || returnMutation.isPending}
             onClick={() => void handleSubmit()}
           >
             {returnMutation.isPending ? "Returning…" : "Return to design team"}
-          </Button>
+          </AppButton>
         </ModalFooterActions>
       }
     >
       <ModalForm>
         {optionsQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading return options…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : !options?.canReturn ? (
-          <p className="text-sm text-muted-foreground">
-            This design cannot be returned right now. Handoff must be complete and release must not
-            be finished.
-          </p>
+          <p className="text-sm text-muted-foreground">Return unavailable</p>
         ) : (
           <>
             <FormSelect
@@ -111,7 +103,7 @@ export function ProductionReturnModal({
                 value: reason.code,
                 label: reason.label,
               }))}
-              placeholder="Select reason…"
+              placeholder="Select…"
             />
 
             <FormSelect
@@ -124,16 +116,15 @@ export function ProductionReturnModal({
                 value: String(route.id),
                 label: route.name,
               }))}
-              placeholder="Select stage…"
+              placeholder="Select…"
             />
 
             <FormTextArea
               id="returnRemark"
-              label="Details for Design Head / stage owner"
+              label="Details"
               value={remark}
               onChange={(e) => setRemark(e.target.value)}
-              placeholder="What needs to be clarified or corrected?"
-              rows={4}
+              rows={3}
             />
           </>
         )}

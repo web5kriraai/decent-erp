@@ -53,8 +53,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
   return (
     <Modal
       open={open}
-      title="Edit Design Concept"
-      description="Update collection details and references for this design."
+      title="Edit Design"
       onClose={onClose}
       size="lg"
       footer={

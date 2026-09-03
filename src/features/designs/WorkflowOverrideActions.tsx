@@ -122,7 +122,6 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
       <Modal
         open={sendQcOpen}
         title="Send to QC phase"
-        description="Move this design directly to a check, approval, or review stage. Open stages before the target will be marked skipped."
         onClose={resetAndClose}
         footer={
           <ModalFooterActions>
@@ -148,7 +147,7 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
             value={targetTaskId}
             onValueChange={setTargetTaskId}
             options={qcOptions}
-            placeholder="Select QC phase…"
+            placeholder="Select…"
             disabled={isPending}
           />
           <FormTextArea
@@ -158,9 +157,12 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Why is this design being sent to QC now?"
             disabled={isPending}
-            hint="Minimum 10 characters. Recorded in audit log."
+            error={
+              reason.length > 0 && !reasonOk
+                ? "Minimum 10 characters"
+                : undefined
+            }
           />
         </ModalForm>
       </Modal>
@@ -168,7 +170,6 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
       <Modal
         open={bypassOpen}
         title="Bypass to phase"
-        description="Jump this design to any open workflow phase. Skipped or reset stages are recorded for the completion summary."
         onClose={resetAndClose}
         footer={
           <ModalFooterActions>
@@ -194,7 +195,7 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
             value={targetTaskId}
             onValueChange={setTargetTaskId}
             options={bypassOptions}
-            placeholder="Select phase…"
+            placeholder="Select…"
             disabled={isPending}
           />
           <FormTextArea
@@ -204,9 +205,12 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Why is the normal sequence being bypassed?"
             disabled={isPending}
-            hint="Minimum 10 characters. Recorded in audit log."
+            error={
+              reason.length > 0 && !reasonOk
+                ? "Minimum 10 characters"
+                : undefined
+            }
           />
         </ModalForm>
       </Modal>

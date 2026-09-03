@@ -150,17 +150,13 @@ export function InlineStageApprovalCard({
     assignTask.isPending ||
     completeStageApproval.isPending;
 
-  const cardTitle = uiConfig.title ?? `${stageName} — your action`;
+  const cardTitle = uiConfig.title ?? stageName;
 
   return (
     <AppCard
       className="mb-4"
       title={cardTitle}
-      description={
-        canApprove
-          ? `Review and record your ${stageName.toLowerCase()} decision.`
-          : approvalBlockedMessage
-      }
+      description={!canApprove ? approvalBlockedMessage : undefined}
       headerAction={
         <div className="flex flex-wrap gap-1.5">
           <StatusBadge status={approvalTask.status} />
@@ -168,37 +164,32 @@ export function InlineStageApprovalCard({
         </div>
       }
     >
-      <div className="space-y-3">
+      <div className="space-y-4">
         {uiConfig.showCompare ? <TaskCompareVersionsPanel designId={designId} /> : null}
 
         {uiConfig.showGallery ? (
-          <div>
-            <p className="mb-1.5 text-sm font-medium text-foreground">Design files to review</p>
-            <ImageGallery designId={designId} canUpload={false} />
-          </div>
+          <ImageGallery designId={designId} canUpload={false} />
         ) : null}
 
         <FormTextArea
           id="stage-approval-remark"
-          label="Review notes (optional for approval, required to send back)"
+          label="Notes"
           value={remark}
           onChange={(e) => setRemark(e.target.value)}
-          placeholder="Add approval notes or feedback…"
           rows={2}
         />
 
-        <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-          {showApprove ? (
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
+          {showReject ? (
             <AppButton
               type="button"
-              appVariant="primary"
+              appVariant="danger"
               size="sm"
-              disabled={busy || !canApprove}
-              title={!canApprove ? approvalBlockedMessage : undefined}
-              onClick={handleApprove}
+              disabled={busy || !canApprove || !remark.trim()}
+              onClick={handleReject}
             >
-              <CheckCircle2Icon className="size-4" aria-hidden />
-              Approve {stageName.toLowerCase()}
+              <XCircleIcon className="size-4" aria-hidden />
+              Reject
             </AppButton>
           ) : null}
           {showCorrection ? (
@@ -213,16 +204,17 @@ export function InlineStageApprovalCard({
               Request correction
             </AppButton>
           ) : null}
-          {showReject ? (
+          {showApprove ? (
             <AppButton
               type="button"
-              appVariant="danger"
+              appVariant="primary"
               size="sm"
-              disabled={busy || !canApprove || !remark.trim()}
-              onClick={handleReject}
+              disabled={busy || !canApprove}
+              title={!canApprove ? approvalBlockedMessage : undefined}
+              onClick={handleApprove}
             >
-              <XCircleIcon className="size-4" aria-hidden />
-              Reject
+              <CheckCircle2Icon className="size-4" aria-hidden />
+              Approve
             </AppButton>
           ) : null}
         </div>

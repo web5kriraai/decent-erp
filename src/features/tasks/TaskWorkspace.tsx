@@ -303,11 +303,10 @@ export function TaskWorkspace() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="My Action Center"
-        subtitle="Work you can act on now, blocked items, and upcoming stages."
         actions={
           <AppButton
             type="button"
-            appVariant="secondary"
+            appVariant="outline"
             size="sm"
             onClick={() => closeWorkday.mutate()}
             disabled={closeWorkday.isPending || !!runningTask}
@@ -324,7 +323,6 @@ export function TaskWorkspace() {
         error={centerQuery.error}
         isEmpty={!hasAnyWork}
         emptyTitle="No tasks assigned yet"
-        emptyDescription="Tasks appear when workflow stages are assigned to you."
         skeletonVariant="cards"
         onRetry={() => centerQuery.refetch()}
       >

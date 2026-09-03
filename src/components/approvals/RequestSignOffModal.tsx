@@ -76,12 +76,7 @@ export function RequestSignOffModal({
   return (
     <Modal
       open={open}
-      title="Request Management Sign-off"
-      description={
-        ideaRef
-          ? `Submit ${ideaRef} to the management approval chain. Approvers will see your remark and a design snapshot.`
-          : "Submit this design to the management approval chain with a requester remark."
-      }
+      title={ideaRef ? `Request Sign-off · ${ideaRef}` : "Request Management Sign-off"}
       onClose={onClose}
       footer={
         <ModalFooterActions>
@@ -107,24 +102,20 @@ export function RequestSignOffModal({
           value={requesterRemark}
           onChange={(e) => setRequesterRemark(e.target.value)}
           onBlur={() => setTouched(true)}
-          placeholder="Summarize readiness for management — what was completed, open risks, and why sign-off is appropriate…"
-          hint={`At least ${MIN_REMARK} characters required (${trimmed.length}/${MIN_REMARK}).`}
           error={
             remarkMissing || remarkTooShort
-              ? `Enter at least ${MIN_REMARK} characters (e.g. “Ready for management review”). “Yes” alone is not enough.`
+              ? `Minimum ${MIN_REMARK} characters`
               : apiError
           }
         />
         <FormTextArea
           id="summaryNote"
-          label="Optional summary note"
+          label="Summary note"
           rows={2}
           value={summaryNote}
           onChange={(e) => setSummaryNote(e.target.value)}
-          placeholder="Extra context for approvers (optional)"
         />
       </ModalForm>
     </Modal>
   );
 }
-

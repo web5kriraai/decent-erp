@@ -50,9 +50,10 @@ type TaskEndDialogProps = {
   isSampleCheck?: boolean;
   sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
   onSampleOutcomeChange?: (outcome: "APPROVE" | "REJECT" | "RESAMPLE") => void;
-  /** When true, server will force CHECKING — show hint instead of free status select. */
+  /** When true, server will force CHECKING. */
   gateForcesChecking?: boolean;
   dialogTitle?: string;
+  /** @deprecated Unused — kept for call-site compatibility. */
   dialogDescription?: string;
   costEntries?: CostEntryInput[];
   onCostEntriesChange?: (entries: CostEntryInput[]) => void;
@@ -90,7 +91,7 @@ export function TaskEndDialog({
   onSampleOutcomeChange,
   gateForcesChecking,
   dialogTitle,
-  dialogDescription,
+  dialogDescription: _dialogDescription,
   costEntries = [],
   onCostEntriesChange,
   onSubmit,
@@ -184,18 +185,6 @@ export function TaskEndDialog({
 
   const canSubmit = formComplete && !filesBlocking && !isPending;
 
-  const completionDescription =
-    dialogDescription ??
-    (isCosting
-      ? "Enter cost lines for this design, then submit for checking."
-      : isSampleCheck
-        ? "Approve, reject, or re-sample. Complete checklist and notes."
-        : showFileUpload
-          ? `Upload for ${subProcessName ?? "this stage"}, then finish the details.`
-          : checklistItems.length > 0
-            ? "Pass checklist items (or add notes), then submit."
-            : "Add completion details and submit.");
-
   function markAllPassed() {
     for (const item of checklistItems) {
       if (!checklistResults[item.id]) onChecklistChange(item.id, true);
@@ -233,7 +222,6 @@ export function TaskEndDialog({
     <Modal
       open={open}
       title={dialogTitle ?? (isSampleCheck ? "Complete Sample Check" : "Complete Task")}
-      description={completionDescription}
       onClose={handleClose}
       size={denseDeliverables || isCosting ? "lg" : "md"}
       footer={

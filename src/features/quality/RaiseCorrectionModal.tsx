@@ -10,7 +10,7 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { FormTextField } from "@/components/ui/form-text-field";
-import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useDesign } from "@/hooks/use-designs";
 import { useEmployeeOptions, useRaiseCorrection } from "@/hooks/use-corrections";
@@ -171,17 +171,16 @@ export function RaiseCorrectionModal({
     <Modal
       open={open}
       title="Raise Correction"
-      description="Send work back to a stage (usually Punching) with a clear reason."
       onClose={handleClose}
       size="lg"
       footer={
         <ModalFooterActions>
-          <Button type="button" variant="outline" onClick={handleClose}>
+          <AppButton type="button" appVariant="outline" onClick={handleClose}>
             Cancel
-          </Button>
-          <Button type="button" disabled={!canSubmit} onClick={handleSubmit}>
+          </AppButton>
+          <AppButton type="button" disabled={!canSubmit} onClick={handleSubmit}>
             {raiseCorrection.isPending ? "Raising…" : "Raise Correction"}
-          </Button>
+          </AppButton>
         </ModalFooterActions>
       }
     >
@@ -203,7 +202,7 @@ export function RaiseCorrectionModal({
                 value: d.id,
                 label: `${d.ideaRef} - ${d.collectionName}`,
               }))}
-              placeholder="Select design…"
+              placeholder="Select…"
             />
 
             <FormSelect
@@ -219,7 +218,7 @@ export function RaiseCorrectionModal({
                 value: t.id,
                 label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
               }))}
-              placeholder="Select task…"
+              placeholder="Select…"
               disabled={!designId || designQuery.isLoading}
             />
           </>
@@ -235,9 +234,8 @@ export function RaiseCorrectionModal({
             value: String(r.id),
             label: r.name,
           }))}
-          placeholder={designQuery.isLoading ? "Loading stages…" : "Select stage…"}
+          placeholder="Select…"
           disabled={!designId || routeOptions.length === 0}
-          hint="Defaults to Punching when available — change if rework belongs elsewhere."
         />
 
         <ModalFormGrid>
@@ -261,8 +259,7 @@ export function RaiseCorrectionModal({
               value: String(e.id),
               label: e.name,
             }))}
-            placeholder="Select employee…"
-            hint={isMistake ? undefined : "Optional for non-mistake corrections"}
+            placeholder="Select…"
           />
         </ModalFormGrid>
 
@@ -274,8 +271,6 @@ export function RaiseCorrectionModal({
             min={0}
             value={extraMinutes}
             onChange={(e) => setExtraMinutes(e.target.value)}
-            placeholder="0"
-            hint="Optional rework time impact"
           />
           <FormTextField
             id="corrExtraCost"
@@ -285,8 +280,6 @@ export function RaiseCorrectionModal({
             step="0.01"
             value={extraCost}
             onChange={(e) => setExtraCost(e.target.value)}
-            placeholder="0"
-            hint="Optional rework cost impact"
           />
         </ModalFormGrid>
 
@@ -297,7 +290,6 @@ export function RaiseCorrectionModal({
           rows={3}
           value={rootCause}
           onChange={(e) => setRootCause(e.target.value)}
-          placeholder="Describe what needs to be fixed…"
         />
       </ModalForm>
     </Modal>

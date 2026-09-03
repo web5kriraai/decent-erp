@@ -69,7 +69,6 @@ export function CorrectionsView() {
     <div className="page-shell">
       <PageHeader
         title="Corrections"
-        subtitle="Corrections you raised, own on a task, or are responsible for fixing"
         actions={
           <ContextualActionsPanel
             actions={pageActions}
@@ -181,7 +180,6 @@ export function CorrectionsView() {
             rows={correctionsQuery.data ?? []}
             getRowKey={(row) => row.id}
             emptyTitle="No corrections"
-            emptyDescription="When you raise a correction or one is assigned to you, it appears here."
             emptyAction={
               pageActions.some((a) => a.code === WORKFLOW_ACTION_CODES.RAISE_CORRECTION) ? (
                 <AppButton type="button" appVariant="primary" onClick={() => setRaiseOpen(true)}>

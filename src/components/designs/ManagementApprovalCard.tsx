@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   Modal,
   ModalFooterActions,
 } from "@/components/ui/Modal";
-import { AppButton } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { ROUTES } from "@/config/routes";
 import { usePendingApprovals, useSubmitApproval } from "@/hooks/use-approvals";
 import { useEmployeeOptions } from "@/hooks/use-corrections";
@@ -65,28 +63,30 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
 
   return (
     <>
-      <AppCard
-        title="Your sign-off"
-        description={`${ideaRef} · ${pendingItem.currentLevel.name}`}
-        className="mb-4 border-amber-200 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20"
-      >
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="compact-design-actions mb-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <p className="text-sm font-semibold text-foreground">Your sign-off</p>
+          <p className="text-xs text-muted-foreground">
+            {ideaRef} · {pendingItem.currentLevel.name}
+          </p>
+        </div>
+        <div className="compact-design-actions-row">
+          <AppButtonLink
+            href={`${ROUTES.quality.approvals}?tab=management`}
+            appVariant="ghost"
+            size="sm"
+          >
+            All sign-offs
+          </AppButtonLink>
           <AppButton type="button" size="sm" onClick={() => setModalOpen(true)}>
             Review &amp; approve
           </AppButton>
-          <Link
-            href={`${ROUTES.quality.approvals}?tab=management`}
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            All sign-offs
-          </Link>
         </div>
-      </AppCard>
+      </div>
 
       <Modal
         open={modalOpen}
         title={`Decide ${ideaRef}`}
-        description={`Review the package, then submit your decision for ${pendingItem.currentLevel.name}.`}
         size="lg"
         onClose={() => setModalOpen(false)}
         footer={

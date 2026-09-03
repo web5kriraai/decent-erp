@@ -38,12 +38,22 @@ export function ContextualActionsPanel({
 
   if (enabled.length === 0 && disabled.length === 0) return null;
 
+  let primaryUsed = false;
+  const ranked = enabled.map((action) => {
+    const variant = action.variant;
+    if (variant === "primary") {
+      if (primaryUsed) return { ...action, variant: "outline" as const };
+      primaryUsed = true;
+    }
+    return action;
+  });
+
   return (
     <div className={cn("contextual-actions-panel", className)}>
       {title ? <p className="contextual-actions-title">{title}</p> : null}
-      {enabled.length > 0 ? (
+      {ranked.length > 0 ? (
         <div className="contextual-actions-buttons">
-          {enabled.map((action) => {
+          {ranked.map((action) => {
             if (action.href && !onAction) {
               return (
                 <AppButtonLink

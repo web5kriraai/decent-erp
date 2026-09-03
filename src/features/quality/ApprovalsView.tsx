@@ -206,10 +206,7 @@ export function ApprovalsView() {
 
   return (
     <div className="page-shell">
-      <PageHeader
-        title="Approvals"
-        subtitle="Workflow stage reviews, ready-for-sign-off designs, and management sign-off"
-      />
+      <PageHeader title="Approvals" />
 
       <QueryState
         isLoading={isLoading}
@@ -289,7 +286,6 @@ export function ApprovalsView() {
                   rows={stageItems}
                   getRowKey={(row) => row.taskId}
                   emptyTitle="No stage approvals waiting"
-                  emptyDescription="When work is submitted for your review stage, the approval task appears here."
                 />
               </AppCard>
             </TabsContent>
@@ -335,7 +331,6 @@ export function ApprovalsView() {
                   rows={readyItems}
                   getRowKey={(row) => row.designId}
                   emptyTitle="No designs ready for sign-off"
-                  emptyDescription="Only Design Head can request management sign-off. When all workflow stages are complete, designs appear here."
                 />
               </AppCard>
             </TabsContent>
@@ -393,7 +388,6 @@ export function ApprovalsView() {
                   rows={managementItems}
                   getRowKey={(row) => `${row.designId}-${row.currentLevel.id}`}
                   emptyTitle="No management sign-offs waiting"
-                  emptyDescription="Designs at your management approval level appear here after final approval is requested."
                 />
               </AppCard>
             </TabsContent>
@@ -404,11 +398,6 @@ export function ApprovalsView() {
       <Modal
         open={!!selected}
         title={selected ? `Decide ${selected.design.ideaRef}` : "Approval"}
-        description={
-          selected
-            ? `${selected.currentLevel.name} — package summary, then your decision.`
-            : undefined
-        }
         size="lg"
         onClose={() => setSelected(null)}
         footer={

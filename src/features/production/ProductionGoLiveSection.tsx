@@ -102,9 +102,6 @@ export function ProductionGoLiveSection({
                           Open live review
                         </AppButtonLink>
                       ) : null}
-                      <span className="text-right text-xs text-muted-foreground">
-                        Complete Live Design Review first
-                      </span>
                     </div>
                   );
                 }
@@ -136,7 +133,6 @@ export function ProductionGoLiveSection({
         rows={designs}
         getRowKey={(r) => r.id}
         emptyTitle="No designs awaiting go-live"
-        emptyDescription="Production-released designs will appear here for final live marking."
       />
     </AppCard>
   );

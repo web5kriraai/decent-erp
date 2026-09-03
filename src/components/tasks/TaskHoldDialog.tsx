@@ -37,7 +37,6 @@ export function TaskHoldDialog({
   onSubmit,
   isPending,
   title = "Hold Task",
-  description = "Active work time pauses until you resume. Choose why you are putting this task on hold.",
   preferredHoldReasonCodes = [],
 }: TaskHoldDialogProps) {
   const orderedReasons = useMemo(() => {
@@ -53,14 +52,12 @@ export function TaskHoldDialog({
   const options = orderedReasons.map((r) => ({
     value: String(r.id),
     label: r.name,
-    description: r.code.replace(/_/g, " "),
   }));
 
   return (
     <Modal
       open={open}
       title={title}
-      description={description}
       onClose={onClose}
       footer={
         <ModalFooterActions>
@@ -81,13 +78,9 @@ export function TaskHoldDialog({
           value={holdReasonId === "" ? null : String(holdReasonId)}
           onValueChange={(v) => onHoldReasonChange(v ? Number(v) : "")}
           options={options}
-          placeholder="Select a reason…"
+          placeholder="Select…"
           disabled={isPending || options.length === 0}
-          hint={
-            options.length === 0
-              ? "No hold reasons are configured. Ask an admin to add them in Masters."
-              : undefined
-          }
+          error={options.length === 0 ? "No hold reasons configured" : undefined}
         />
 
         <FormTextArea
@@ -96,7 +89,6 @@ export function TaskHoldDialog({
           rows={3}
           value={holdRemark}
           onChange={(e) => onHoldRemarkChange(e.target.value)}
-          placeholder="Optional context for this hold…"
           disabled={isPending}
         />
       </ModalForm>

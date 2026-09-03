@@ -51,14 +51,44 @@ export function DesignListView() {
     <div className="page-shell">
       <PageHeader
         title="Design Concepts"
-        subtitle="Manage idea-to-release design pipeline"
         actions={
-          <AppButtonLink href={ROUTES.designs.new} appVariant="primary">
+          <AppButtonLink href={ROUTES.designs.new} appVariant="primary" size="sm">
             <IconPlus size={16} />
             New Design
           </AppButtonLink>
         }
       />
+
+      <div className="page-toolbar">
+        <div className="toolbar-search">
+          <span className="toolbar-search-icon">
+            <IconSearch size={16} />
+          </span>
+          <Input
+            type="search"
+            className="h-8 border-0 bg-transparent shadow-none focus-visible:ring-0"
+            placeholder="Search idea ref or collection…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search designs"
+          />
+        </div>
+        <select
+          className="form-select page-toolbar-select"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="Filter by status"
+        >
+          {STATUS_FILTERS.map((s) => (
+            <option key={s} value={s}>
+              {s === "ALL" ? "All statuses" : s.replace(/_/g, " ")}
+            </option>
+          ))}
+        </select>
+        <span className="toolbar-count">
+          {filtered.length} of {designsQuery.data?.total ?? 0} records
+        </span>
+      </div>
 
       <QueryState
         isLoading={designsQuery.isLoading}
@@ -92,44 +122,11 @@ export function DesignListView() {
           rows={filtered as (DesignSummary & Record<string, unknown>)[]}
           getRowKey={(row) => row.id}
           emptyTitle="No designs match your filters"
-          emptyDescription="Create a new design concept or adjust search filters."
           emptyAction={
             <AppButtonLink href={ROUTES.designs.new} appVariant="primary">
               <IconPlus size={16} />
               New Design
             </AppButtonLink>
-          }
-          toolbar={
-            <div className="page-toolbar">
-              <div className="toolbar-search">
-                <span className="toolbar-search-icon">
-                  <IconSearch size={16} />
-                </span>
-                <Input
-                  type="search"
-                  className="h-8 border-0 bg-transparent shadow-none focus-visible:ring-0"
-                  placeholder="Search idea ref or collection…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  aria-label="Search designs"
-                />
-              </div>
-              <select
-                className="form-select page-toolbar-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                aria-label="Filter by status"
-              >
-                {STATUS_FILTERS.map((s) => (
-                  <option key={s} value={s}>
-                    {s === "ALL" ? "All statuses" : s.replace(/_/g, " ")}
-                  </option>
-                ))}
-              </select>
-              <span className="toolbar-count">
-                {filtered.length} of {designsQuery.data?.total ?? 0} records
-              </span>
-            </div>
           }
         />
       </QueryState>

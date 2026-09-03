@@ -50,6 +50,13 @@ export function CompactDesignActions({
   if (actions.length === 0) return null;
 
   const enabled = actions.filter((a) => a.enabled);
+  const primarySeen = { current: false };
+  const ranked = enabled.map((action) => {
+    if (action.variant !== "primary") return action;
+    if (primarySeen.current) return { ...action, variant: "outline" as const };
+    primarySeen.current = true;
+    return action;
+  });
 
   function handleAction(action: ResolvedWorkflowAction) {
     if (!action.enabled) return;
@@ -65,7 +72,7 @@ export function CompactDesignActions({
   return (
     <div className={cn("compact-design-actions", className)}>
       <div className="compact-design-actions-row">
-        {enabled.map((action) => {
+        {ranked.map((action) => {
           if (action.href && action.code !== WORKFLOW_ACTION_CODES.REQUEST_APPROVAL) {
             return (
               <AppButtonLink

@@ -84,17 +84,17 @@ export function DesignDetailView({
                 <>
                   <StatusBadge status={designQuery.data.status} />
                   <PriorityBadge priority={designQuery.data.priority} />
-                  {canEdit && (
+                  {canEdit ? (
                     <AppButton
                       type="button"
-                      appVariant="secondary"
+                      appVariant="outline"
                       size="sm"
                       onClick={() => setEditOpen(true)}
                     >
                       Edit Concept
                     </AppButton>
-                  )}
-                  <AppButtonLink href={ROUTES.designs.list} appVariant="secondary" size="sm">
+                  ) : null}
+                  <AppButtonLink href={ROUTES.designs.list} appVariant="ghost" size="sm">
                     Back
                   </AppButtonLink>
                 </>
@@ -120,7 +120,7 @@ export function DesignDetailView({
                 canAssign={canAssign}
               />
             ) : (
-              <div className="mb-4 space-y-4">
+              <div className="stack-section-sm">
                 {isSignOff ? (
                   <ManagementApprovalCard
                     designId={designId}
@@ -140,22 +140,23 @@ export function DesignDetailView({
               </div>
             )}
 
-            <div className="mb-6">
+            <div className="stack-section">
               <DesignWorkflowPanel
                 design={designQuery.data}
                 designId={designId}
                 canAssign={canAssign}
                 onAssignTask={setAssignTask}
-                /** CTA lives on ManagementApprovalCard / CompactDesignActions — one only. */
                 showSignOffCta={false}
+                headerActions={
+                  canOverrideWorkflow ? (
+                    <WorkflowOverrideActions
+                      designId={designId}
+                      design={designQuery.data}
+                    />
+                  ) : null
+                }
               />
             </div>
-
-            {canOverrideWorkflow ? (
-              <div className="mb-6">
-                <WorkflowOverrideActions designId={designId} design={designQuery.data} />
-              </div>
-            ) : null}
 
             <DesignCompletionSummaryPanel
               designId={designId}
@@ -164,7 +165,7 @@ export function DesignDetailView({
             />
 
             {showDesignFiles ? (
-              <AppCard title="Design Files" id="design-files">
+              <AppCard title="Design Files" id="design-files" className="stack-section">
                 <ImageGallery
                   designId={designId}
                   canUpload={canUploadFiles}
