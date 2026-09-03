@@ -12,7 +12,6 @@ import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
-  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 
@@ -48,17 +47,6 @@ export function ManagementDashboard() {
       }}
     >
       <div className="workbench-overview">
-        <WorkbenchQuickActions
-          actions={[
-            {
-              href: `${ROUTES.quality.approvals}?tab=management`,
-              label: "Approvals",
-              badge: approvals.length,
-            },
-            { href: ROUTES.analytics.kpi, label: "KPI" },
-            { href: ROUTES.production.release, label: "Production desk" },
-          ]}
-        />
         <div className="stat-grid workbench-pulse">
           <StatCard label="Awaiting final approval" value={summary?.approvalPending ?? 0} />
           <StatCard label="High priority decisions" value={summary?.highPriorityPending ?? 0} />

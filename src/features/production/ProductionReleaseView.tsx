@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -24,7 +25,10 @@ import { canViewErpChain } from "@/lib/erp-rbac";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import { classifyProductionDeskRow } from "@/lib/services/production-desk-snapshot";
-import { ProductionDeskMetrics } from "@/features/production/ProductionDeskMetrics";
+import {
+  ProductionDeskFlowStrip,
+  ProductionDeskMetrics,
+} from "@/features/production/ProductionDeskMetrics";
 import { ProductionDeskTools } from "@/features/production/ProductionDeskTools";
 import {
   ProductionErpHandoffsSection,
@@ -100,7 +104,7 @@ export function ProductionReleaseView() {
     <div className="page-shell page-shell--wide production-desk-page">
       <PageHeader
         title="Production Desk"
-        subtitle="Track handoff → instruction → release. Complete steps on My Tasks."
+        subtitle="Track handoff → instruction → release. Work the steps on My Tasks."
         actions={
           <div className="production-desk-header-actions">
             <ProductionErpModePill
@@ -115,6 +119,8 @@ export function ProductionReleaseView() {
           </div>
         }
       />
+
+      <ProductionDeskFlowStrip />
 
       <ProductionDeskMetrics
         blocked={metrics.blocked + metrics.missing_ladder}
@@ -140,7 +146,7 @@ export function ProductionReleaseView() {
         />
       </QueryState>
 
-      {canMarkLive ? (
+      {canMarkLive && (releasedQuery.isLoading || released.length > 0) ? (
         <QueryState
           isLoading={releasedQuery.isLoading}
           isError={releasedQuery.isError}
@@ -156,9 +162,11 @@ export function ProductionReleaseView() {
             onMarkLive={(id) => markLive.mutate(id)}
           />
         </QueryState>
+      ) : canMarkLive ? (
+        <p className="production-desk-quiet-note">No designs awaiting go-live.</p>
       ) : null}
 
-      {showErpOps ? (
+      {showErpOps && (handoffsQuery.isLoading || handoffs.length > 0) ? (
         <QueryState
           isLoading={handoffsQuery.isLoading}
           isError={handoffsQuery.isError}
@@ -174,6 +182,13 @@ export function ProductionReleaseView() {
             onRetry={(id) => retrySync.mutate(id)}
           />
         </QueryState>
+      ) : showErpOps ? (
+        <p className="production-desk-quiet-note">
+          No ERP handoffs yet — they appear after production release.{" "}
+          <Link href={ROUTES.production.erpChain} className="production-desk-erp-link">
+            ERP Chain
+          </Link>
+        </p>
       ) : null}
 
       {canEnsureLadder ? (

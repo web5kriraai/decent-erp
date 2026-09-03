@@ -10,6 +10,7 @@ import {
   countTerminalPhases,
   isDesignWorkflowComplete,
 } from "@/lib/services/workflow-override-utils";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import type { DesignCompletionSummary, DesignSummary } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +21,17 @@ import {
   SkipForwardIcon,
   UsersIcon,
 } from "lucide-react";
+
+/** Matches GET /api/designs/[id]/completion-summary */
+export const COMPLETION_SUMMARY_PERMISSIONS = [
+  PERMISSIONS.WORKFLOW_OVERRIDE,
+  PERMISSIONS.DESIGN_CREATE,
+  PERMISSIONS.TIME_VIEW_TEAM,
+] as const;
+
+export function canViewDesignCompletionSummary(permissions: string[]): boolean {
+  return hasPermission(permissions, [...COMPLETION_SUMMARY_PERMISSIONS]);
+}
 
 type DesignCompletionSummaryPanelProps = {
   designId: string;
@@ -86,12 +98,6 @@ function IncompleteState({
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
   return (
     <div className="completion-locked" role="status">
-      <div className="completion-locked-copy">
-        <p className="completion-locked-title">Summary unlocks when every phase is finished</p>
-        <p className="completion-locked-text">
-          Complete or skip the remaining workflow phases to generate the team and time report.
-        </p>
-      </div>
       <div className="completion-progress-block">
         <div className="completion-progress-meta">
           <span>
@@ -350,22 +356,23 @@ export function DesignCompletionSummaryPanel({
   const isComplete = isDesignWorkflowComplete(tasks);
   const doneCount = progress.completed + progress.skipped + progress.cancelled;
 
+  // Never fetch (or show a 403 card) without permission — omit the whole section.
   const summaryQuery = useDesignCompletionSummary(designId, enabled && isComplete);
+
+  if (!enabled) return null;
 
   return (
     <AppCard
       className="stack-section"
       title="Completion summary"
       description={
-        isComplete
-          ? "Team effort and time across every finished phase."
-          : `${doneCount} of ${progress.total} phases finished — unlocks when the workflow is complete.`
+        isComplete ? undefined : `${doneCount} of ${progress.total} phases finished`
       }
       headerAction={
-        !isComplete ? (
-          <StatusBadge status="READY" label={`${doneCount}/${progress.total} phases`} />
-        ) : (
+        isComplete ? (
           <StatusBadge status="COMPLETED" label="Ready" />
+        ) : (
+          <StatusBadge status="READY" label={`${doneCount}/${progress.total}`} />
         )
       }
       contentClassName="completion-card-content"
@@ -379,6 +386,7 @@ export function DesignCompletionSummaryPanel({
           error={summaryQuery.error}
           onRetry={() => summaryQuery.refetch()}
           skeletonVariant="table"
+          hideOnForbidden
         >
           {summaryQuery.data ? <SummaryBody data={summaryQuery.data} /> : null}
         </QueryState>

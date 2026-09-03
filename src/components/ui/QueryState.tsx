@@ -23,6 +23,11 @@ type QueryStateProps = {
   /** When set, 404 errors offer a link back to this list path. */
   notFoundHref?: string;
   notFoundLabel?: string;
+  /**
+   * When true, 403 responses render nothing (section already permission-gated).
+   * Prefer omitting unauthorized UI over showing access-error banners.
+   */
+  hideOnForbidden?: boolean;
   children: ReactNode;
 };
 
@@ -38,6 +43,7 @@ export function QueryState({
   onRetry,
   notFoundHref,
   notFoundLabel = "Back to list",
+  hideOnForbidden = false,
   children,
 }: QueryStateProps) {
   if (isLoading) {
@@ -50,6 +56,7 @@ export function QueryState({
       error instanceof ApiClientError ? error.correlationId : humanized.correlationId;
 
     if (error instanceof ApiClientError && error.isForbidden) {
+      if (hideOnForbidden) return null;
       return (
         <AppCard flat>
           <p className="text-sm text-[var(--color-warning)]" role="alert">

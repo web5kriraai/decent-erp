@@ -29,8 +29,8 @@ export function ProductionGoLiveSection({
   return (
     <AppCard
       title="Awaiting go-live"
-      className="stack-section"
-      description="Production-released designs ready for final live marking after Live Design Review."
+      className="production-desk-secondary-card"
+      description={undefined}
     >
       <DataTable
         columns={[

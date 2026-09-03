@@ -14,7 +14,6 @@ import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
-  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 
@@ -96,25 +95,6 @@ export function CheckerWorkbench() {
       }}
     >
       <div className="workbench-overview">
-        <WorkbenchQuickActions
-          actions={[
-            {
-              href: ROUTES.work.tasks,
-              label: "My Tasks",
-              badge: pendingTotal,
-            },
-            {
-              href: `${ROUTES.quality.approvals}?tab=management`,
-              label: "Approvals",
-              badge: managementApprovals.length,
-            },
-            {
-              href: ROUTES.quality.corrections,
-              label: "Corrections",
-              badge: corrections.length,
-            },
-          ]}
-        />
         <div className="stat-grid workbench-pulse">
           <StatCard label="Pending quality checks" value={pendingTotal} />
           <StatCard label="Punch checks waiting" value={queues.pendingPunch.length} />

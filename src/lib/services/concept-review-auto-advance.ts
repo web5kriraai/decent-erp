@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ROLE_CODES } from "@/lib/permissions";
 import { isTaskReady } from "@/lib/services/task-dependency";
-import { canRoleActOnStageApproval } from "@/lib/stage-approval-rbac";
+import { getStageApprovalOwnerRole } from "@/lib/stage-approval-rbac";
 import { completeStageApproval } from "@/lib/services/task-service";
 
 const OPEN_CONCEPT_STATUSES = ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"] as const;
@@ -100,12 +100,11 @@ export async function autoAdvanceConceptReview(
     return { advanced: false, reason: "not_found" };
   }
 
-  // System auto-advance must use CONCEPT_REVIEW owner role when the creator
-  // is Admin (or another non–Design Head) who still owns the design head seat.
-  const requestedRole = options?.roleCode;
-  const effectiveRoleCode = canRoleActOnStageApproval(requestedRole, "CONCEPT_REVIEW")
-    ? requestedRole
-    : ROLE_CODES.DESIGN_HEAD;
+  // System bootstrap: always complete CONCEPT_REVIEW as the stage owner
+  // (Design Head). Admin/Management creators can act on approvals in the UI,
+  // but auto-advance must not record them as the stage owner role.
+  const effectiveRoleCode =
+    getStageApprovalOwnerRole("CONCEPT_REVIEW") ?? ROLE_CODES.DESIGN_HEAD;
 
   await completeStageApproval(
     stuck.taskId,

@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 type AppCardProps = HTMLAttributes<HTMLDivElement> & {
   /** Border only, no soft elevation. */
   flat?: boolean;
+  /** No outer padding — use for full-bleed tables inside the card. */
+  flush?: boolean;
   title?: ReactNode;
   description?: ReactNode;
   headerAction?: ReactNode;
@@ -21,6 +23,7 @@ type AppCardProps = HTMLAttributes<HTMLDivElement> & {
 /** Standard page section card built on shadcn Card. */
 export function AppCard({
   flat,
+  flush,
   title,
   description,
   headerAction,
@@ -31,7 +34,11 @@ export function AppCard({
 }: AppCardProps) {
   return (
     <Card
-      className={cn(flat && "shadow-none", className)}
+      className={cn(
+        flat && "shadow-none",
+        flush && "gap-0 py-0 [--card-spacing:0px]",
+        className,
+      )}
       {...props}
     >
       {title || description || headerAction ? (
@@ -43,7 +50,13 @@ export function AppCard({
           {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
         </CardHeader>
       ) : null}
-      <CardContent className={cn(!(title || description || headerAction) && "pt-0", contentClassName)}>
+      <CardContent
+        className={cn(
+          !(title || description || headerAction) && "pt-0",
+          flush && "px-0 py-0",
+          contentClassName,
+        )}
+      >
         {children}
       </CardContent>
     </Card>

@@ -27,8 +27,8 @@ export function ProductionErpModePill({
         label={mode === "live" ? "Live ERP" : "Simulated ERP"}
       />
       {showErpChainLink ? (
-        <Link href={ROUTES.production.erpChain} className="data-table-link text-sm">
-          ERP Chain
+        <Link href={ROUTES.production.erpChain} className="production-desk-erp-link">
+          Open ERP Chain
         </Link>
       ) : null}
     </div>
@@ -53,7 +53,7 @@ export function ProductionErpHandoffsSection({
   return (
     <AppCard
       title="ERP handoffs"
-      className="stack-section"
+      className="production-desk-secondary-card"
       description="Grey → Accounts sync after production release."
       headerAction={
         handoffDesignIds.length > 0 ? (
@@ -64,7 +64,7 @@ export function ProductionErpHandoffsSection({
             disabled={syncPending}
             onClick={() => onSyncLatest(handoffDesignIds[0]!)}
           >
-            Sync all modules (latest)
+            Sync latest design
           </AppButton>
         ) : null
       }
@@ -84,7 +84,7 @@ export function ProductionErpHandoffsSection({
           { key: "designNumber", header: "Design No." },
           {
             key: "status",
-            header: "Sync Status",
+            header: "Sync",
             render: (row) => {
               const display = getHandoffDisplayStatus({
                 status: row.status,
@@ -136,7 +136,7 @@ export function ProductionErpHandoffsSection({
                   disabled={retryPending}
                   onClick={() => onRetry(row.id)}
                 >
-                  Retry sync
+                  Retry
                 </AppButton>
               ) : null,
           },
@@ -144,7 +144,7 @@ export function ProductionErpHandoffsSection({
         rows={handoffs}
         getRowKey={(r) => r.id}
         emptyTitle="No ERP handoffs yet"
-        emptyDescription="Handoffs are created when designs are released to production."
+        emptyDescription="Handoffs appear when a design is released to production."
       />
     </AppCard>
   );

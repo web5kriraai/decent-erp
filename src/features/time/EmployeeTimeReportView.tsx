@@ -92,8 +92,9 @@ export function EmployeeTimeReportView() {
         onRetry={() => reportQuery.refetch()}
       >
         {reportQuery.data && (
-          <AppCard contentClassName="p-0">
-            <DataTable<ReportRow>
+          <AppCard flush>
+              <DataTable<ReportRow>
+              flush
               rows={(reportQuery.data.rows ?? []) as ReportRow[]}
               getRowKey={(row) => String(row.employeeId)}
               emptyTitle="No time records found"

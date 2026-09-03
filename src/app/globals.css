@@ -852,6 +852,43 @@ button[data-slot="button"][data-app-variant="warning"]:hover:not(:disabled) {
   scrollbar-color: var(--color-neutral-300) transparent;
 }
 
+.app-table-wrap--flush {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Full-bleed tables inside cards — no top/bottom gap on every page */
+[data-slot="card"]:has(.app-table-wrap),
+[data-slot="card"]:has(.data-table-wrap) {
+  gap: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+[data-slot="card"]:has(.app-table-wrap) > [data-slot="card-header"],
+[data-slot="card"]:has(.data-table-wrap) > [data-slot="card-header"] {
+  padding-top: var(--card-spacing, 1rem);
+}
+
+[data-slot="card-content"]:has(.app-table-wrap),
+[data-slot="card-content"]:has(.data-table-wrap) {
+  padding: 0;
+}
+
+[data-slot="card-content"] .app-table-wrap,
+[data-slot="card-content"] .data-table-wrap {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Toolbar above a table keeps a small inset; the grid itself stays edge-to-edge */
+[data-slot="card-content"] > div:has(> .app-table-wrap) > .flex:first-child,
+[data-slot="card-content"] > div:has(> .data-table-wrap) > .flex:first-child {
+  padding: 0.75rem 1rem 0.5rem;
+}
+
 .app-table-wrap::-webkit-scrollbar,
 .data-table-wrap::-webkit-scrollbar {
   height: 6px;
@@ -3079,59 +3116,177 @@ a.sidebar-brand-link:hover {
   color: var(--color-neutral-800);
 }
 
-.workflow-context-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.25rem 1rem;
-  margin: 0;
-  font-size: var(--font-size-caption);
-}
-
-.workflow-context-grid dt {
-  color: var(--color-neutral-500);
-  font-weight: 500;
-}
-
-.workflow-context-grid dd {
-  margin: 0;
-  color: var(--color-neutral-800);
-}
-
-.workflow-context-waiting {
-  margin: 0.75rem 0 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-neutral-600);
-}
-
-/* ---- Design workflow panel (detail rail) ---- */
-
-.workflow-panel {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface, #fff);
-  overflow: hidden;
-}
-
-.workflow-panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-}
+/* ---- Design workflow panel ---- */
 
 .workflow-panel-body {
-  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  padding-top: 0.85rem;
+}
+
+.workflow-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--primary) 7%, var(--card)) 0%,
+      var(--card) 60%
+    );
+}
+
+.workflow-now-kicker {
+  margin: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.workflow-now-title {
+  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  line-height: 1.3;
+}
+
+.workflow-now-summary,
+.workflow-now-meta {
+  margin: 0.3rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-neutral-600);
+  line-height: 1.4;
+}
+
+.workflow-now-meta strong {
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+.workflow-now-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.workflow-signoff {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.workflow-signoff-label,
+.workflow-stages-label {
+  margin: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-neutral-500);
+}
+
+.workflow-signoff-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-signoff-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.workflow-signoff-connector {
+  width: 1rem;
+  height: 1px;
+  margin: 0 0.15rem;
+  background: color-mix(in srgb, var(--primary) 35%, var(--border));
+}
+
+.workflow-signoff-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 7.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.workflow-signoff-level {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.workflow-signoff-role {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.workflow-signoff-note {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+.workflow-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.workflow-stages-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.workflow-stages-count {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+.workflow-stages-empty {
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--color-neutral-500);
+  text-align: center;
 }
 
 .workflow-step-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 0.625rem;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.55rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -3141,29 +3296,33 @@ a.sidebar-brand-link:hover {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 0.5rem;
-  min-height: 5.5rem;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--color-border);
+  gap: 0.55rem;
+  min-height: 5.25rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--color-surface, #fff);
+  background: var(--card);
+  border-left-width: 3px;
+  border-left-color: var(--border);
 }
 
 .workflow-step-card--done {
-  border-color: color-mix(in oklch, var(--color-success) 35%, var(--color-border));
-  background: color-mix(in oklch, var(--color-success-bg) 60%, #fff);
+  border-left-color: var(--color-success, #16a34a);
+  border-color: color-mix(in srgb, var(--color-success, #16a34a) 28%, var(--border));
+  background: color-mix(in srgb, var(--color-success, #16a34a) 5%, var(--card));
 }
 
 .workflow-step-card--current {
-  border-color: var(--color-primary);
-  background: var(--color-primary-light);
-  box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-primary) 25%, transparent);
+  border-left-color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .workflow-step-card--upcoming {
-  border-color: var(--color-neutral-200);
-  background: var(--color-neutral-50, #f8fafc);
-  opacity: 0.72;
+  border-left-color: var(--color-neutral-300);
+  background: color-mix(in srgb, var(--muted) 45%, var(--card));
+  opacity: 0.78;
 }
 
 .workflow-step-card-head {
@@ -3175,19 +3334,41 @@ a.sidebar-brand-link:hover {
 
 .workflow-step-title {
   margin: 0;
-  font-size: var(--font-size-caption);
-  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
   color: var(--color-neutral-900);
   line-height: 1.35;
 }
 
 .workflow-step-seq {
-  color: var(--color-neutral-500);
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--color-neutral-600);
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.workflow-step-card--current .workflow-step-seq {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--primary);
+}
+
+.workflow-step-card--done .workflow-step-seq {
+  background: color-mix(in srgb, var(--color-success, #16a34a) 14%, transparent);
+  color: var(--color-success, #16a34a);
 }
 
 .workflow-step-meta {
-  margin: 0.125rem 0 0;
+  margin: 0.2rem 0 0;
   font-size: 0.6875rem;
   color: var(--color-neutral-500);
   line-height: 1.35;
@@ -3201,42 +3382,19 @@ a.sidebar-brand-link:hover {
   flex-wrap: wrap;
 }
 
+.workflow-step-open {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.workflow-step-open:hover {
+  text-decoration: underline;
+}
+
 .workflow-reassign-btn {
   flex-shrink: 0;
-}
-
-.workflow-next-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid color-mix(in oklch, var(--color-primary) 30%, var(--color-border));
-  border-radius: var(--radius-md);
-  background: var(--color-primary-light);
-}
-
-.workflow-next-hint-icon {
-  flex-shrink: 0;
-  width: 1rem;
-  height: 1rem;
-  margin-top: 0.125rem;
-  color: var(--color-primary);
-}
-
-.workflow-next-hint-title {
-  margin: 0;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-primary);
-}
-
-.workflow-next-hint-text {
-  margin: 0.125rem 0 0;
-  font-size: var(--font-size-caption);
-  color: var(--color-neutral-800);
-  line-height: 1.45;
 }
 
 .compact-design-actions {
@@ -4665,7 +4823,7 @@ a.sidebar-brand-link:hover {
 .production-desk-page {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .production-desk-header-actions {
@@ -4679,29 +4837,113 @@ a.sidebar-brand-link:hover {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.55rem;
+  padding: 0.28rem 0.55rem 0.28rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+}
+
+.production-desk-erp-link {
+  font-size: 0.8125rem;
+  font-weight: 550;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.production-desk-erp-link:hover {
+  text-decoration: underline;
+}
+
+.production-desk-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--primary) 5%, var(--card)) 0%,
+      var(--card) 55%
+    );
+}
+
+.production-desk-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.production-desk-flow-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.production-desk-flow-label {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+.production-desk-flow-who {
+  font-size: 0.75rem;
+  color: var(--color-neutral-500);
+}
+
+.production-desk-flow-arrow {
+  color: var(--color-neutral-400);
+  font-size: 0.85rem;
 }
 
 .production-desk-metric-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.55rem;
 }
 
 .production-desk-metric {
   display: flex;
   align-items: flex-start;
-  gap: 0.65rem;
+  gap: 0.6rem;
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
-  padding: 0.7rem 0.8rem;
+  padding: 0.7rem 0.75rem;
 }
 
-.production-desk-metric--accent {
+.production-desk-metric--danger {
+  border-color: color-mix(in srgb, var(--color-danger, #dc2626) 28%, var(--border));
+  background: color-mix(in srgb, var(--color-danger, #dc2626) 5%, var(--card));
+}
+
+.production-desk-metric--warn {
+  border-color: color-mix(in srgb, var(--color-warning, #d97706) 30%, var(--border));
+  background: color-mix(in srgb, var(--color-warning, #d97706) 6%, var(--card));
+}
+
+.production-desk-metric--info {
   border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
   background: color-mix(in srgb, var(--primary) 6%, var(--card));
+}
+
+.production-desk-metric--success {
+  border-color: color-mix(in srgb, var(--color-success, #16a34a) 28%, var(--border));
+  background: color-mix(in srgb, var(--color-success, #16a34a) 6%, var(--card));
 }
 
 .production-desk-metric-icon {
@@ -4716,9 +4958,24 @@ a.sidebar-brand-link:hover {
   flex-shrink: 0;
 }
 
-.production-desk-metric--accent .production-desk-metric-icon {
+.production-desk-metric--danger .production-desk-metric-icon {
+  background: color-mix(in srgb, var(--color-danger, #dc2626) 12%, transparent);
+  color: var(--color-danger, #dc2626);
+}
+
+.production-desk-metric--warn .production-desk-metric-icon {
+  background: color-mix(in srgb, var(--color-warning, #d97706) 14%, transparent);
+  color: var(--color-warning, #d97706);
+}
+
+.production-desk-metric--info .production-desk-metric-icon {
   background: color-mix(in srgb, var(--primary) 14%, transparent);
   color: var(--primary);
+}
+
+.production-desk-metric--success .production-desk-metric-icon {
+  background: color-mix(in srgb, var(--color-success, #16a34a) 14%, transparent);
+  color: var(--color-success, #16a34a);
 }
 
 .production-desk-metric-label {
@@ -4731,38 +4988,50 @@ a.sidebar-brand-link:hover {
 
 .production-desk-metric-value {
   margin: 0.1rem 0 0;
-  font-size: 1.05rem;
-  font-weight: 650;
+  font-size: 1.15rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--foreground);
-  line-height: 1.2;
+  line-height: 1.15;
+}
+
+.production-desk-pipeline-card,
+.production-desk-secondary-card {
+  border-color: color-mix(in srgb, var(--border) 90%, transparent);
+}
+
+.production-desk-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-top: 0.85rem;
 }
 
 .production-desk-board {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding-top: 0.25rem;
+  gap: 0.85rem;
 }
 
 .production-desk-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 .production-desk-filter {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 999px;
   background: var(--card);
-  padding: 0.35rem 0.65rem;
-  font-size: 0.8125rem;
-  font-weight: 550;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--color-neutral-700);
   cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .production-desk-filter:hover {
@@ -4770,19 +5039,19 @@ a.sidebar-brand-link:hover {
 }
 
 .production-desk-filter--active {
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
-  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
   color: var(--primary);
 }
 
 .production-desk-filter-count {
   display: inline-flex;
-  min-width: 1.25rem;
+  min-width: 1.15rem;
   justify-content: center;
   border-radius: 999px;
   background: var(--muted);
-  padding: 0.05rem 0.35rem;
-  font-size: 0.7rem;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.68rem;
   font-variant-numeric: tabular-nums;
   color: var(--color-neutral-600);
 }
@@ -4795,7 +5064,7 @@ a.sidebar-brand-link:hover {
 .production-desk-rows {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 .production-desk-row {
@@ -4806,6 +5075,22 @@ a.sidebar-brand-link:hover {
   border-radius: var(--radius-lg);
   background: var(--card);
   padding: 0.85rem 0.95rem;
+  border-left-width: 3px;
+  border-left-color: var(--border);
+}
+
+.production-desk-row--ready {
+  border-left-color: var(--color-success, #16a34a);
+}
+
+.production-desk-row--instruction,
+.production-desk-row--handoff {
+  border-left-color: var(--primary);
+}
+
+.production-desk-row--blocked,
+.production-desk-row--missing {
+  border-left-color: var(--color-warning, #d97706);
 }
 
 @media (min-width: 960px) {
@@ -4818,7 +5103,7 @@ a.sidebar-brand-link:hover {
 .production-desk-row-main {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.7rem;
   min-width: 0;
 }
 
@@ -4827,20 +5112,20 @@ a.sidebar-brand-link:hover {
 }
 
 .production-desk-row-ref {
-  font-size: 0.9375rem;
-  font-weight: 650;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--foreground);
   text-decoration: none;
+  letter-spacing: -0.01em;
 }
 
 .production-desk-row-ref:hover {
   color: var(--primary);
-  text-decoration: underline;
 }
 
 .production-desk-row-meta {
-  margin: 0.2rem 0 0;
-  font-size: 0.8125rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
   color: var(--color-neutral-500);
   line-height: 1.35;
 }
@@ -4849,22 +5134,38 @@ a.sidebar-brand-link:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
-  gap: 0.45rem;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.production-desk-ladder-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.production-desk-ladder-connector {
+  width: 0.7rem;
+  height: 1px;
+  margin: 0 0.1rem;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.production-desk-ladder-connector--lit {
+  background: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+
 .production-desk-ladder-step {
   display: inline-flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 6.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 6.25rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--muted) 35%, var(--card));
-  padding: 0.4rem 0.5rem;
-  position: relative;
+  background: color-mix(in srgb, var(--muted) 40%, var(--card));
+  padding: 0.35rem 0.45rem;
 }
 
 .production-desk-ladder-step--done {
@@ -4873,29 +5174,57 @@ a.sidebar-brand-link:hover {
 }
 
 .production-desk-ladder-step--active {
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
-  background: color-mix(in srgb, var(--primary) 7%, var(--card));
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .production-desk-ladder-step--missing {
-  opacity: 0.72;
+  opacity: 0.65;
 }
 
-.production-desk-ladder-connector {
-  display: none;
+.production-desk-ladder-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--color-neutral-600);
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.production-desk-ladder-step--done .production-desk-ladder-index {
+  background: color-mix(in srgb, var(--color-success, #16a34a) 16%, transparent);
+  color: var(--color-success, #16a34a);
+}
+
+.production-desk-ladder-step--active .production-desk-ladder-index {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary);
+}
+
+.production-desk-ladder-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .production-desk-ladder-label {
-  font-size: 0.65rem;
-  font-weight: 650;
+  font-size: 0.62rem;
+  font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-neutral-500);
 }
 
 .production-desk-row-gate-detail {
-  margin: 0.3rem 0 0;
-  max-width: 18rem;
+  margin: 0.25rem 0 0;
+  max-width: 16rem;
   font-size: var(--font-size-caption);
   color: var(--color-neutral-500);
   line-height: 1.35;
@@ -4905,7 +5234,7 @@ a.sidebar-brand-link:hover {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 @media (min-width: 960px) {
@@ -4916,44 +5245,108 @@ a.sidebar-brand-link:hover {
 
 .production-desk-waiting {
   margin: 0;
+  max-width: 14rem;
   font-size: var(--font-size-caption);
   color: var(--color-neutral-500);
+  line-height: 1.4;
   text-align: inherit;
 }
 
 .production-desk-empty {
-  border: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--muted) 50%, var(--card));
-  padding: 1.25rem;
+  background:
+    radial-gradient(
+      120% 80% at 50% 0%,
+      color-mix(in srgb, var(--primary) 6%, transparent),
+      transparent 55%
+    ),
+    color-mix(in srgb, var(--muted) 35%, var(--card));
+  padding: 1.75rem 1.25rem;
+}
+
+.production-desk-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
+  color: var(--primary);
 }
 
 .production-desk-empty-title {
   margin: 0;
-  font-size: 0.9375rem;
-  font-weight: 650;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .production-desk-empty-text {
-  margin: 0.3rem 0 0;
+  margin: 0.35rem 0 0;
+  max-width: 28rem;
   font-size: 0.875rem;
+  color: var(--color-neutral-500);
+  line-height: 1.45;
+}
+
+.production-desk-quiet-note {
+  margin: 0;
+  padding: 0.55rem 0.15rem;
+  font-size: 0.8125rem;
   color: var(--color-neutral-500);
 }
 
-.production-desk-tools {
+.production-desk-tools-bar {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 0.75rem 0.9rem;
+}
+
+.production-desk-tools-copy {
+  display: flex;
   align-items: flex-start;
-  gap: 0.65rem;
-  padding-top: 0.25rem;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.production-desk-tools-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--color-neutral-600);
+  flex-shrink: 0;
+}
+
+.production-desk-tools-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--foreground);
 }
 
 .production-desk-tools-hint {
-  margin: 0;
-  max-width: 36rem;
+  margin: 0.15rem 0 0;
+  max-width: 34rem;
   font-size: var(--font-size-caption);
   color: var(--color-neutral-500);
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 /* Management approval package (Decide modal) */

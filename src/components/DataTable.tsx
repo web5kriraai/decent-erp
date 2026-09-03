@@ -27,6 +27,8 @@ type DataTableProps<T extends Record<string, unknown>> = {
   getRowKey: (row: T) => string;
   onRowClick?: (row: T) => void;
   className?: string;
+  /** Drop inner wrap border/shadow when the table already sits inside a card. */
+  flush?: boolean;
 };
 
 /** Canonical data grid — same font, header bg, zebra, and borders on every page. */
@@ -40,9 +42,10 @@ export function DataTable<T extends Record<string, unknown>>({
   getRowKey,
   onRowClick,
   className,
+  flush = false,
 }: DataTableProps<T>) {
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn(!flush && "space-y-3", className)}>
       {toolbar ? (
         <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">{toolbar}</div>
       ) : null}
@@ -54,7 +57,7 @@ export function DataTable<T extends Record<string, unknown>>({
           action={emptyAction}
         />
       ) : (
-        <div className="app-table-wrap">
+        <div className={cn("app-table-wrap", flush && "app-table-wrap--flush")}>
           <Table className="app-table">
             <TableHeader>
               <TableRow className="hover:bg-transparent border-0">
@@ -62,7 +65,7 @@ export function DataTable<T extends Record<string, unknown>>({
                   <TableHead
                     key={String(col.key)}
                     className={cn(
-                      "h-auto bg-[var(--color-neutral-100)] px-3 py-2.5 text-xs font-semibold text-[var(--color-neutral-700)]",
+                      "h-auto bg-[var(--color-neutral-100)] px-3 py-2 text-xs font-semibold text-[var(--color-neutral-700)]",
                       col.align === "center" && "text-center",
                       col.align === "right" && "text-right",
                     )}
@@ -88,7 +91,7 @@ export function DataTable<T extends Record<string, unknown>>({
                     <TableCell
                       key={String(col.key)}
                       className={cn(
-                        "px-3 py-2.5 whitespace-normal",
+                        "px-3 py-2 whitespace-normal",
                         col.align === "center" && "text-center",
                         col.align === "right" && "text-right",
                       )}

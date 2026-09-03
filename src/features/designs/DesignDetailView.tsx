@@ -13,7 +13,7 @@ import { ROUTES } from "@/config/routes";
 import { useDesign } from "@/hooks/use-designs";
 import { ImageGallery } from "@/components/ImageGallery";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
-import { DesignCompletionSummaryPanel } from "@/features/designs/DesignCompletionSummaryPanel";
+import { DesignCompletionSummaryPanel, canViewDesignCompletionSummary } from "@/features/designs/DesignCompletionSummaryPanel";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
 import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
 import { DesignWorkflowPanel } from "@/components/designs/DesignWorkflowPanel";
@@ -49,6 +49,7 @@ export function DesignDetailView({
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
   const canUploadFiles = permissions.includes(PERMISSIONS.DESIGN_CREATE);
   const canOverrideWorkflow = permissions.includes(PERMISSIONS.WORKFLOW_OVERRIDE);
+  const canViewCompletion = canViewDesignCompletionSummary(permissions);
 
   const pendingStageApproval = useMemo(() => {
     if (!designQuery.data) return null;
@@ -61,6 +62,7 @@ export function DesignDetailView({
   }, [canExecute, designQuery.data, employeeId, roleCode]);
 
   const showDesignFiles = !pendingStageApproval;
+  const isSignOff = designQuery.data?.status === "APPROVAL_PENDING";
 
   return (
     <div className="page-shell">
@@ -119,7 +121,7 @@ export function DesignDetailView({
               />
             ) : (
               <div className="mb-4 space-y-4">
-                {designQuery.data.status === "APPROVAL_PENDING" ? (
+                {isSignOff ? (
                   <ManagementApprovalCard
                     designId={designId}
                     ideaRef={designQuery.data.ideaRef}
@@ -144,6 +146,8 @@ export function DesignDetailView({
                 designId={designId}
                 canAssign={canAssign}
                 onAssignTask={setAssignTask}
+                /** CTA lives on ManagementApprovalCard / CompactDesignActions — one only. */
+                showSignOffCta={false}
               />
             </div>
 
@@ -156,6 +160,7 @@ export function DesignDetailView({
             <DesignCompletionSummaryPanel
               designId={designId}
               design={designQuery.data}
+              enabled={canViewCompletion}
             />
 
             {showDesignFiles ? (

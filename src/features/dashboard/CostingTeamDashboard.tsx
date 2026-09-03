@@ -15,7 +15,6 @@ import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
-  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 import { isDashboardOpenTask } from "@/lib/task-list-filters";
@@ -80,13 +79,6 @@ export function CostingTeamDashboard() {
       }}
     >
       <div className="workbench-overview">
-        <WorkbenchQuickActions
-          actions={[
-            { href: ROUTES.work.tasks, label: "My Tasks", badge: costingTasks.length },
-            { href: ROUTES.finance.costing, label: "Costing" },
-            { href: ROUTES.work.myTime, label: "My Time" },
-          ]}
-        />
         <div className="stat-grid workbench-pulse">
           <StatCard label="My costing tasks" value={costingTasks.length} />
           <StatCard label="Awaiting approval" value={checkingTasks.length} />

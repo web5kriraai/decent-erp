@@ -713,14 +713,13 @@ export function getDesignWorkflowContext(input: {
   if (input.status === "APPROVAL_PENDING") {
     return {
       ...empty,
-      summary: "This design is in the management sign-off queue.",
-      currentStage: "Management sign-off chain",
+      summary: "Waiting in the management sign-off queue.",
+      currentStage: "Management sign-off",
       currentStatus: "approval pending",
-      nextAction: "Checker → Design Head → Management sign-off",
-      waitingMessage:
-        "Waiting for the next approver. If it is your level, open Quality → Approvals → Management sign-off.",
-      nextActionHint:
-        "Level 1: Sample Checker · Level 2: Design Head · Level 3: Management. Each level must approve before the next can act.",
+      // UI renders a dedicated chain + CTA — avoid repeating the same guidance three times.
+      nextAction: null,
+      waitingMessage: null,
+      nextActionHint: null,
     };
   }
 

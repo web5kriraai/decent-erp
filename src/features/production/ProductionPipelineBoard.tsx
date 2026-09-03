@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { FactoryIcon } from "lucide-react";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -36,11 +37,22 @@ function stageBadgeStatus(status: string | null): string {
   return status;
 }
 
+function shortStatus(status: string | null): string {
+  if (!status) return "—";
+  if (status === "COMPLETED") return "Done";
+  if (status === "ASSIGNED") return "Assigned";
+  if (status === "PENDING") return "Queued";
+  if (status === "RUNNING") return "Running";
+  if (status === "CHECKING") return "Checking";
+  if (status === "ON_HOLD") return "Hold";
+  return status.replace(/_/g, " ");
+}
+
 function waitingCopy(row: ApprovedDesignForProduction): string | null {
   const stages = row.ladderStages ?? [];
   if (!row.nextAction) {
     if (stages.every((s) => !s.taskId)) {
-      return "Production stages not created yet";
+      return "Stages not created yet";
     }
     if (!row.releaseReady && row.releaseMissing?.length) {
       return `Waiting: ${row.releaseMissing.slice(0, 2).join("; ")}`;
@@ -56,11 +68,13 @@ function waitingCopy(row: ApprovedDesignForProduction): string | null {
 
 function PipelineRow({
   row,
+  bucket,
   roleCode,
   permissions,
   employeeId,
 }: {
   row: ApprovedDesignForProduction;
+  bucket: ProductionDeskPipelineBucket;
   roleCode?: string | null;
   permissions: string[];
   employeeId?: number | null;
@@ -75,7 +89,12 @@ function PipelineRow({
   const waiting = waitingCopy(row);
 
   return (
-    <article className="production-desk-row">
+    <article
+      className={cn(
+        "production-desk-row",
+        `production-desk-row--${bucket === "missing_ladder" ? "missing" : bucket}`,
+      )}
+    >
       <div className="production-desk-row-main">
         <div className="production-desk-row-title-block">
           <Link href={ROUTES.designs.detail(row.id)} className="production-desk-row-ref">
@@ -91,28 +110,40 @@ function PipelineRow({
         </div>
 
         <ol className="production-desk-ladder" aria-label="Production ladder">
-          {PRODUCTION_DESK_LADDER_CODES.map((code) => {
+          {PRODUCTION_DESK_LADDER_CODES.map((code, index) => {
             const stage = stages.find((s) => s.code === code);
             const status = stage?.status ?? null;
             const done = status === "COMPLETED";
             const active = row.nextAction?.code === code;
             return (
-              <li
-                key={code}
-                className={cn(
-                  "production-desk-ladder-step",
-                  done && "production-desk-ladder-step--done",
-                  active && "production-desk-ladder-step--active",
-                  !status && "production-desk-ladder-step--missing",
-                )}
-              >
-                <span className="production-desk-ladder-label">
-                  {PRODUCTION_DESK_STAGE_LABELS[code]}
-                </span>
-                <StatusBadge
-                  status={stageBadgeStatus(status)}
-                  label={status ? status.replace(/_/g, " ") : "—"}
-                />
+              <li key={code} className="production-desk-ladder-item">
+                {index > 0 ? (
+                  <span
+                    className={cn(
+                      "production-desk-ladder-connector",
+                      done || active ? "production-desk-ladder-connector--lit" : null,
+                    )}
+                    aria-hidden
+                  />
+                ) : null}
+                <div
+                  className={cn(
+                    "production-desk-ladder-step",
+                    done && "production-desk-ladder-step--done",
+                    active && "production-desk-ladder-step--active",
+                    !status && "production-desk-ladder-step--missing",
+                  )}
+                >
+                  <span className="production-desk-ladder-index" aria-hidden>
+                    {index + 1}
+                  </span>
+                  <div className="production-desk-ladder-copy">
+                    <span className="production-desk-ladder-label">
+                      {PRODUCTION_DESK_STAGE_LABELS[code]}
+                    </span>
+                    <StatusBadge status={stageBadgeStatus(status)} label={shortStatus(status)} />
+                  </div>
+                </div>
               </li>
             );
           })}
@@ -120,10 +151,10 @@ function PipelineRow({
 
         <div className="production-desk-row-gate">
           {row.releaseReady ? (
-            <StatusBadge status="COMPLETED" label="Release gate ready" />
+            <StatusBadge status="COMPLETED" label="Gate ready" />
           ) : (
             <div>
-              <StatusBadge status="CHECKING" label="Release gate blocked" />
+              <StatusBadge status="CHECKING" label="Gate blocked" />
               {row.releaseMissing?.length ? (
                 <p className="production-desk-row-gate-detail">
                   {row.releaseMissing.slice(0, 2).join("; ")}
@@ -217,46 +248,58 @@ export function ProductionPipelineBoard({
   return (
     <AppCard
       title="Production pipeline"
-      className="stack-section"
-      description="Active designs first. Open a step only when it is assigned to you."
+      className="production-desk-pipeline-card"
+      description="Designs in handoff → instruction → release."
+      contentClassName="production-desk-card-content"
     >
       <div className="production-desk-board">
-        <div className="production-desk-filters" role="tablist" aria-label="Filter pipeline">
-          {FILTERS.map((item) => {
-            if (item.key !== "ALL" && counts[item.key] === 0) return null;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                role="tab"
-                aria-selected={filter === item.key}
-                className={cn(
-                  "production-desk-filter",
-                  filter === item.key && "production-desk-filter--active",
-                )}
-                onClick={() => setFilter(item.key)}
-              >
-                {item.label}
-                <span className="production-desk-filter-count">{counts[item.key]}</span>
-              </button>
-            );
-          })}
-        </div>
+        {designs.length > 0 ? (
+          <div className="production-desk-filters" role="tablist" aria-label="Filter pipeline">
+            {FILTERS.map((item) => {
+              if (item.key !== "ALL" && counts[item.key] === 0) return null;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === item.key}
+                  className={cn(
+                    "production-desk-filter",
+                    filter === item.key && "production-desk-filter--active",
+                  )}
+                  onClick={() => setFilter(item.key)}
+                >
+                  {item.label}
+                  <span className="production-desk-filter-count">{counts[item.key]}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         {filtered.length === 0 ? (
-          <div className="production-desk-empty">
-            <p className="production-desk-empty-title">Nothing in the production queue yet</p>
+          <div className="production-desk-empty" role="status">
+            <span className="production-desk-empty-icon" aria-hidden>
+              <FactoryIcon className="size-6" />
+            </span>
+            <p className="production-desk-empty-title">
+              {designs.length === 0
+                ? "Queue is clear"
+                : "No designs in this filter"}
+            </p>
             <p className="production-desk-empty-text">
-              Designs appear here after management approval. Complete handoff → instruction →
-              release on My Tasks.
+              {designs.length === 0
+                ? "Approved designs land here for handoff, instruction, and release on My Tasks."
+                : "Try another filter, or wait for the next stage to unlock."}
             </p>
           </div>
         ) : (
           <div className="production-desk-rows">
-            {filtered.map(({ row }) => (
+            {filtered.map(({ row, bucket }) => (
               <PipelineRow
                 key={row.id}
                 row={row}
+                bucket={bucket}
                 roleCode={roleCode}
                 permissions={permissions}
                 employeeId={employeeId}

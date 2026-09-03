@@ -1,7 +1,7 @@
 "use client";
 
 import { AppButton } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
+import { WrenchIcon } from "lucide-react";
 
 export function ProductionDeskTools({
   ensurePending,
@@ -11,26 +11,27 @@ export function ProductionDeskTools({
   onEnsureLadder: () => void;
 }) {
   return (
-    <AppCard
-      title="Desk tools"
-      className="stack-section"
-      description="Recovery actions for stuck approved designs."
-    >
-      <div className="production-desk-tools">
-        <AppButton
-          type="button"
-          appVariant="secondary"
-          size="sm"
-          disabled={ensurePending}
-          onClick={onEnsureLadder}
-        >
-          {ensurePending ? "Ensuring stages…" : "Ensure production stages"}
-        </AppButton>
-        <p className="production-desk-tools-hint">
-          Use when Spec 8-Step / custom patterns were approved but Production Handoff never
-          appeared. Adds PROD_* tasks and unlocks handoff.
-        </p>
+    <div className="production-desk-tools-bar">
+      <div className="production-desk-tools-copy">
+        <span className="production-desk-tools-icon" aria-hidden>
+          <WrenchIcon className="size-4" />
+        </span>
+        <div>
+          <p className="production-desk-tools-title">Recovery</p>
+          <p className="production-desk-tools-hint">
+            Create missing PROD_* stages for stuck approved designs.
+          </p>
+        </div>
       </div>
-    </AppCard>
+      <AppButton
+        type="button"
+        appVariant="secondary"
+        size="sm"
+        disabled={ensurePending}
+        onClick={onEnsureLadder}
+      >
+        {ensurePending ? "Ensuring…" : "Ensure production stages"}
+      </AppButton>
+    </div>
   );
 }

@@ -6,16 +6,11 @@ import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
-import {
-  WorkbenchQuickActions,
-  WorkbenchShell,
-  type WorkbenchQuickAction,
-} from "@/features/dashboard/workbench-shared";
+import { WorkbenchShell } from "@/features/dashboard/workbench-shared";
 import { IconPlus } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { canRoleSeeManagementSignOff } from "@/lib/approval-hub-rbac";
-import { canRoleAccessApprovalsHub } from "@/lib/stage-approval-rbac";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useMyTimeSummary } from "@/hooks/use-time";
@@ -47,12 +42,9 @@ export function ExecutorWorkbench() {
   const canAssign = hasPermission(permissions, PERMISSIONS.DESIGN_ASSIGN);
   const canExecute = hasPermission(permissions, PERMISSIONS.TASK_EXECUTE);
   const showManagementApprovals = canRoleSeeManagementSignOff(roleCode);
-  const showApprovalsHub = canRoleAccessApprovalsHub(roleCode);
   const canCorrections = hasPermission(permissions, PERMISSIONS.CORRECTION_RAISE);
   const canCost = hasPermission(permissions, PERMISSIONS.COST_VIEW);
   const canRelease = hasPermission(permissions, PERMISSIONS.PRODUCTION_RELEASE);
-  const canTeamTime = hasPermission(permissions, PERMISSIONS.TIME_VIEW_TEAM);
-  const canKpi = hasPermission(permissions, PERMISSIONS.KPI_ADMIN);
   const isMasterAdmin = hasPermission(permissions, PERMISSIONS.MASTER_ADMIN);
   const canViewPipeline = canCreateDesign || canAssign;
 
@@ -95,79 +87,6 @@ export function ExecutorWorkbench() {
     correctionsQuery.isError ||
     releaseQuery.isError ||
     (isMasterAdmin && adminQuery.isError);
-
-  const shortcuts: WorkbenchQuickAction[] = [];
-  if (canCreateDesign) {
-    shortcuts.push({
-      label: "New Design",
-      href: ROUTES.designs.new,
-    });
-    shortcuts.push({
-      label: "Pipeline",
-      href: ROUTES.designs.kanban,
-      badge: activeDesigns.length,
-    });
-  }
-  if (canExecute) {
-    shortcuts.push({
-      label: "My Tasks",
-      href: ROUTES.work.tasks,
-      badge: openTasks.length,
-    });
-    shortcuts.push({
-      label: "My Time",
-      href: ROUTES.work.myTime,
-    });
-  }
-  if (showApprovalsHub) {
-    shortcuts.push({
-      label: "Approvals",
-      href: `${ROUTES.quality.approvals}?tab=${showManagementApprovals ? "management" : "stage"}`,
-      badge: approvals.length,
-    });
-  }
-  if (canCorrections) {
-    shortcuts.push({
-      label: "Corrections",
-      href: ROUTES.quality.corrections,
-      badge: corrections.length,
-    });
-  }
-  if (canCost) {
-    shortcuts.push({
-      label: "Costing",
-      href: ROUTES.finance.costing,
-    });
-  }
-  if (canRelease) {
-    shortcuts.push({
-      label: "Release",
-      href: ROUTES.production.release,
-      badge: readyToRelease.length,
-    });
-  }
-  if (canTeamTime) {
-    shortcuts.push({
-      label: "Team Time",
-      href: ROUTES.admin.timeLive,
-    });
-  }
-  if (canKpi) {
-    shortcuts.push({
-      label: "KPI",
-      href: ROUTES.analytics.kpi,
-    });
-  }
-  if (isMasterAdmin) {
-    shortcuts.push({
-      label: "Employees",
-      href: ROUTES.admin.employees,
-    });
-    shortcuts.push({
-      label: "Masters",
-      href: ROUTES.admin.masters,
-    });
-  }
 
   function refetchAll() {
     if (canViewPipeline || canCost) designsQuery.refetch();
@@ -213,8 +132,6 @@ export function ExecutorWorkbench() {
       onRetry={refetchAll}
     >
         <div className="workbench-overview">
-          <WorkbenchQuickActions actions={shortcuts} />
-
           <div className="stat-grid workbench-pulse">
             {canExecute && (
               <>

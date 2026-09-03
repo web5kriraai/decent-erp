@@ -9,13 +9,10 @@ import { ROUTES } from "@/config/routes";
 import { ProductionReturnModal } from "@/features/production/ProductionReturnModal";
 import { useAcceptProductionHandoff } from "@/hooks/use-production";
 import { useProductionInbox } from "@/hooks/use-workbench";
-import { useMyTasks } from "@/hooks/use-tasks";
-import { isDashboardOpenTask } from "@/lib/task-list-filters";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
-  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 import type { ProductionInboxDesign } from "@/lib/services/production-inbox-service";
@@ -91,13 +88,11 @@ function InboxList({
 export function ProductionHeadDashboard() {
   const { data: session } = useSession();
   const inboxQuery = useProductionInbox(true);
-  const tasksQuery = useMyTasks(true);
   const acceptHandoff = useAcceptProductionHandoff();
   const [returnDesign, setReturnDesign] = useState<ProductionInboxDesign | null>(null);
   const [acceptingDesignId, setAcceptingDesignId] = useState<string | null>(null);
 
   const inbox = inboxQuery.data;
-  const openTasks = (tasksQuery.data ?? []).filter(isDashboardOpenTask);
   const firstName = session?.user?.name?.split(" ")[0] ?? "there";
 
   const counts = inbox?.counts;
@@ -121,26 +116,14 @@ export function ProductionHeadDashboard() {
           My Action Center
         </AppButtonLink>
       }
-      isLoading={inboxQuery.isLoading || tasksQuery.isLoading}
-      isError={inboxQuery.isError || tasksQuery.isError}
-      error={inboxQuery.error ?? tasksQuery.error}
+      isLoading={inboxQuery.isLoading}
+      isError={inboxQuery.isError}
+      error={inboxQuery.error}
       onRetry={() => {
         inboxQuery.refetch();
-        tasksQuery.refetch();
       }}
     >
       <div className="workbench-overview">
-        <WorkbenchQuickActions
-          actions={[
-            {
-              href: ROUTES.work.tasks,
-              label: "My Tasks",
-              badge: openTasks.length,
-            },
-            { href: ROUTES.production.release, label: "Production desk" },
-            { href: ROUTES.finance.costing, label: "Costing" },
-          ]}
-        />
         <div className="stat-grid workbench-pulse">
           <StatCard
             label="Ready for acceptance"

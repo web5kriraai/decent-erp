@@ -12,7 +12,6 @@ import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
-  WorkbenchQuickActions,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
 
@@ -74,16 +73,6 @@ export function MachineOperatorWorkbench() {
       onRetry={() => tasksQuery.refetch()}
     >
       <div className="workbench-overview">
-        <WorkbenchQuickActions
-          actions={[
-            {
-              href: ROUTES.work.tasks,
-              label: "My Tasks",
-              badge: queues.pending.length + queues.running.length + queues.rework.length,
-            },
-            { href: ROUTES.work.myTime, label: "My Time" },
-          ]}
-        />
         <div className="stat-grid workbench-pulse">
           <StatCard label="Pending sample work" value={queues.pending.length} />
           <StatCard label="Running / on hold" value={queues.running.length} />
