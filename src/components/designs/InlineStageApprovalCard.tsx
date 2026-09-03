@@ -152,26 +152,26 @@ export function InlineStageApprovalCard({
 
   return (
     <AppCard
-      className="mb-6 overflow-hidden border-2 border-primary/25 bg-gradient-to-br from-primary/5 via-card to-card shadow-sm"
+      className="mb-4"
       title={cardTitle}
       description={
         canApprove
-          ? `Review the design and record your ${stageName.toLowerCase()} decision without leaving this page.`
+          ? `Review and record your ${stageName.toLowerCase()} decision.`
           : approvalBlockedMessage
       }
       headerAction={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <StatusBadge status={approvalTask.status} />
           {workTask ? <StatusBadge status={resolveListItemDisplayStatus(workTask)} /> : null}
         </div>
       }
     >
-      <div className="space-y-5">
+      <div className="space-y-3">
         {uiConfig.showCompare ? <TaskCompareVersionsPanel designId={designId} /> : null}
 
         {uiConfig.showGallery ? (
           <div>
-            <p className="mb-2 text-sm font-medium text-foreground">Design files to review</p>
+            <p className="mb-1.5 text-sm font-medium text-foreground">Design files to review</p>
             <ImageGallery designId={designId} canUpload={false} />
           </div>
         ) : null}
@@ -182,19 +182,18 @@ export function InlineStageApprovalCard({
           value={remark}
           onChange={(e) => setRemark(e.target.value)}
           placeholder="Add approval notes or feedback…"
-          rows={3}
+          rows={2}
         />
 
-        <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+        <div className="flex flex-wrap gap-2 border-t border-border pt-3">
           {showApprove ? (
             <AppButton
               type="button"
               appVariant="primary"
-              size="lg"
+              size="sm"
               disabled={busy || !canApprove}
               title={!canApprove ? approvalBlockedMessage : undefined}
               onClick={handleApprove}
-              className="min-w-[10rem]"
             >
               <CheckCircle2Icon className="size-4" aria-hidden />
               Approve {stageName.toLowerCase()}
@@ -204,7 +203,7 @@ export function InlineStageApprovalCard({
             <AppButton
               type="button"
               appVariant="outline"
-              size="lg"
+              size="sm"
               disabled={busy || !canApprove || !remark.trim()}
               onClick={handleSendBack}
             >
@@ -216,7 +215,7 @@ export function InlineStageApprovalCard({
             <AppButton
               type="button"
               appVariant="danger"
-              size="lg"
+              size="sm"
               disabled={busy || !canApprove || !remark.trim()}
               onClick={handleReject}
             >

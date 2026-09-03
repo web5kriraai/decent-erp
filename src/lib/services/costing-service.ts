@@ -2,9 +2,13 @@ import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { ApiError } from "@/lib/api-utils";
 import type { Prisma } from "@prisma/client";
+import {
+  COST_ENTRY_TYPES,
+  type CostType,
+} from "@/lib/services/costing-end-utils";
 
-const COST_TYPES = ["TIME", "MATERIAL", "MACHINE", "CORRECTION"] as const;
-export type CostType = (typeof COST_TYPES)[number];
+export const COST_TYPES = COST_ENTRY_TYPES;
+export type { CostType };
 
 export function isValidCostType(type: string): type is CostType {
   return COST_TYPES.includes(type as CostType);
@@ -59,11 +63,20 @@ export async function getCostSummary(designId: bigint) {
   };
 }
 
-export async function addCostEntry(
+export type CostEntryCreateInput = {
+  costType: CostType;
+  description?: string;
+  amount: number;
+};
+
+/** Create a DesignCost row inside an existing transaction (shared by Finance API and task end). */
+export async function createCostEntryInTx(
+  tx: Prisma.TransactionClient,
   designId: bigint,
-  input: { costType: CostType; description?: string; amount: number },
+  input: CostEntryCreateInput,
   enteredById: number,
   correlationId: string,
+  options?: { skipDesignCheck?: boolean },
 ) {
   if (!isValidCostType(input.costType)) {
     throw new ApiError("Invalid cost type", 400);
@@ -72,33 +85,47 @@ export async function addCostEntry(
     throw new ApiError("Cost amount must be greater than zero", 422);
   }
 
-  const design = await prisma.designConcept.findUnique({ where: { id: designId } });
-  if (!design) throw new ApiError("Design not found", 404);
+  if (!options?.skipDesignCheck) {
+    const design = await tx.designConcept.findUnique({
+      where: { id: designId },
+      select: { id: true },
+    });
+    if (!design) throw new ApiError("Design not found", 404);
+  }
 
+  const cost = await tx.designCost.create({
+    data: {
+      designId,
+      costType: input.costType,
+      description: input.description,
+      amount: input.amount,
+      enteredById,
+    },
+    include: {
+      enteredBy: { select: { id: true, name: true, employeeCode: true } },
+    },
+  });
+
+  await writeAuditLog(tx, {
+    entityType: "DesignCost",
+    entityId: cost.id.toString(),
+    action: "CREATE",
+    userId: enteredById,
+    correlationId,
+    after: cost,
+  });
+
+  return cost;
+}
+
+export async function addCostEntry(
+  designId: bigint,
+  input: CostEntryCreateInput,
+  enteredById: number,
+  correlationId: string,
+) {
   return prisma.$transaction(async (tx) => {
-    const cost = await tx.designCost.create({
-      data: {
-        designId,
-        costType: input.costType,
-        description: input.description,
-        amount: input.amount,
-        enteredById,
-      },
-      include: {
-        enteredBy: { select: { id: true, name: true, employeeCode: true } },
-      },
-    });
-
-    await writeAuditLog(tx, {
-      entityType: "DesignCost",
-      entityId: cost.id.toString(),
-      action: "CREATE",
-      userId: enteredById,
-      correlationId,
-      after: cost,
-    });
-
-    return cost;
+    return createCostEntryInTx(tx, designId, input, enteredById, correlationId);
   });
 }
 

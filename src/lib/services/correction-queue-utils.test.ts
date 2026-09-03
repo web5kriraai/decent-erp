@@ -1,55 +1,49 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildCorrectionScopeForEmployee,
-  correctionVisibleToEmployee,
+  CORRECTION_WORKFLOW_STATUSES,
+  getAllowedCorrectionStatusOptions,
+  isOpenCorrectionStatus,
+  isRoutedReworkSatisfied,
+  normalizeCorrectionStatus,
 } from "@/lib/services/correction-queue-utils";
 
-describe("correctionVisibleToEmployee", () => {
-  it("allows the responsible employee", () => {
-    expect(
-      correctionVisibleToEmployee(
-        { responsibleEmployeeId: 5, raisedById: 2, task: { assignedEmployeeId: 3 } },
-        5,
-      ),
-    ).toBe(true);
+describe("correction workflow statuses", () => {
+  it("exposes only product lifecycle statuses for the Corrections UI", () => {
+    expect([...CORRECTION_WORKFLOW_STATUSES]).toEqual([
+      "OPEN",
+      "IN_PROGRESS",
+      "DONE",
+      "REJECTED",
+    ]);
   });
 
-  it("allows the employee who raised the correction", () => {
-    expect(
-      correctionVisibleToEmployee(
-        { responsibleEmployeeId: null, raisedById: 2, task: { assignedEmployeeId: 3 } },
-        2,
-      ),
-    ).toBe(true);
+  it("maps legacy ASSIGNED/CHECKING correction statuses to IN_PROGRESS", () => {
+    expect(normalizeCorrectionStatus("ASSIGNED")).toBe("IN_PROGRESS");
+    expect(normalizeCorrectionStatus("CHECKING")).toBe("IN_PROGRESS");
+    expect(normalizeCorrectionStatus("OPEN")).toBe("OPEN");
+    expect(normalizeCorrectionStatus("DONE")).toBe("DONE");
   });
 
-  it("allows the source task assignee", () => {
-    expect(
-      correctionVisibleToEmployee(
-        { responsibleEmployeeId: null, raisedById: 9, task: { assignedEmployeeId: 3 } },
-        3,
-      ),
-    ).toBe(true);
+  it("treats legacy aliases as still open", () => {
+    expect(isOpenCorrectionStatus("ASSIGNED")).toBe(true);
+    expect(isOpenCorrectionStatus("CHECKING")).toBe(true);
+    expect(isOpenCorrectionStatus("DONE")).toBe(false);
   });
 
-  it("denies unrelated employees", () => {
-    expect(
-      correctionVisibleToEmployee(
-        { responsibleEmployeeId: 5, raisedById: 2, task: { assignedEmployeeId: 3 } },
-        99,
-      ),
-    ).toBe(false);
+  it("treats CHECKING routed rework as satisfied for re-check", () => {
+    expect(isRoutedReworkSatisfied("CHECKING")).toBe(true);
+    expect(isRoutedReworkSatisfied("COMPLETED")).toBe(true);
+    expect(isRoutedReworkSatisfied("CORRECTION_REQUIRED")).toBe(false);
+    expect(isRoutedReworkSatisfied("ASSIGNED")).toBe(false);
   });
-});
 
-describe("buildCorrectionScopeForEmployee", () => {
-  it("scopes by responsibility, raised-by, and source task assignee", () => {
-    expect(buildCorrectionScopeForEmployee(7)).toEqual({
-      OR: [
-        { responsibleEmployeeId: 7 },
-        { raisedById: 7 },
-        { task: { assignedEmployeeId: 7 } },
-      ],
-    });
+  it.each([
+    { status: "OPEN", expected: ["OPEN", "IN_PROGRESS", "DONE", "REJECTED"] },
+    { status: "IN_PROGRESS", expected: ["IN_PROGRESS", "DONE", "REJECTED"] },
+    { status: "ASSIGNED", expected: ["IN_PROGRESS", "DONE", "REJECTED"] },
+    { status: "DONE", expected: ["DONE"] },
+    { status: "REJECTED", expected: ["REJECTED"] },
+  ])("limits status options for $status", ({ status, expected }) => {
+    expect(getAllowedCorrectionStatusOptions(status)).toEqual(expected);
   });
 });

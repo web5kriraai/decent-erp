@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
-import { useRequestDesignApproval } from "@/hooks/use-approvals";
+import { RequestSignOffModal } from "@/components/approvals/RequestSignOffModal";
 import { resolveDesignContextActions } from "@/lib/workflow-actions";
 import type { DesignSummary } from "@/lib/types/api";
 import type { ResolvedWorkflowAction } from "@/lib/workflow-actions/types";
@@ -34,8 +34,8 @@ export function CompactDesignActions({
   onAssignTask,
   className,
 }: CompactDesignActionsProps) {
-  const requestApproval = useRequestDesignApproval();
   const [disabledHint, setDisabledHint] = useState<string | null>(null);
+  const [signOffOpen, setSignOffOpen] = useState(false);
 
   const actions = useMemo(
     () =>
@@ -59,7 +59,7 @@ export function CompactDesignActions({
       return;
     }
     if (action.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL) {
-      requestApproval.mutate(design.id);
+      setSignOffOpen(true);
       return;
     }
     if (action.code === WORKFLOW_ACTION_CODES.ASSIGN_TASK && action.taskId && onAssignTask) {
@@ -89,9 +89,6 @@ export function CompactDesignActions({
               type="button"
               size="sm"
               appVariant={appVariantForAction(action.variant)}
-              disabled={
-                action.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL && requestApproval.isPending
-              }
               onClick={() => handleAction(action)}
             >
               {action.label}
@@ -117,6 +114,15 @@ export function CompactDesignActions({
           {disabledHint}
         </p>
       ) : null}
+      <RequestSignOffModal
+        open={signOffOpen}
+        designId={design.id}
+        ideaRef={design.ideaRef}
+        onClose={() => setSignOffOpen(false)}
+        onSuccess={() => {
+          setDisabledHint(null);
+        }}
+      />
     </div>
   );
 }

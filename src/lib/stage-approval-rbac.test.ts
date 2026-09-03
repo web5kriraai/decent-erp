@@ -64,10 +64,11 @@ describe("stage-approval-rbac", () => {
     expect(canRoleAccessApprovalsHub(ROLE_CODES.PUNCHING_DESIGNER)).toBe(false);
     expect(getApprovalHubTabsForRole(ROLE_CODES.ADMIN)).toEqual({
       stage: true,
-      ready: true,
+      ready: false,
       management: true,
     });
     expect(canRoleAccessApprovalsHub(ROLE_CODES.ADMIN)).toBe(true);
+    expect(canRoleSeeReadyForSignOff(ROLE_CODES.ADMIN)).toBe(false);
   });
 });
 

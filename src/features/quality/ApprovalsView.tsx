@@ -9,10 +9,7 @@ import { DataTable } from "@/components/DataTable";
 import {
   Modal,
   ModalFooterActions,
-  ModalForm,
 } from "@/components/ui/Modal";
-import { FormSelect } from "@/components/ui/form-select";
-import { FormTextArea } from "@/components/ui/form-text-area";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -24,11 +21,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
 import {
   useApprovalsHub,
-  useRequestDesignApproval,
   useSubmitApproval,
   type PendingApprovalItem,
 } from "@/hooks/use-approvals";
+import { useEmployeeOptions } from "@/hooks/use-corrections";
 import { canRoleAccessApprovalsHub, getApprovalHubTabsForRole } from "@/lib/stage-approval-rbac";
+import { resolveApprovalContextActions, WORKFLOW_ACTION_CODES } from "@/lib/workflow-actions";
+import { parseApprovalRequestPackage } from "@/lib/approval-request-package";
+import {
+  ApprovalDecisionForm,
+  defaultApprovalDecisionFormState,
+  isApprovalDecisionFormValid,
+  type ApprovalDecisionFormState,
+} from "@/components/approvals/ApprovalDecisionForm";
+import { RequestSignOffModal } from "@/components/approvals/RequestSignOffModal";
 
 type ApprovalTab = "stage" | "ready" | "management";
 
@@ -55,19 +61,55 @@ export function ApprovalsView() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const roleCode = session?.user?.roleCode;
+  const permissions = session?.user?.permissions ?? [];
   const hubTabs = getApprovalHubTabsForRole(roleCode);
   const canAccessHub = canRoleAccessApprovalsHub(roleCode);
 
   const hubQuery = useApprovalsHub(canAccessHub);
   const submitApproval = useSubmitApproval();
-  const requestApproval = useRequestDesignApproval();
+  const employeesQuery = useEmployeeOptions(canAccessHub);
 
   const [selected, setSelected] = useState<PendingApprovalItem | null>(null);
-  const [decision, setDecision] = useState<"APPROVED" | "REJECTED" | "CORRECTION_REQUIRED">(
-    "APPROVED",
+  const [formState, setFormState] = useState<ApprovalDecisionFormState>(
+    defaultApprovalDecisionFormState(),
   );
-  const [remark, setRemark] = useState("");
-  const [requestingDesignId, setRequestingDesignId] = useState<string | null>(null);
+  const [signOffDesign, setSignOffDesign] = useState<{ id: string; ideaRef: string } | null>(null);
+
+  const selectedApprovalActions = useMemo(
+    () =>
+      selected
+        ? resolveApprovalContextActions({
+            permissions,
+            roleCode,
+            canAccessHub,
+            approval: {
+              designId: selected.designId,
+              costingReady: selected.costingReady,
+              levelName: selected.currentLevel.name,
+            },
+          })
+        : [],
+    [canAccessHub, permissions, roleCode, selected],
+  );
+
+  const decisionOptions = useMemo(() => {
+    const options: Array<{ value: "APPROVED" | "REJECTED" | "CORRECTION_REQUIRED"; label: string }> =
+      [];
+    if (selectedApprovalActions.some((a) => a.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL)) {
+      options.push({ value: "APPROVED", label: "Approve" });
+    }
+    if (selectedApprovalActions.some((a) => a.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL)) {
+      options.push({ value: "REJECTED", label: "Reject" });
+    }
+    if (
+      selectedApprovalActions.some(
+        (a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL_CORRECTION,
+      )
+    ) {
+      options.push({ value: "CORRECTION_REQUIRED", label: "Send for Correction" });
+    }
+    return options;
+  }, [selectedApprovalActions]);
 
   const stageItems = hubQuery.data?.stageApprovals ?? [];
   const readyItems = hubQuery.data?.readyForSignOff ?? [];
@@ -121,20 +163,26 @@ export function ApprovalsView() {
 
   async function handleSubmit() {
     if (!selected) return;
-    if (decision !== "APPROVED" && !remark.trim()) return;
-    if (decision === "APPROVED" && selected.costingReady === false) return;
+    if (!isApprovalDecisionFormValid(formState, selected.costingReady)) return;
 
     const designId = selected.designId;
     const result = await submitApproval.mutateAsync({
       designId,
       taskId: selected.task?.id,
       approvalLevelId: selected.currentLevel.id,
-      decision,
-      remark: remark.trim() || undefined,
+      decision: formState.decision,
+      remark: formState.remark.trim() || undefined,
+      correctionType:
+        formState.decision === "CORRECTION_REQUIRED" ? formState.correctionType : undefined,
+      routeSubProcessCode:
+        formState.decision === "CORRECTION_REQUIRED" ? formState.routeSubProcessCode : undefined,
+      responsibleEmployeeId:
+        formState.decision === "CORRECTION_REQUIRED" && formState.responsibleEmployeeId
+          ? Number(formState.responsibleEmployeeId)
+          : undefined,
     });
 
-    setRemark("");
-    setDecision("APPROVED");
+    setFormState(defaultApprovalDecisionFormState());
 
     if (result.nextLevel && !result.chainComplete) {
       const refreshed = await hubQuery.refetch();
@@ -146,16 +194,6 @@ export function ApprovalsView() {
     }
 
     setSelected(null);
-  }
-
-  async function handleRequestApproval(designId: string) {
-    setRequestingDesignId(designId);
-    try {
-      await requestApproval.mutateAsync(designId);
-      if (hubTabs.management) setActiveTab("management");
-    } finally {
-      setRequestingDesignId(null);
-    }
   }
 
   const isLoading = hubQuery.isLoading;
@@ -285,15 +323,10 @@ export function ApprovalsView() {
                         <TableIconActionGroup>
                           <TableIconAction
                             action="requestApproval"
-                            disabled={
-                              requestApproval.isPending && requestingDesignId === row.designId
+                            label="Request Management Sign-off"
+                            onClick={() =>
+                              setSignOffDesign({ id: row.designId, ideaRef: row.ideaRef })
                             }
-                            label={
-                              requestApproval.isPending && requestingDesignId === row.designId
-                                ? "Submitting…"
-                                : "Request approval"
-                            }
-                            onClick={() => handleRequestApproval(row.designId)}
                           />
                         </TableIconActionGroup>
                       ),
@@ -302,7 +335,7 @@ export function ApprovalsView() {
                   rows={readyItems}
                   getRowKey={(row) => row.designId}
                   emptyTitle="No designs ready for sign-off"
-                  emptyDescription="When all workflow stages are complete, designs appear here so you can submit them to the management approval chain."
+                  emptyDescription="Only Design Head can request management sign-off. When all workflow stages are complete, designs appear here."
                 />
               </AppCard>
             </TabsContent>
@@ -350,8 +383,7 @@ export function ApprovalsView() {
                             action="review"
                             onClick={() => {
                               setSelected(row);
-                              setDecision("APPROVED");
-                              setRemark("");
+                              setFormState(defaultApprovalDecisionFormState());
                             }}
                           />
                         </TableIconActionGroup>
@@ -371,10 +403,10 @@ export function ApprovalsView() {
 
       <Modal
         open={!!selected}
-        title={selected ? `Approve ${selected.design.ideaRef}` : "Approval"}
+        title={selected ? `Decide ${selected.design.ideaRef}` : "Approval"}
         description={
           selected
-            ? `Review and submit your decision for approval level: ${selected.currentLevel.name}.`
+            ? `Review the requester package and submit your decision for ${selected.currentLevel.name}.`
             : undefined
         }
         onClose={() => setSelected(null)}
@@ -388,55 +420,44 @@ export function ApprovalsView() {
               appVariant="primary"
               disabled={
                 submitApproval.isPending ||
-                (decision !== "APPROVED" && !remark.trim()) ||
-                (decision === "APPROVED" && selected?.costingReady === false)
+                decisionOptions.length === 0 ||
+                !selected ||
+                !isApprovalDecisionFormValid(formState, selected.costingReady)
               }
-              onClick={handleSubmit}
+              onClick={() => void handleSubmit()}
             >
               {submitApproval.isPending ? "Submitting…" : "Submit Decision"}
             </AppButton>
           </ModalFooterActions>
         }
       >
-        {selected && (
-          <ModalForm>
-            {selected.costingReady === false && decision === "APPROVED" ? (
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="alert">
-                Final management approval needs costing first. Add at least one cost entry on{" "}
-                <Link href={ROUTES.finance.costing} className="font-medium underline">
-                  Finance → Costing
-                </Link>
-                , then return here to approve.
-              </p>
-            ) : null}
-            <FormSelect
-              id="approvalDecision"
-              label="Decision"
-              required
-              value={decision}
-              onValueChange={(v) => setDecision(v as typeof decision)}
-              options={[
-                { value: "APPROVED", label: "Approve" },
-                { value: "REJECTED", label: "Reject" },
-                { value: "CORRECTION_REQUIRED", label: "Send for Correction" },
-              ]}
-            />
-            <FormTextArea
-              id="approvalRemark"
-              label="Remark"
-              rows={3}
-              required={decision !== "APPROVED"}
-              value={remark}
-              onChange={(e) => setRemark(e.target.value)}
-              placeholder={
-                decision === "APPROVED"
-                  ? "Optional notes for the design team…"
-                  : "Required — explain why this was rejected or sent back…"
-              }
-            />
-          </ModalForm>
-        )}
+        {selected ? (
+          <ApprovalDecisionForm
+            designId={selected.designId}
+            requestPackage={parseApprovalRequestPackage(selected.approvalRequestPackage)}
+            costingReady={selected.costingReady}
+            decisionOptions={decisionOptions}
+            state={formState}
+            onChange={setFormState}
+            stageAssignees={selected.stageAssignees}
+            employeeOptions={(employeesQuery.data ?? []).map((e) => ({
+              id: e.id,
+              name: e.name,
+            }))}
+            nextLevelName={selected.nextLevelName}
+          />
+        ) : null}
       </Modal>
+
+      <RequestSignOffModal
+        open={!!signOffDesign}
+        designId={signOffDesign?.id ?? ""}
+        ideaRef={signOffDesign?.ideaRef}
+        onClose={() => setSignOffDesign(null)}
+        onSuccess={() => {
+          if (hubTabs.management) setActiveTab("management");
+        }}
+      />
     </div>
   );
 }

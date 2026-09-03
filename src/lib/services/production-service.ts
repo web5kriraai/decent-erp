@@ -86,7 +86,13 @@ export async function releaseToProduction(
       );
     }
 
-    const design = await tx.designConcept.findUnique({ where: { id: designId } });
+    const design = await tx.designConcept.findUnique({
+      where: { id: designId },
+      include: {
+        productType: { select: { name: true } },
+        season: { select: { name: true } },
+      },
+    });
     if (!design) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
     if (design.status !== "APPROVED" && design.status !== "PRODUCTION_ACCEPTED") {
       throw businessRule(
@@ -113,6 +119,18 @@ export async function releaseToProduction(
       },
     });
 
+    const handoffPayload = {
+      contractVersion: 1,
+      sourceModule: "DESIGN_MANAGEMENT",
+      designId: designId.toString(),
+      ideaRef: design.ideaRef,
+      collectionName: design.collectionName,
+      productTypeId: design.productTypeId,
+      productTypeName: design.productType?.name ?? null,
+      seasonId: design.seasonId,
+      seasonName: design.season?.name ?? null,
+    };
+
     for (const erpModule of ERP_HANDOFF_MODULES) {
       await tx.productionHandoff.create({
         data: {
@@ -121,11 +139,7 @@ export async function releaseToProduction(
           erpModule,
           status: "QUEUED",
           releasedById: actorId,
-          payload: {
-            ideaRef: design.ideaRef,
-            collectionName: design.collectionName,
-            productTypeId: design.productTypeId,
-          },
+          payload: handoffPayload,
         },
       });
     }
@@ -147,8 +161,12 @@ export async function releaseToProduction(
       { designId: design.id.toString(), ideaRef: design.ideaRef, designNumber: design.designNumber },
       correlationId,
     );
-    const { syncPrimaryErpModules } = await import("@/lib/services/erp-handoff-service");
-    await syncPrimaryErpModules(design.id, actorId, correlationId);
+    const { syncAllErpModules } = await import("@/lib/services/erp-handoff-service");
+    const { seedErpStagesForDesign } = await import("@/lib/services/erp-stage-service");
+    if (design.designNumber) {
+      await seedErpStagesForDesign(design.id, design.designNumber, actorId, correlationId);
+    }
+    await syncAllErpModules(design.id, actorId, correlationId);
     return design;
   });
 }

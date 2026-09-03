@@ -10,6 +10,7 @@ type ContextualActionsPanelProps = {
   actions: ResolvedWorkflowAction[];
   className?: string;
   onAction?: (action: ResolvedWorkflowAction) => void;
+  /** When true, show state-blocked actions with reasons. Permission-denied actions must be omitted by the resolver. */
   showDisabled?: boolean;
 };
 
@@ -31,7 +32,11 @@ export function ContextualActionsPanel({
   if (actions.length === 0) return null;
 
   const enabled = actions.filter((a) => a.enabled);
-  const disabled = showDisabled ? actions.filter((a) => !a.enabled && a.disabledReason) : [];
+  const disabled = showDisabled
+    ? actions.filter((a) => !a.enabled && a.disabledReason)
+    : [];
+
+  if (enabled.length === 0 && disabled.length === 0) return null;
 
   return (
     <div className={cn("contextual-actions-panel", className)}>

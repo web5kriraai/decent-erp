@@ -148,29 +148,37 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
   [ROLE_CODES.ADMIN]: {
     code: ROLE_CODES.ADMIN,
     displayName: "System Admin",
-    summary: "Full system configuration, masters, and role permission management.",
+    summary:
+      "System operator — masters, roles, and configuration. Does not own Design Head sign-off requests.",
     responsibilities: [
       "Maintain process masters and workflow patterns",
       "Configure hold reasons and KPI definitions",
       "Manage role permissions and audit all admin actions",
       "Monitor live team time and full analytics",
+      "Oversee Approvals hub (stage + management) without requesting management sign-off",
     ],
-    restrictions: ["All admin actions are audited"],
+    restrictions: [
+      "All admin actions are audited",
+      "Cannot request management sign-off — that is Design Head only",
+    ],
     permissions: Object.values(PERMISSIONS),
     navFocus: ["All modules"],
   },
   [ROLE_CODES.MANAGEMENT]: {
     code: ROLE_CODES.MANAGEMENT,
-    displayName: "Management",
-    summary: "Executive oversight - approvals, analytics, and release decisions.",
+    displayName: "Management (Owner)",
+    summary:
+      "Business owner / executive sign-off — final management approval, analytics, and release oversight.",
     responsibilities: [
-      "Final approval on critical design stages",
+      "Act on MANAGEMENT_APPROVAL level in the management chain",
       "View KPI, team time reports, and costing summaries",
-      "Authorize production release at management level",
+      "Authorize production release visibility at management level",
+      "Mark designs live after production release when required",
     ],
     restrictions: [
-      "Operational edits restricted - read and approve focus",
+      "Operational edits restricted — read and approve focus",
       "No process master configuration",
+      "Does not create designs or request management sign-off (Design Head does)",
     ],
     permissions: [
       PERMISSIONS.DESIGN_APPROVE,

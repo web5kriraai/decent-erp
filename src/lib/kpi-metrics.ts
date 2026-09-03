@@ -23,5 +23,6 @@ export const ERP_HANDOFF_MODULES = [
   "FINISHING",
   "READY_STOCK",
   "SALES",
+  "SALES_RETURN",
   "ACCOUNTS",
 ] as const;

@@ -117,7 +117,7 @@ export function TaskMachineOutputPanel({
   }
 
   const body = (
-    <div className={cn("grid gap-4", compact ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4")}>
+    <div className={cn("grid gap-3", compact ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4")}>
       <FormTextField
         id={`machine-stitch-${taskId}`}
         label="Stitch count"
@@ -171,12 +171,7 @@ export function TaskMachineOutputPanel({
   );
 
   if (compact) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm font-medium text-foreground">Machine output metrics</p>
-        {body}
-      </div>
-    );
+    return <div className="space-y-2">{body}</div>;
   }
 
   return (

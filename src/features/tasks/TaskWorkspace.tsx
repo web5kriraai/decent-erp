@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Eye } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -24,6 +25,11 @@ import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
 import { computeElapsedSeconds } from "@/lib/types/api";
 import { groupActionCenterTasks } from "@/lib/task-priority";
+import { resolveTaskContextActions, WORKFLOW_ACTION_CODES } from "@/lib/workflow-actions";
+import {
+  getTaskEndDialogConfig,
+  getTaskHoldDialogConfig,
+} from "@/lib/task-dialog-config";
 
 const KANBAN_COLUMNS = [
   ["READY", "Ready to Start"],
@@ -97,6 +103,7 @@ function TaskList({
 }
 
 export function TaskWorkspace() {
+  const router = useRouter();
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
@@ -118,6 +125,9 @@ export function TaskWorkspace() {
   const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [checklistNote, setChecklistNote] = useState("");
   const [sampleOutcome, setSampleOutcome] = useState<"APPROVE" | "REJECT" | "RESAMPLE" | "">("");
+  const [costEntries, setCostEntries] = useState<
+    Array<{ costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION"; description?: string; amount: number }>
+  >([]);
 
   const center = centerQuery.data;
   const selectedTask = (center?.actionRequired ?? []).find((t) => t.id === selectedTaskId) ?? null;
@@ -126,8 +136,48 @@ export function TaskWorkspace() {
   const activeTask = runningTask ?? onHoldTask ?? selectedTask;
   const isTimerActive = !!(runningTask || onHoldTask);
 
+  const timerActions = useMemo(() => {
+    if (!activeTask || !isTimerActive) return [];
+    return resolveTaskContextActions({
+      task: {
+        id: activeTask.id,
+        designId: activeTask.design?.id ?? "",
+        status: activeTask.status,
+        sequence: activeTask.sequence,
+        dependencySequence: activeTask.dependencySequence ?? null,
+        assignedEmployeeId: activeTask.assignedEmployeeId ?? null,
+        subProcess: activeTask.subProcess,
+      },
+      isAssignee: true,
+      permissions,
+    });
+  }, [activeTask, isTimerActive, permissions]);
+
+  const canHold = timerActions.some((a) => a.code === WORKFLOW_ACTION_CODES.HOLD_TASK && a.enabled);
+  const canResume = timerActions.some(
+    (a) => a.code === WORKFLOW_ACTION_CODES.RESUME_TASK && a.enabled,
+  );
+  const canEnd = timerActions.some((a) => a.code === WORKFLOW_ACTION_CODES.END_TASK && a.enabled);
+
   const fileRequired = !!activeTask?.subProcess?.isFileRequired;
   const isSampleCheck = activeTask?.subProcess?.code === "SAMPLE_CHECK";
+  const holdDialogConfig = activeTask
+    ? getTaskHoldDialogConfig({
+        status: activeTask.status,
+        subProcess: activeTask.subProcess,
+        design: activeTask.design,
+      })
+    : null;
+  const endDialogConfig = activeTask
+    ? getTaskEndDialogConfig(
+        {
+          status: activeTask.status,
+          subProcess: activeTask.subProcess,
+          design: activeTask.design,
+        },
+        session?.user?.roleCode,
+      )
+    : null;
 
   const elapsedSeconds = activeTask?.timeEvents
     ? computeElapsedSeconds(activeTask.timeEvents)
@@ -172,6 +222,10 @@ export function TaskWorkspace() {
     if (!task.canStart) return;
     setSelectedTaskId(task.id);
     await start.mutateAsync(task.id);
+    const designId = task.design?.id ?? task.designId;
+    if (designId) {
+      router.push(ROUTES.designs.detail(designId));
+    }
   }
 
   async function handleHoldSubmit() {
@@ -189,6 +243,7 @@ export function TaskWorkspace() {
   async function handleEndSubmit() {
     if (!activeTask || !endRemark.trim()) return;
     if (isSampleCheck && !sampleOutcome) return;
+    const isCosting = activeTask.subProcess?.code === "COSTING";
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -208,18 +263,22 @@ export function TaskWorkspace() {
         ? sampleOutcome === "REJECT"
           ? "CHECKING"
           : "COMPLETED"
-        : endStatus,
+        : isCosting || endDialogConfig?.forceChecking
+          ? "CHECKING"
+          : endStatus,
       checklist: checklist.length
         ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
         : undefined,
       checklistNote: note,
       sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+      costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
     });
     setEndModalOpen(false);
     setEndRemark("");
     setChecklistResults({});
     setChecklistNote("");
     setSampleOutcome("");
+    setCostEntries([]);
     setSelectedTaskId(null);
   }
 
@@ -295,21 +354,27 @@ export function TaskWorkspace() {
                     : undefined
                 }
                 onHold={
-                  runningTask
+                  canHold && runningTask
                     ? () => {
                         setHoldModalOpen(true);
                         setHoldReasonId("");
                       }
                     : undefined
                 }
-                onResume={onHoldTask ? () => resume.mutate({ taskId: activeTask!.id, version: activeTask!.version }) : undefined}
+                onResume={
+                  canResume && onHoldTask
+                    ? () => resume.mutate({ taskId: activeTask!.id, version: activeTask!.version })
+                    : undefined
+                }
                 onEnd={
-                  runningTask || onHoldTask
+                  canEnd && (runningTask || onHoldTask)
                     ? () => {
                         setEndModalOpen(true);
                         setEndRemark("");
                         setChecklistNote("");
                         setSampleOutcome("");
+                        setChecklistResults({});
+                        setEndStatus("CHECKING");
                       }
                     : undefined
                 }
@@ -429,11 +494,17 @@ export function TaskWorkspace() {
         onHoldRemarkChange={setHoldRemark}
         onSubmit={handleHoldSubmit}
         isPending={hold.isPending}
+        title={holdDialogConfig?.title}
+        description={holdDialogConfig?.description}
+        preferredHoldReasonCodes={holdDialogConfig?.preferredHoldReasonCodes}
       />
 
       <TaskEndDialog
         open={endModalOpen}
-        onClose={() => setEndModalOpen(false)}
+        onClose={() => {
+          setEndModalOpen(false);
+          setCostEntries([]);
+        }}
         endStatus={endStatus}
         onEndStatusChange={setEndStatus}
         endRemark={endRemark}
@@ -445,14 +516,19 @@ export function TaskWorkspace() {
         }
         checklistNote={checklistNote}
         onChecklistNoteChange={setChecklistNote}
-        fileRequired={fileRequired}
+        fileRequired={endDialogConfig?.fileRequired ?? fileRequired}
         taskId={activeTask?.id}
         designId={activeTask?.design.id}
         subProcessCode={activeTask?.subProcess.code}
         subProcessName={activeTask?.subProcess.name}
-        isSampleCheck={isSampleCheck}
+        isSampleCheck={endDialogConfig?.showSampleOutcomes ?? isSampleCheck}
         sampleOutcome={sampleOutcome || undefined}
         onSampleOutcomeChange={setSampleOutcome}
+        gateForcesChecking={endDialogConfig?.forceChecking}
+        dialogTitle={endDialogConfig?.title}
+        dialogDescription={endDialogConfig?.description}
+        costEntries={costEntries}
+        onCostEntriesChange={setCostEntries}
         onSubmit={handleEndSubmit}
         isPending={end.isPending}
       />

@@ -62,6 +62,7 @@ export const ROUTES = {
   },
   production: {
     release: "/production/release",
+    erpChain: "/production/erp",
   },
 } as const;
 
@@ -239,6 +240,13 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: IconProduction,
         permission: PERMISSIONS.PRODUCTION_RELEASE,
       },
+      {
+        id: "production-erp",
+        label: "ERP Chain",
+        href: ROUTES.production.erpChain,
+        icon: IconProduction,
+        permission: PERMISSIONS.PRODUCTION_RELEASE,
+      },
     ],
   },
   {
@@ -386,6 +394,10 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   [ROUTES.production.release]: [
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Production Release" },
+  ],
+  [ROUTES.production.erpChain]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "ERP Chain" },
   ],
 };
 

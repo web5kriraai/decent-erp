@@ -137,6 +137,7 @@ model Employee {
   taskArtifacts        TaskArtifact[]
   productionHandoffs   ProductionHandoff[]
   notifications        EmployeeNotification[]
+  erpStagesCompleted   ErpStageRecord[] @relation("ErpStageCompletedBy")
 
   @@map("employees")
 }
@@ -397,6 +398,8 @@ model DesignConcept {
   currentStage         String?      @map("current_stage")
   status               DesignStatus @default(DRAFT)
   workflowPatternId    Int?         @map("workflow_pattern_id")
+  /** Design Head management sign-off request package (remark + snapshot). */
+  approvalRequestPackage Json?      @map("approval_request_package")
   createdById          Int          @map("created_by")
   createdAtUtc         DateTime     @default(now()) @map("created_at_utc")
   updatedAtUtc         DateTime     @updatedAt @map("updated_at_utc")
@@ -417,6 +420,7 @@ model DesignConcept {
   costs            DesignCost[]
   productionHandoffs ProductionHandoff[]
   successMetrics   DesignSuccessMetric[]
+  erpStages        ErpStageRecord[]
 
   @@index([status, priority])
   @@map("design_concepts")
@@ -801,4 +805,33 @@ model DesignSuccessMetric {
 
   @@unique([designId, periodYear, periodMonth])
   @@map("design_success_metrics")
+}
+
+/// In-app operational ERP chain (Phase F): one row per design × module.
+model ErpStageRecord {
+  id             BigInt    @id @default(autoincrement()) @map("stage_id")
+  designId       BigInt    @map("design_id")
+  designNumber   String    @map("design_number")
+  erpModule      String    @map("erp_module")
+  sequence       Int
+  status         String    @default("PENDING")
+  qty            Int       @default(0)
+  wastageQty     Int       @default(0) @map("wastage_qty")
+  amount         Decimal   @default(0) @db.Decimal(18, 2)
+  lotRef         String?   @map("lot_ref")
+  invoiceRef     String?   @map("invoice_ref")
+  remark         String?   @db.Text
+  startedAtUtc   DateTime? @map("started_at_utc")
+  completedAtUtc DateTime? @map("completed_at_utc")
+  completedById  Int?      @map("completed_by")
+  createdAtUtc   DateTime  @default(now()) @map("created_at_utc")
+  updatedAtUtc   DateTime  @updatedAt @map("updated_at_utc")
+
+  design      DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+  completedBy Employee?     @relation("ErpStageCompletedBy", fields: [completedById], references: [id])
+
+  @@unique([designId, erpModule])
+  @@index([status, erpModule])
+  @@index([designNumber])
+  @@map("erp_stage_records")
 }

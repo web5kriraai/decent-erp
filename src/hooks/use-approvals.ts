@@ -19,6 +19,9 @@ export type SubmitApprovalPayload = {
   approvalLevelId: number;
   decision: "APPROVED" | "REJECTED" | "CORRECTION_REQUIRED" | "SKIPPED";
   remark?: string;
+  correctionType?: string;
+  routeSubProcessCode?: string;
+  responsibleEmployeeId?: number;
 };
 
 export type PendingApprovalItem = PendingApprovalQueueItem;
@@ -27,6 +30,12 @@ export type ApprovalsHubData = {
   stageApprovals: StageApprovalQueueItem[];
   managementApprovals: PendingApprovalItem[];
   readyForSignOff: ReadyForSignOffItem[];
+};
+
+export type RequestSignOffPayload = {
+  designId: string;
+  requesterRemark: string;
+  summaryNote?: string;
 };
 
 export function useApprovalsHub(enabled = true) {
@@ -69,7 +78,9 @@ export function useSubmitApproval() {
       } else if (result.decision === "REJECTED") {
         toast.success("Design rejected");
       } else if (result.decision === "CORRECTION_REQUIRED") {
-        toast.success("Sent for correction", "Design returned to active workflow.");
+        const who = result.routedAssigneeName ?? "the stage assignee";
+        const stage = result.routedStageName ?? "rework stage";
+        toast.success("Sent for correction", `Assigned to ${who} for ${stage}.`);
       } else {
         toast.success("Approval recorded");
       }
@@ -83,15 +94,21 @@ export function useRequestDesignApproval() {
   const toast = useApiToast();
 
   return useMutation({
-    mutationFn: (designId: string) =>
-      apiPost<{ id: string; status: string }>(`/api/designs/${designId}/request-approval`, {}),
-    onSuccess: (_, designId) => {
+    mutationFn: ({ designId, requesterRemark, summaryNote }: RequestSignOffPayload) =>
+      apiPost<{ id: string; status: string }>(`/api/designs/${designId}/request-approval`, {
+        requesterRemark,
+        summaryNote,
+      }),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(variables.designId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.designHead });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.management });
-      toast.success("Approval requested", "Design is now pending approval");
+      toast.success(
+        "Management sign-off requested",
+        "Approvers will see your remark and design snapshot.",
+      );
     },
     onError: (error) => toast.errorFromApi(error, "Could not request approval"),
   });

@@ -39,6 +39,16 @@ describe("task-priority", () => {
     expect(grouped.RUNNING).toHaveLength(1);
   });
 
+  it("puts CORRECTION_REQUIRED tasks in Rework column", () => {
+    const grouped = groupActionCenterTasks([
+      { status: "CORRECTION_REQUIRED", priority: "HIGH", design: { ideaRef: "MS" } },
+      { status: "ASSIGNED", priority: "MEDIUM", design: { ideaRef: "SC" } },
+    ]);
+    expect(grouped.CORRECTION_REQUIRED).toHaveLength(1);
+    expect(grouped.CORRECTION_REQUIRED[0].design.ideaRef).toBe("MS");
+    expect(grouped.READY).toHaveLength(1);
+  });
+
   it("resolveEffectiveTaskPriority uses design URGENT over task HIGH", () => {
     expect(resolveEffectiveTaskPriority("HIGH", "URGENT")).toBe("URGENT");
     expect(resolveEffectiveTaskPriority("URGENT", "MEDIUM")).toBe("URGENT");

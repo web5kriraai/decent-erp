@@ -6,7 +6,16 @@ import { upsertDesignSuccessMetric } from "@/lib/services/production-service";
 import {
   ERP_MODULE_SYNC_ORDER,
   PRIMARY_ERP_MODULES,
+  getErpIntegrationMode,
 } from "@/lib/services/erp-integration-config";
+import {
+  hasIngestableDesignSuccessMetrics,
+  normalizeDesignSuccessPayload,
+  type ErpDesignSuccessPayload,
+} from "@/lib/services/erp-design-success-payload";
+
+export type { ErpDesignSuccessPayload } from "@/lib/services/erp-design-success-payload";
+export { normalizeDesignSuccessPayload } from "@/lib/services/erp-design-success-payload";
 
 export {
   ERP_MODULE_SYNC_ORDER,
@@ -19,22 +28,33 @@ export type { ErpIntegrationMode } from "@/lib/services/erp-integration-config";
 
 type ErpModule = (typeof PRIMARY_ERP_MODULES)[number] | string;
 
+/** Modules whose successful sync should refresh Design Success metrics from live ERP. */
+const DESIGN_SUCCESS_TRIGGER_MODULES = new Set(["SALES", "SALES_RETURN"]);
+
+export const ERP_HANDOFF_CONTRACT_VERSION = 1;
+
 type HandoffPayload = {
+  contractVersion: number;
   designId: string;
   designNumber: string;
   ideaRef: string;
   collectionName: string;
   productTypeId: number;
+  productTypeName?: string | null;
+  seasonId?: number | null;
+  seasonName?: string | null;
+  sourceModule: "DESIGN_MANAGEMENT";
 };
 
 const MODULE_ENDPOINTS: Record<string, string> = {
   GREY_MATERIAL: "/grey-material/designs",
   CUTTING: "/cutting/designs",
-  SALES: "/sales/designs",
   EMBROIDERY: "/embroidery/designs",
   GARMENTING: "/garmenting/designs",
   FINISHING: "/finishing/designs",
   READY_STOCK: "/ready-stock/designs",
+  SALES: "/sales/designs",
+  SALES_RETURN: "/sales-return/designs",
   ACCOUNTS: "/accounts/designs",
 };
 
@@ -66,11 +86,16 @@ async function postToErpModule(
       ...(process.env.ERP_API_KEY ? { Authorization: `Bearer ${process.env.ERP_API_KEY}` } : {}),
     },
     body: JSON.stringify({
+      contractVersion: payload.contractVersion,
+      sourceModule: payload.sourceModule,
+      designId: payload.designId,
       designNumber: payload.designNumber,
       ideaRef: payload.ideaRef,
       collectionName: payload.collectionName,
       productTypeId: payload.productTypeId,
-      sourceModule: "DESIGN_MANAGEMENT",
+      productTypeName: payload.productTypeName ?? null,
+      seasonId: payload.seasonId ?? null,
+      seasonName: payload.seasonName ?? null,
     }),
   });
 
@@ -104,6 +129,30 @@ export async function listProductionHandoffs(designId?: bigint) {
   });
 }
 
+function buildHandoffPayload(input: {
+  designId: bigint;
+  designNumber: string;
+  ideaRef: string;
+  collectionName: string;
+  productTypeId: number;
+  productTypeName?: string | null;
+  seasonId?: number | null;
+  seasonName?: string | null;
+}): HandoffPayload {
+  return {
+    contractVersion: ERP_HANDOFF_CONTRACT_VERSION,
+    sourceModule: "DESIGN_MANAGEMENT",
+    designId: input.designId.toString(),
+    designNumber: input.designNumber,
+    ideaRef: input.ideaRef,
+    collectionName: input.collectionName,
+    productTypeId: input.productTypeId,
+    productTypeName: input.productTypeName ?? null,
+    seasonId: input.seasonId ?? null,
+    seasonName: input.seasonName ?? null,
+  };
+}
+
 export async function syncProductionHandoff(
   handoffId: bigint,
   actorId: number,
@@ -111,20 +160,30 @@ export async function syncProductionHandoff(
 ) {
   const handoff = await prisma.productionHandoff.findUnique({
     where: { id: handoffId },
-    include: { design: true },
+    include: {
+      design: {
+        include: {
+          productType: { select: { name: true } },
+          season: { select: { name: true } },
+        },
+      },
+    },
   });
   if (!handoff) throw new ApiError("Handoff not found", 404);
   if (handoff.status === "SYNCED") {
     return handoff;
   }
 
-  const payload: HandoffPayload = {
-    designId: handoff.designId.toString(),
+  const payload = buildHandoffPayload({
+    designId: handoff.designId,
     designNumber: handoff.designNumber,
     ideaRef: handoff.design.ideaRef,
     collectionName: handoff.design.collectionName,
     productTypeId: handoff.design.productTypeId,
-  };
+    productTypeName: handoff.design.productType?.name,
+    seasonId: handoff.design.seasonId,
+    seasonName: handoff.design.season?.name,
+  });
 
   try {
     const result = await postToErpModule(handoff.erpModule, payload);
@@ -133,7 +192,13 @@ export async function syncProductionHandoff(
       data: {
         status: "SYNCED",
         erpReference: result.erpReference,
-        payload: { ...(handoff.payload as object), syncResponse: result.response as object },
+        payload: {
+          ...(typeof handoff.payload === "object" && handoff.payload !== null
+            ? (handoff.payload as object)
+            : {}),
+          ...payload,
+          syncResponse: result.response as object,
+        },
       },
     });
 
@@ -164,7 +229,10 @@ export async function syncProductionHandoff(
       data: {
         status: "FAILED",
         payload: {
-          ...(handoff.payload as object),
+          ...(typeof handoff.payload === "object" && handoff.payload !== null
+            ? (handoff.payload as object)
+            : {}),
+          ...payload,
           error: error instanceof Error ? error.message : String(error),
         },
       },
@@ -204,7 +272,8 @@ export async function syncAllErpModules(
 
   const orderIndex = new Map(ERP_MODULE_SYNC_ORDER.map((module, index) => [module, index]));
   handoffs.sort(
-    (a, b) => (orderIndex.get(a.erpModule as (typeof ERP_MODULE_SYNC_ORDER)[number]) ?? 99) -
+    (a, b) =>
+      (orderIndex.get(a.erpModule as (typeof ERP_MODULE_SYNC_ORDER)[number]) ?? 99) -
       (orderIndex.get(b.erpModule as (typeof ERP_MODULE_SYNC_ORDER)[number]) ?? 99),
   );
 
@@ -218,7 +287,7 @@ export async function syncAllErpModules(
         erpModule: handoff.erpModule,
         erpReference: synced.erpReference,
       });
-      if (handoff.erpModule === "SALES" && synced.status === "SYNCED") {
+      if (DESIGN_SUCCESS_TRIGGER_MODULES.has(handoff.erpModule) && synced.status === "SYNCED") {
         await ingestDesignSuccessFromErp(designId, synced.designNumber).catch(() => undefined);
       }
     } catch {
@@ -249,27 +318,33 @@ export async function syncDesignHandoffs(
   return syncAllErpModules(designId, actorId, correlationId);
 }
 
-type ErpDesignSuccessPayload = {
-  productionQty?: number;
-  salesQty?: number;
-  salesValue?: number;
-  returnQty?: number;
-  marginPercent?: number;
-  repeatOrders?: number;
-  periodYear?: number;
-  periodMonth?: number;
+/** Partner success-metrics payload (Sales / Sales Return refresh). */
+export type DesignSuccessIngestResult = {
+  ingested: boolean;
+  mode: "simulated" | "live";
+  reason?: string;
+  metric?: Awaited<ReturnType<typeof upsertDesignSuccessMetric>>;
 };
 
-export async function ingestDesignSuccessFromErp(designId: bigint, designNumber: string) {
-  const base = process.env.ERP_API_BASE_URL?.replace(/\/$/, "");
+export async function ingestDesignSuccessFromErp(
+  designId: bigint,
+  designNumber: string,
+): Promise<DesignSuccessIngestResult> {
+  const mode = getErpIntegrationMode();
   const now = new Date();
   const periodYear = now.getUTCFullYear();
   const periodMonth = now.getUTCMonth() + 1;
 
-  if (!base) {
-    return null;
+  if (mode === "simulated") {
+    return {
+      ingested: false,
+      mode,
+      reason:
+        "ERP_API_BASE_URL is not configured — design-success metrics are not fabricated in simulated mode. Add metrics manually or configure live ERP.",
+    };
   }
 
+  const base = process.env.ERP_API_BASE_URL!.replace(/\/$/, "");
   const url = `${base}/sales/designs/${encodeURIComponent(designNumber)}/success-metrics?year=${periodYear}&month=${periodMonth}`;
   const res = await fetch(url, {
     headers: {
@@ -279,27 +354,33 @@ export async function ingestDesignSuccessFromErp(designId: bigint, designNumber:
   });
 
   if (!res.ok) {
-    return null;
+    return {
+      ingested: false,
+      mode,
+      reason: `Live ERP returned ${res.status} for design ${designNumber}.`,
+    };
   }
 
   const json = (await res.json()) as ErpDesignSuccessPayload;
-  if (
-    json.productionQty == null &&
-    json.salesQty == null &&
-    json.salesValue == null &&
-    json.marginPercent == null
-  ) {
-    return null;
+  const normalized = normalizeDesignSuccessPayload(json);
+  if (!hasIngestableDesignSuccessMetrics(normalized)) {
+    return {
+      ingested: false,
+      mode,
+      reason: "Live ERP returned no production/sales/return/margin metrics for this design.",
+    };
   }
 
-  return upsertDesignSuccessMetric(designId, {
-    periodYear: json.periodYear ?? periodYear,
-    periodMonth: json.periodMonth ?? periodMonth,
-    productionQty: json.productionQty,
-    salesQty: json.salesQty,
-    salesValue: json.salesValue,
-    returnQty: json.returnQty,
-    marginPercent: json.marginPercent,
-    repeatOrders: json.repeatOrders,
+  const metric = await upsertDesignSuccessMetric(designId, {
+    periodYear: normalized.periodYear ?? periodYear,
+    periodMonth: normalized.periodMonth ?? periodMonth,
+    productionQty: normalized.productionQty,
+    salesQty: normalized.salesQty,
+    salesValue: normalized.salesValue,
+    returnQty: normalized.returnQty,
+    marginPercent: normalized.marginPercent,
+    repeatOrders: normalized.repeatOrders,
   });
+
+  return { ingested: true, mode, metric };
 }

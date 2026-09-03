@@ -99,6 +99,11 @@ export const PAGE_META = {
     title: "Production Release",
     description: "Release approved designs to ERP production modules",
   },
+  productionErpChain: {
+    title: "ERP Chain",
+    description:
+      "Operate Grey → Cutting → Embroidery → Garmenting → Finishing → Ready Stock → Sales → Sales Return → Accounts",
+  },
   adminEmployees: {
     title: "Employees",
     description: "Manage employees, roles, and account status",

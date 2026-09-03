@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+import {
+  limitLabelForCategory,
+  type UploadCategory,
+  validateUploadFileClient,
+} from "@/lib/file-upload-policy";
 import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { cn } from "@/lib/utils";
 import { FileIcon, Loader2Icon, UploadCloudIcon } from "lucide-react";
@@ -88,17 +92,26 @@ export function TaskArtifactPanel({
     onUploadingChange?.(uploading);
   }, [onUploadingChange, uploading]);
 
+  const uploadCategory: UploadCategory =
+    artifactType === "PUNCHING_FILE" ? "PUNCHING" : "SKETCH";
+
   const uploadFile = useCallback(
     async (file: File) => {
+      const preflight = validateUploadFileClient(file, uploadCategory);
+      if (!preflight.ok) {
+        toast.error(
+          preflight.status === 413 ? "File too large" : "Invalid file",
+          preflight.message,
+        );
+        return;
+      }
+
       setUploading(true);
       setActiveFileName(file.name);
       try {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append(
-          "category",
-          artifactType === "PUNCHING_FILE" ? "PUNCHING" : "SKETCH",
-        );
+        formData.append("category", uploadCategory);
         const uploadRes = await fetch(`/api/designs/${designId}/images`, {
           method: "POST",
           body: formData,
@@ -108,9 +121,11 @@ export function TaskArtifactPanel({
           const message =
             typeof uploadJson.error === "string"
               ? uploadJson.error
-              : uploadRes.status === 503
-                ? "File storage is unavailable. Contact your administrator or start MinIO."
-                : "Upload failed";
+              : uploadRes.status === 413
+                ? `File exceeds ${limitLabelForCategory(uploadCategory)} limit`
+                : uploadRes.status === 503
+                  ? "File storage is unavailable. Contact your administrator or start MinIO."
+                  : "Upload failed";
           throw new Error(message);
         }
 
@@ -136,7 +151,16 @@ export function TaskArtifactPanel({
         setUploading(false);
       }
     },
-    [artifactType, designId, machineMetrics, queryClient, subProcessCode, taskId, toast],
+    [
+      designId,
+      machineMetrics,
+      queryClient,
+      subProcessCode,
+      taskId,
+      toast,
+      uploadCategory,
+      artifactType,
+    ],
   );
 
   function handleFiles(files: FileList | null) {
@@ -147,16 +171,36 @@ export function TaskArtifactPanel({
   const artifacts = artifactsQuery.data ?? [];
   const uploadedArtifacts = artifacts.filter((a) => !!a.storageKey);
 
+  const typeHint =
+    artifactType === "PUNCHING_FILE"
+      ? "EMB, DST, PDF — max 50 MB"
+      : "JPEG, PNG, WebP, PDF — max 25 MB";
+
   return (
-    <div className={cn("space-y-4", compact && "space-y-3")}>
+    <div className={cn("space-y-4", compact && "space-y-2")}>
       {canUpload ? (
         <div
+          role={canUpload && !uploading ? "button" : undefined}
+          tabIndex={canUpload && !uploading ? 0 : undefined}
+          aria-label={canUpload && !uploading ? "Upload a file" : undefined}
           className={cn(
             "flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-background px-4 py-5 text-center transition-colors",
             dragOver && "border-primary bg-primary/5",
             uploading && "border-primary/40 bg-primary/5",
-            compact && "py-4",
+            compact && "gap-1.5 px-3 py-2.5",
+            canUpload && !uploading && "cursor-pointer",
           )}
+          onClick={() => {
+            if (!canUpload || uploading) return;
+            inputRef.current?.click();
+          }}
+          onKeyDown={(e) => {
+            if (!canUpload || uploading) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              inputRef.current?.click();
+            }
+          }}
           onDragOver={(e) => {
             e.preventDefault();
             if (!uploading) setDragOver(true);
@@ -178,15 +222,32 @@ export function TaskArtifactPanel({
           />
           {uploading ? (
             <>
-              <Loader2Icon className="size-8 animate-spin text-primary" aria-hidden />
+              <Loader2Icon
+                className={cn("animate-spin text-primary", compact ? "size-5" : "size-8")}
+                aria-hidden
+              />
               <div className="flex max-w-md items-center gap-2 text-sm">
                 <FileIcon className="size-4 shrink-0 text-primary" aria-hidden />
                 <span className="truncate font-medium">
                   Uploading {activeFileName ?? "file"}…
                 </span>
               </div>
+              {!compact ? (
+                <p className="text-xs text-muted-foreground">
+                  Please wait — submit will unlock once the upload finishes.
+                </p>
+              ) : null}
+            </>
+          ) : compact ? (
+            <>
+              <UploadCloudIcon
+                className={cn("size-5 text-muted-foreground", dragOver && "text-primary")}
+                aria-hidden
+              />
               <p className="text-xs text-muted-foreground">
-                Please wait — submit will unlock once the upload finishes.
+                Drop a file or click to upload
+                {" · "}
+                {ARTIFACT_TYPE_LABELS[artifactType]} · {typeHint}
               </p>
             </>
           ) : (
@@ -196,23 +257,11 @@ export function TaskArtifactPanel({
                 aria-hidden
               />
               <p className="text-sm text-muted-foreground">
-                Drag & drop a file here, or browse to upload
+                Drag & drop a file here, or click to upload
               </p>
               <p className="text-xs text-muted-foreground">
-                {ARTIFACT_TYPE_LABELS[artifactType]} ·{" "}
-                {artifactType === "PUNCHING_FILE"
-                  ? "EMB, DST, PDF — max 50 MB"
-                  : "JPEG, PNG, WebP, PDF — max 25 MB"}
+                {ARTIFACT_TYPE_LABELS[artifactType]} · {typeHint}
               </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!canUpload}
-                onClick={() => inputRef.current?.click()}
-              >
-                Browse Files
-              </Button>
             </>
           )}
         </div>

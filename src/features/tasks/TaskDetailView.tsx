@@ -21,22 +21,20 @@ import {
 } from "@/components/tasks/TaskStageApprovalPanel";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
 import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
-import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { ActionUnavailable } from "@/components/ui/ActionUnavailable";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { ROUTES } from "@/config/routes";
-import {
-  resolveTaskContextActions,
-  WORKFLOW_ACTION_CODES,
-  type ResolvedWorkflowAction,
-} from "@/lib/workflow-actions";
 import { useTaskTimeDetail } from "@/hooks/use-time";
 import { useTaskMutations } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
 import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
+import {
+  getTaskEndDialogConfig,
+  getTaskHoldDialogConfig,
+} from "@/lib/task-dialog-config";
 
 type TaskDetailViewProps = {
   taskId: string;
@@ -56,7 +54,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const detailQuery = useTaskTimeDetail(taskId, enabled);
   const holdReasons = useHoldReasons(canExecute && enabled);
   const checklistQuery = useChecklistItems(canExecute && enabled);
-  const { start, hold, resume, end } = useTaskMutations();
+  const { hold, resume, end } = useTaskMutations();
 
   const [holdModalOpen, setHoldModalOpen] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
@@ -69,6 +67,9 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const [sampleOutcome, setSampleOutcome] = useState<"APPROVE" | "REJECT" | "RESAMPLE" | "">(
     "",
   );
+  const [costEntries, setCostEntries] = useState<
+    Array<{ costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION"; description?: string; amount: number }>
+  >([]);
 
   const task = detailQuery.data;
   useBreadcrumbReplacement(
@@ -119,45 +120,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     return task.workflowPeers.find((peer) => peer.subProcess.code === peerCode)?.status;
   }, [task]);
 
-  const taskContextActions = useMemo(() => {
-    if (!task || !canControl) return [];
-    return resolveTaskContextActions({
-      task: {
-        id: task.id,
-        designId: task.designId,
-        status: task.status,
-        sequence: task.sequence,
-        dependencySequence: task.dependencySequence,
-        subProcess: task.subProcess,
-        assignedEmployeeId: task.assignedEmployeeId,
-        workflowPeers: task.workflowPeers,
-        assigneeHasRunningTask: task.assigneeHasRunningTask,
-      },
-      isAssignee: true,
-      permissions,
-    });
-  }, [task, canControl, permissions]);
-
-  function handleTaskContextAction(action: ResolvedWorkflowAction) {
-    if (!task) return;
-    switch (action.code) {
-      case WORKFLOW_ACTION_CODES.START_TASK:
-        start.mutate(task.id);
-        break;
-      case WORKFLOW_ACTION_CODES.HOLD_TASK:
-        setHoldModalOpen(true);
-        break;
-      case WORKFLOW_ACTION_CODES.RESUME_TASK:
-        resume.mutate({ taskId: task.id, version: task.version });
-        break;
-      case WORKFLOW_ACTION_CODES.END_TASK:
-        setEndModalOpen(true);
-        break;
-      default:
-        break;
-    }
-  }
-
   if (sessionStatus === "loading") {
     return (
       <div className="page-shell">
@@ -189,9 +151,28 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const taskChecklistItems =
     checklistQuery.data?.filter((item) => item.subProcessId === task?.subProcess?.id) ?? [];
 
+  const holdDialogConfig = task
+    ? getTaskHoldDialogConfig({
+        status: task.status,
+        subProcess: task.subProcess,
+        design: task.design,
+      })
+    : null;
+  const endDialogConfig = task
+    ? getTaskEndDialogConfig(
+        {
+          status: task.status,
+          subProcess: task.subProcess,
+          design: task.design,
+        },
+        roleCode,
+      )
+    : null;
+
   async function handleEndSubmit() {
     if (!task || !endRemark.trim()) return;
     if (isSampleCheck && !sampleOutcome) return;
+    const isCosting = task.subProcess?.code === "COSTING";
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -211,18 +192,22 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         ? sampleOutcome === "REJECT"
           ? "CHECKING"
           : "COMPLETED"
-        : endStatus,
+        : isCosting || endDialogConfig?.forceChecking
+          ? "CHECKING"
+          : endStatus,
       checklist: checklist.length
         ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
         : undefined,
       checklistNote: note,
       sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+      costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
     });
     setEndModalOpen(false);
     setEndRemark("");
     setChecklistResults({});
     setChecklistNote("");
     setSampleOutcome("");
+    setCostEntries([]);
   }
 
   return (
@@ -343,6 +328,8 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                           setEndRemark("");
                           setChecklistNote("");
                           setSampleOutcome("");
+                          setChecklistResults({});
+                          setEndStatus("CHECKING");
                         }
                       : undefined
                   }
@@ -377,15 +364,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
                 </dl>
               </AppCard>
-              {canControl && taskContextActions.length > 0 ? (
-                <AppCard title="Task actions" className="mt-4">
-                  <ContextualActionsPanel
-                    actions={taskContextActions}
-                    onAction={handleTaskContextAction}
-                    showDisabled
-                  />
-                </AppCard>
-              ) : null}
             </div>
 
             <AppCard title="Time event timeline" className="mt-6">
@@ -407,11 +385,17 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             onHoldRemarkChange={setHoldRemark}
             onSubmit={handleHoldSubmit}
             isPending={hold.isPending}
+            title={holdDialogConfig?.title}
+            description={holdDialogConfig?.description}
+            preferredHoldReasonCodes={holdDialogConfig?.preferredHoldReasonCodes}
           />
 
           <TaskEndDialog
             open={endModalOpen}
-            onClose={() => setEndModalOpen(false)}
+            onClose={() => {
+              setEndModalOpen(false);
+              setCostEntries([]);
+            }}
             endStatus={endStatus}
             onEndStatusChange={setEndStatus}
             endRemark={endRemark}
@@ -423,15 +407,20 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             }
             checklistNote={checklistNote}
             onChecklistNoteChange={setChecklistNote}
-            fileRequired={fileRequired}
+            fileRequired={endDialogConfig?.fileRequired ?? fileRequired}
             taskId={task.id}
             designId={task.designId ?? task.design.id}
             subProcessCode={task.subProcess.code}
             subProcessName={task.subProcess.name}
             canUpload={canControl}
-            isSampleCheck={isSampleCheck}
+            isSampleCheck={endDialogConfig?.showSampleOutcomes ?? isSampleCheck}
             sampleOutcome={sampleOutcome || undefined}
             onSampleOutcomeChange={setSampleOutcome}
+            gateForcesChecking={endDialogConfig?.forceChecking}
+            dialogTitle={endDialogConfig?.title}
+            dialogDescription={endDialogConfig?.description}
+            costEntries={costEntries}
+            onCostEntriesChange={setCostEntries}
             onSubmit={handleEndSubmit}
             isPending={end.isPending}
           />

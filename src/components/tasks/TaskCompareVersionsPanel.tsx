@@ -43,7 +43,7 @@ function ImagePane({
             <img
               src={image.downloadUrl}
               alt={image.fileName}
-              className="max-h-64 w-full object-contain bg-background"
+              className="max-h-40 w-full object-contain bg-background"
             />
           ) : (
             <div className="p-4 text-sm text-muted-foreground">{image.fileName}</div>

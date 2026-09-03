@@ -120,6 +120,11 @@ export function DesignWorkflowPanel({
                   {step.assigneeName ?? "Unassigned"}
                   {step.isApproval ? " · Approval" : ""}
                   {step.task.skipReason ? ` · ${step.task.skipReason}` : ""}
+                  {step.displayStatus === "ON_HOLD" && step.holdReasonName
+                    ? ` · On hold · ${step.holdReasonName}`
+                    : step.displayStatus === "ON_HOLD"
+                      ? " · On hold"
+                      : ""}
                 </p>
               </div>
               <StepStatusIcon step={step} />

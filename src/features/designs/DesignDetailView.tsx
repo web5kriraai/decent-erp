@@ -17,6 +17,7 @@ import { DesignCompletionSummaryPanel } from "@/features/designs/DesignCompletio
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
 import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
 import { DesignWorkflowPanel } from "@/components/designs/DesignWorkflowPanel";
+import { DesignActiveTaskTimer } from "@/components/designs/DesignActiveTaskTimer";
 import { CompactDesignActions } from "@/components/designs/CompactDesignActions";
 import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprovalCard";
 import { ManagementApprovalCard } from "@/components/designs/ManagementApprovalCard";
@@ -26,10 +27,12 @@ import type { DesignTask } from "@/lib/types/api";
 
 export function DesignDetailView({
   designId,
-  showConceptSetup = false,
+  highlightImageId = null,
 }: {
   designId: string;
+  /** @deprecated Banner removed; kept for page prop compat. */
   showConceptSetup?: boolean;
+  highlightImageId?: string | null;
 }) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
@@ -96,15 +99,14 @@ export function DesignDetailView({
               }
             />
 
-            {showConceptSetup && (
-              <div className="alert alert-info stack-section" role="status" id="concept-setup">
-                <strong>Next — add reference images</strong>
-                <p className="mt-1 mb-0 text-sm">
-                  Upload product and inspiration photos below. Mark one as primary when you&apos;re
-                  happy with the set.
-                </p>
-              </div>
-            )}
+            {canExecute ? (
+              <DesignActiveTaskTimer
+                designId={designId}
+                employeeId={employeeId}
+                tasks={designQuery.data.tasks}
+                roleCode={roleCode}
+              />
+            ) : null}
 
             {pendingStageApproval ? (
               <InlineStageApprovalCard
@@ -157,8 +159,12 @@ export function DesignDetailView({
             />
 
             {showDesignFiles ? (
-              <AppCard title="Design Files">
-                <ImageGallery designId={designId} canUpload={canUploadFiles} />
+              <AppCard title="Design Files" id="design-files">
+                <ImageGallery
+                  designId={designId}
+                  canUpload={canUploadFiles}
+                  highlightImageId={highlightImageId}
+                />
               </AppCard>
             ) : null}
 

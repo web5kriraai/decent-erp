@@ -4,6 +4,12 @@ import { useCallback, useRef, useState } from "react";
 import { AppButton } from "@/components/ui/AppButton";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { ApiClientError } from "@/lib/api-client";
+import {
+  limitLabelForCategory,
+  validateUploadFileClient,
+} from "@/lib/file-upload-policy";
+
+const UPLOAD_CATEGORY = "PRODUCT_IMAGE" as const;
 
 type FileUploaderProps = {
   designId: string;
@@ -19,11 +25,20 @@ export function FileUploader({ designId, onUploaded, disabled }: FileUploaderPro
 
   const uploadFile = useCallback(
     async (file: File) => {
+      const preflight = validateUploadFileClient(file, UPLOAD_CATEGORY);
+      if (!preflight.ok) {
+        toast.error(
+          preflight.status === 413 ? "File too large" : "Invalid file",
+          preflight.message,
+        );
+        return;
+      }
+
       setUploading(true);
       try {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("category", "PRODUCT_IMAGE");
+        formData.append("category", UPLOAD_CATEGORY);
         const res = await fetch(`/api/designs/${designId}/images`, {
           method: "POST",
           body: formData,
@@ -31,7 +46,10 @@ export function FileUploader({ designId, onUploaded, disabled }: FileUploaderPro
         const json = await res.json();
         if (!res.ok) {
           throw new ApiClientError(
-            json.error ?? "Upload failed",
+            json.error ??
+              (res.status === 413
+                ? `File exceeds ${limitLabelForCategory(UPLOAD_CATEGORY)} limit`
+                : "Upload failed"),
             res.status,
             json.correlationId,
             json.details,

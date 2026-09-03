@@ -38,7 +38,7 @@ test.describe("Dialog accessibility", () => {
 
   test("Hold dialog: Esc closes, overlay click does not close", async ({ page }) => {
     await page.getByRole("button", { name: /Hold task/i }).click();
-    const dialog = page.getByRole("dialog", { name: /Hold Task/i });
+    const dialog = page.getByRole("dialog", { name: /Hold /i });
     await expect(dialog).toBeVisible();
 
     await page.locator('[data-slot="dialog-overlay"]').click({ position: { x: 5, y: 5 }, force: true });
@@ -50,7 +50,7 @@ test.describe("Dialog accessibility", () => {
 
   test("Hold dialog: Tab cycles within dialog", async ({ page }) => {
     await page.getByRole("button", { name: /Hold task/i }).click();
-    const dialog = page.getByRole("dialog", { name: /Hold Task/i });
+    const dialog = page.getByRole("dialog", { name: /Hold /i });
     await expect(dialog).toBeVisible();
 
     await page.keyboard.press("Tab");

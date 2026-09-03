@@ -7,9 +7,12 @@ alwaysApply: false
 # Feature: Production release & ERP integration
 
 ## Flow
-Final approval + costing complete → `PRODUCTION_RELEASED` → existing ERP:
-Grey/Material → Cutting → Embroidery → Garmenting → Finishing → Ready Stock
+Final approval + costing complete → `PRODUCTION_RELEASED` →
+1) In-app ERP chain stages seeded (Grey→…→Accounts) — operate at `/production/erp`
+2) Outbound partner handoffs: Grey/Material → Cutting → Embroidery → Garmenting → Finishing → Ready Stock
 → Sales → Sales Return → Accounts/GST/TDS → feeds Design Success KPI.
+
+See `Docs/ERP_DOWNSTREAM_INTEGRATION_SPEC.md` and `Docs/ERP_DOWNSTREAM_E2E_UPDATE.md`.
 
 ## Rules
 - Validate mandatory approvals + mandatory costing/files before marking a
@@ -17,6 +20,8 @@ Grey/Material → Cutting → Embroidery → Garmenting → Finishing → Ready 
 - After release, the design reference must be available to existing
   production transactions for traceability.
 - Design-success KPI consumes downstream production, sales, sales-return and
-  margin data joined by Design Number/SKU.
+  margin data joined by Design Number/SKU (in-app stages update metrics on complete).
 - Production Head can view approved designs and accept release but cannot
   alter prior design history.
+- Handoff modules: `ERP_HANDOFF_MODULES` (includes `SALES_RETURN`).
+  In-app `ErpStageRecord` is the operational chain; partner POST remains optional live sync.

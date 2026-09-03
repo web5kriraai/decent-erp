@@ -2,23 +2,32 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DataTable } from "@/components/DataTable";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
+import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { RaiseCorrectionModal } from "@/features/quality/RaiseCorrectionModal";
 import {
   useCorrections,
   useUpdateCorrectionStatus,
 } from "@/hooks/use-corrections";
-import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
-import { resolveCorrectionContextActions } from "@/lib/workflow-actions";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { CorrectionRecord } from "@/lib/types/api";
+import {
+  getAllowedCorrectionStatusOptions,
+  normalizeCorrectionStatus,
+  type CorrectionWorkflowStatus,
+} from "@/lib/services/correction-queue-utils";
+import {
+  resolveCorrectionContextActions,
+  WORKFLOW_ACTION_CODES,
+  type ResolvedWorkflowAction,
+} from "@/lib/workflow-actions";
 
 export function CorrectionsView() {
   const { data: session } = useSession();
@@ -30,6 +39,11 @@ export function CorrectionsView() {
   const correctionsQuery = useCorrections(undefined, canRaise);
   const updateStatus = useUpdateCorrectionStatus();
 
+  const pageActions = useMemo(
+    () => resolveCorrectionContextActions({ permissions, includeRaise: true }),
+    [permissions],
+  );
+
   if (!canRaise) {
     return (
       <div className="page-shell">
@@ -38,12 +52,18 @@ export function CorrectionsView() {
     );
   }
 
-  async function handleStatusChange(row: CorrectionRecord, status: CorrectionRecord["status"]) {
-    if (row.status === status) return;
-    await updateStatus.mutateAsync({ id: row.id, status: status as never });
+  async function handleStatusChange(row: CorrectionRecord, status: string) {
+    const next = normalizeCorrectionStatus(status) as CorrectionWorkflowStatus;
+    const current = normalizeCorrectionStatus(row.status);
+    if (current === next) return;
+    await updateStatus.mutateAsync({ id: row.id, status: next });
   }
 
-  const correctionActions = resolveCorrectionContextActions({ permissions });
+  function handlePageAction(action: ResolvedWorkflowAction) {
+    if (action.code === WORKFLOW_ACTION_CODES.RAISE_CORRECTION) {
+      setRaiseOpen(true);
+    }
+  }
 
   return (
     <div className="page-shell">
@@ -51,9 +71,11 @@ export function CorrectionsView() {
         title="Corrections"
         subtitle="Corrections you raised, own on a task, or are responsible for fixing"
         actions={
-          <AppButton type="button" appVariant="primary" onClick={() => setRaiseOpen(true)}>
-            Raise Correction
-          </AppButton>
+          <ContextualActionsPanel
+            actions={pageActions}
+            onAction={handlePageAction}
+            showDisabled={false}
+          />
         }
       />
 
@@ -111,23 +133,49 @@ export function CorrectionsView() {
               {
                 key: "status",
                 header: "Status",
-                render: (row) => (
-                  <select
-                    className="form-select form-select--compact"
-                    value={row.status}
-                    disabled={updateStatus.isPending}
-                    onChange={(e) => handleStatusChange(row, e.target.value)}
-                    aria-label={`Status for correction ${row.id}`}
-                  >
-                    {["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING", "DONE", "REJECTED"].map(
-                      (s) => (
+                render: (row) => {
+                  const displayStatus = normalizeCorrectionStatus(row.status);
+                  const options = getAllowedCorrectionStatusOptions(row.status);
+                  const terminal = displayStatus === "DONE" || displayStatus === "REJECTED";
+                  return (
+                    <select
+                      className="form-select form-select--compact"
+                      value={displayStatus}
+                      disabled={updateStatus.isPending || terminal || options.length <= 1}
+                      onChange={(e) => handleStatusChange(row, e.target.value)}
+                      aria-label={`Status for correction ${row.id}`}
+                    >
+                      {options.map((s) => (
                         <option key={s} value={s}>
                           {s.replace(/_/g, " ")}
                         </option>
-                      ),
-                    )}
-                  </select>
-                ),
+                      ))}
+                    </select>
+                  );
+                },
+              },
+              {
+                key: "actions",
+                header: "",
+                align: "right",
+                render: (row) => {
+                  const rowActions = resolveCorrectionContextActions({
+                    permissions,
+                    correction: row,
+                    includeRaise: false,
+                  });
+                  return (
+                    <ContextualActionsPanel
+                      actions={rowActions}
+                      showDisabled={false}
+                      onAction={(action) => {
+                        if (action.code === WORKFLOW_ACTION_CODES.COMPLETE_CORRECTION) {
+                          void handleStatusChange(row, "DONE");
+                        }
+                      }}
+                    />
+                  );
+                },
               },
             ]}
             rows={correctionsQuery.data ?? []}
@@ -135,9 +183,11 @@ export function CorrectionsView() {
             emptyTitle="No corrections"
             emptyDescription="When you raise a correction or one is assigned to you, it appears here."
             emptyAction={
-              <AppButton type="button" appVariant="primary" onClick={() => setRaiseOpen(true)}>
-                Raise Correction
-              </AppButton>
+              pageActions.some((a) => a.code === WORKFLOW_ACTION_CODES.RAISE_CORRECTION) ? (
+                <AppButton type="button" appVariant="primary" onClick={() => setRaiseOpen(true)}>
+                  Raise Correction
+                </AppButton>
+              ) : undefined
             }
           />
         </AppCard>

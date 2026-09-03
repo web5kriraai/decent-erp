@@ -69,7 +69,8 @@ export const APP_ERROR_MESSAGES: Record<AppErrorCode, string> = {
   WORKFLOW_NOT_READY: "The workflow isn't ready for this step yet.",
 
   APPROVAL_NOT_ALLOWED: "This approval decision isn't assigned to your role.",
-  COSTING_REQUIRED: "Development costing must be filled in before this approval can go through.",
+  COSTING_REQUIRED:
+    "Enter at least one development cost before completing Costing or final approval.",
 
   PRODUCTION_RELEASE_BLOCKED: "Production release isn't available for this design yet.",
   PRODUCTION_RELEASE_TASK_REQUIRED:
@@ -98,7 +99,8 @@ export function inferCodeFromMessage(message: string, status: number): AppErrorC
   if (m.includes("cannot start") && m.includes("prior")) return APP_ERROR_CODES.TASK_DEPENDENCY_BLOCKED;
   if (m.includes("upload") && m.includes("file")) return APP_ERROR_CODES.REQUIRED_FILE_MISSING;
   if (m.includes("production release is not available")) return APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED;
-  if (m.includes("costing must be complete")) return APP_ERROR_CODES.COSTING_REQUIRED;
+  if (m.includes("costing must be complete") || m.includes("at least one cost"))
+    return APP_ERROR_CODES.COSTING_REQUIRED;
   if (status === 404) return APP_ERROR_CODES.NOT_FOUND;
   if (status === 422 && m.includes("validation")) return APP_ERROR_CODES.VALIDATION_FAILED;
   return undefined;

@@ -269,6 +269,18 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
           assignedEmployee: { select: { id: true, name: true } },
           process: true,
           subProcess: true,
+          timeEvents: {
+            orderBy: { eventTimeUtc: "desc" },
+            take: 30,
+            select: {
+              id: true,
+              eventType: true,
+              eventTimeUtc: true,
+              holdReasonId: true,
+              remark: true,
+              holdReason: { select: { id: true, code: true, name: true } },
+            },
+          },
         },
       },
       corrections: {

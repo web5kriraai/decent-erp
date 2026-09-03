@@ -58,6 +58,7 @@ export type KanbanDesignItem = {
 
 export type DesignTask = {
   id: string;
+  designId?: string;
   status: string;
   sequence: number;
   dependencySequence?: number | null;
@@ -291,6 +292,8 @@ export type PendingApprovalQueueItem = {
     priority?: string;
   };
   currentLevel: ApprovalLevel;
+  /** Next management level after the current one, if any. */
+  nextLevelName?: string | null;
   task: {
     id: string;
     process: { name: string };
@@ -299,6 +302,15 @@ export type PendingApprovalQueueItem = {
   existingApprovalId: string | null;
   /** False when final management level still needs a cost entry. */
   costingReady?: boolean;
+  /** Design Head request package (remark + snapshot). */
+  approvalRequestPackage?: unknown;
+  /** Live stage assignees for correction routing preview. */
+  stageAssignees?: Array<{
+    code: string;
+    name: string;
+    assigneeEmployeeId: number | null;
+    assigneeName: string | null;
+  }>;
 };
 
 export type ReadyForSignOffItem = {
@@ -340,6 +352,9 @@ export type PendingApproval = {
   chainComplete?: boolean;
   designStatus?: string;
   nextLevel?: ApprovalLevel | null;
+  correctionId?: string | null;
+  routedAssigneeName?: string | null;
+  routedStageName?: string | null;
 };
 
 export type DesignImageRecord = {

@@ -11,7 +11,7 @@ import {
 } from "@/lib/storage";
 import {
   resolveUploadCategory,
-  validateUploadFile,
+  validateUploadPayload,
 } from "@/lib/file-upload-policy";
 
 async function listDesignImages(designId: bigint) {
@@ -56,18 +56,25 @@ export async function POST(
       if (!file) throw new ApiError("File is required", 400);
 
       const category = resolveUploadCategory(uploadCategory, file.name);
-      const validation = validateUploadFile(
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const validation = validateUploadPayload(
         { name: file.name, type: file.type || "", size: file.size },
         category,
+        buffer,
       );
       if (!validation.ok) {
         throw new ApiError(validation.message, validation.status);
       }
 
-      const buffer = Buffer.from(await file.arrayBuffer());
+      const contentType =
+        file.type && file.type !== "application/octet-stream"
+          ? file.type
+          : category === "PUNCHING"
+            ? "application/octet-stream"
+            : file.type || "application/octet-stream";
       const storageKey = buildStorageKey(id, file.name);
       try {
-        await uploadObject(storageKey, buffer, file.type || "application/octet-stream");
+        await uploadObject(storageKey, buffer, contentType);
       } catch (error) {
         if (error instanceof StorageError) {
           throw new ApiError(error.message, 503, error.cause);
@@ -88,7 +95,7 @@ export async function POST(
             designId,
             storageKey,
             fileName: file.name,
-            contentType: file.type || "application/octet-stream",
+            contentType,
             fileSize: BigInt(file.size),
             uploadedById: ctx.employeeId,
             isPrimary,

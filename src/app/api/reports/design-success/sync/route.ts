@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
+import { jsonOk, parseBody, serializeBigInt, withApiHandler, ApiError } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { ingestDesignSuccessFromErp } from "@/lib/services/erp-handoff-service";
@@ -16,16 +16,19 @@ export async function POST(request: Request) {
       select: { id: true, designNumber: true, ideaRef: true },
     });
     if (!design) {
-      return jsonOk({ ingested: false, reason: "Design not found" }, ctx.correlationId);
+      throw new ApiError("Design not found", 404);
     }
     const designNumber =
       design.designNumber ?? `DN-${design.ideaRef.replace(/^IDEA-/, "")}`;
-    const metric = await ingestDesignSuccessFromErp(design.id, designNumber);
+    const result = await ingestDesignSuccessFromErp(design.id, designNumber);
     return jsonOk(
       serializeBigInt({
-        ingested: !!metric,
-        metric,
-        mode: process.env.ERP_API_BASE_URL ? "live" : "simulated",
+        ingested: result.ingested,
+        mode: result.mode,
+        reason: result.reason ?? null,
+        metric: result.metric ?? null,
+        designId: design.id.toString(),
+        designNumber,
       }),
       ctx.correlationId,
     );

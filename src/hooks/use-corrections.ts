@@ -79,12 +79,13 @@ export function useUpdateCorrectionStatus() {
       status,
     }: {
       id: string;
-      status: "OPEN" | "ASSIGNED" | "IN_PROGRESS" | "CHECKING" | "DONE" | "REJECTED";
+      status: "OPEN" | "IN_PROGRESS" | "DONE" | "REJECTED";
     }) => apiPatch<CorrectionRecord>(`/api/corrections/${id}`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       toast.success("Correction updated");
     },
     onError: (error) => toast.errorFromApi(error, "Could not update correction"),

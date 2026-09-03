@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircleIcon } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
@@ -12,16 +13,28 @@ import { useApiToast } from "@/components/ui/ToastProvider";
 type ImageGalleryProps = {
   designId: string;
   canUpload?: boolean;
+  highlightImageId?: string | null;
 };
 
-export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) {
+export function ImageGallery({
+  designId,
+  canUpload = true,
+  highlightImageId = null,
+}: ImageGalleryProps) {
   const toast = useApiToast();
   const queryClient = useQueryClient();
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+
   const imagesQuery = useQuery({
     queryKey: queryKeys.designs.images(designId),
     queryFn: () => apiGet<DesignImageRecord[]>(`/api/designs/${designId}/images`),
     enabled: !!designId,
   });
+
+  useEffect(() => {
+    if (!highlightImageId || !imagesQuery.data?.length) return;
+    highlightRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [highlightImageId, imagesQuery.data]);
 
   async function handleDelete(imageId: string) {
     await fetch(`/api/designs/${designId}/images?imageId=${imageId}`, { method: "DELETE" });
@@ -52,10 +65,15 @@ export function ImageGallery({ designId, canUpload = true }: ImageGalleryProps) 
       <div className="image-gallery mt-4">
         {(imagesQuery.data ?? []).map((image) => {
           const isRejected = image.reviewStatus === "REJECTED";
+          const isHighlighted = highlightImageId === image.id;
           return (
             <div
               key={image.id}
-              className={`image-gallery-item${isRejected ? " image-gallery-item--rejected" : ""}`}
+              id={`design-file-${image.id}`}
+              ref={isHighlighted ? highlightRef : undefined}
+              className={`image-gallery-item${isRejected ? " image-gallery-item--rejected" : ""}${
+                isHighlighted ? " ring-2 ring-primary" : ""
+              }`}
             >
               {isRejected ? (
                 <div className="image-gallery-rejected">

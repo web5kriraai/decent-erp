@@ -101,13 +101,24 @@ test.describe("Approvals hub", () => {
     await expect(page.getByRole("tab", { name: /Ready for sign-off/i })).toBeVisible();
     const designRow = page.getByRole("row", { name: new RegExp(design.ideaRef) });
     await expect(designRow).toBeVisible();
-    await expect(designRow.getByRole("button", { name: /Request approval/i })).toBeVisible();
+    await expect(designRow.getByRole("button", { name: /Request Management Sign-off/i })).toBeVisible();
 
     await requestDesignApproval(page, design.id);
 
     await login(page, USERS.checker.email, DEMO);
-    const checkerQueue = await apiGetJson<QueueItem[]>(page, "/api/approvals");
-    expect(checkerQueue.some((row) => row.designId === design.id)).toBe(true);
+    const checkerQueue = await apiGetJson<
+      Array<{
+        designId: string;
+        approvalRequestPackage?: {
+          requesterRemark?: string;
+          snapshot?: { ideaRef?: string };
+        } | null;
+      }>
+    >(page, "/api/approvals");
+    const checkerItem = checkerQueue.find((row) => row.designId === design.id);
+    expect(checkerItem).toBeTruthy();
+    expect(checkerItem?.approvalRequestPackage?.requesterRemark).toMatch(/E2E request/i);
+    expect(checkerItem?.approvalRequestPackage?.snapshot?.ideaRef).toBe(design.ideaRef);
 
     await login(page, USERS.designHead.email, DEMO);
     const designHeadQueueBefore = await apiGetJson<QueueItem[]>(page, "/api/approvals");
@@ -128,5 +139,25 @@ test.describe("Approvals hub", () => {
     await page.goto("/quality/approvals?tab=management");
     await expect(page.getByText(design.ideaRef)).toBeVisible();
     await expect(page.getByRole("button", { name: "Review" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Review" }).click();
+    const decideDialog = page.getByRole("dialog", { name: new RegExp(`Decide ${design.ideaRef}`) });
+    await expect(decideDialog).toBeVisible();
+    await expect(decideDialog.getByText(/Requester remark/i)).toBeVisible();
+    await expect(decideDialog.getByText(/E2E request for management sign-off/i)).toBeVisible();
+
+    await decideDialog.locator("#approvalDecision").click();
+    await page.getByRole("option", { name: /Send for Correction/i }).click();
+    await decideDialog.locator("#approvalCorrectionRemark").fill("E2E correction — fix punch density");
+    await expect(decideDialog.getByText(/Correction will assign to/i)).toBeVisible();
+    await decideDialog.getByRole("button", { name: /Submit Decision/i }).click();
+    await expect(decideDialog).not.toBeVisible({ timeout: 20_000 });
+  });
+
+  test("Admin does not see Ready for sign-off tab", async ({ page }) => {
+    await login(page, USERS.admin.email, DEMO);
+    await page.goto("/quality/approvals");
+    await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Ready for sign-off/i })).toHaveCount(0);
   });
 });

@@ -455,8 +455,17 @@ const APPROVAL_LEVEL_ACTOR: Record<string, keyof typeof USERS> = {
   MANAGEMENT_APPROVAL: "management",
 };
 
-export async function requestDesignApproval(page: Page, designId: string) {
-  return apiPostJson(page, `/api/designs/${designId}/request-approval`, {});
+export async function requestDesignApproval(
+  page: Page,
+  designId: string,
+  options?: { requesterRemark?: string; summaryNote?: string },
+) {
+  return apiPostJson(page, `/api/designs/${designId}/request-approval`, {
+    requesterRemark:
+      options?.requesterRemark ??
+      "E2E request for management sign-off with full package context.",
+    summaryNote: options?.summaryNote,
+  });
 }
 
 export async function requestDesignApprovalIfNeeded(page: Page, designId: string) {

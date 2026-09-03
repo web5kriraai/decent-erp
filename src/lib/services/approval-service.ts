@@ -12,6 +12,7 @@ import {
   isDesignReadyForSignOff,
   readyForSignOffScopeFilter,
 } from "@/lib/services/approval-queue-utils";
+import { validateManagementSignOffRequest } from "@/lib/approval-request-package";
 import type {
   PendingApprovalQueueItem,
   ReadyForSignOffItem,
@@ -59,12 +60,15 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
           id: true,
           status: true,
           sequence: true,
+          assignedEmployeeId: true,
           process: { select: { name: true } },
           subProcess: { select: { name: true, code: true, isApproval: true } },
+          assignedEmployee: { select: { id: true, name: true } },
         },
       },
       costs: { where: { amount: { gt: 0 } }, select: { id: true }, take: 1 },
     },
+    // approvalRequestPackage is a top-level scalar — included automatically
     orderBy: { updatedAtUtc: "desc" },
   });
 
@@ -79,6 +83,7 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
       collectionName: d.collectionName,
       status: d.status,
       priority: d.priority,
+      approvalRequestPackage: d.approvalRequestPackage,
       approvals: d.approvals,
       tasks: d.tasks,
     })),
@@ -156,9 +161,53 @@ export async function requestDesignApproval(
   designId: bigint,
   requesterId: number,
   correlationId: string,
+  input?: {
+    requesterRemark: string;
+    summaryNote?: string;
+  },
 ) {
   return prisma.$transaction(async (tx) => {
-    const design = await tx.designConcept.findUnique({ where: { id: designId } });
+    const requester = await tx.employee.findUnique({
+      where: { id: requesterId },
+      include: { role: { select: { code: true, name: true } } },
+    });
+    if (!requester) throw new ApiError("Requester not found", 404);
+
+    const validated = validateManagementSignOffRequest({
+      roleCode: requester.role?.code,
+      requesterRemark: input?.requesterRemark,
+    });
+    if (!validated.ok) {
+      throw new ApiError(validated.message, validated.status);
+    }
+    const remark = validated.remark;
+
+    const design = await tx.designConcept.findUnique({
+      where: { id: designId },
+      include: {
+        productType: { select: { name: true } },
+        costs: { select: { amount: true }, take: 50 },
+        corrections: {
+          where: { status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"] } },
+          select: { id: true },
+        },
+        tasks: {
+          orderBy: { sequence: "asc" },
+          select: {
+            id: true,
+            status: true,
+            assignedEmployeeId: true,
+            subProcess: { select: { code: true, name: true, isApproval: true } },
+            assignedEmployee: { select: { id: true, name: true } },
+          },
+        },
+        images: {
+          select: { id: true, fileName: true, isPrimary: true },
+          take: 5,
+          orderBy: [{ isPrimary: "desc" }, { uploadedAtUtc: "desc" }],
+        },
+      },
+    });
     if (!design) throw new ApiError("Design not found", 404);
     if (!["DRAFT", "ACTIVE"].includes(design.status)) {
       throw new ApiError("Design cannot enter approval from current status", 422);
@@ -172,23 +221,58 @@ export async function requestDesignApproval(
       throw new ApiError("No approval levels configured", 422);
     }
 
-    const tasks = await tx.designTask.findMany({
-      where: { designId },
-      select: {
-        status: true,
-        subProcess: { select: { code: true, isApproval: true } },
-      },
-    });
-    if (tasks.length === 0 || !isDesignReadyForSignOff(tasks)) {
+    if (design.tasks.length === 0 || !isDesignReadyForSignOff(design.tasks)) {
       throw new ApiError(
         "All required workflow stages must be complete before requesting management approval.",
         422,
       );
     }
 
+    const totalCost = design.costs.reduce((sum, c) => sum + Number(c.amount), 0);
+    const completedStages = design.tasks
+      .filter((t) => ["COMPLETED", "CHECKING", "SKIPPED"].includes(t.status))
+      .map((t) => t.subProcess.name);
+
+    const stageAssignees = design.tasks
+      .filter((t) => !t.subProcess.isApproval)
+      .map((t) => ({
+        code: t.subProcess.code,
+        name: t.subProcess.name,
+        assigneeEmployeeId: t.assignedEmployeeId ?? t.assignedEmployee?.id ?? null,
+        assigneeName: t.assignedEmployee?.name ?? null,
+      }));
+
+    const packagePayload = {
+      requesterEmployeeId: requester.id,
+      requesterName: requester.name,
+      requestedAtUtc: new Date().toISOString(),
+      requesterRemark: remark,
+      summaryNote: input?.summaryNote?.trim() || null,
+      snapshot: {
+        ideaRef: design.ideaRef,
+        collectionName: design.collectionName,
+        productType: design.productType.name,
+        priority: design.priority,
+        statusBeforeRequest: design.status,
+        completedStages,
+        openCorrections: design.corrections.length,
+        costingEntryCount: design.costs.length,
+        costingTotal: totalCost,
+        primaryFiles: design.images.map((img) => ({
+          id: img.id.toString(),
+          fileName: img.fileName,
+          isPrimary: img.isPrimary,
+        })),
+        stageAssignees,
+      },
+    };
+
     const updated = await tx.designConcept.update({
       where: { id: designId },
-      data: { status: "APPROVAL_PENDING" },
+      data: {
+        status: "APPROVAL_PENDING",
+        approvalRequestPackage: packagePayload,
+      },
     });
 
     await writeAuditLog(tx, {
@@ -197,8 +281,8 @@ export async function requestDesignApproval(
       action: "REQUEST_APPROVAL",
       userId: requesterId,
       correlationId,
-      before: design,
-      after: updated,
+      before: { status: design.status },
+      after: { status: updated.status, approvalRequestPackage: packagePayload },
     });
 
     return updated;
@@ -219,6 +303,9 @@ export async function submitApproval(
     approvalLevelId: number;
     decision: ApprovalDecision;
     remark?: string;
+    correctionType?: string;
+    routeSubProcessCode?: string;
+    responsibleEmployeeId?: number;
   },
   approverEmployeeId: number,
   correlationId: string,
@@ -310,6 +397,10 @@ export async function submitApproval(
         await unlockProductionHandoffTask(tx, input.designId, correlationId);
       }
     } else if (input.decision === "CORRECTION_REQUIRED") {
+      if (!input.remark?.trim()) {
+        throw new ApiError("A remark is required when sending for correction.", 400);
+      }
+
       await tx.designConcept.update({
         where: { id: input.designId },
         data: { status: "ACTIVE" },
@@ -342,29 +433,50 @@ export async function submitApproval(
       const designTasks = await tx.designTask.findMany({
         where: { designId: input.designId },
         include: {
-          subProcess: { select: { id: true, code: true } },
-          assignedEmployee: { select: { id: true } },
+          subProcess: { select: { id: true, code: true, name: true } },
+          assignedEmployee: { select: { id: true, name: true } },
         },
         orderBy: { sequence: "asc" },
       });
 
+      const preferredCodes = input.routeSubProcessCode
+        ? [input.routeSubProcessCode, ...SIGN_OFF_CORRECTION_ROUTE_CODES]
+        : [...SIGN_OFF_CORRECTION_ROUTE_CODES];
+
       const routeTask =
-        SIGN_OFF_CORRECTION_ROUTE_CODES.map((code) =>
-          designTasks.find((t) => t.subProcess.code === code),
-        ).find(Boolean) ?? null;
+        preferredCodes
+          .map((code) => designTasks.find((t) => t.subProcess.code === code))
+          .find(Boolean) ?? null;
 
       let raisedCorrectionId: string | null = null;
+      let routedAssigneeName: string | null = null;
+      let routedStageName: string | null = null;
+
+      const correctionType =
+        (input.correctionType as
+          | "MISTAKE"
+          | "IMPROVEMENT"
+          | "CUSTOMER_CHANGE"
+          | "MACHINE"
+          | "MATERIAL"
+          | "OTHER") ?? "IMPROVEMENT";
 
       if (sourceTaskId && routeTask?.subProcess) {
         const routeOwner =
+          input.responsibleEmployeeId ??
           designTasks.find((t) => t.subProcess.id === routeTask.subProcess.id)?.assignedEmployeeId ??
           null;
+        routedAssigneeName =
+          designTasks.find((t) => t.assignedEmployeeId === routeOwner)?.assignedEmployee?.name ??
+          routeTask.assignedEmployee?.name ??
+          null;
+        routedStageName = routeTask.subProcess.name;
         const correction = await raiseCorrectionInTransaction(
           tx,
           {
             designId: input.designId,
             taskId: sourceTaskId,
-            correctionType: "IMPROVEMENT",
+            correctionType,
             responsibleEmployeeId: routeOwner,
             routeToSubProcessId: routeTask.subProcess.id,
             rootCause: input.remark ?? "Approval returned for correction",
@@ -382,8 +494,9 @@ export async function submitApproval(
           data: {
             designId: input.designId,
             taskId: sourceTaskId,
-            correctionType: "IMPROVEMENT",
+            correctionType,
             raisedById: approverEmployeeId,
+            responsibleEmployeeId: input.responsibleEmployeeId ?? null,
             rootCause: input.remark ?? "Approval returned for correction",
             status: "OPEN",
             ratingImpact: 0,
@@ -415,6 +528,8 @@ export async function submitApproval(
         designStatus: "ACTIVE" as const,
         nextLevel: null,
         correctionId: raisedCorrectionId,
+        routedAssigneeName,
+        routedStageName,
       };
     }
 
@@ -465,6 +580,8 @@ export async function submitApproval(
       designStatus,
       nextLevel,
       correctionId: null as string | null,
+      routedAssigneeName: null as string | null,
+      routedStageName: null as string | null,
     };
   }).then(async (result) => {
     if (input.decision === "CORRECTION_REQUIRED" && result.correctionId) {

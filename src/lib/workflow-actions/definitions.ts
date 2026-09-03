@@ -13,9 +13,9 @@ export const WORKFLOW_ACTION_META: Record<
     variant: "primary",
   },
   [WORKFLOW_ACTION_CODES.REQUEST_APPROVAL]: {
-    label: "Request Final Approval",
+    label: "Request Management Sign-off",
     variant: "primary",
-    description: "Send the design into the management approval chain.",
+    description: "Send the design into the management approval chain (Design Head only).",
   },
   [WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE]: {
     label: "Open Approvals Queue",

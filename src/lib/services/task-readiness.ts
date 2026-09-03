@@ -69,6 +69,42 @@ export async function promoteReadyPendingTaskInTx(
   return { ...task, status: "ASSIGNED" };
 }
 
+/**
+ * Demote ASSIGNED tasks whose prior stages are no longer satisfied
+ * (e.g. Costing unlocked early, then Sample Checking went to correction).
+ */
+export async function demoteBlockedAssignedTaskInTx(
+  tx: Prisma.TransactionClient,
+  task: ReadinessTask,
+  siblings: ReadinessSibling[],
+  actorId: number,
+  correlationId: string,
+): Promise<ReadinessTask> {
+  if (task.status !== "ASSIGNED") {
+    return task;
+  }
+  if (isTaskReady(toDepSeqTask(task), siblings.map(toDepSeqTask))) {
+    return task;
+  }
+
+  const updated = await tx.designTask.update({
+    where: { id: task.id },
+    data: { status: "PENDING", version: { increment: 1 } },
+  });
+
+  await writeAuditLog(tx, {
+    entityType: "DesignTask",
+    entityId: task.id.toString(),
+    action: "DEMOTE_NOT_READY",
+    userId: actorId,
+    correlationId,
+    before: task,
+    after: updated,
+  });
+
+  return { ...task, status: "PENDING" };
+}
+
 export async function reconcileTaskReadiness(
   taskId: bigint,
   actorId: number,
@@ -120,8 +156,11 @@ export async function reconcileEmployeeTasksReadiness(
 ): Promise<number> {
   await syncOpenTaskPrioritiesForEmployee(employeeId);
 
-  const pending = await prisma.designTask.findMany({
-    where: { assignedEmployeeId: employeeId, status: "PENDING" },
+  const openTasks = await prisma.designTask.findMany({
+    where: {
+      assignedEmployeeId: employeeId,
+      status: { in: ["PENDING", "ASSIGNED"] },
+    },
     select: {
       id: true,
       designId: true,
@@ -131,9 +170,9 @@ export async function reconcileEmployeeTasksReadiness(
       assignedEmployeeId: true,
     },
   });
-  if (pending.length === 0) return 0;
+  if (openTasks.length === 0) return 0;
 
-  const designIds = [...new Set(pending.map((t) => t.designId.toString()))];
+  const designIds = [...new Set(openTasks.map((t) => t.designId.toString()))];
   const siblingsByDesign = new Map<string, ReadinessSibling[]>();
 
   for (const designIdStr of designIds) {
@@ -144,11 +183,30 @@ export async function reconcileEmployeeTasksReadiness(
     siblingsByDesign.set(designIdStr, siblings);
   }
 
-  let promoted = 0;
+  let changed = 0;
   await prisma.$transaction(async (tx) => {
-    for (const task of pending) {
+    for (const task of openTasks) {
       const siblings = siblingsByDesign.get(task.designId.toString()) ?? [];
       const before = task.status;
+
+      if (task.status === "ASSIGNED") {
+        const result = await demoteBlockedAssignedTaskInTx(
+          tx,
+          task,
+          siblings,
+          employeeId,
+          correlationId,
+        );
+        if (before === "ASSIGNED" && result.status === "PENDING") {
+          changed += 1;
+          // Keep local sibling snapshot in sync for later tasks in the same design
+          const list = siblingsByDesign.get(task.designId.toString());
+          const row = list?.find((s) => s.id === task.id);
+          if (row) row.status = "PENDING";
+        }
+        continue;
+      }
+
       const result = await promoteReadyPendingTaskInTx(
         tx,
         task,
@@ -156,11 +214,16 @@ export async function reconcileEmployeeTasksReadiness(
         employeeId,
         correlationId,
       );
-      if (before === "PENDING" && result.status === "ASSIGNED") promoted += 1;
+      if (before === "PENDING" && result.status === "ASSIGNED") {
+        changed += 1;
+        const list = siblingsByDesign.get(task.designId.toString());
+        const row = list?.find((s) => s.id === task.id);
+        if (row) row.status = "ASSIGNED";
+      }
     }
   });
 
-  return promoted;
+  return changed;
 }
 
 export function resolveStatusAfterAssign(input: {

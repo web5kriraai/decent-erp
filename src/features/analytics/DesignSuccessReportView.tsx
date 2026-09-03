@@ -8,8 +8,11 @@ import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { DataTable } from "@/components/DataTable";
 import { StatCard } from "@/components/ui/StatCard";
+import { StatusBadge } from "@/components/StatusBadge";
+import { AppCard } from "@/components/ui/AppCard";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useDesignSuccessReport } from "@/hooks/use-reports";
+import { useErpIntegrationStatus } from "@/hooks/use-production";
 import {
   Modal,
   ModalFooterActions,
@@ -22,6 +25,13 @@ import { apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
 
+type DesignSuccessSyncResult = {
+  ingested: boolean;
+  mode: "simulated" | "live";
+  reason?: string | null;
+  designNumber?: string;
+};
+
 export function DesignSuccessReportView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
@@ -30,9 +40,11 @@ export function DesignSuccessReportView() {
   const [year, setYear] = useState(now.getUTCFullYear());
   const [month, setMonth] = useState(now.getUTCMonth() + 1);
   const reportQuery = useDesignSuccessReport(year, month, enabled);
+  const erpStatusQuery = useErpIntegrationStatus(enabled);
   const queryClient = useQueryClient();
   const toast = useApiToast();
   const [upsertOpen, setUpsertOpen] = useState(false);
+  const [lastSync, setLastSync] = useState<DesignSuccessSyncResult | null>(null);
   const [form, setForm] = useState({
     designId: "",
     productionQty: "",
@@ -63,13 +75,22 @@ export function DesignSuccessReportView() {
 
   const erpSync = useMutation({
     mutationFn: (designId: string) =>
-      apiPost<{ ingested: boolean }>("/api/reports/design-success/sync", { designId }),
+      apiPost<DesignSuccessSyncResult>("/api/reports/design-success/sync", { designId }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.reports.designSuccess(year, month) });
+      setLastSync(data);
       if (data.ingested) {
-        toast.success("ERP metrics ingested");
+        toast.success(
+          "ERP metrics ingested",
+          data.designNumber ? `Updated metrics for ${data.designNumber}` : undefined,
+        );
+      } else if (data.mode === "simulated") {
+        toast.warning(
+          "Simulated ERP mode",
+          data.reason ?? "Configure ERP_API_BASE_URL to ingest live design-success metrics.",
+        );
       } else {
-        toast.success("No ERP metrics", "Live ERP returned no data for this design (or simulated mode).");
+        toast.info("No ERP metrics", data.reason ?? "Live ERP returned no data for this design.");
       }
     },
     onError: (e) => toast.errorFromApi(e, "ERP sync failed"),
@@ -85,6 +106,7 @@ export function DesignSuccessReportView() {
 
   const rows = reportQuery.data ?? [];
   const totalSales = rows.reduce((sum, row) => sum + Number(row.salesValue ?? 0), 0);
+  const erpMode = erpStatusQuery.data?.mode ?? lastSync?.mode ?? "simulated";
 
   return (
     <div className="page-shell page-shell--wide">
@@ -104,10 +126,10 @@ export function DesignSuccessReportView() {
                   toast.error("Select a design", "Enter a design ID or load a row first.");
                   return;
                 }
-                erpSync.mutate(designId);
+                erpSync.mutate(String(designId));
               }}
             >
-              Sync from ERP
+              {erpSync.isPending ? "Syncing…" : "Sync from ERP"}
             </AppButton>
             <AppButton type="button" appVariant="primary" size="sm" onClick={() => setUpsertOpen(true)}>
               Add / Update Metric
@@ -115,6 +137,27 @@ export function DesignSuccessReportView() {
           </>
         }
       />
+
+      <AppCard title="ERP feed" className="stack-section">
+        <p className="mb-2 text-sm">
+          Mode:{" "}
+          <StatusBadge
+            status={erpMode === "live" ? "ACTIVE" : "CHECKING"}
+            label={erpMode === "live" ? "Live ERP" : "Simulated"}
+          />
+        </p>
+        <p className="m-0 text-sm text-muted-foreground">
+          {erpStatusQuery.data?.message ??
+            "Configure ERP_API_BASE_URL to pull production/sales/return metrics automatically."}
+        </p>
+        {lastSync ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Last sync: {lastSync.ingested ? "ingested" : "no data"}
+            {lastSync.designNumber ? ` · ${lastSync.designNumber}` : ""}
+            {lastSync.reason ? ` — ${lastSync.reason}` : ""}
+          </p>
+        ) : null}
+      </AppCard>
 
       <div className="toolbar stack-section">
         <FormTextField
@@ -168,7 +211,8 @@ export function DesignSuccessReportView() {
               key: "salesValue",
               header: "Sales Value",
               align: "right",
-              render: (row) => (row.salesValue != null ? `₹${Number(row.salesValue).toLocaleString()}` : "—"),
+              render: (row) =>
+                row.salesValue != null ? `₹${Number(row.salesValue).toLocaleString()}` : "—",
             },
             {
               key: "marginPercent",
@@ -176,11 +220,27 @@ export function DesignSuccessReportView() {
               align: "right",
               render: (row) => (row.marginPercent != null ? `${row.marginPercent}%` : "—"),
             },
+            {
+              key: "sync",
+              header: "",
+              align: "right",
+              render: (row) => (
+                <AppButton
+                  type="button"
+                  appVariant="ghost"
+                  size="sm"
+                  disabled={erpSync.isPending}
+                  onClick={() => erpSync.mutate(String(row.designId))}
+                >
+                  Sync
+                </AppButton>
+              ),
+            },
           ]}
           rows={rows}
           getRowKey={(row) => String(row.id)}
           emptyTitle="No design success metrics for this period"
-          emptyDescription="Add metrics manually or ingest from ERP when integrated."
+          emptyDescription="Add metrics manually or sync from live ERP when ERP_API_BASE_URL is configured."
         />
       </QueryState>
 
@@ -190,7 +250,9 @@ export function DesignSuccessReportView() {
         onClose={() => setUpsertOpen(false)}
         footer={
           <ModalFooterActions>
-            <AppButton appVariant="outline" onClick={() => setUpsertOpen(false)}>Cancel</AppButton>
+            <AppButton appVariant="outline" onClick={() => setUpsertOpen(false)}>
+              Cancel
+            </AppButton>
             <AppButton disabled={!form.designId || upsert.isPending} onClick={() => upsert.mutate()}>
               Save
             </AppButton>

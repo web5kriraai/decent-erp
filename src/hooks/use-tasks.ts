@@ -88,6 +88,7 @@ export function useTaskMutations() {
     queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.time.mySummary });
     queryClient.invalidateQueries({ queryKey: queryKeys.time.live });
+    queryClient.invalidateQueries({ queryKey: ["costs"] });
   };
 
   const start = useMutation({
@@ -152,6 +153,7 @@ export function useTaskMutations() {
       checklist,
       checklistNote,
       sampleOutcome,
+      costEntries,
     }: {
       taskId: string;
       version: number;
@@ -160,6 +162,11 @@ export function useTaskMutations() {
       checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
       checklistNote?: string;
       sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
+      costEntries?: Array<{
+        costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION";
+        description?: string;
+        amount: number;
+      }>;
     }) =>
       apiPost<DesignTask>(`/api/tasks/${taskId}/end`, {
         version,
@@ -168,6 +175,7 @@ export function useTaskMutations() {
         checklist,
         checklistNote,
         sampleOutcome,
+        costEntries,
       }),
     onSuccess: () => {
       invalidate();

@@ -241,7 +241,7 @@ describe("design workflow actions", () => {
       approvalsQueueHref: "/quality/approvals",
     });
 
-    expect(actions.some((a) => a.label === "Request Final Approval")).toBe(false);
+    expect(actions.some((a) => a.label === "Request Management Sign-off")).toBe(false);
   });
 
   it("shows request final approval only when no open stage actions remain", () => {
@@ -259,7 +259,7 @@ describe("design workflow actions", () => {
       approvalsQueueHref: "/quality/approvals",
     });
 
-    expect(actions.some((a) => a.label === "Request Final Approval")).toBe(true);
+    expect(actions.some((a) => a.label === "Request Management Sign-off")).toBe(true);
   });
 
   it("prefers sketch approval when sketch is checking even if concept review is checking", () => {
@@ -514,6 +514,51 @@ describe("workflow panel header status", () => {
     });
 
     expect(header).toBe("READY");
+  });
+
+  it("shows ON_HOLD with hold reason when the current step is held", () => {
+    const design: DesignSummary = {
+      id: "1",
+      ideaRef: "IDEA-1",
+      collectionName: "Test",
+      status: "ACTIVE",
+      priority: "MEDIUM",
+      tasks: [
+        task({
+          id: "t1",
+          sequence: 1,
+          status: "COMPLETED",
+          subProcess: { id: 1, name: "Concept Review", code: "CONCEPT_REVIEW", isApproval: true },
+        }),
+        task({
+          id: "t2",
+          sequence: 2,
+          status: "ON_HOLD",
+          subProcess: { id: 2, name: "Sketch Creation", code: "SKETCH" },
+          holdReason: { id: 1, code: "LUNCH", name: "Lunch" },
+          timeEvents: [
+            {
+              id: "e1",
+              eventType: "HOLD",
+              eventTimeUtc: "2026-01-01T12:00:00.000Z",
+              holdReason: { id: 1, code: "LUNCH", name: "Lunch" },
+            },
+          ],
+        }),
+        task({
+          id: "t3",
+          sequence: 3,
+          status: "PENDING",
+          subProcess: { id: 3, name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        }),
+      ],
+    };
+
+    const steps = buildWorkflowSteps(design.tasks);
+    const current = steps.find((s) => s.isCurrent);
+    expect(current?.code).toBe("SKETCH");
+    expect(current?.displayStatus).toBe("ON_HOLD");
+    expect(current?.holdReasonName).toBe("Lunch");
   });
 
   it("shows IN_PROGRESS when the current step timer is running", () => {

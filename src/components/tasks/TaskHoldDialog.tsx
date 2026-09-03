@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Modal,
   ModalFooterActions,
@@ -20,6 +21,9 @@ type TaskHoldDialogProps = {
   onHoldRemarkChange: (value: string) => void;
   onSubmit: () => void;
   isPending: boolean;
+  title?: string;
+  description?: string;
+  preferredHoldReasonCodes?: string[];
 };
 
 export function TaskHoldDialog({
@@ -32,8 +36,21 @@ export function TaskHoldDialog({
   onHoldRemarkChange,
   onSubmit,
   isPending,
+  title = "Hold Task",
+  description = "Active work time pauses until you resume. Choose why you are putting this task on hold.",
+  preferredHoldReasonCodes = [],
 }: TaskHoldDialogProps) {
-  const options = holdReasons.map((r) => ({
+  const orderedReasons = useMemo(() => {
+    if (preferredHoldReasonCodes.length === 0) return holdReasons;
+    const rank = new Map(preferredHoldReasonCodes.map((code, index) => [code, index]));
+    return [...holdReasons].sort((a, b) => {
+      const ra = rank.has(a.code) ? rank.get(a.code)! : 999;
+      const rb = rank.has(b.code) ? rank.get(b.code)! : 999;
+      return ra - rb;
+    });
+  }, [holdReasons, preferredHoldReasonCodes]);
+
+  const options = orderedReasons.map((r) => ({
     value: String(r.id),
     label: r.name,
     description: r.code.replace(/_/g, " "),
@@ -42,8 +59,8 @@ export function TaskHoldDialog({
   return (
     <Modal
       open={open}
-      title="Hold Task"
-      description="Active work time pauses until you resume. Choose why you are putting this task on hold."
+      title={title}
+      description={description}
       onClose={onClose}
       footer={
         <ModalFooterActions>
@@ -79,7 +96,7 @@ export function TaskHoldDialog({
           rows={3}
           value={holdRemark}
           onChange={(e) => onHoldRemarkChange(e.target.value)}
-          placeholder="Optional note for your team…"
+          placeholder="Optional context for this hold…"
           disabled={isPending}
         />
       </ModalForm>

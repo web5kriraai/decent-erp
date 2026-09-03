@@ -227,27 +227,90 @@ export function resolveTaskContextActions(input: {
 export function resolveCorrectionContextActions(input: {
   permissions: string[];
   correction?: CorrectionRecord;
+  /** When false, omit raise (e.g. row-level panel). Default true. */
+  includeRaise?: boolean;
 }): ResolvedWorkflowAction[] {
   const canRaise = input.permissions.includes(PERMISSIONS.CORRECTION_RAISE);
   const actions: ResolvedWorkflowAction[] = [];
+  const includeRaise = input.includeRaise !== false;
 
-  actions.push(
-    buildAction(WORKFLOW_ACTION_CODES.RAISE_CORRECTION, {
-      enabled: canRaise,
-      disabledReason: canRaise ? undefined : "Raising corrections isn't enabled for your role.",
-    }),
-  );
-
-  if (input.correction) {
-    const done = input.correction.status === "DONE";
+  // Unauthorized actions are omitted entirely (prompt: do not render).
+  if (includeRaise && canRaise) {
     actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.COMPLETE_CORRECTION, {
-        enabled: canRaise && !done,
-        disabledReason: done ? "This correction is already marked done." : undefined,
-        designId: input.correction.design.id,
+      buildAction(WORKFLOW_ACTION_CODES.RAISE_CORRECTION, {
+        enabled: true,
       }),
     );
   }
+
+  if (input.correction && canRaise) {
+    const status = input.correction.status;
+    const done = status === "DONE" || status === "REJECTED";
+    if (!done) {
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.COMPLETE_CORRECTION, {
+          enabled: true,
+          designId: input.correction.design.id,
+        }),
+      );
+    }
+  }
+
+  return actions;
+}
+
+export function resolveApprovalContextActions(input: {
+  permissions: string[];
+  roleCode?: string | null;
+  /** Pending management / stage approval item context */
+  approval?: {
+    designId: string;
+    status?: string;
+    costingReady?: boolean;
+    levelName?: string;
+  };
+  canAccessHub?: boolean;
+}): ResolvedWorkflowAction[] {
+  const canApprove = input.permissions.includes(PERMISSIONS.DESIGN_APPROVE);
+  const canAccessHub = input.canAccessHub ?? canRoleAccessApprovalsHub(input.roleCode);
+  if (!canAccessHub && !canApprove) {
+    return [];
+  }
+
+  const actions: ResolvedWorkflowAction[] = [];
+
+  if (canAccessHub) {
+    actions.push(
+      buildAction(WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE, {
+        enabled: true,
+        href: ROUTES.quality.approvals,
+      }),
+    );
+  }
+
+  if (!input.approval || !canApprove) {
+    return actions;
+  }
+
+  const costingBlocksApprove = input.approval.costingReady === false;
+
+  actions.push(
+    buildAction(WORKFLOW_ACTION_CODES.APPROVE_LEVEL, {
+      enabled: !costingBlocksApprove,
+      disabledReason: costingBlocksApprove
+        ? "Add at least one cost entry before final management approval."
+        : undefined,
+      designId: input.approval.designId,
+    }),
+    buildAction(WORKFLOW_ACTION_CODES.REJECT_LEVEL, {
+      enabled: true,
+      designId: input.approval.designId,
+    }),
+    buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL_CORRECTION, {
+      enabled: true,
+      designId: input.approval.designId,
+    }),
+  );
 
   return actions;
 }
@@ -258,34 +321,29 @@ export function resolveCostingContextActions(input: {
   permissions: string[];
 }): ResolvedWorkflowAction[] {
   const canView = input.permissions.includes(PERMISSIONS.COST_VIEW);
-  const actions: ResolvedWorkflowAction[] = [];
+  if (!canView) {
+    return [];
+  }
 
-  actions.push(
-    buildAction(WORKFLOW_ACTION_CODES.ADD_COST, {
-      enabled: canView && !!input.designId,
-      disabledReason: !input.designId
-        ? "Select a design to add cost entries."
-        : !canView
-          ? "Costing view isn't enabled for your role."
-          : undefined,
-      designId: input.designId,
-    }),
-  );
+  const actions: ResolvedWorkflowAction[] = [];
 
   if (input.designId) {
     actions.push(
+      buildAction(WORKFLOW_ACTION_CODES.ADD_COST, {
+        enabled: true,
+        designId: input.designId,
+      }),
       buildAction(WORKFLOW_ACTION_CODES.VIEW_DESIGN_COSTING, {
         enabled: true,
         href: ROUTES.designs.detail(input.designId),
         designId: input.designId,
       }),
-      buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL, {
-        enabled: !!input.hasCosting,
-        disabledReason: input.hasCosting
-          ? undefined
-          : "Add at least one cost entry before requesting final approval.",
-        designId: input.designId,
-        variant: "secondary",
+    );
+  } else {
+    actions.push(
+      buildAction(WORKFLOW_ACTION_CODES.ADD_COST, {
+        enabled: false,
+        disabledReason: "Select a design to add cost entries.",
       }),
     );
   }
@@ -304,12 +362,7 @@ export function resolveProductionContextActions(input: {
 }): ResolvedWorkflowAction[] {
   const canProd = input.permissions.includes(PERMISSIONS.PRODUCTION_RELEASE);
   if (!canProd) {
-    return [
-      buildAction(WORKFLOW_ACTION_CODES.OPEN_PRODUCTION_TASKS, {
-        enabled: false,
-        disabledReason: "You do not have production desk access.",
-      }),
-    ];
+    return [];
   }
 
   const actions: ResolvedWorkflowAction[] = [
@@ -360,17 +413,18 @@ export function resolveProductionContextActions(input: {
 
   if (input.designStatus === "PRODUCTION_RELEASED") {
     const canMarkLive = canRoleMarkDesignLive(input.roleCode);
-    actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.MARK_LIVE, {
-        enabled: canMarkLive,
-        disabledReason: canMarkLive
-          ? undefined
-          : "Only Management can mark a design live.",
-        designId: input.designId,
-        variant: "primary",
-      }),
-    );
+    // Hide Mark Live entirely when role cannot perform it.
+    if (canMarkLive) {
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.MARK_LIVE, {
+          enabled: true,
+          designId: input.designId,
+          variant: "primary",
+        }),
+      );
+    }
   }
 
   return actions;
 }
+

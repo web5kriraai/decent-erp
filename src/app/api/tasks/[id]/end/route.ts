@@ -18,6 +18,15 @@ const schema = z.object({
     .optional(),
   checklistNote: z.string().optional(),
   sampleOutcome: z.enum(["APPROVE", "REJECT", "RESAMPLE"]).optional(),
+  costEntries: z
+    .array(
+      z.object({
+        costType: z.enum(["TIME", "MATERIAL", "MACHINE", "CORRECTION"]),
+        description: z.string().optional(),
+        amount: z.number().positive(),
+      }),
+    )
+    .optional(),
   version: z.number().int().positive(),
 });
 
@@ -39,6 +48,7 @@ export async function POST(
         checklist: body.checklist,
         checklistNote: body.checklistNote,
         sampleOutcome: body.sampleOutcome,
+        costEntries: body.costEntries,
       },
       ctx.correlationId,
     );

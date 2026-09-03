@@ -17,7 +17,11 @@ import {
   isTaskReady,
 } from "@/lib/services/task-dependency";
 import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
-import { raiseCorrectionInTransaction } from "@/lib/services/correction-service";
+import {
+  raiseCorrectionInTransaction,
+  reopenSourceCheckAfterRoutedRework,
+  closeOpenCorrectionsForTask,
+} from "@/lib/services/correction-service";
 import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
 import { canRoleActOnStageApproval } from "@/lib/stage-approval-rbac";
 import { isStageApprovalActionable } from "@/lib/design-workflow";
@@ -26,6 +30,11 @@ import { resolveStatusAfterAssign, reconcileEmployeeTasksReadiness } from "@/lib
 import { enrichEmployeeTasks } from "@/lib/services/task-workflow-enrichment";
 import { sortTasksByEffectivePriority } from "@/lib/task-priority";
 import { resolveWorkTaskEndStatus, findCheckingWorkTasksReleasedByApproval } from "@/lib/services/workflow-stage-gate";
+import {
+  createCostEntryInTx,
+  designHasCosting,
+  type CostType,
+} from "@/lib/services/costing-service";
 import type { Prisma } from "@prisma/client";
 
 async function promoteGatedWorkTasksAfterApproval(
@@ -495,6 +504,11 @@ export async function endTask(
     checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
     checklistNote?: string;
     sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
+    costEntries?: Array<{
+      costType: CostType;
+      description?: string;
+      amount: number;
+    }>;
   },
   correlationId: string,
 ) {
@@ -587,6 +601,32 @@ export async function endTask(
       });
       if (artifactCount === 0) {
         throw businessRule(APP_ERROR_CODES.REQUIRED_FILE_MISSING);
+      }
+    }
+
+    const isCosting = task.subProcess.code === "COSTING";
+    if (isCosting) {
+      for (const entry of input.costEntries ?? []) {
+        await createCostEntryInTx(
+          tx,
+          task.designId,
+          {
+            costType: entry.costType,
+            description: entry.description?.trim() || undefined,
+            amount: entry.amount,
+          },
+          employeeId,
+          correlationId,
+          { skipDesignCheck: true },
+        );
+      }
+      const hasCosting = await designHasCosting(task.designId, tx);
+      if (!hasCosting) {
+        throw businessRule(
+          APP_ERROR_CODES.COSTING_REQUIRED,
+          undefined,
+          "Enter at least one cost before completing Costing.",
+        );
       }
     }
 
@@ -739,31 +779,47 @@ export async function endTask(
       } else if (isResampleTask && nextStatus === "COMPLETED") {
         await reopenSampleCheckAfterResample(tx, task.designId, correlationId);
       } else {
-        if (task.subProcess.isApproval && nextStatus === "COMPLETED") {
-          await promoteGatedWorkTasksAfterApproval(
+        // Machine (or other) rework finished for an open correction → reopen Sample Check.
+        const reopenedCheck = await reopenSourceCheckAfterRoutedRework(tx, {
+          designId: task.designId,
+          routedTaskId: task.id,
+          correlationId,
+        });
+
+        if (isSampleCheck && input.sampleOutcome === "APPROVE") {
+          await closeOpenCorrectionsForTask(tx, {
+            designId: task.designId,
+            taskId: task.id,
+          });
+        }
+
+        if (!reopenedCheck) {
+          if (task.subProcess.isApproval && nextStatus === "COMPLETED") {
+            await promoteGatedWorkTasksAfterApproval(
+              tx,
+              {
+                id: task.id,
+                designId: task.designId,
+                dependencySequence: task.dependencySequence,
+                sequence: task.sequence,
+              },
+              employeeId,
+              correlationId,
+            );
+          }
+
+          await unlockNextDependentTasks(
             tx,
             {
               id: task.id,
               designId: task.designId,
               dependencySequence: task.dependencySequence,
               sequence: task.sequence,
+              subProcessCode: task.subProcess.code,
             },
-            employeeId,
             correlationId,
           );
         }
-
-        await unlockNextDependentTasks(
-          tx,
-          {
-            id: task.id,
-            designId: task.designId,
-            dependencySequence: task.dependencySequence,
-            sequence: task.sequence,
-            subProcessCode: task.subProcess.code,
-          },
-          correlationId,
-        );
       }
     }
 

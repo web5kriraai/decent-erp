@@ -74,8 +74,10 @@ type PendingDesignTaskRow = {
   id: bigint | string | number;
   status: string;
   sequence: number;
+  assignedEmployeeId?: number | null;
   process: { name: string };
   subProcess: { name: string; code: string; isApproval?: boolean };
+  assignedEmployee?: { id: number; name: string } | null;
 };
 
 type PendingDesignRow = {
@@ -84,6 +86,7 @@ type PendingDesignRow = {
   collectionName: string;
   status: string;
   priority?: string;
+  approvalRequestPackage?: unknown;
   approvals: Array<{
     approvalLevelId: number;
     decision: string;
@@ -127,6 +130,7 @@ export type BuiltPendingApprovalItem = {
     priority?: string;
   };
   currentLevel: ApprovalLevelRow;
+  nextLevelName: string | null;
   task: {
     id: string;
     process: { name: string };
@@ -134,6 +138,13 @@ export type BuiltPendingApprovalItem = {
   } | null;
   existingApprovalId: string | null;
   costingReady: boolean;
+  approvalRequestPackage?: unknown;
+  stageAssignees: Array<{
+    code: string;
+    name: string;
+    assigneeEmployeeId: number | null;
+    assigneeName: string | null;
+  }>;
 };
 
 /** Pure builder — excludes stuck designs where every level is already APPROVED/SKIPPED. */
@@ -161,6 +172,18 @@ export function buildPendingApprovalItems(
     const designId = design.id.toString();
     const isFinalLevel = lastLevel != null && nextLevel.id === lastLevel.id;
     const costingReady = !isFinalLevel || (withCosting?.has(designId) ?? true);
+    const followingLevel = levels.find(
+      (l) => (l.sequence ?? 0) > (nextLevel.sequence ?? 0),
+    );
+
+    const stageAssignees = design.tasks
+      .filter((t) => !t.subProcess.isApproval)
+      .map((t) => ({
+        code: t.subProcess.code,
+        name: t.subProcess.name,
+        assigneeEmployeeId: t.assignedEmployeeId ?? t.assignedEmployee?.id ?? null,
+        assigneeName: t.assignedEmployee?.name ?? null,
+      }));
 
     return [
       {
@@ -173,6 +196,7 @@ export function buildPendingApprovalItems(
           priority: design.priority,
         },
         currentLevel: nextLevel,
+        nextLevelName: followingLevel?.name ?? null,
         task: (() => {
           const related = pickRelatedApprovalTask(design.tasks, nextLevel.code);
           return related
@@ -185,6 +209,8 @@ export function buildPendingApprovalItems(
         })(),
         existingApprovalId: existingPending?.id?.toString() ?? null,
         costingReady,
+        approvalRequestPackage: design.approvalRequestPackage ?? null,
+        stageAssignees,
       },
     ];
   });

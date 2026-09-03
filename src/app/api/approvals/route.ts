@@ -20,6 +20,11 @@ const schema = z.object({
   approvalLevelId: z.number().int().positive(),
   decision: z.enum(["APPROVED", "REJECTED", "CORRECTION_REQUIRED", "SKIPPED"]),
   remark: z.string().optional(),
+  correctionType: z
+    .enum(["MISTAKE", "IMPROVEMENT", "CUSTOMER_CHANGE", "MACHINE", "MATERIAL", "OTHER"])
+    .optional(),
+  routeSubProcessCode: z.string().optional(),
+  responsibleEmployeeId: z.number().int().positive().optional(),
 });
 
 const HUB_PERMISSION = [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.DESIGN_APPROVE] as const;
@@ -104,6 +109,9 @@ export async function POST(request: Request) {
         approvalLevelId: body.approvalLevelId,
         decision: body.decision,
         remark: body.remark,
+        correctionType: body.correctionType,
+        routeSubProcessCode: body.routeSubProcessCode,
+        responsibleEmployeeId: body.responsibleEmployeeId,
       },
       ctx.employeeId,
       ctx.correlationId,

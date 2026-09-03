@@ -5,16 +5,21 @@ import Link from "next/link";
 import {
   Modal,
   ModalFooterActions,
-  ModalForm,
 } from "@/components/ui/Modal";
-import { FormSelect } from "@/components/ui/form-select";
-import { FormTextArea } from "@/components/ui/form-text-area";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { ROUTES } from "@/config/routes";
 import { usePendingApprovals, useSubmitApproval } from "@/hooks/use-approvals";
+import { useEmployeeOptions } from "@/hooks/use-corrections";
 import { getManagementLevelOwnerRole } from "@/lib/approval-hub-rbac";
 import { getRoleDefinition } from "@/config/roles";
+import { parseApprovalRequestPackage } from "@/lib/approval-request-package";
+import {
+  ApprovalDecisionForm,
+  defaultApprovalDecisionFormState,
+  isApprovalDecisionFormValid,
+  type ApprovalDecisionFormState,
+} from "@/components/approvals/ApprovalDecisionForm";
 
 type ManagementApprovalCardProps = {
   designId: string;
@@ -24,11 +29,11 @@ type ManagementApprovalCardProps = {
 export function ManagementApprovalCard({ designId, ideaRef }: ManagementApprovalCardProps) {
   const pendingQuery = usePendingApprovals(true);
   const submitApproval = useSubmitApproval();
-  const [decision, setDecision] = useState<"APPROVED" | "REJECTED" | "CORRECTION_REQUIRED">(
-    "APPROVED",
+  const [formState, setFormState] = useState<ApprovalDecisionFormState>(
+    defaultApprovalDecisionFormState(),
   );
-  const [remark, setRemark] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const employeesQuery = useEmployeeOptions(modalOpen);
 
   const pendingItem = (pendingQuery.data ?? []).find((item) => item.designId === designId);
   if (!pendingItem) return null;
@@ -38,19 +43,26 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
   const ownerLabel = ownerRole
     ? (getRoleDefinition(ownerRole)?.displayName ?? ownerRole)
     : "Approver";
+  const requestPackage = parseApprovalRequestPackage(pendingItem.approvalRequestPackage);
 
   async function handleSubmit() {
-    if (decision !== "APPROVED" && !remark.trim()) return;
-    if (decision === "APPROVED" && pendingItem!.costingReady === false) return;
+    if (!isApprovalDecisionFormValid(formState, pendingItem!.costingReady)) return;
     const result = await submitApproval.mutateAsync({
       designId: pendingItem!.designId,
       taskId: pendingItem!.task?.id,
       approvalLevelId: pendingItem!.currentLevel.id,
-      decision,
-      remark: remark.trim() || undefined,
+      decision: formState.decision,
+      remark: formState.remark.trim() || undefined,
+      correctionType:
+        formState.decision === "CORRECTION_REQUIRED" ? formState.correctionType : undefined,
+      routeSubProcessCode:
+        formState.decision === "CORRECTION_REQUIRED" ? formState.routeSubProcessCode : undefined,
+      responsibleEmployeeId:
+        formState.decision === "CORRECTION_REQUIRED" && formState.responsibleEmployeeId
+          ? Number(formState.responsibleEmployeeId)
+          : undefined,
     });
-    setRemark("");
-    setDecision("APPROVED");
+    setFormState(defaultApprovalDecisionFormState());
     if (result.nextLevel && !result.chainComplete) {
       await pendingQuery.refetch();
       return;
@@ -83,8 +95,8 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
 
       <Modal
         open={modalOpen}
-        title={`Approve ${ideaRef}`}
-        description={`Submit your decision for ${pendingItem.currentLevel.name}.`}
+        title={`Decide ${ideaRef}`}
+        description={`Review the requester package and submit your decision for ${pendingItem.currentLevel.name}.`}
         onClose={() => setModalOpen(false)}
         footer={
           <ModalFooterActions>
@@ -95,52 +107,33 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
               type="button"
               disabled={
                 submitApproval.isPending ||
-                (decision !== "APPROVED" && !remark.trim()) ||
-                (decision === "APPROVED" && pendingItem.costingReady === false)
+                !isApprovalDecisionFormValid(formState, pendingItem.costingReady)
               }
-              onClick={handleSubmit}
+              onClick={() => void handleSubmit()}
             >
               {submitApproval.isPending ? "Submitting…" : "Submit Decision"}
             </AppButton>
           </ModalFooterActions>
         }
       >
-        <ModalForm>
-          {pendingItem.costingReady === false && decision === "APPROVED" ? (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="alert">
-              Final management approval needs costing first. Add at least one cost entry on{" "}
-              <Link href={ROUTES.finance.costing} className="font-medium underline">
-                Finance → Costing
-              </Link>
-              , then return here to approve.
-            </p>
-          ) : null}
-          <FormSelect
-            id="managementApprovalDecision"
-            label="Decision"
-            required
-            value={decision}
-            onValueChange={(v) => setDecision(v as typeof decision)}
-            options={[
-              { value: "APPROVED", label: "Approve" },
-              { value: "REJECTED", label: "Reject" },
-              { value: "CORRECTION_REQUIRED", label: "Send for Correction" },
-            ]}
-          />
-          <FormTextArea
-            id="managementApprovalRemark"
-            label="Remark"
-            rows={3}
-            required={decision !== "APPROVED"}
-            value={remark}
-            onChange={(e) => setRemark(e.target.value)}
-            placeholder={
-              decision === "APPROVED"
-                ? "Optional notes for the design team…"
-                : "Required — explain why this was rejected or sent back…"
-            }
-          />
-        </ModalForm>
+        <ApprovalDecisionForm
+          designId={designId}
+          requestPackage={requestPackage}
+          costingReady={pendingItem.costingReady}
+          decisionOptions={[
+            { value: "APPROVED", label: "Approve" },
+            { value: "REJECTED", label: "Reject" },
+            { value: "CORRECTION_REQUIRED", label: "Send for Correction" },
+          ]}
+          state={formState}
+          onChange={setFormState}
+          stageAssignees={pendingItem.stageAssignees}
+          employeeOptions={(employeesQuery.data ?? []).map((e) => ({
+            id: e.id,
+            name: e.name,
+          }))}
+          nextLevelName={pendingItem.nextLevelName}
+        />
       </Modal>
     </>
   );

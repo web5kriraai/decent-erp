@@ -202,3 +202,89 @@ export function useSyncDesignHandoffs() {
     onError: (error) => toast.errorFromApi(error, "ERP batch sync failed"),
   });
 }
+
+export type ErpStageRow = {
+  id: string | number | bigint;
+  erpModule: string;
+  sequence: number;
+  status: string;
+  qty: number;
+  wastageQty: number;
+  amount: string | number;
+  lotRef: string | null;
+  invoiceRef: string | null;
+  remark: string | null;
+  completedBy?: { id: number; name: string } | null;
+};
+
+export type ErpStageChain = {
+  designId: string;
+  designNumber: string;
+  ideaRef: string;
+  collectionName: string;
+  designStatus: string;
+  completedCount: number;
+  currentModule: string | null;
+  stages: ErpStageRow[];
+};
+
+export function useErpStageChains(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.production.erpStages(),
+    queryFn: () => apiGet<ErpStageChain[]>("/api/erp/stages"),
+    enabled,
+  });
+}
+
+export function useBackfillErpStages() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+  return useMutation({
+    mutationFn: () => apiPost<{ seeded: Array<{ designId: string; count: number }> }>("/api/erp/stages", {
+      backfill: true,
+    }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStages() });
+      toast.success("ERP stages backfilled", `${data.seeded.length} design(s)`);
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not backfill ERP stages"),
+  });
+}
+
+export function useErpStageAction() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+  return useMutation({
+    mutationFn: (input: {
+      stageId: string;
+      action: "start" | "complete";
+      qty?: number;
+      wastageQty?: number;
+      amount?: number;
+      lotRef?: string;
+      invoiceRef?: string;
+      remark?: string;
+      marginPercent?: number;
+    }) =>
+      apiPost<ErpStageRow>(`/api/erp/stages/${input.stageId}`, {
+        action: input.action,
+        qty: input.qty,
+        wastageQty: input.wastageQty,
+        amount: input.amount,
+        lotRef: input.lotRef,
+        invoiceRef: input.invoiceRef,
+        remark: input.remark,
+        marginPercent: input.marginPercent,
+      }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStages() });
+      queryClient.invalidateQueries({ queryKey: ["reports", "design-success"] });
+      toast.success(
+        vars.action === "start" ? "Stage started" : "Stage completed",
+        "ERP chain updated",
+      );
+    },
+    onError: (error) => toast.errorFromApi(error, "ERP stage action failed"),
+  });
+}
+

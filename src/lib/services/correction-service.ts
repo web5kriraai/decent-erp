@@ -7,21 +7,34 @@ import { MISTAKE_CORRECTION_TYPES } from "@/lib/kpi-metrics";
 import { resolveEmployeesForRoles } from "@/lib/services/assignment-service";
 import {
   effectiveDependencySequence,
-  initialStatusForCreate,
-  isTaskReady,
 } from "@/lib/services/task-dependency";
 import {
   buildCorrectionScopeForEmployee,
   correctionVisibleToEmployee,
+  getAllowedCorrectionStatusOptions,
+  isRoutedReworkSatisfied,
+  normalizeCorrectionStatus,
   OPEN_CORRECTION_STATUSES,
 } from "@/lib/services/correction-queue-utils";
-import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
 
 function ratingImpactForType(type: CorrectionType): number {
   return MISTAKE_CORRECTION_TYPES.includes(type as (typeof MISTAKE_CORRECTION_TYPES)[number])
     ? -5
     : 0;
 }
+
+const REOPENABLE_ROUTE_STATUSES = [
+  "PENDING",
+  "ASSIGNED",
+  "CORRECTION_REQUIRED",
+  "CHECKING",
+  "COMPLETED",
+  "RUNNING",
+  "ON_HOLD",
+  "SKIPPED",
+] as const;
+
+const RELOCK_LATER_STATUSES = ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"] as const;
 
 const correctionInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true } },
@@ -39,6 +52,83 @@ const correctionInclude = {
 
 type Tx = Prisma.TransactionClient;
 
+async function endOpenTimerIfNeeded(
+  tx: Tx,
+  task: { id: bigint; status: string; assignedEmployeeId: number | null },
+  actorId: number,
+  remark: string,
+) {
+  if (
+    !["RUNNING", "ON_HOLD"].includes(task.status) ||
+    task.assignedEmployeeId == null ||
+    !actorId
+  ) {
+    return;
+  }
+  await tx.taskTimeEvent.create({
+    data: {
+      taskId: task.id,
+      employeeId: task.assignedEmployeeId,
+      eventType: "END",
+      remark,
+      eventTimeUtc: new Date(),
+      createdById: actorId,
+    },
+  });
+}
+
+/** Re-lock later stages so Costing etc. leave the queue while rework is open. */
+export async function relockLaterStagesAfterCorrection(
+  tx: Tx,
+  input: {
+    designId: bigint;
+    sourceTaskId: bigint;
+    sourceSeq: number;
+    routedTaskId: bigint | null;
+    actorId: number;
+  },
+) {
+  const later = await tx.designTask.findMany({
+    where: {
+      designId: input.designId,
+      id: {
+        notIn: [
+          input.sourceTaskId,
+          ...(input.routedTaskId != null ? [input.routedTaskId] : []),
+        ],
+      },
+      status: { in: [...RELOCK_LATER_STATUSES] },
+    },
+    select: {
+      id: true,
+      status: true,
+      assignedEmployeeId: true,
+      dependencySequence: true,
+      sequence: true,
+    },
+  });
+
+  for (const row of later) {
+    if (effectiveDependencySequence(row) <= input.sourceSeq) continue;
+
+    await endOpenTimerIfNeeded(
+      tx,
+      row,
+      input.actorId,
+      "Correction raised — later stage re-locked",
+    );
+
+    await tx.designTask.update({
+      where: { id: row.id },
+      data: {
+        status: "PENDING",
+        completedAt: null,
+        version: { increment: 1 },
+      },
+    });
+  }
+}
+
 export async function createOrReopenRoutedTask(
   tx: Tx,
   input: {
@@ -46,6 +136,7 @@ export async function createOrReopenRoutedTask(
     routeToSubProcessId: number;
     responsibleEmployeeId?: number | null;
     sourceTaskId: bigint;
+    actorId?: number;
   },
 ) {
   const subProcess = await tx.designSubProcessMaster.findUnique({
@@ -59,7 +150,7 @@ export async function createOrReopenRoutedTask(
     where: {
       designId: input.designId,
       subProcessId: input.routeToSubProcessId,
-      status: { in: ["PENDING", "ASSIGNED", "CORRECTION_REQUIRED", "CHECKING", "COMPLETED"] },
+      status: { in: [...REOPENABLE_ROUTE_STATUSES] },
     },
     orderBy: { id: "desc" },
   });
@@ -70,20 +161,28 @@ export async function createOrReopenRoutedTask(
     assigneeId = map.get(subProcess.defaultRoleId) ?? null;
   }
 
-  // Rework of an already-released stage: reopen as ASSIGNED for immediate work
+  // Rework of an already-released stage: reopen as CORRECTION_REQUIRED (Rework column)
   if (
     existing &&
-    ["PENDING", "ASSIGNED", "CORRECTION_REQUIRED", "CHECKING", "COMPLETED"].includes(
-      existing.status,
-    )
+    (REOPENABLE_ROUTE_STATUSES as readonly string[]).includes(existing.status)
   ) {
+    await endOpenTimerIfNeeded(
+      tx,
+      existing,
+      input.actorId ?? assigneeId ?? existing.assignedEmployeeId ?? 0,
+      "Correction routed — rework required",
+    );
+
     return tx.designTask.update({
       where: { id: existing.id },
       data: {
-        status: "ASSIGNED",
+        status: "CORRECTION_REQUIRED",
         assignedEmployeeId: assigneeId ?? existing.assignedEmployeeId,
         completedAt: null,
         outputRemark: null,
+        skipReason: null,
+        skippedAt: null,
+        skippedById: null,
         version: { increment: 1 },
       },
     });
@@ -97,21 +196,8 @@ export async function createOrReopenRoutedTask(
   const sequence = (maxSeq._max.sequence ?? 0) + 1;
   const dependencySequence = (source?.dependencySequence ?? source?.sequence ?? 0) + 1;
 
-  const siblings = await tx.designTask.findMany({
-    where: { designId: input.designId },
-    select: { id: true, dependencySequence: true, sequence: true, status: true },
-  });
-  const sourceSeq = source
-    ? effectiveDependencySequence(source)
-    : dependencySequence - 1;
-  const adjusted = siblings.map((s) => ({
-    ...s,
-    status: effectiveDependencySequence(s) === sourceSeq ? "COMPLETED" : s.status,
-  }));
-  const ready = isTaskReady(
-    { id: "routed", dependencySequence, sequence, status: "PENDING" },
-    adjusted,
-  );
+  // New routed rework lands in Rework column when an assignee is known
+  const status = assigneeId ? "CORRECTION_REQUIRED" : "PENDING";
 
   return tx.designTask.create({
     data: {
@@ -120,7 +206,7 @@ export async function createOrReopenRoutedTask(
       subProcessId: subProcess.id,
       assignedEmployeeId: assigneeId,
       assignedRoleId: subProcess.defaultRoleId ?? source?.assignedRoleId ?? 1,
-      status: initialStatusForCreate({ hasAssignee: !!assigneeId, isReady: ready }),
+      status,
       priority: source?.priority ?? "HIGH",
       expectedMinutes: source?.expectedMinutes ?? 120,
       sequence,
@@ -192,6 +278,7 @@ export async function raiseCorrectionInTransaction(
       routeToSubProcessId: input.routeToSubProcessId,
       responsibleEmployeeId: input.responsibleEmployeeId,
       sourceTaskId: input.taskId,
+      actorId: raisedById,
     });
     routedTaskId = routed.id;
   }
@@ -218,6 +305,14 @@ export async function raiseCorrectionInTransaction(
   await tx.designTask.update({
     where: { id: input.taskId },
     data: { status: "CORRECTION_REQUIRED", version: { increment: 1 } },
+  });
+
+  await relockLaterStagesAfterCorrection(tx, {
+    designId: input.designId,
+    sourceTaskId: input.taskId,
+    sourceSeq: effectiveDependencySequence(task),
+    routedTaskId,
+    actorId: raisedById,
   });
 
   const sourceTask = await tx.designTask.findUnique({
@@ -300,6 +395,17 @@ export async function updateCorrection(
       throw new ApiError("You do not have access to this correction", 403);
     }
 
+    if (input.status && input.status !== existing.status) {
+      const allowed = getAllowedCorrectionStatusOptions(existing.status);
+      const nextNormalized = normalizeCorrectionStatus(input.status);
+      if (!allowed.includes(nextNormalized as (typeof allowed)[number])) {
+        throw new ApiError(
+          `Cannot change correction status from ${normalizeCorrectionStatus(existing.status)} to ${nextNormalized}.`,
+          422,
+        );
+      }
+    }
+
     const updated = await tx.designCorrection.update({
       where: { id },
       data: input,
@@ -309,39 +415,51 @@ export async function updateCorrection(
     if (input.status === "DONE" && existing.status !== "DONE") {
       const sourceTask = await tx.designTask.findUnique({
         where: { id: existing.taskId },
-        include: { subProcess: { select: { code: true } } },
+        include: { subProcess: { select: { code: true, isApproval: true } } },
       });
-      if (sourceTask && sourceTask.status === "CORRECTION_REQUIRED") {
-        // If work was routed elsewhere, close the source check task; otherwise restore for rework
-        const nextStatus = existing.routedTaskId ? "COMPLETED" : "ASSIGNED";
-        await tx.designTask.update({
-          where: { id: sourceTask.id },
-          data: {
-            status: nextStatus,
-            completedAt: nextStatus === "COMPLETED" ? new Date() : null,
-            version: { increment: 1 },
-          },
+
+      if (existing.routedTaskId) {
+        const routed = await tx.designTask.findUnique({
+          where: { id: existing.routedTaskId },
         });
-        if (nextStatus === "COMPLETED") {
-          await unlockNextDependentTasks(
-            tx,
-            {
-              id: sourceTask.id,
-              designId: sourceTask.designId,
-              dependencySequence: sourceTask.dependencySequence,
-              sequence: sourceTask.sequence,
-              subProcessCode: sourceTask.subProcess.code,
-            },
-            correlationId,
+        if (routed && !isRoutedReworkSatisfied(routed.status)) {
+          throw new ApiError(
+            "Rework is still open. Kumar (or the routed owner) must complete the rework stage before this correction can be marked Done.",
+            422,
           );
         }
       }
 
-      // Unlock dependents from the routed rework task if it is still open for assignee
-      if (existing.routedTaskId) {
-        const routed = await tx.designTask.findUnique({ where: { id: existing.routedTaskId } });
-        if (routed && routed.status === "ASSIGNED") {
-          // leave assigned for rework; unlock is when that task completes via endTask
+      if (sourceTask && sourceTask.status === "CORRECTION_REQUIRED") {
+        // Routed quality corrections: reopen the check/source for another review.
+        // Never COMPLETE the gate or unlock Costing from the Corrections dropdown.
+        await tx.designTask.update({
+          where: { id: sourceTask.id },
+          data: {
+            status: "ASSIGNED",
+            completedAt: null,
+            version: { increment: 1 },
+          },
+        });
+
+        await tx.designConcept.update({
+          where: { id: sourceTask.designId },
+          data: {
+            currentStage: sourceTask.subProcess.code,
+            status: "ACTIVE",
+          },
+        });
+
+        if (sourceTask.assignedEmployeeId != null) {
+          await enqueueOutboxAndNotify(
+            "TASK_ASSIGNED",
+            {
+              taskId: sourceTask.id.toString(),
+              employeeId: sourceTask.assignedEmployeeId,
+              isStageApproval: sourceTask.subProcess.isApproval === true,
+            },
+            correlationId,
+          );
         }
       }
     }
@@ -368,4 +486,112 @@ export async function updateCorrection(
 
     return updated;
   });
+}
+
+/** Mark open corrections for a design/task as DONE (e.g. after Sample Approve). */
+export async function closeOpenCorrectionsForTask(
+  tx: Tx,
+  input: {
+    designId: bigint;
+    taskId?: bigint;
+    routedTaskId?: bigint;
+  },
+) {
+  const where: Prisma.DesignCorrectionWhereInput = {
+    designId: input.designId,
+    status: { in: [...OPEN_CORRECTION_STATUSES] },
+    OR: [
+      ...(input.taskId != null ? [{ taskId: input.taskId }] : []),
+      ...(input.routedTaskId != null ? [{ routedTaskId: input.routedTaskId }] : []),
+    ],
+  };
+
+  if (!input.taskId && !input.routedTaskId) {
+    return { count: 0 };
+  }
+
+  return tx.designCorrection.updateMany({
+    where,
+    data: { status: "DONE" },
+  });
+}
+
+/** After routed rework (Machine Sample) finishes, reopen the source check for another pass. */
+export async function reopenSourceCheckAfterRoutedRework(
+  tx: Tx,
+  input: {
+    designId: bigint;
+    routedTaskId: bigint;
+    correlationId: string;
+  },
+) {
+  const openCorrection = await tx.designCorrection.findFirst({
+    where: {
+      designId: input.designId,
+      routedTaskId: input.routedTaskId,
+      status: { in: [...OPEN_CORRECTION_STATUSES] },
+    },
+    orderBy: { createdAtUtc: "desc" },
+  });
+  if (!openCorrection) return null;
+
+  const sourceTask = await tx.designTask.findUnique({
+    where: { id: openCorrection.taskId },
+    include: { subProcess: { select: { code: true, isApproval: true } } },
+  });
+  if (!sourceTask) return null;
+
+  if (
+    !["CORRECTION_REQUIRED", "COMPLETED", "CHECKING", "PENDING"].includes(sourceTask.status)
+  ) {
+    // Already assigned / running for re-check
+    if (openCorrection.status === "OPEN" || openCorrection.status === "ASSIGNED") {
+      await tx.designCorrection.update({
+        where: { id: openCorrection.id },
+        data: { status: "IN_PROGRESS" },
+      });
+    }
+    return sourceTask;
+  }
+
+  let assigneeId = sourceTask.assignedEmployeeId;
+  if (!assigneeId && sourceTask.assignedRoleId) {
+    const { resolveEmployeeForRole } = await import("@/lib/services/assignment-service");
+    assigneeId = await resolveEmployeeForRole(sourceTask.assignedRoleId);
+  }
+
+  await tx.designTask.update({
+    where: { id: sourceTask.id },
+    data: {
+      status: "ASSIGNED",
+      assignedEmployeeId: assigneeId,
+      completedAt: null,
+      outputRemark: null,
+      version: { increment: 1 },
+    },
+  });
+
+  await tx.designConcept.update({
+    where: { id: input.designId },
+    data: { currentStage: sourceTask.subProcess.code, status: "ACTIVE" },
+  });
+
+  await tx.designCorrection.update({
+    where: { id: openCorrection.id },
+    data: { status: "IN_PROGRESS" },
+  });
+
+  if (assigneeId != null) {
+    await enqueueOutboxAndNotify(
+      "TASK_ASSIGNED",
+      {
+        taskId: sourceTask.id.toString(),
+        employeeId: assigneeId,
+        isStageApproval: sourceTask.subProcess.isApproval === true,
+      },
+      input.correlationId,
+    );
+  }
+
+  return sourceTask;
 }

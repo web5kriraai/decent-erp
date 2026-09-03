@@ -61,6 +61,7 @@ export const queryKeys = {
     released: ["production", "released"] as const,
     handoffs: (designId?: string) => ["production", "handoffs", designId] as const,
     erpStatus: ["production", "erp-status"] as const,
+    erpStages: (designId?: string) => ["production", "erp-stages", designId] as const,
     inbox: ["production", "inbox"] as const,
     returnOptions: (designId: string) => ["production", "return-options", designId] as const,
   },

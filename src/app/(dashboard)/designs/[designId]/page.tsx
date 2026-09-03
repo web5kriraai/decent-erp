@@ -3,7 +3,7 @@ import { designDetailMetadata } from "@/config/page-metadata";
 
 type PageProps = {
   params: Promise<{ designId: string }>;
-  searchParams: Promise<{ setup?: string }>;
+  searchParams: Promise<{ setup?: string; image?: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps) {
@@ -13,8 +13,12 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function DesignDetailPage({ params, searchParams }: PageProps) {
   const { designId } = await params;
-  const { setup } = await searchParams;
+  const { setup, image } = await searchParams;
   return (
-    <DesignDetailView designId={designId} showConceptSetup={setup === "images"} />
+    <DesignDetailView
+      designId={designId}
+      showConceptSetup={setup === "images"}
+      highlightImageId={image ?? null}
+    />
   );
 }

@@ -12,9 +12,14 @@ test.describe("ERP integration (Phase 5)", () => {
     }>(page, "/api/erp/integration-status");
 
     expect(status.mode).toBe("simulated");
-    expect(status.syncOrder.length).toBeGreaterThanOrEqual(8);
+    expect(status.syncOrder.length).toBe(9);
+    expect(status.syncOrder).toContain("SALES_RETURN");
+    expect(status.syncOrder.indexOf("SALES")).toBeLessThan(
+      status.syncOrder.indexOf("SALES_RETURN"),
+    );
     expect(status.primaryModules).toContain("GREY_MATERIAL");
     expect(status.downstreamModules).toContain("EMBROIDERY");
+    expect(status.downstreamModules).toContain("SALES_RETURN");
   });
 
   test("handoffs list is accessible to production head", async ({ page }) => {

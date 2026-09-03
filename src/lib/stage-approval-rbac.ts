@@ -120,7 +120,8 @@ export type ApprovalHubTabs = {
 export function getApprovalHubTabsForRole(roleCode: string | null | undefined): ApprovalHubTabs {
   switch (roleCode) {
     case ROLE_CODES.ADMIN:
-      return { stage: true, ready: true, management: true };
+      // Admin configures the system; Ready-for-sign-off is Design Head only.
+      return { stage: true, ready: false, management: true };
     case ROLE_CODES.DESIGN_HEAD:
       return { stage: true, ready: true, management: true };
     case ROLE_CODES.SAMPLE_CHECKER:

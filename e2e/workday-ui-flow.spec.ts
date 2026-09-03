@@ -100,16 +100,16 @@ test.describe("Workday UI flow (end-to-end)", () => {
 
     await login(page, USERS.sketch.email, USERS.sketch.password);
     await page.goto("/work/tasks");
-    await expect(page.getByRole("heading", { name: /My Tasks/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /My Action Center|My Tasks/i })).toBeVisible();
 
     const card = page.locator("article.task-card", { hasText: assignedTask.design.ideaRef }).first();
     const startBtn = card.getByRole("button", { name: /^Start$/i });
     if (await startBtn.isVisible().catch(() => false)) {
       await startBtn.click();
+      await expect(page).toHaveURL(new RegExp(`/designs/${design.id}`), { timeout: 20_000 });
     } else {
       await apiPostJson(page, `/api/tasks/${assignedTask.id}/start`, {});
-      await page.reload();
-      await expect(page.getByRole("heading", { name: /My Tasks/i })).toBeVisible();
+      await page.goto(`/designs/${design.id}`);
     }
 
     await expect(page.locator(".timer-widget")).toBeVisible({ timeout: 15_000 });
@@ -130,7 +130,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
     expect(lunch).toBeTruthy();
 
     await page.getByRole("button", { name: /Hold task/i }).click();
-    const holdDialog = page.getByRole("dialog", { name: /Hold Task/i });
+    const holdDialog = page.getByRole("dialog", { name: /Hold /i });
     await expect(holdDialog).toBeVisible();
     await holdDialog.locator("#holdReason").click();
     await page.getByRole("option", { name: new RegExp(lunch.name, "i") }).click();
@@ -145,12 +145,12 @@ test.describe("Workday UI flow (end-to-end)", () => {
     const taskMeta = await apiGetJson<{
       id: string;
       version: number;
-      subProcess: { isFileRequired?: boolean; code?: string };
+      subProcess: { isFileRequired?: boolean; code?: string; name?: string };
     }>(page, `/api/tasks/${assignedTask.id}`);
     const needsFile = !!taskMeta.subProcess?.isFileRequired;
 
     await page.getByRole("button", { name: /End Task/i }).click();
-    const endDialog = page.getByRole("dialog", { name: /Complete Task/i });
+    const endDialog = page.getByRole("dialog", { name: /Complete /i });
     await expect(endDialog).toBeVisible();
     await endDialog.locator("#endRemark").fill("E2E workday UI completion remark");
 

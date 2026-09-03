@@ -23,9 +23,10 @@ import { getMarkLiveAvailability } from "@/lib/action-availability";
 import { resolveProductionContextActions } from "@/lib/workflow-actions";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
-function isSimulatedErpReference(ref: string | null | undefined): boolean {
-  return !!ref && ref.startsWith("LOCAL-");
-}
+import {
+  getHandoffDisplayStatus,
+  isSimulatedErpReference,
+} from "@/lib/services/erp-integration-config";
 
 export function ProductionReleaseView() {
   const { data: session } = useSession();
@@ -75,8 +76,13 @@ export function ProductionReleaseView() {
         </p>
         <p className="text-muted-inline m-0">
           {erpStatusQuery.data?.message ??
-            "Configure ERP_API_BASE_URL for live Grey → Cutting → Sales → downstream module sync."}
+            "Configure ERP_API_BASE_URL for live Grey → Cutting → Embroidery → Garmenting → Finishing → Ready Stock → Sales → Sales Return → Accounts sync."}
         </p>
+        {erpStatusQuery.data?.syncOrder?.length ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Sync order: {erpStatusQuery.data.syncOrder.join(" → ")}
+          </p>
+        ) : null}
       </AppCard>
 
       <AppCard title="Production desk actions" className="stack-section">
@@ -214,6 +220,22 @@ export function ProductionReleaseView() {
                     liveReviewCompleted: row.liveReviewCompleted,
                     roleCode,
                   });
+                  const productionActions = resolveProductionContextActions({
+                    permissions,
+                    roleCode,
+                    designStatus: row.status,
+                    designId: row.id,
+                  });
+                  const canShowMarkLive = productionActions.some(
+                    (a) => a.code === "MARK_LIVE" && a.enabled,
+                  );
+                  if (!canShowMarkLive) {
+                    return availability.reason ? (
+                      <span className="text-right text-xs text-muted-foreground">
+                        {availability.reason}
+                      </span>
+                    ) : null;
+                  }
                   return (
                     <div className="flex max-w-56 flex-col items-end gap-1">
                       <AppButton
@@ -252,7 +274,7 @@ export function ProductionReleaseView() {
         skeletonVariant="table"
       >
         <AppCard
-          title="ERP Handoffs (Grey / Cutting / Sales + downstream)"
+          title="ERP Handoffs (Grey → … → Sales → Sales Return → Accounts)"
           className="stack-section"
           headerAction={
             handoffDesignIds.length > 0 ? (
@@ -284,7 +306,21 @@ export function ProductionReleaseView() {
               {
                 key: "status",
                 header: "Sync Status",
-                render: (row) => <StatusBadge status={row.status} />,
+                render: (row) => {
+                  const display = getHandoffDisplayStatus({
+                    status: row.status,
+                    erpReference: row.erpReference,
+                  });
+                  const badgeStatus =
+                    display === "LOCAL"
+                      ? "CHECKING"
+                      : display === "FAILED"
+                        ? "REJECTED"
+                        : display === "QUEUED"
+                          ? "PENDING"
+                          : "COMPLETED";
+                  return <StatusBadge status={badgeStatus} label={display} />;
+                },
               },
               {
                 key: "error",

@@ -93,6 +93,49 @@ describe("buildPendingApprovalItems", () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.currentLevel.id).toBe(2);
     expect(items[0]?.designId).toBe("100");
+    expect(items[0]?.nextLevelName).toBe("Management");
+  });
+
+  it("exposes stage assignees for correction preview", () => {
+    const items = buildPendingApprovalItems(
+      [
+        {
+          id: 110,
+          ideaRef: "IDEA-ASSIGNEES",
+          collectionName: "Spring",
+          status: "APPROVAL_PENDING",
+          approvals: [],
+          tasks: [
+            {
+              id: 1,
+              status: "COMPLETED",
+              sequence: 1,
+              assignedEmployeeId: 5,
+              process: { name: "Design" },
+              subProcess: { name: "Punch", code: "PUNCH", isApproval: false },
+              assignedEmployee: { id: 5, name: "Punch Operator" },
+            },
+            {
+              id: 2,
+              status: "COMPLETED",
+              sequence: 2,
+              process: { name: "QC" },
+              subProcess: { name: "Final Approval", code: "FINAL_APPROVAL", isApproval: true },
+            },
+          ],
+        },
+      ],
+      levels,
+    );
+    expect(items[0]?.stageAssignees).toEqual([
+      {
+        code: "PUNCH",
+        name: "Punch",
+        assigneeEmployeeId: 5,
+        assigneeName: "Punch Operator",
+      },
+    ]);
+    expect(items[0]?.nextLevelName).toBe("Design Head");
   });
 
   it("excludes stuck designs where all levels are already passed", () => {

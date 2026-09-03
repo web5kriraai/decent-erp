@@ -60,7 +60,37 @@ export type WorkflowStep = {
   canReassign: boolean;
   displayStatus: string;
   assigneeName?: string | null;
+  /** Active hold reason name when status is ON_HOLD. */
+  holdReasonName?: string | null;
 };
+
+/** Latest HOLD event reason while the task is still ON_HOLD. */
+export function getActiveHoldReasonName(
+  task: {
+    status: string;
+    holdReason?: { name: string } | null;
+    timeEvents?: Array<{
+      eventType: string;
+      eventTimeUtc: string;
+      holdReason?: { name: string } | null;
+    }>;
+  },
+): string | null {
+  if (task.status !== "ON_HOLD") return null;
+  if (task.holdReason?.name) return task.holdReason.name;
+  const events = [...(task.timeEvents ?? [])].sort(
+    (a, b) => new Date(b.eventTimeUtc).getTime() - new Date(a.eventTimeUtc).getTime(),
+  );
+  for (const event of events) {
+    if (event.eventType === "RESUME" || event.eventType === "END" || event.eventType === "START") {
+      break;
+    }
+    if (event.eventType === "HOLD") {
+      return event.holdReason?.name ?? null;
+    }
+  }
+  return null;
+}
 
 export type DesignWorkflowAction = {
   id: string;
@@ -138,9 +168,12 @@ function workflowDisplayStatus(
   if (isUpcoming) return "UPCOMING";
   if (effectiveStatus === "SKIPPED") return "SKIPPED";
   if (effectiveStatus === "COMPLETED") return "COMPLETED";
-  // Only actively timed work is "In Progress" — assigned/ready approvals stay READY.
-  if (isCurrent && (effectiveStatus === "RUNNING" || effectiveStatus === "ON_HOLD")) {
+  // Only actively timed RUNNING work is "In Progress". Hold stays visible as ON_HOLD.
+  if (isCurrent && effectiveStatus === "RUNNING") {
     return "IN_PROGRESS";
+  }
+  if (isCurrent && effectiveStatus === "ON_HOLD") {
+    return "ON_HOLD";
   }
   if (isCurrent && effectiveStatus === "ASSIGNED") {
     return options?.isApproval ? "READY" : "ASSIGNED";
@@ -212,6 +245,7 @@ export function buildWorkflowSteps(tasks: DesignTask[] | undefined): WorkflowSte
         isApproval: !!task.subProcess?.isApproval,
       }),
       assigneeName: task.assignedEmployee?.name ?? null,
+      holdReasonName: getActiveHoldReasonName(task),
     };
   });
 }

@@ -20,8 +20,6 @@ import { AppButton } from "@/components/ui/AppButton";
 import {
   IconSearch,
   IconLogout,
-  IconChevronLeft,
-  IconChevronRight,
   IconMenu,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/layout/NotificationBell";
@@ -82,28 +80,28 @@ export function Sidebar() {
         aria-label="Main navigation"
       >
         <div className="sidebar-brand">
-          <Link href={ROUTES.dashboard} className="sidebar-brand-link" onClick={closeMobile}>
-            <div className="sidebar-brand-mark" aria-hidden>
-              DE
-            </div>
-            {!collapsed && (
+          <button
+            type="button"
+            className="sidebar-brand-mark"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            DE
+          </button>
+          {!collapsed && (
+            <Link
+              href={ROUTES.dashboard}
+              className="sidebar-brand-link"
+              onClick={closeMobile}
+            >
               <div className="sidebar-brand-text">
                 <span className="sidebar-brand-name">Decent ERP</span>
                 <span className="sidebar-brand-module">{brandModule}</span>
               </div>
-            )}
-          </Link>
-          <AppButton
-            type="button"
-            appVariant="ghost"
-            size="icon-sm"
-            className="sidebar-collapse-btn text-inherit hover:bg-white/10"
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand" : "Collapse"}
-          >
-            {collapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
-          </AppButton>
+            </Link>
+          )}
         </div>
 
         <nav className="sidebar-nav scroll-region" aria-label="Workspace sections">
