@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/AppProviders";
+import { FAVICON_ASSETS } from "@/config/brand-assets";
 import { APP_DEFAULT_DESCRIPTION, APP_NAME } from "@/config/page-metadata";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,17 @@ export const metadata: Metadata = {
   },
   description: APP_DEFAULT_DESCRIPTION,
   applicationName: APP_NAME,
+  icons: {
+    icon: [
+      { url: FAVICON_ASSETS.ico, sizes: "any" },
+      { url: FAVICON_ASSETS.icoRoot, sizes: "any" },
+      { url: FAVICON_ASSETS.icon, type: "image/png", sizes: "32x32" },
+      { url: FAVICON_ASSETS.png16, sizes: "16x16", type: "image/png" },
+      { url: FAVICON_ASSETS.png32, sizes: "32x32", type: "image/png" },
+    ],
+    apple: [{ url: FAVICON_ASSETS.apple, sizes: "180x180", type: "image/png" }],
+    shortcut: FAVICON_ASSETS.ico,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -302,7 +302,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
               />
             ) : null}
 
-            <div className="grid items-start gap-6 [grid-template-columns:minmax(280px,360px)_1fr]">
+            <div className="task-detail-layout">
               {canControl ? (
                 <TimerWidget
                   status={isRunning ? "RUNNING" : isOnHold ? "ON_HOLD" : "IDLE"}

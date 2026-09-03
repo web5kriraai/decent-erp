@@ -11,12 +11,15 @@ export type PipelineStatusTheme = {
 };
 
 export const PIPELINE_STATUS_THEME: Record<string, PipelineStatusTheme> = {
-  DRAFT: { label: "Draft", accent: { bg: "#dbeafe", text: "#1d4ed8" } },
+  DRAFT: { label: "Draft", accent: { bg: "var(--color-primary-light)", text: "var(--color-navy)" } },
   ACTIVE: { label: "Active", accent: { bg: "#dcfce7", text: "#15803d" } },
   ON_HOLD: { label: "On Hold", accent: { bg: "#ffedd5", text: "#c2410c" } },
   APPROVAL_PENDING: { label: "Approval Pending", accent: { bg: "#fef3c7", text: "#b45309" } },
   APPROVED: { label: "Approved", accent: { bg: "#d1fae5", text: "#047857" } },
-  PRODUCTION_ACCEPTED: { label: "Production Accepted", accent: { bg: "#e0e7ff", text: "#4338ca" } },
+  PRODUCTION_ACCEPTED: {
+    label: "Production Accepted",
+    accent: { bg: "color-mix(in srgb, var(--color-navy) 10%, white)", text: "var(--color-navy)" },
+  },
   PRODUCTION_RELEASED: { label: "Production Released", accent: { bg: "#ccfbf1", text: "#0f766e" } },
   LIVE: { label: "Live", accent: { bg: "#dcfce7", text: "#166534" } },
 };

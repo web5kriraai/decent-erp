@@ -117,7 +117,12 @@ export function TaskMachineOutputPanel({
   }
 
   const body = (
-    <div className={cn("grid gap-3", compact ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4")}>
+    <div
+      className={cn(
+        "grid min-w-0 gap-3",
+        compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
+      )}
+    >
       <FormTextField
         id={`machine-stitch-${taskId}`}
         label="Stitch count"

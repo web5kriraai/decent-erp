@@ -4,47 +4,62 @@ globs: **/*.jsx,**/*.tsx,**/*.css,**/components/**,**/features/**
 alwaysApply: false
 ---
 
-# UI/UX design theme - enterprise system
+# UI/UX design theme — Decent Technologies (light)
 
-Dense, data-forward, SAP-inspired enterprise style. Calm neutral surfaces, one
-strong brand blue, color reserved for status meaning - not decoration.
+Dense, data-forward **standard enterprise** style. Light canvas, **navy primary**
+CTAs, logo **crimson as accent only**. Color reserved for brand + status — not
+decoration.
 
-**Consistency first:** every page must feel like the same product. Tables,
-body text, captions, and card surfaces share one system — see
+**Source of truth:** root `DESIGN.md` (read before UI work).
+
+**Consistency first:** every page must feel like the same product — see
 `03-ui-consistency.mdc`.
 
 ## Color tokens (use as CSS variables, never hardcode hex in components)
 
 | Token | Hex | Usage |
 |---|---|---|
-| `--color-primary` | #0854A0 | Top nav, primary buttons, active nav, links |
-| `--color-primary-dark` | #1F3864 | Headers, emphasis text on light backgrounds |
-| `--color-accent` | #2E74B5 | Secondary actions, chart accents |
-| `--color-success` | #2E7D32 | Approved, completed, on-time |
-| `--color-warning` | #B26A00 | On hold, correction raised, due soon |
-| `--color-danger` | #B00020 | Rejected, overdue, validation errors |
-| `--color-info` | #0277BD | Informational banners, waiting states |
-| `--color-neutral-900` | #1A1A1A | Primary body text |
-| `--color-neutral-500` | #6B7280 | Secondary text, captions |
-| `--color-neutral-100` | #F2F2F2 | Table header / muted striping |
-| `--color-surface` | #FFFFFF | Page/card background |
-| `--color-border` | #D9DEE4 | Table borders, card outlines |
+| `--color-primary` | #172747 | Primary buttons, links, focus |
+| `--color-primary-hover` | #243a5c | Hover |
+| `--color-primary-pressed` | #0f1a2e | Pressed |
+| `--color-primary-light` | #e8ecf2 | Soft selected fills |
+| `--color-navy` / `--color-primary-dark` | #172747 | Headers, sidebar, ink |
+| `--color-accent` | #d91a22 | Nav rail, charts, brand accent only |
+| `--color-accent-soft` | #FDE9EA | Rare soft accent chips |
+| `--color-sidebar-bg` | #ffffff | Light sidebar chrome |
+| `--color-logo-plate` | #000000 | Logo / login brand only (never mix with sidebar) |
+| `--color-success` | #1b6e3a | Approved, completed, on-time |
+| `--color-warning` | #9a6700 | On hold, correction raised, due soon |
+| `--color-danger` | #a41a24 | Rejected, overdue, validation errors |
+| `--color-info` | #026aa7 | Informational banners |
+| `--color-neutral-900` | #172747 | Primary body text |
+| `--color-neutral-500` | #64748b | Secondary text, captions |
+| `--color-page-canvas` | #F5F6F8 | Page background |
+| `--color-surface` | #FFFFFF | Card / table background |
+| `--color-border` | #DCE3EC | Borders |
+
+## Logo
+
+- Transparent PNGs: `/brand/logo.png`, `/brand/logo-mark.png`
+- Favicons: `/favicon/*` (+ root `/favicon.ico` for browsers)
+- Paths: `@/config/brand-assets` → `BrandLogo` / root `layout` metadata
+- Sidebar: mark + “Decent ERP” on white — no black box
+- Login: mark on navy brand panel; mark on light form (mobile)
 
 ## Typography (same on every page)
 
-- Font: Inter or Roboto, `system-ui` fallback (inherit — never override per page).
-- H1 24px/semibold (PageHeader only), H2 18px/semibold (AppCard / section).
-- Body 14px/regular, caption 12px/regular muted, KPI numerics 20–28px
-  semibold with tabular-nums.
+- Font: Inter or Roboto, `system-ui` fallback.
+- H1 24px/semibold (PageHeader), H2 18px/semibold (AppCard / section).
+- Body 14px, caption 12px muted, KPI 20–28px semibold tabular-nums.
 
 ## Layout & components
 
 - Left sidebar + top bar; content via `.page-shell`.
-- Cards: `AppCard` only (8px radius, 1px border, light shadow).
-- Tables: `DataTable` / `.app-table` only — one header style, one body style.
-- Status/Priority: shared badges; Buttons: `AppButton` / `AppButtonLink`.
-- Loading / empty / error / permission-denied on every data screen.
+- Cards: `AppCard`; tables: `DataTable` / `.app-table`.
+- Buttons: `AppButton` — primary = navy, not crimson.
+- Active sidebar: white wash + crimson left rail.
+- Theme is **light only**.
 
 ## Accessibility
 
-- WCAG 2.1 AA contrast; keyboard for timer/approvals; ARIA on icon-only buttons.
+- WCAG 2.1 AA; white text on navy primary buttons; crimson only for accent/danger.

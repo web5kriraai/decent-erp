@@ -285,7 +285,7 @@ export function TaskEndDialog({
               </p>
             ) : null}
 
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
                 <p className="text-xs text-muted-foreground">Total (incl. draft)</p>
                 <p className="text-sm font-semibold tabular-nums">₹{mergedTotal.toFixed(2)}</p>
@@ -433,7 +433,7 @@ export function TaskEndDialog({
         ) : null}
 
         {!isSampleCheck && !isCosting && !forcesChecking ? (
-          <ModalFormGrid className="gap-3 sm:grid-cols-2 xl:grid-cols-2">
+          <ModalFormGrid className="gap-3">
             <FormSelect
               id="endStatus"
               label="Completion Status"

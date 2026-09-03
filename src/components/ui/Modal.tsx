@@ -22,10 +22,11 @@ type ModalProps = {
 };
 
 const sizeClasses = {
-  sm: "sm:max-w-lg",
-  md: "sm:max-w-2xl",
-  lg: "sm:max-w-4xl",
-  xl: "sm:max-w-6xl",
+  // Fluid dialog widths — always leave margin on phone; grow on tablet/desktop
+  sm: "max-w-[calc(100%-1.5rem)] sm:max-w-lg",
+  md: "max-w-[calc(100%-1.5rem)] sm:max-w-2xl",
+  lg: "max-w-[calc(100%-1.5rem)] sm:max-w-3xl lg:max-w-4xl",
+  xl: "max-w-[calc(100%-1.5rem)] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl",
 };
 
 /**
@@ -51,16 +52,16 @@ export function Modal({
     >
       <DialogContent
         className={cn(
-          "max-h-[min(92vh,56rem)] gap-0 p-0",
+          "max-h-[min(92dvh,56rem)] gap-0 p-0",
           sizeClasses[size],
         )}
         showCloseButton
       >
-        <DialogHeader className="shrink-0 gap-1 border-b border-border px-5 py-4 pr-12">
+        <DialogHeader className="shrink-0 gap-1 border-b border-border px-4 py-3 pr-12 sm:px-5 sm:py-4">
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 pb-5 sm:px-5 sm:py-4 sm:pb-6">
           {children}
         </div>
         {footer ? <DialogFooter>{footer}</DialogFooter> : null}
@@ -80,7 +81,7 @@ export function ModalForm({
   return <div className={cn("flex flex-col gap-4", className)}>{children}</div>;
 }
 
-/** Two-column form layout inside modals. */
+/** Responsive form grid inside modals — 1 col phone, 2 col tablet+, never 3 by default. */
 export function ModalFormGrid({
   className,
   children,
@@ -89,7 +90,7 @@ export function ModalFormGrid({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("grid gap-4 sm:grid-cols-2 xl:grid-cols-3", className)}>{children}</div>
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", className)}>{children}</div>
   );
 }
 

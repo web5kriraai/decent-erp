@@ -3,7 +3,8 @@
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { IconCheck, IconDesigns } from "@/components/icons";
+import { BrandLogo } from "@/components/brand/BrandLogo";
+import { IconCheck } from "@/components/icons";
 import { AppButton } from "@/components/ui/AppButton";
 import {
   Card,
@@ -48,7 +49,7 @@ export default function LoginPage() {
       <div className="login-brand-panel">
         <div className="login-brand-intro">
           <div className="login-brand-mark">
-            <IconDesigns size={28} />
+            <BrandLogo variant="mark" size="lg" priority />
           </div>
           <h1>Decent ERP</h1>
           <p>
@@ -73,9 +74,12 @@ export default function LoginPage() {
       </div>
 
       <div className="login-form-panel">
-        <Card className="w-full max-w-md shadow-md">
+        <Card className="w-full max-w-md shadow-md mx-auto">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl">Sign in</CardTitle>
+            <div className="login-form-logo mb-3 flex justify-center">
+              <BrandLogo variant="mark" size="md" priority />
+            </div>
+            <CardTitle className="text-[length:var(--font-size-h1)]">Sign in</CardTitle>
             <CardDescription>Design Management Module</CardDescription>
           </CardHeader>
           <CardContent>
