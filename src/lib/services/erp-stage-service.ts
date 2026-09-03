@@ -3,6 +3,10 @@ import { writeAuditLogDirect } from "@/lib/audit";
 import { ApiError } from "@/lib/api-utils";
 import { ERP_HANDOFF_MODULES } from "@/lib/kpi-metrics";
 import { upsertDesignSuccessMetric } from "@/lib/services/production-service";
+import {
+  validateCompleteErpStageInput,
+  type CompleteErpStagePayload,
+} from "@/lib/erp-rbac";
 
 export {
   ERP_STAGE_LABELS,
@@ -11,15 +15,7 @@ export {
   type ErpStageStatus,
 } from "@/lib/services/erp-stage-constants";
 
-export type CompleteErpStageInput = {
-  qty?: number;
-  wastageQty?: number;
-  amount?: number;
-  lotRef?: string;
-  invoiceRef?: string;
-  remark?: string;
-  marginPercent?: number;
-};
+export type CompleteErpStageInput = CompleteErpStagePayload;
 
 function currentPeriod() {
   const now = new Date();
@@ -70,14 +66,23 @@ export async function seedErpStagesForDesign(
 
 export async function listErpStageChains(options?: {
   designId?: bigint;
-  status?: string;
-  take?: number;
+  takeDesigns?: number;
 }) {
+  const designIds = options?.designId
+    ? [options.designId]
+    : (
+        await prisma.erpStageRecord.findMany({
+          distinct: ["designId"],
+          orderBy: { designId: "desc" },
+          select: { designId: true },
+          take: options?.takeDesigns ?? 100,
+        })
+      ).map((r) => r.designId);
+
+  if (designIds.length === 0) return [];
+
   const stages = await prisma.erpStageRecord.findMany({
-    where: {
-      ...(options?.designId ? { designId: options.designId } : {}),
-      ...(options?.status ? { status: options.status } : {}),
-    },
+    where: { designId: { in: designIds } },
     orderBy: [{ designId: "desc" }, { sequence: "asc" }],
     include: {
       design: {
@@ -91,7 +96,6 @@ export async function listErpStageChains(options?: {
       },
       completedBy: { select: { id: true, name: true } },
     },
-    take: options?.designId ? undefined : (options?.take ?? 500),
   });
 
   const byDesign = new Map<
@@ -134,7 +138,9 @@ export async function listErpStageChains(options?: {
     }
   }
 
-  return [...byDesign.values()];
+  return designIds
+    .map((id) => byDesign.get(id.toString()))
+    .filter((g): g is NonNullable<typeof g> => !!g);
 }
 
 export async function getErpStagesForDesign(designId: bigint) {
@@ -157,17 +163,27 @@ export async function startErpStage(
 ) {
   const stage = await prisma.erpStageRecord.findUnique({ where: { id: stageId } });
   if (!stage) throw new ApiError("ERP stage not found", 404);
-  if (stage.status !== "READY" && stage.status !== "IN_PROGRESS") {
-    throw new ApiError(`Cannot start stage in status ${stage.status}`, 409);
+  if (stage.status !== "READY") {
+    throw new ApiError(
+      stage.status === "IN_PROGRESS"
+        ? "Stage is already in progress"
+        : `Cannot start stage in status ${stage.status}`,
+      409,
+    );
   }
 
-  const updated = await prisma.erpStageRecord.update({
-    where: { id: stageId },
+  const result = await prisma.erpStageRecord.updateMany({
+    where: { id: stageId, status: "READY" },
     data: {
       status: "IN_PROGRESS",
-      startedAtUtc: stage.startedAtUtc ?? new Date(),
+      startedAtUtc: new Date(),
     },
   });
+  if (result.count === 0) {
+    throw new ApiError("Stage was modified by another user — refresh and retry", 409);
+  }
+
+  const updated = await prisma.erpStageRecord.findUniqueOrThrow({ where: { id: stageId } });
 
   await writeAuditLogDirect({
     entityType: "ErpStageRecord",
@@ -182,7 +198,6 @@ export async function startErpStage(
   return updated;
 }
 
-/** Prefer marginPercent field from complete input stored in amount for ACCOUNTS when provided. */
 async function applyDesignSuccessAfterComplete(
   designId: bigint,
   module: string,
@@ -218,7 +233,7 @@ async function applyDesignSuccessAfterComplete(
     await upsertDesignSuccessMetric(designId, {
       periodYear,
       periodMonth,
-      marginPercent: input.marginPercent ?? input.amount ?? 0,
+      marginPercent: input.marginPercent ?? 0,
     });
   }
 }
@@ -231,20 +246,21 @@ export async function completeErpStage(
 ) {
   const stage = await prisma.erpStageRecord.findUnique({ where: { id: stageId } });
   if (!stage) throw new ApiError("ERP stage not found", 404);
-  if (stage.status !== "READY" && stage.status !== "IN_PROGRESS") {
-    throw new ApiError(`Cannot complete stage in status ${stage.status}`, 409);
+  if (stage.status !== "IN_PROGRESS") {
+    throw new ApiError(
+      stage.status === "READY"
+        ? "Start the stage before completing it"
+        : `Cannot complete stage in status ${stage.status}`,
+      409,
+    );
   }
 
-  if (
-    (stage.erpModule === "SALES" || stage.erpModule === "READY_STOCK") &&
-    (input.qty == null || input.qty < 0)
-  ) {
-    throw new ApiError("qty is required for this stage", 400);
-  }
+  const validationError = validateCompleteErpStageInput(stage.erpModule, input);
+  if (validationError) throw new ApiError(validationError, 400);
 
   const updated = await prisma.$transaction(async (tx) => {
-    const done = await tx.erpStageRecord.update({
-      where: { id: stageId },
+    const locked = await tx.erpStageRecord.updateMany({
+      where: { id: stageId, status: "IN_PROGRESS" },
       data: {
         status: "COMPLETED",
         qty: input.qty ?? stage.qty,
@@ -261,6 +277,9 @@ export async function completeErpStage(
         completedById: actorId,
       },
     });
+    if (locked.count === 0) {
+      throw new ApiError("Stage was modified by another user — refresh and retry", 409);
+    }
 
     const next = await tx.erpStageRecord.findFirst({
       where: {
@@ -276,7 +295,7 @@ export async function completeErpStage(
       });
     }
 
-    return done;
+    return tx.erpStageRecord.findUniqueOrThrow({ where: { id: stageId } });
   });
 
   await writeAuditLogDirect({

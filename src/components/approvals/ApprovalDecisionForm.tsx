@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { InfoIcon } from "lucide-react";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { ROUTES } from "@/config/routes";
@@ -66,6 +68,14 @@ export function ApprovalDecisionForm({
 }: ApprovalDecisionFormProps) {
   const { decision, remark, correctionType, routeSubProcessCode, responsibleEmployeeId } = state;
 
+  useEffect(() => {
+    if (decisionOptions.length === 0) return;
+    if (!decisionOptions.some((o) => o.value === decision)) {
+      onChange({ ...state, decision: decisionOptions[0].value });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decisionOptions]);
+
   const assignees =
     stageAssignees?.length
       ? stageAssignees
@@ -79,118 +89,148 @@ export function ApprovalDecisionForm({
   });
 
   return (
-    <div className="space-y-4">
+    <div className="approval-decision-form">
       <ApprovalRequestPackagePanel package={requestPackage} designId={designId} />
 
-      {decision === "APPROVED" && costingReady === false ? (
-        <p
-          className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
-          role="alert"
-        >
-          Final management approval needs costing first. Add at least one cost entry on{" "}
+      {costingReady === false ? (
+        <p className="approval-decision-alert" role="alert">
+          Final approval needs costing first. Approve is hidden until you add a cost entry on{" "}
           <Link href={ROUTES.finance.costing} className="font-medium underline">
             Finance → Costing
           </Link>
-          , then return here to approve.
+          . Reject or Send for Correction still available.
         </p>
       ) : null}
 
-      <FormSelect
-        id="approvalDecision"
-        label="Decision"
-        required
-        value={decision}
-        onValueChange={(v) =>
-          onChange({ ...state, decision: v as ApprovalDecisionValue, remark: state.remark })
-        }
-        options={decisionOptions}
-      />
+      <section className="approval-decision-section" aria-label="Your decision">
+        <p className="approval-decision-section-title">Your decision</p>
 
-      {decision === "APPROVED" ? (
-        <>
-          <FormTextArea
-            id="approvalRemark"
-            label="Remark (optional)"
-            rows={3}
-            value={remark}
-            onChange={(e) => onChange({ ...state, remark: e.target.value })}
-            placeholder="Optional notes for the design team…"
-          />
-          <p className="text-xs text-muted-foreground">
-            {nextLevelName
-              ? `Next in chain after approve: ${nextLevelName}.`
-              : "Approving the final level marks the design APPROVED for production handoff."}
-          </p>
-        </>
-      ) : null}
-
-      {decision === "REJECTED" ? (
-        <>
-          <FormTextArea
-            id="approvalRejectRemark"
-            label="Rejection reason"
-            rows={3}
-            required
-            value={remark}
-            onChange={(e) => onChange({ ...state, remark: e.target.value })}
-            placeholder="Required — explain why this design was rejected…"
-          />
-          <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs">
-            Impact: design status becomes REJECTED and the requester is notified. History is preserved.
-          </p>
-        </>
-      ) : null}
-
-      {decision === "CORRECTION_REQUIRED" ? (
-        <>
-          <FormTextArea
-            id="approvalCorrectionRemark"
-            label="What must be fixed"
-            rows={3}
-            required
-            value={remark}
-            onChange={(e) => onChange({ ...state, remark: e.target.value })}
-            placeholder="Required — describe the correction clearly…"
-          />
-          <FormSelect
-            id="correctionType"
-            label="Correction type"
-            required
-            value={correctionType}
-            onValueChange={(v) => onChange({ ...state, correctionType: v })}
-            options={[...CORRECTION_TYPE_OPTIONS]}
-          />
-          <FormSelect
-            id="routeSubProcess"
-            label="Route back to stage"
-            required
-            value={routeSubProcessCode}
-            onValueChange={(v) => onChange({ ...state, routeSubProcessCode: v })}
-            options={[...CORRECTION_ROUTE_OPTIONS]}
-          />
-          {correctionType === "MISTAKE" ? (
+        {decision === "APPROVED" ? (
+          <div className="approval-decision-split">
+            <div className="approval-decision-col">
+              <FormSelect
+                id="approvalDecision"
+                label="Decision"
+                required
+                value={decision}
+                onValueChange={(v) =>
+                  onChange({
+                    ...state,
+                    decision: v as ApprovalDecisionValue,
+                    remark: state.remark,
+                  })
+                }
+                options={decisionOptions}
+              />
+              <p className="approval-decision-info">
+                <InfoIcon aria-hidden />
+                <span>
+                  {nextLevelName
+                    ? `Next after approve: ${nextLevelName}.`
+                    : "Final approve marks the design APPROVED for production handoff."}
+                </span>
+              </p>
+            </div>
+            <div className="approval-decision-col">
+              <FormTextArea
+                id="approvalRemark"
+                label="Remark (optional)"
+                rows={3}
+                value={remark}
+                onChange={(e) => onChange({ ...state, remark: e.target.value })}
+                placeholder="Optional notes for the design team…"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="approval-decision-fields">
             <FormSelect
-              id="responsibleEmployeeId"
-              label="Responsible employee"
-              required={false}
-              value={responsibleEmployeeId || null}
-              onValueChange={(v) => onChange({ ...state, responsibleEmployeeId: v })}
-              options={employeeOptions.map((e) => ({
-                value: String(e.id),
-                label: e.name,
-              }))}
-              placeholder="Select employee…"
-              hint="Optional override — defaults to the stage assignee when blank."
+              id="approvalDecision"
+              label="Decision"
+              required
+              value={decision}
+              onValueChange={(v) =>
+                onChange({
+                  ...state,
+                  decision: v as ApprovalDecisionValue,
+                  remark: state.remark,
+                })
+              }
+              options={decisionOptions}
             />
-          ) : null}
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-            Correction will assign to{" "}
-            <strong>{correctionAssigneePreview ?? "the stage assignee (resolved on submit)"}</strong>{" "}
-            for stage <strong>{routeSubProcessCode}</strong>. Prior management approvals are cleared so
-            the chain re-approves after rework.
-          </p>
-        </>
-      ) : null}
+
+            {decision === "REJECTED" ? (
+              <>
+                <FormTextArea
+                  id="approvalRejectRemark"
+                  label="Rejection reason"
+                  rows={3}
+                  required
+                  value={remark}
+                  onChange={(e) => onChange({ ...state, remark: e.target.value })}
+                  placeholder="Required — explain why this design was rejected…"
+                />
+                <p className="approval-decision-impact approval-decision-impact--danger">
+                  Design becomes REJECTED; requester is notified. History is kept.
+                </p>
+              </>
+            ) : null}
+
+            {decision === "CORRECTION_REQUIRED" ? (
+              <>
+                <FormTextArea
+                  id="approvalCorrectionRemark"
+                  label="What must be fixed"
+                  rows={3}
+                  required
+                  value={remark}
+                  onChange={(e) => onChange({ ...state, remark: e.target.value })}
+                  placeholder="Required — describe the correction clearly…"
+                />
+                <div className="approval-decision-grid">
+                  <FormSelect
+                    id="correctionType"
+                    label="Correction type"
+                    required
+                    value={correctionType}
+                    onValueChange={(v) => onChange({ ...state, correctionType: v })}
+                    options={[...CORRECTION_TYPE_OPTIONS]}
+                  />
+                  <FormSelect
+                    id="routeSubProcess"
+                    label="Route back to stage"
+                    required
+                    value={routeSubProcessCode}
+                    onValueChange={(v) => onChange({ ...state, routeSubProcessCode: v })}
+                    options={[...CORRECTION_ROUTE_OPTIONS]}
+                  />
+                </div>
+                {correctionType === "MISTAKE" ? (
+                  <FormSelect
+                    id="responsibleEmployeeId"
+                    label="Responsible employee"
+                    required={false}
+                    value={responsibleEmployeeId || null}
+                    onValueChange={(v) => onChange({ ...state, responsibleEmployeeId: v })}
+                    options={employeeOptions.map((e) => ({
+                      value: String(e.id),
+                      label: e.name,
+                    }))}
+                    placeholder="Select employee…"
+                    hint="Optional — defaults to stage assignee when blank."
+                  />
+                ) : null}
+                <p className="approval-decision-impact approval-decision-impact--warn">
+                  Assigns to{" "}
+                  <strong>{correctionAssigneePreview ?? "stage assignee (on submit)"}</strong> for{" "}
+                  <strong>{routeSubProcessCode}</strong>. Prior management approvals clear for
+                  re-approval after rework.
+                </p>
+              </>
+            ) : null}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -221,3 +261,4 @@ export function isApprovalDecisionFormValid(
     !!state.routeSubProcessCode
   );
 }
+

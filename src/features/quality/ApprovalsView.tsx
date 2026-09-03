@@ -95,15 +95,15 @@ export function ApprovalsView() {
   const decisionOptions = useMemo(() => {
     const options: Array<{ value: "APPROVED" | "REJECTED" | "CORRECTION_REQUIRED"; label: string }> =
       [];
-    if (selectedApprovalActions.some((a) => a.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL)) {
+    if (selectedApprovalActions.some((a) => a.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL && a.enabled)) {
       options.push({ value: "APPROVED", label: "Approve" });
     }
-    if (selectedApprovalActions.some((a) => a.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL)) {
+    if (selectedApprovalActions.some((a) => a.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL && a.enabled)) {
       options.push({ value: "REJECTED", label: "Reject" });
     }
     if (
       selectedApprovalActions.some(
-        (a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL_CORRECTION,
+        (a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL_CORRECTION && a.enabled,
       )
     ) {
       options.push({ value: "CORRECTION_REQUIRED", label: "Send for Correction" });
@@ -406,9 +406,10 @@ export function ApprovalsView() {
         title={selected ? `Decide ${selected.design.ideaRef}` : "Approval"}
         description={
           selected
-            ? `Review the requester package and submit your decision for ${selected.currentLevel.name}.`
+            ? `${selected.currentLevel.name} — package summary, then your decision.`
             : undefined
         }
+        size="lg"
         onClose={() => setSelected(null)}
         footer={
           <ModalFooterActions>

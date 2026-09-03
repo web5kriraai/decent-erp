@@ -245,7 +245,11 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "ERP Chain",
         href: ROUTES.production.erpChain,
         icon: IconProduction,
-        permission: PERMISSIONS.PRODUCTION_RELEASE,
+        anyPermission: [
+          PERMISSIONS.ERP_FLOOR_OPERATE,
+          PERMISSIONS.ERP_SALES_OPERATE,
+          PERMISSIONS.ERP_ACCOUNTS_OPERATE,
+        ],
       },
     ],
   },

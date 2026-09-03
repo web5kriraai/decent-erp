@@ -12,6 +12,7 @@ import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   useApprovedDesigns,
+  useEnsureProductionLadder,
   useErpIntegrationStatus,
   useMarkDesignLive,
   useProductionHandoffs,
@@ -21,6 +22,7 @@ import {
 } from "@/hooks/use-production";
 import { getMarkLiveAvailability } from "@/lib/action-availability";
 import { resolveProductionContextActions } from "@/lib/workflow-actions";
+import { canViewErpChain } from "@/lib/erp-rbac";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import {
@@ -33,6 +35,7 @@ export function ProductionReleaseView() {
   const permissions = session?.user?.permissions ?? [];
   const roleCode = session?.user?.roleCode;
   const canRelease = permissions.includes(PERMISSIONS.PRODUCTION_RELEASE);
+  const showErpChainLink = canViewErpChain(permissions);
 
   const designsQuery = useApprovedDesigns(canRelease);
   const releasedQuery = useReleasedDesigns(canRelease);
@@ -41,6 +44,7 @@ export function ProductionReleaseView() {
   const retrySync = useRetryHandoffSync();
   const erpStatusQuery = useErpIntegrationStatus(canRelease);
   const syncDesignHandoffs = useSyncDesignHandoffs();
+  const ensureLadder = useEnsureProductionLadder();
 
   const erpMode = erpStatusQuery.data?.mode ?? "simulated";
   const handoffDesignIds = [...new Set((handoffsQuery.data ?? []).map((h) => h.design.id))];
@@ -83,9 +87,34 @@ export function ProductionReleaseView() {
             Sync order: {erpStatusQuery.data.syncOrder.join(" → ")}
           </p>
         ) : null}
+        {showErpChainLink ? (
+          <p className="mt-3 mb-0 text-sm">
+            <Link href={ROUTES.production.erpChain} className="data-table-link">
+              Open in-app ERP Chain
+            </Link>
+            {" — operate Grey → Accounts after release (seeds stage rows automatically)."}
+          </p>
+        ) : null}
       </AppCard>
 
       <AppCard title="Production desk actions" className="stack-section">
+        <div className="mb-3 flex flex-wrap gap-2">
+          <AppButton
+            type="button"
+            appVariant="secondary"
+            size="sm"
+            disabled={ensureLadder.isPending}
+            onClick={() => ensureLadder.mutate(undefined)}
+          >
+            {ensureLadder.isPending
+              ? "Ensuring stages…"
+              : "Ensure production stages for approved designs"}
+          </AppButton>
+        </div>
+        <p className="text-muted-inline mb-3 mt-0 text-xs">
+          Use this if a Spec 8-Step / custom pattern was approved but Production Handoff never
+          appeared. Adds PROD_* tasks and unlocks handoff.
+        </p>
         <ContextualActionsPanel actions={productionActions} />
       </AppCard>
 

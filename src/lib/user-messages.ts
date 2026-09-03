@@ -13,6 +13,9 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   MASTER_ADMIN: "manage system settings and roles",
   PRODUCTION_RELEASE: "release designs to production",
   WORKFLOW_OVERRIDE: "override workflow phases",
+  ERP_FLOOR_OPERATE: "run Grey through Ready Stock on the ERP Chain",
+  ERP_SALES_OPERATE: "post Sales and Sales Return on the ERP Chain",
+  ERP_ACCOUNTS_OPERATE: "post Accounts / margin on the ERP Chain",
 };
 
 export function formatPermissionLabel(code: string): string {

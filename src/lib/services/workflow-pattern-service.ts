@@ -49,6 +49,8 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
     throw new ApiError("Task sequence values must be unique", 422);
   }
 
+  const codes = new Set<string>();
+
   for (const task of tasks) {
     const subProcess = await prisma.designSubProcessMaster.findFirst({
       where: {
@@ -56,6 +58,7 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
         processId: task.processId,
         active: true,
       },
+      select: { id: true, code: true },
     });
     if (!subProcess) {
       throw new ApiError(
@@ -63,6 +66,7 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
         422,
       );
     }
+    codes.add(subProcess.code);
 
     const role = await prisma.role.findUnique({ where: { id: task.defaultRoleId } });
     if (!role) {
@@ -73,6 +77,19 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
       throw new ApiError("Expected minutes must be greater than zero", 422);
     }
   }
+
+  const warnings: string[] = [];
+  if (!codes.has("COSTING") || !codes.has("FINAL_APPROVAL")) {
+    warnings.push(
+      "Pattern is missing COSTING and/or FINAL_APPROVAL — management sign-off and release gates may block later.",
+    );
+  }
+  if (!codes.has("PROD_HANDOFF")) {
+    warnings.push(
+      "PROD_* stages omitted — they will be auto-appended after management approval (Spec 8-Step style).",
+    );
+  }
+  return warnings;
 }
 
 export async function createWorkflowPattern(
@@ -96,7 +113,7 @@ export async function createWorkflowPattern(
     }
   }
 
-  await validatePatternTasks(input.tasks);
+  const warnings = await validatePatternTasks(input.tasks);
 
   const pattern = await prisma.$transaction(async (tx) => {
     const created = await tx.workflowPattern.create({
@@ -143,7 +160,7 @@ export async function createWorkflowPattern(
     after: pattern,
   });
 
-  return pattern;
+  return { ...pattern, warnings };
 }
 
 export async function updateWorkflowPatternTasks(
@@ -158,7 +175,7 @@ export async function updateWorkflowPatternTasks(
   });
   if (!existing) throw new ApiError("Workflow pattern not found", 404);
 
-  await validatePatternTasks(tasks);
+  const warnings = await validatePatternTasks(tasks);
 
   const pattern = await prisma.$transaction(async (tx) => {
     await tx.workflowPatternTask.deleteMany({ where: { workflowPatternId: id } });
@@ -202,7 +219,7 @@ export async function updateWorkflowPatternTasks(
     after: pattern.tasks,
   });
 
-  return pattern;
+  return { ...pattern, warnings };
 }
 
 export async function updateWorkflowPattern(

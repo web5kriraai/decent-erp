@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { jsonOk, serializeBigInt, withApiHandler } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
+import { ERP_CHAIN_VIEW_PERMISSIONS } from "@/lib/erp-rbac";
 import {
   ensureErpStagesForReleasedDesigns,
   getErpStagesForDesign,
@@ -8,14 +9,14 @@ import {
 } from "@/lib/services/erp-stage-service";
 
 export async function GET(req: Request) {
-  return withApiHandler(PERMISSIONS.PRODUCTION_RELEASE, async (ctx) => {
+  return withApiHandler(ERP_CHAIN_VIEW_PERMISSIONS, async (ctx) => {
     const url = new URL(req.url);
     const designId = url.searchParams.get("designId");
     if (designId) {
       const stages = await getErpStagesForDesign(BigInt(designId));
       return jsonOk(serializeBigInt(stages), ctx.correlationId);
     }
-    const chains = await listErpStageChains({ take: 400 });
+    const chains = await listErpStageChains({ takeDesigns: 100 });
     return jsonOk(serializeBigInt(chains), ctx.correlationId);
   });
 }

@@ -34,7 +34,6 @@ export function CompactDesignActions({
   onAssignTask,
   className,
 }: CompactDesignActionsProps) {
-  const [disabledHint, setDisabledHint] = useState<string | null>(null);
   const [signOffOpen, setSignOffOpen] = useState(false);
 
   const actions = useMemo(
@@ -51,13 +50,9 @@ export function CompactDesignActions({
   if (actions.length === 0) return null;
 
   const enabled = actions.filter((a) => a.enabled);
-  const disabled = actions.filter((a) => !a.enabled && a.disabledReason);
 
   function handleAction(action: ResolvedWorkflowAction) {
-    if (!action.enabled) {
-      setDisabledHint(action.disabledReason ?? `${action.label} is not available right now.`);
-      return;
-    }
+    if (!action.enabled) return;
     if (action.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL) {
       setSignOffOpen(true);
       return;
@@ -95,32 +90,14 @@ export function CompactDesignActions({
             </AppButton>
           );
         })}
-        {disabled.map((action) => (
-          <AppButton
-            key={`disabled-${action.code}`}
-            type="button"
-            size="sm"
-            appVariant="outline"
-            disabled
-            title={action.disabledReason}
-            onClick={() => setDisabledHint(action.disabledReason ?? null)}
-          >
-            {action.label}
-          </AppButton>
-        ))}
       </div>
-      {disabledHint ? (
-        <p className="compact-design-actions-hint" role="status">
-          {disabledHint}
-        </p>
-      ) : null}
       <RequestSignOffModal
         open={signOffOpen}
         designId={design.id}
         ideaRef={design.ideaRef}
         onClose={() => setSignOffOpen(false)}
         onSuccess={() => {
-          setDisabledHint(null);
+          setSignOffOpen(false);
         }}
       />
     </div>

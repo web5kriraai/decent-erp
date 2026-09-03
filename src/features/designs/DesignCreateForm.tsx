@@ -505,7 +505,7 @@ export function DesignCreateForm() {
                     hint={
                       availablePatterns.length === 0
                         ? "Switch Task Assignment to Manual, or ask Admin to create a pattern for this product type."
-                        : "Prefer Spec 8-Step for demos (Concept→Final). Full includes materials + production ladder."
+                        : "Spec 8-Step (Concept→Final) is fine — production handoff/instruction/release are added automatically after management approval. Full pattern already includes the production ladder."
                     }
                     error={
                       showErrors

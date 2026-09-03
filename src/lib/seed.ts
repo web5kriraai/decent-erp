@@ -37,16 +37,15 @@ export async function seedDatabase() {
       });
     }
 
+    // Replace role permissions with defaults so leftover grants cannot widen SoD.
+    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
+
     for (const perm of perms) {
       const permission = await prisma.permission.findUniqueOrThrow({
         where: { code: perm },
       });
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: { roleId: role.id, permissionId: permission.id },
-        },
-        update: {},
-        create: { roleId: role.id, permissionId: permission.id },
+      await prisma.rolePermission.create({
+        data: { roleId: role.id, permissionId: permission.id },
       });
     }
   }

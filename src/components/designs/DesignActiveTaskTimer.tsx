@@ -62,25 +62,28 @@ export function DesignActiveTaskTimer({
     return null;
   }
 
-  const isRunning = task.status === "RUNNING";
-  const isOnHold = task.status === "ON_HOLD";
+  // Capture narrowed task for nested async handlers (TS control-flow).
+  const activeTask = task;
+
+  const isRunning = activeTask.status === "RUNNING";
+  const isOnHold = activeTask.status === "ON_HOLD";
   if (!isRunning && !isOnHold) return null;
 
-  const fileRequired = !!task.subProcess?.isFileRequired;
-  const isSampleCheck = task.subProcess?.code === "SAMPLE_CHECK";
+  const fileRequired = !!activeTask.subProcess?.isFileRequired;
+  const isSampleCheck = activeTask.subProcess?.code === "SAMPLE_CHECK";
   const taskChecklistItems =
-    checklistQuery.data?.filter((item) => item.subProcessId === task.subProcess?.id) ?? [];
+    checklistQuery.data?.filter((item) => item.subProcessId === activeTask.subProcess?.id) ?? [];
 
   const holdDialogConfig = getTaskHoldDialogConfig({
-    status: task.status,
-    subProcess: task.subProcess,
-    design: task.design,
+    status: activeTask.status,
+    subProcess: activeTask.subProcess,
+    design: activeTask.design,
   });
   const endDialogConfig = getTaskEndDialogConfig(
     {
-      status: task.status,
-      subProcess: task.subProcess,
-      design: task.design,
+      status: activeTask.status,
+      subProcess: activeTask.subProcess,
+      design: activeTask.design,
     },
     roleCode,
   );
@@ -88,10 +91,10 @@ export function DesignActiveTaskTimer({
   async function handleHoldSubmit() {
     if (!holdReasonId) return;
     await hold.mutateAsync({
-      taskId: task.id,
+      taskId: activeTask.id,
       holdReasonId: Number(holdReasonId),
       remark: holdRemark || undefined,
-      version: task.version,
+      version: activeTask.version,
     });
     setHoldModalOpen(false);
     setHoldRemark("");
@@ -100,7 +103,7 @@ export function DesignActiveTaskTimer({
   async function handleEndSubmit() {
     if (!endRemark.trim()) return;
     if (isSampleCheck && !sampleOutcome) return;
-    const isCosting = task.subProcess?.code === "COSTING";
+    const isCosting = activeTask.subProcess?.code === "COSTING";
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -113,8 +116,8 @@ export function DesignActiveTaskTimer({
 
     const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
-      taskId: task.id,
-      version: task.version,
+      taskId: activeTask.id,
+      version: activeTask.version,
       outputRemark: endRemark.trim(),
       completionStatus: isSampleCheck
         ? sampleOutcome === "REJECT"

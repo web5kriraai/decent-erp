@@ -96,7 +96,8 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
       <Modal
         open={modalOpen}
         title={`Decide ${ideaRef}`}
-        description={`Review the requester package and submit your decision for ${pendingItem.currentLevel.name}.`}
+        description={`Review the package, then submit your decision for ${pendingItem.currentLevel.name}.`}
+        size="lg"
         onClose={() => setModalOpen(false)}
         footer={
           <ModalFooterActions>
@@ -121,7 +122,9 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
           requestPackage={requestPackage}
           costingReady={pendingItem.costingReady}
           decisionOptions={[
-            { value: "APPROVED", label: "Approve" },
+            ...(pendingItem.costingReady
+              ? [{ value: "APPROVED" as const, label: "Approve" }]
+              : []),
             { value: "REJECTED", label: "Reject" },
             { value: "CORRECTION_REQUIRED", label: "Send for Correction" },
           ]}

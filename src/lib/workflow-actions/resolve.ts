@@ -1,9 +1,6 @@
 import { ROUTES } from "@/config/routes";
 import { getTaskStartAvailability, canRoleMarkDesignLive } from "@/lib/action-availability";
-import {
-  getDesignWorkflowContext,
-  findNextActionableTask,
-} from "@/lib/design-workflow";
+import { findNextActionableTask } from "@/lib/design-workflow";
 import { canRoleSeeReadyForSignOff } from "@/lib/approval-hub-rbac";
 import { PERMISSIONS } from "@/lib/permissions";
 import { isSignOffScopeExcluded } from "@/lib/services/approval-queue-utils";
@@ -63,7 +60,6 @@ export function resolveDesignContextActions(input: {
   const canRequestApproval = canRoleSeeReadyForSignOff(roleCode);
   const canOpenApprovalsHub = canRoleAccessApprovalsHub(roleCode);
   const tasks = design.tasks ?? [];
-  const context = getDesignWorkflowContext({ status: design.status, tasks });
   const actions: ResolvedWorkflowAction[] = [];
 
   const nextTask = findNextActionableTask(tasks, employeeId, roleCode);
@@ -108,31 +104,14 @@ export function resolveDesignContextActions(input: {
   } else if (canRequestApproval && ["DRAFT", "ACTIVE"].includes(design.status)) {
     const incomplete = incompleteStageLabels(tasks);
     const readyForRequest = incomplete.length === 0 && !openApprovals;
-    actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL, {
-        enabled: readyForRequest,
-        disabledReason:
-          openApprovals
-            ? "Complete open stage approvals before requesting final approval."
-            : incomplete.length > 0
-              ? `Complete: ${incomplete.slice(0, 4).join(", ")}${incomplete.length > 4 ? "…" : ""}`
-              : undefined,
-        designId: design.id,
-      }),
-    );
-  }
-
-  if (context.blockingLabel) {
-    const blocked = buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
-      enabled: false,
-      label: "Continue workflow",
-      disabledReason: `${context.blockingLabel} must be completed first${
-        context.blockingOwner ? ` (${context.blockingOwner})` : ""
-      }.`,
-      designId: design.id,
-    });
-    if (!actions.some((a) => a.code === WORKFLOW_ACTION_CODES.OPEN_TASK && a.enabled)) {
-      actions.push(blocked);
+    // Only expose Request Sign-off when the design is actually ready (no disabled tease).
+    if (readyForRequest) {
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL, {
+          enabled: true,
+          designId: design.id,
+        }),
+      );
     }
   }
 
@@ -193,18 +172,19 @@ export function resolveTaskContextActions(input: {
       peers,
       { hasRunningTask: input.task.assigneeHasRunningTask },
     );
-    const startLabel = task.subProcess?.name
-      ? `Start ${task.subProcess.name}`
-      : actionMeta(WORKFLOW_ACTION_CODES.START_TASK).label;
-    actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.START_TASK, {
-        enabled: availability.available,
-        disabledReason: availability.reason,
-        label: startLabel,
-        taskId: task.id,
-        designId: task.designId,
-      }),
-    );
+    if (availability.available) {
+      const startLabel = task.subProcess?.name
+        ? `Start ${task.subProcess.name}`
+        : actionMeta(WORKFLOW_ACTION_CODES.START_TASK).label;
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.START_TASK, {
+          enabled: true,
+          label: startLabel,
+          taskId: task.id,
+          designId: task.designId,
+        }),
+      );
+    }
   }
 
   if (task.status === "RUNNING") {
@@ -294,14 +274,17 @@ export function resolveApprovalContextActions(input: {
 
   const costingBlocksApprove = input.approval.costingReady === false;
 
+  // Hide Approve when costing blocks final level — Reject / Correction remain available.
+  if (!costingBlocksApprove) {
+    actions.push(
+      buildAction(WORKFLOW_ACTION_CODES.APPROVE_LEVEL, {
+        enabled: true,
+        designId: input.approval.designId,
+      }),
+    );
+  }
+
   actions.push(
-    buildAction(WORKFLOW_ACTION_CODES.APPROVE_LEVEL, {
-      enabled: !costingBlocksApprove,
-      disabledReason: costingBlocksApprove
-        ? "Add at least one cost entry before final management approval."
-        : undefined,
-      designId: input.approval.designId,
-    }),
     buildAction(WORKFLOW_ACTION_CODES.REJECT_LEVEL, {
       enabled: true,
       designId: input.approval.designId,
@@ -339,13 +322,6 @@ export function resolveCostingContextActions(input: {
         designId: input.designId,
       }),
     );
-  } else {
-    actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.ADD_COST, {
-        enabled: false,
-        disabledReason: "Select a design to add cost entries.",
-      }),
-    );
   }
 
   return actions;
@@ -359,6 +335,7 @@ export function resolveProductionContextActions(input: {
   releaseTaskId?: string;
   designStatus?: string;
   designId?: string;
+  liveReviewCompleted?: boolean;
 }): ResolvedWorkflowAction[] {
   const canProd = input.permissions.includes(PERMISSIONS.PRODUCTION_RELEASE);
   if (!canProd) {
@@ -398,13 +375,11 @@ export function resolveProductionContextActions(input: {
     );
   }
 
-  if (input.designId) {
+  // Only expose Return when the handoff is actually returnable.
+  if (input.designId && input.canReturn) {
     actions.push(
       buildAction(WORKFLOW_ACTION_CODES.RETURN_PRODUCTION_HANDOFF, {
-        enabled: !!input.canReturn,
-        disabledReason: input.canReturn
-          ? undefined
-          : "Return is only available after Design Head handoff and before release completes.",
+        enabled: true,
         designId: input.designId,
         variant: "destructive",
       }),
@@ -413,8 +388,9 @@ export function resolveProductionContextActions(input: {
 
   if (input.designStatus === "PRODUCTION_RELEASED") {
     const canMarkLive = canRoleMarkDesignLive(input.roleCode);
-    // Hide Mark Live entirely when role cannot perform it.
-    if (canMarkLive) {
+    const liveReviewOk = input.liveReviewCompleted !== false;
+    // Hide Mark Live entirely when role/state cannot perform it.
+    if (canMarkLive && liveReviewOk) {
       actions.push(
         buildAction(WORKFLOW_ACTION_CODES.MARK_LIVE, {
           enabled: true,

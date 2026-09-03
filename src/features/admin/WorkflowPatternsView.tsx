@@ -32,10 +32,13 @@ export function WorkflowPatternsView() {
 
   const createPattern = useMutation({
     mutationFn: (payload: CreateWorkflowPatternPayload) =>
-      apiPost<WorkflowPattern>("/api/workflow-patterns", payload),
+      apiPost<WorkflowPattern & { warnings?: string[] }>("/api/workflow-patterns", payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.workflowPatterns });
       toast.success("Workflow pattern created", `${data.name} (v${data.versionNo})`);
+      if (data.warnings?.length) {
+        toast.success("Pattern notes", data.warnings.join(" "));
+      }
       setOpen(false);
     },
     onError: (error) => toast.errorFromApi(error, "Could not create workflow pattern"),
@@ -51,13 +54,17 @@ export function WorkflowPatternsView() {
       if (payload.name !== payload.previousName) {
         await apiPatch(`/api/workflow-patterns/${payload.id}`, { name: payload.name });
       }
-      return apiPatch<WorkflowPattern>(`/api/workflow-patterns/${payload.id}/tasks`, {
-        tasks: payload.tasks,
-      });
+      return apiPatch<WorkflowPattern & { warnings?: string[] }>(
+        `/api/workflow-patterns/${payload.id}/tasks`,
+        { tasks: payload.tasks },
+      );
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.workflowPatterns });
       toast.success("Workflow pattern updated", `${data.name} — ${data.tasks.length} steps`);
+      if (data.warnings?.length) {
+        toast.success("Pattern notes", data.warnings.join(" "));
+      }
       setEditPattern(null);
     },
     onError: (error) => toast.errorFromApi(error, "Could not update workflow pattern"),

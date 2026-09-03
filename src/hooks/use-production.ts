@@ -251,6 +251,35 @@ export function useBackfillErpStages() {
   });
 }
 
+export function useEnsureProductionLadder() {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+  return useMutation({
+    mutationFn: (designId?: string) =>
+      apiPost<{
+        results: Array<{
+          designId: string;
+          ideaRef: string;
+          appended: boolean;
+          unlocked: boolean;
+        }>;
+        appendedCount: number;
+        unlockedCount: number;
+      }>("/api/production/ensure-ladder", designId ? { designId } : {}),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.approved });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.inbox });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      toast.success(
+        "Production stages ready",
+        `${data.appendedCount} ladder(s) added · ${data.unlockedCount} handoff(s) unlocked`,
+      );
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not ensure production stages"),
+  });
+}
+
 export function useErpStageAction() {
   const queryClient = useQueryClient();
   const toast = useApiToast();

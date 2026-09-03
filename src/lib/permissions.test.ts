@@ -46,6 +46,24 @@ describe("permissions", () => {
   it("gives Management TASK_EXECUTE so Live Review can run on My Tasks", () => {
     expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MANAGEMENT]).toContain(PERMISSIONS.TASK_EXECUTE);
   });
+
+  it("splits ERP chain SoD across roles", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.PRODUCTION_HEAD]).toContain(
+      PERMISSIONS.ERP_FLOOR_OPERATE,
+    );
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.PRODUCTION_HEAD]).toContain(
+      PERMISSIONS.ERP_SALES_OPERATE,
+    );
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.PRODUCTION_HEAD]).not.toContain(
+      PERMISSIONS.ERP_ACCOUNTS_OPERATE,
+    );
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.COSTING_TEAM]).toContain(
+      PERMISSIONS.ERP_ACCOUNTS_OPERATE,
+    );
+    expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MANAGEMENT]).toContain(
+      PERMISSIONS.ERP_ACCOUNTS_OPERATE,
+    );
+  });
 });
 
 describe("task dependency gate", () => {

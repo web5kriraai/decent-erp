@@ -39,7 +39,7 @@ function correction(status: string): CorrectionRecord {
 }
 
 describe("workflow-actions resolve", () => {
-  it("disables request approval with stage list when work is incomplete", () => {
+  it("hides request approval when work is incomplete", () => {
     const design: DesignSummary = {
       id: "1",
       ideaRef: "IDEA-1",
@@ -62,12 +62,10 @@ describe("workflow-actions resolve", () => {
       roleCode: "DESIGN_HEAD",
     });
 
-    const request = actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL);
-    expect(request?.enabled).toBe(false);
-    expect(request?.disabledReason).toMatch(/Sketch/);
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL)).toBeUndefined();
   });
 
-  it("exposes start task disabled reason when dependency blocks", () => {
+  it("hides start task when dependency blocks", () => {
     const actions = resolveTaskContextActions({
       task: {
         id: "t2",
@@ -92,18 +90,14 @@ describe("workflow-actions resolve", () => {
       permissions: [PERMISSIONS.TASK_EXECUTE],
     });
 
-    const start = actions.find((a) => a.code === WORKFLOW_ACTION_CODES.START_TASK);
-    expect(start?.enabled).toBe(false);
-    expect(start?.disabledReason).toMatch(/Sketch/);
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.START_TASK)).toBeUndefined();
   });
 
-  it("blocks add cost when no design selected", () => {
+  it("omits add cost when no design selected", () => {
     const actions = resolveCostingContextActions({
       permissions: [PERMISSIONS.COST_VIEW],
     });
-    const add = actions.find((a) => a.code === WORKFLOW_ACTION_CODES.ADD_COST);
-    expect(add?.enabled).toBe(false);
-    expect(add?.disabledReason).toMatch(/Select a design/);
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.ADD_COST)).toBeUndefined();
   });
 
   it.each([
@@ -174,26 +168,37 @@ describe("workflow-actions resolve", () => {
       name: "Management | PRODUCTION_RELEASED | MARK_LIVE | Allow",
       roleCode: "MANAGEMENT",
       permissions: [PERMISSIONS.PRODUCTION_RELEASE],
+      liveReviewCompleted: true,
       expected: "allow" as const,
+    },
+    {
+      name: "Management | PRODUCTION_RELEASED | live review pending | MARK_LIVE | Deny (hidden)",
+      roleCode: "MANAGEMENT",
+      permissions: [PERMISSIONS.PRODUCTION_RELEASE],
+      liveReviewCompleted: false,
+      expected: "hidden" as const,
     },
     {
       name: "Production Head | PRODUCTION_RELEASED | MARK_LIVE | Deny (hidden)",
       roleCode: "PRODUCTION_HEAD",
       permissions: [PERMISSIONS.PRODUCTION_RELEASE],
+      liveReviewCompleted: true,
       expected: "hidden" as const,
     },
     {
       name: "No PRODUCTION_RELEASE | any | production actions | Deny (empty)",
       roleCode: "SKETCH_DESIGNER",
       permissions: [PERMISSIONS.TASK_EXECUTE],
+      liveReviewCompleted: true,
       expected: "empty" as const,
     },
-  ])("$name", ({ roleCode, permissions, expected }) => {
+  ])("$name", ({ roleCode, permissions, liveReviewCompleted, expected }) => {
     const actions = resolveProductionContextActions({
       permissions,
       roleCode,
       designStatus: "PRODUCTION_RELEASED",
       designId: "1",
+      liveReviewCompleted,
     });
     if (expected === "empty") {
       expect(actions).toHaveLength(0);
@@ -234,16 +239,15 @@ describe("workflow-actions resolve", () => {
     ).toBeUndefined();
   });
 
-  it("blocks approve when costing is not ready", () => {
+  it("hides approve when costing is not ready", () => {
     const actions = resolveApprovalContextActions({
       permissions: [PERMISSIONS.DESIGN_APPROVE],
       roleCode: "MANAGEMENT",
       canAccessHub: true,
       approval: { designId: "1", costingReady: false },
     });
-    const approve = actions.find((a) => a.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL);
-    expect(approve?.enabled).toBe(false);
-    expect(approve?.disabledReason).toMatch(/cost/i);
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL)).toBeUndefined();
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL)?.enabled).toBe(true);
   });
 
   it("hides costing actions without COST_VIEW", () => {

@@ -712,7 +712,21 @@ export function getDesignWorkflowContext(input: {
   if (input.status === "APPROVED") {
     const handoff = tasks.find((t) => t.subProcess?.code === "PROD_HANDOFF");
     const instruction = tasks.find((t) => t.subProcess?.code === "PROD_INSTRUCTION");
-    if (handoff && handoff.status !== "COMPLETED") {
+    if (!handoff) {
+      return {
+        ...empty,
+        summary:
+          "Approved, but production stages are missing on this design (common with Spec 8-Step / custom patterns).",
+        currentStage: "Production ladder",
+        currentStatus: "not created",
+        nextAction: "Ensure production stages",
+        waitingMessage:
+          "Open Production → Production Desk and click “Ensure production stages for approved designs”, then complete Production Handoff on My Tasks.",
+        nextActionHint:
+          "New approvals auto-add PROD_HANDOFF → INSTRUCTION → RELEASE. Older APPROVED designs need the Ensure stages action once.",
+      };
+    }
+    if (handoff.status !== "COMPLETED") {
       return {
         ...empty,
         summary: "Approved — Design Head must complete production handoff.",

@@ -1,21 +1,32 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { designHasCosting } from "@/lib/services/costing-service";
+import {
+  collectPresentStageGaps,
+  type ReadinessTaskSnapshot,
+} from "@/lib/services/production-release-readiness-utils";
+
+export { collectPresentStageGaps } from "@/lib/services/production-release-readiness-utils";
+export type { ReadinessTaskSnapshot } from "@/lib/services/production-release-readiness-utils";
 
 type Tx = Prisma.TransactionClient;
-
-const SATISFIED = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
 
 export type ProductionReleaseReadiness = {
   ok: boolean;
   missing: string[];
 };
 
+type TaskRow = {
+  id: bigint;
+  status: string;
+  subProcess: { name: string; code: string; isFileRequired: boolean };
+};
+
 async function taskByCode(
   tx: Tx | typeof prisma,
   designId: bigint,
   code: string,
-) {
+): Promise<TaskRow | null> {
   return (tx as Tx).designTask.findFirst({
     where: { designId, subProcess: { code } },
     include: { subProcess: { select: { name: true, code: true, isFileRequired: true } } },
@@ -23,7 +34,9 @@ async function taskByCode(
 }
 
 /**
- * Server-authoritative checklist before production release (master prompt §13).
+ * Server-authoritative checklist before production release.
+ * Design-side stages are required only when present on the design (flexible patterns).
+ * Production ladder stages are required when present (auto-appended on APPROVED).
  */
 export async function validateProductionReleaseReadiness(
   designId: bigint,
@@ -69,70 +82,39 @@ export async function validateProductionReleaseReadiness(
     }
   }
 
-  const sketch = await taskByCode(db, designId, "SKETCH");
-  if (!sketch || !SATISFIED.has(sketch.status)) {
-    missing.push("Sketch work");
-  } else if (sketch.subProcess.isFileRequired) {
-    const files = await db.taskArtifact.count({
-      where: { taskId: sketch.id, storageKey: { not: null } },
-    });
-    if (files === 0) missing.push("Sketch file");
+  const codes = [
+    "SKETCH",
+    "SKETCH_APPROVAL",
+    "PUNCH",
+    "PUNCH_CHECK",
+    "MAT_REQ",
+    "FABRIC_ISSUE",
+    "MACHINE_SAMPLE",
+    "SAMPLE_CHECK",
+    "FINAL_APPROVAL",
+    "PROD_HANDOFF",
+    "PROD_INSTRUCTION",
+  ] as const;
+
+  const tasksByCode: Record<string, ReadinessTaskSnapshot | undefined> = {};
+  for (const code of codes) {
+    const task = await taskByCode(db, designId, code);
+    if (!task) continue;
+    let hasFile = true;
+    if (task.subProcess.isFileRequired) {
+      const files = await db.taskArtifact.count({
+        where: { taskId: task.id, storageKey: { not: null } },
+      });
+      hasFile = files > 0;
+    }
+    tasksByCode[code] = {
+      status: task.status,
+      isFileRequired: task.subProcess.isFileRequired,
+      hasFile,
+    };
   }
 
-  const sketchApproval = await taskByCode(db, designId, "SKETCH_APPROVAL");
-  if (!sketchApproval || sketchApproval.status !== "COMPLETED") {
-    missing.push("Sketch approval");
-  }
-
-  const punch = await taskByCode(db, designId, "PUNCH");
-  if (!punch || !SATISFIED.has(punch.status)) {
-    missing.push("Punching / Wilcom work");
-  } else if (punch.subProcess.isFileRequired) {
-    const files = await db.taskArtifact.count({
-      where: { taskId: punch.id, storageKey: { not: null } },
-    });
-    if (files === 0) missing.push("Punching file");
-  }
-
-  const punchCheck = await taskByCode(db, designId, "PUNCH_CHECK");
-  if (punchCheck && punchCheck.status !== "COMPLETED") {
-    missing.push("Punching checking approval");
-  }
-
-  const matReq = await taskByCode(db, designId, "MAT_REQ");
-  if (matReq && !SATISFIED.has(matReq.status)) {
-    missing.push("Material requirement");
-  }
-
-  const fabricIssue = await taskByCode(db, designId, "FABRIC_ISSUE");
-  if (fabricIssue && !SATISFIED.has(fabricIssue.status)) {
-    missing.push("Fabric / component issue");
-  }
-
-  const sampleCheck = await taskByCode(db, designId, "SAMPLE_CHECK");
-  if (!sampleCheck || sampleCheck.status !== "COMPLETED") {
-    missing.push("Sample approval");
-  }
-
-  const machineSample = await taskByCode(db, designId, "MACHINE_SAMPLE");
-  if (!machineSample || !SATISFIED.has(machineSample.status)) {
-    missing.push("Machine sample");
-  }
-
-  const finalApproval = await taskByCode(db, designId, "FINAL_APPROVAL");
-  if (!finalApproval || finalApproval.status !== "COMPLETED") {
-    missing.push("Design Head final approval stage");
-  }
-
-  const prodHandoff = await taskByCode(db, designId, "PROD_HANDOFF");
-  if (!prodHandoff || prodHandoff.status !== "COMPLETED") {
-    missing.push("Production handoff from Design Head");
-  }
-
-  const prodInstruction = await taskByCode(db, designId, "PROD_INSTRUCTION");
-  if (!prodInstruction || prodInstruction.status !== "COMPLETED") {
-    missing.push("Production instruction");
-  }
+  missing.push(...collectPresentStageGaps(tasksByCode));
 
   return { ok: missing.length === 0, missing };
 }

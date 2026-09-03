@@ -53,7 +53,7 @@ const baseTask = {
 describe("validatePatternTasks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    prismaMock.designSubProcessMaster.findFirst.mockResolvedValue({ id: 10 });
+    prismaMock.designSubProcessMaster.findFirst.mockResolvedValue({ id: 10, code: "SKETCH" });
     prismaMock.role.findUnique.mockResolvedValue({ id: 2 });
   });
 
@@ -75,7 +75,7 @@ describe("validatePatternTasks", () => {
 describe("createWorkflowPattern", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    prismaMock.designSubProcessMaster.findFirst.mockResolvedValue({ id: 10 });
+    prismaMock.designSubProcessMaster.findFirst.mockResolvedValue({ id: 10, code: "SKETCH" });
     prismaMock.role.findUnique.mockResolvedValue({ id: 2 });
     prismaMock.productType.findUnique.mockResolvedValue({ id: 1 });
   });
@@ -129,7 +129,7 @@ describe("createWorkflowPattern", () => {
 describe("updateWorkflowPatternTasks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    prismaMock.designSubProcessMaster.findFirst.mockResolvedValue({ id: 10 });
+    prismaMock.designSubProcessMaster.findFirst.mockResolvedValue({ id: 10, code: "SKETCH" });
     prismaMock.role.findUnique.mockResolvedValue({ id: 2 });
     prismaMock.workflowPattern.findUnique.mockResolvedValue({
       id: 5,
