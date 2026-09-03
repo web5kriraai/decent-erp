@@ -7,7 +7,8 @@ import {
   inferCodeFromMessage,
   sanitizeLegacyMessage,
 } from "@/lib/errors/app-errors";
-import { getTaskStartAvailability, getMarkLiveAvailability } from "@/lib/action-availability";
+import { getTaskStartAvailability, getMarkLiveAvailability, canEnsureProductionLadder } from "@/lib/action-availability";
+import { PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
 
 describe("app-errors", () => {
   it("maps auth and permission statuses", () => {
@@ -91,6 +92,11 @@ describe("action-availability", () => {
     expect(blocked.available).toBe(false);
     expect(blocked.reason).toMatch(/live design review/i);
 
+    const omitted = getMarkLiveAvailability("PRODUCTION_RELEASED", {
+      roleCode: "MANAGEMENT",
+    });
+    expect(omitted.available).toBe(false);
+
     const ready = getMarkLiveAvailability("PRODUCTION_RELEASED", {
       liveReviewCompleted: true,
       roleCode: "MANAGEMENT",
@@ -105,5 +111,38 @@ describe("action-availability", () => {
     });
     expect(blocked.available).toBe(false);
     expect(blocked.reason).toMatch(/only management/i);
+  });
+});
+
+describe("canEnsureProductionLadder", () => {
+  const prod = [PERMISSIONS.PRODUCTION_RELEASE];
+
+  it("allows Management and Admin with PRODUCTION_RELEASE", () => {
+    expect(canEnsureProductionLadder(ROLE_CODES.MANAGEMENT, prod)).toBe(true);
+    expect(canEnsureProductionLadder(ROLE_CODES.ADMIN, Object.values(PERMISSIONS))).toBe(true);
+  });
+
+  it("allows WORKFLOW_OVERRIDE with PRODUCTION_RELEASE", () => {
+    expect(
+      canEnsureProductionLadder(ROLE_CODES.DESIGN_HEAD, [
+        PERMISSIONS.PRODUCTION_RELEASE,
+        PERMISSIONS.WORKFLOW_OVERRIDE,
+      ]),
+    ).toBe(true);
+  });
+
+  it("hides tool for Production Head without override", () => {
+    expect(
+      canEnsureProductionLadder(ROLE_CODES.PRODUCTION_HEAD, [
+        PERMISSIONS.PRODUCTION_RELEASE,
+        PERMISSIONS.TASK_EXECUTE,
+      ]),
+    ).toBe(false);
+  });
+
+  it("requires PRODUCTION_RELEASE even for Admin-like override", () => {
+    expect(
+      canEnsureProductionLadder(ROLE_CODES.DESIGN_HEAD, [PERMISSIONS.WORKFLOW_OVERRIDE]),
+    ).toBe(false);
   });
 });

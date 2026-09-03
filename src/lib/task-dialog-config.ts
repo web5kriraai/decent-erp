@@ -136,6 +136,22 @@ export function getTaskEndDialogConfig(
     };
   }
 
+  // Production release must complete (not CHECKING) so ERP handoff + LIVE_REVIEW can proceed.
+  if (code === "PROD_RELEASE") {
+    return {
+      title: `Complete ${stage}`,
+      description: idea
+        ? `${idea} · finish production release to unlock Live Design Review and ERP sync.`
+        : "Finish production release to unlock Live Design Review and ERP sync.",
+      mode: "execute_complete",
+      forceChecking: false,
+      showStatusSelect: false,
+      showSampleOutcomes: false,
+      showMachineMetrics: false,
+      fileRequired,
+    };
+  }
+
   return {
     title: `Complete ${stage}`,
     description: idea

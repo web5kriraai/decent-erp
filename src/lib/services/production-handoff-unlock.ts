@@ -248,6 +248,16 @@ export async function ensureLadderForApprovedDesigns(
       }
       return ensured;
     });
+
+    const { healStuckProdReleaseChecking } = await import(
+      "@/lib/services/production-service"
+    );
+    await healStuckProdReleaseChecking(
+      design.id,
+      actorId,
+      `${correlationId}-heal-release-${design.id}`,
+    );
+
     results.push({
       designId: design.id.toString(),
       ideaRef: design.ideaRef,

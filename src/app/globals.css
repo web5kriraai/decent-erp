@@ -4661,6 +4661,301 @@ a.sidebar-brand-link:hover {
   color: var(--color-neutral-500);
 }
 
+/* Production Desk (role-scoped ops console) */
+.production-desk-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.production-desk-header-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.production-desk-erp-pill {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.production-desk-metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 0.65rem;
+}
+
+.production-desk-metric {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 0.7rem 0.8rem;
+}
+
+.production-desk-metric--accent {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+}
+
+.production-desk-metric-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--color-neutral-600);
+  flex-shrink: 0;
+}
+
+.production-desk-metric--accent .production-desk-metric-icon {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
+.production-desk-metric-label {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-neutral-500);
+}
+
+.production-desk-metric-value {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  line-height: 1.2;
+}
+
+.production-desk-board {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.25rem;
+}
+
+.production-desk-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.production-desk-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  color: var(--color-neutral-700);
+  cursor: pointer;
+}
+
+.production-desk-filter:hover {
+  background: var(--muted);
+}
+
+.production-desk-filter--active {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  color: var(--primary);
+}
+
+.production-desk-filter-count {
+  display: inline-flex;
+  min-width: 1.25rem;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--muted);
+  padding: 0.05rem 0.35rem;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-neutral-600);
+}
+
+.production-desk-filter--active .production-desk-filter-count {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--primary);
+}
+
+.production-desk-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.production-desk-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 0.85rem 0.95rem;
+}
+
+@media (min-width: 960px) {
+  .production-desk-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+.production-desk-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.production-desk-row-title-block {
+  min-width: 0;
+}
+
+.production-desk-row-ref {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.production-desk-row-ref:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.production-desk-row-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-neutral-500);
+  line-height: 1.35;
+}
+
+.production-desk-ladder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.production-desk-ladder-step {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 6.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--muted) 35%, var(--card));
+  padding: 0.4rem 0.5rem;
+  position: relative;
+}
+
+.production-desk-ladder-step--done {
+  border-color: color-mix(in srgb, var(--color-success, #16a34a) 30%, var(--border));
+  background: color-mix(in srgb, var(--color-success, #16a34a) 6%, var(--card));
+}
+
+.production-desk-ladder-step--active {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--card));
+}
+
+.production-desk-ladder-step--missing {
+  opacity: 0.72;
+}
+
+.production-desk-ladder-connector {
+  display: none;
+}
+
+.production-desk-ladder-label {
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-neutral-500);
+}
+
+.production-desk-row-gate-detail {
+  margin: 0.3rem 0 0;
+  max-width: 18rem;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  line-height: 1.35;
+}
+
+.production-desk-row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+@media (min-width: 960px) {
+  .production-desk-row-actions {
+    align-items: flex-end;
+  }
+}
+
+.production-desk-waiting {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  text-align: inherit;
+}
+
+.production-desk-empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--muted) 50%, var(--card));
+  padding: 1.25rem;
+}
+
+.production-desk-empty-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.production-desk-empty-text {
+  margin: 0.3rem 0 0;
+  font-size: 0.875rem;
+  color: var(--color-neutral-500);
+}
+
+.production-desk-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding-top: 0.25rem;
+}
+
+.production-desk-tools-hint {
+  margin: 0;
+  max-width: 36rem;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  line-height: 1.45;
+}
+
 /* Management approval package (Decide modal) */
 .approval-pkg {
   display: flex;

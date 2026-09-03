@@ -73,6 +73,8 @@ export function InlineStageApprovalCard({
     let current =
       freshDesign?.tasks?.find((task) => task.id === approvalTask.id) ?? approvalTask;
 
+    // Owner may take over via assign when they have DESIGN_ASSIGN; otherwise
+    // completeStageApproval reassigns on the server for the owner role.
     if (
       employeeId &&
       canAssign &&

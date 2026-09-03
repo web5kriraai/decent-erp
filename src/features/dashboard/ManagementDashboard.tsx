@@ -148,12 +148,12 @@ export function ManagementDashboard() {
 
           <WorkbenchQueueCard
             title="Live design review"
-            href={ROUTES.work.tasks}
-            linkLabel="My tasks"
+            href={`${ROUTES.quality.approvals}?tab=stage`}
+            linkLabel="Approvals"
             emptyMessage="No released designs awaiting live review."
           >
             {!summary?.liveReviewTasks?.length ? (
-              <WorkbenchEmpty message="Complete live review on My Tasks after production release." />
+              <WorkbenchEmpty message="Open Approvals → Stage after production release." />
             ) : (
               <ul className="detail-task-list">
                 {summary.liveReviewTasks.map((task) => (

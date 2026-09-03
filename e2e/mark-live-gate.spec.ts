@@ -147,7 +147,8 @@ test.describe("Mark Live gate and guards", () => {
 
     const designId = await releaseDesignWithoutLiveReview(page);
 
-    await login(page, USERS.production.email, DEMO);
+    // Go-live queue is Management/Admin only (aligned with Mark Live).
+    await login(page, USERS.management.email, DEMO);
     const liveList = await apiGetJson<
       Array<{ id: string; liveReviewCompleted: boolean }>
     >(page, "/api/production/live");
@@ -162,12 +163,13 @@ test.describe("Mark Live gate and guards", () => {
     expect(blocked.ok()).toBe(false);
 
     await page.goto("/production/release");
-    await expect(page.getByRole("heading", { name: /Production Release/i })).toBeVisible({
+    await expect(page.getByRole("heading", { name: /Production Desk/i })).toBeVisible({
       timeout: 15_000,
     });
 
-    const markLiveButton = page.getByRole("button", { name: "Mark Live" }).first();
-    await expect(markLiveButton).toBeDisabled();
+    // Mark Live is omitted until live review completes — not shown disabled.
+    await expect(page.getByRole("button", { name: "Mark Live" })).toHaveCount(0);
+    await expect(page.getByText(/Complete Live Design Review first/i).first()).toBeVisible();
   });
 
   test("production head cannot mark live even after live review", async ({ page }) => {
@@ -195,11 +197,21 @@ test.describe("Mark Live gate and guards", () => {
     await completeAssignedTask(page, live!.id, "E2E live review");
 
     await login(page, USERS.production.email, DEMO);
+    const deniedGet = await page.request.get("/api/production/live");
+    expect(deniedGet.status()).toBe(403);
+
     const denied = await page.request.post("/api/production/live", {
       data: { designId },
       headers: { "Content-Type": "application/json" },
     });
     expect(denied.status()).toBe(403);
+
+    await page.goto("/production/release");
+    await expect(page.getByRole("heading", { name: /Production Desk/i })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("heading", { name: /Awaiting go-live/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Mark Live" })).toHaveCount(0);
 
     await login(page, USERS.management.email, DEMO);
     await apiPostJson(page, "/api/production/live", { designId });

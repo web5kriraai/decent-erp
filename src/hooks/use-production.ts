@@ -4,6 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
+import type {
+  ProductionDeskNextAction,
+  ProductionLadderStageSnapshot,
+} from "@/lib/services/production-desk-snapshot";
 
 export type ReleasedDesignForGoLive = {
   id: string;
@@ -14,26 +18,28 @@ export type ReleasedDesignForGoLive = {
   designHead?: { name: string } | null;
   liveReviewCompleted: boolean;
   liveReviewStatus: string | null;
+  liveReviewTaskId?: string | null;
+};
+
+export type ApprovedDesignForProduction = {
+  id: string;
+  ideaRef: string;
+  collectionName: string;
+  status: string;
+  productType: { name: string };
+  season: { name: string };
+  designHead: { name: string };
+  costs: unknown[];
+  releaseReady: boolean;
+  releaseMissing: string[];
+  ladderStages: ProductionLadderStageSnapshot[];
+  nextAction: ProductionDeskNextAction | null;
 };
 
 export function useApprovedDesigns(enabled = true) {
   return useQuery({
     queryKey: queryKeys.production.approved,
-    queryFn: () =>
-      apiGet<
-        Array<{
-          id: string;
-          ideaRef: string;
-          collectionName: string;
-          status: string;
-          productType: { name: string };
-          season: { name: string };
-          designHead: { name: string };
-          costs: unknown[];
-          releaseReady: boolean;
-          releaseMissing: string[];
-        }>
-      >("/api/production/release"),
+    queryFn: () => apiGet<ApprovedDesignForProduction[]>("/api/production/release"),
     enabled,
   });
 }

@@ -31,6 +31,8 @@ import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
 import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
+import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
+import { canRoleActOnStageApproval } from "@/lib/stage-approval-rbac";
 import {
   getTaskEndDialogConfig,
   getTaskHoldDialogConfig,
@@ -80,9 +82,13 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const roleCode = session?.user?.roleCode;
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const isStageApproval = isStageApprovalTask(task?.subProcess?.code);
+  const roleCanActOnStage =
+    !!roleCode &&
+    !!task?.subProcess?.code &&
+    canRoleActOnStageApproval(roleCode, task.subProcess.code);
   const canActOnStageApproval =
     isStageApproval &&
-    !!roleCode &&
+    roleCanActOnStage &&
     (isAssignee ||
       task?.assignedEmployeeId == null ||
       (canAssign && task?.assignedEmployeeId != null));
@@ -105,17 +111,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   const linkedWorkTaskStatus = useMemo(() => {
     if (!task?.workflowPeers) return undefined;
-    const code = task.subProcess.code;
-    const peerCode =
-      code === "SKETCH_APPROVAL"
-        ? "SKETCH"
-        : code === "PUNCH_CHECK"
-          ? "PUNCH"
-          : code === "SAMPLE_CHECK"
-            ? "MACHINE_SAMPLE"
-            : code === "FINAL_APPROVAL"
-              ? "COSTING"
-              : undefined;
+    const peerCode = workSubProcessCodeForApproval(task.subProcess.code);
     if (!peerCode) return undefined;
     return task.workflowPeers.find((peer) => peer.subProcess.code === peerCode)?.status;
   }, [task]);
@@ -313,16 +309,20 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   elapsedSeconds={activeSeconds}
                   taskLabel={`${task.process.name} → ${task.subProcess.name}`}
                   onHold={
-                    isRunning
+                    !isStageApproval && isRunning
                       ? () => {
                           setHoldModalOpen(true);
                           setHoldReasonId("");
                         }
                       : undefined
                   }
-                  onResume={isOnHold ? () => resume.mutate({ taskId: task.id, version: task.version }) : undefined}
+                  onResume={
+                    !isStageApproval && isOnHold
+                      ? () => resume.mutate({ taskId: task.id, version: task.version })
+                      : undefined
+                  }
                   onEnd={
-                    isRunning || isOnHold
+                    !isStageApproval && (isRunning || isOnHold)
                       ? () => {
                           setEndModalOpen(true);
                           setEndRemark("");

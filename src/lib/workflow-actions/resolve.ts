@@ -1,12 +1,16 @@
 import { ROUTES } from "@/config/routes";
 import { getTaskStartAvailability, canRoleMarkDesignLive } from "@/lib/action-availability";
-import { findNextActionableTask } from "@/lib/design-workflow";
+import {
+  findNextActionableTask,
+  isStageApprovalActionable,
+} from "@/lib/design-workflow";
 import { canRoleSeeReadyForSignOff } from "@/lib/approval-hub-rbac";
 import { PERMISSIONS } from "@/lib/permissions";
 import { isSignOffScopeExcluded } from "@/lib/services/approval-queue-utils";
 import {
   canRoleAccessApprovalsHub,
   canRoleActOnStageApproval,
+  getStageApprovalUiConfig,
 } from "@/lib/stage-approval-rbac";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 import { actionMeta } from "@/lib/workflow-actions/definitions";
@@ -69,20 +73,28 @@ export function resolveDesignContextActions(input: {
     const canActOnApproval =
       !isApproval || canRoleActOnStageApproval(roleCode, approvalCode);
     if (!isApproval || canActOnApproval) {
-      if (!isApproval) {
-        actions.push(
-          buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
-            enabled: true,
-            label: `Open ${nextTask.subProcess?.name ?? "Task"}`,
-            description: `Continue ${nextTask.subProcess?.name ?? "the current task"} for this design.`,
-            taskId: nextTask.id,
-            designId: design.id,
-            href: ROUTES.work.taskDetail(nextTask.id),
-          }),
-        );
-      }
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
+          enabled: true,
+          label: `Open ${nextTask.subProcess?.name ?? "Task"}`,
+          description: `Continue ${nextTask.subProcess?.name ?? "the current task"} for this design.`,
+          taskId: nextTask.id,
+          designId: design.id,
+          href: ROUTES.work.taskDetail(nextTask.id),
+          variant: nextTask.subProcess?.code === "LIVE_REVIEW" ? "primary" : undefined,
+        }),
+      );
     }
   }
+
+  const liveReview = tasks.find((t) => t.subProcess?.code === "LIVE_REVIEW");
+  const prodRelease = tasks.find((t) => t.subProcess?.code === "PROD_RELEASE");
+  const liveReviewStatuses = new Set(["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"]);
+  const liveReviewOpen =
+    liveReview != null &&
+    liveReviewStatuses.has(liveReview.status) &&
+    canRoleActOnStageApproval(roleCode, "LIVE_REVIEW") &&
+    isStageApprovalActionable("LIVE_REVIEW", prodRelease);
 
   const openApprovals = tasks.some(
     (t) =>
@@ -91,7 +103,22 @@ export function resolveDesignContextActions(input: {
       t.status !== "CANCELLED",
   );
 
-  if (canOpenApprovalsHub && design.status === "APPROVAL_PENDING") {
+  // Prefer Live Design Review over management-chain CTA once production release is ready.
+  if (liveReviewOpen && liveReview) {
+    if (!actions.some((a) => a.taskId === liveReview.id)) {
+      actions.unshift(
+        buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
+          enabled: true,
+          label: "Open Live Design Review",
+          description: "Complete Live Design Review to unlock Mark Live.",
+          taskId: liveReview.id,
+          designId: design.id,
+          href: ROUTES.work.taskDetail(liveReview.id),
+          variant: "primary",
+        }),
+      );
+    }
+  } else if (canOpenApprovalsHub && design.status === "APPROVAL_PENDING") {
     actions.push(
       buildAction(WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE, {
         enabled: true,
@@ -104,7 +131,6 @@ export function resolveDesignContextActions(input: {
   } else if (canRequestApproval && ["DRAFT", "ACTIVE"].includes(design.status)) {
     const incomplete = incompleteStageLabels(tasks);
     const readyForRequest = incomplete.length === 0 && !openApprovals;
-    // Only expose Request Sign-off when the design is actually ready (no disabled tease).
     if (readyForRequest) {
       actions.push(
         buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL, {
@@ -159,6 +185,14 @@ export function resolveTaskContextActions(input: {
   const peers = input.task.workflowPeers ?? [];
   const actions: ResolvedWorkflowAction[] = [];
   const { task } = input;
+
+  // Stage-approval panels (inline / task_panel) use approve-stage — hide execute Start/End.
+  const stageUi = task.subProcess?.code
+    ? getStageApprovalUiConfig(task.subProcess.code)
+    : null;
+  if (stageUi && stageUi.surface !== "task_end_dialog") {
+    return [];
+  }
 
   if (task.status === "ASSIGNED" || task.status === "PENDING") {
     const availability = getTaskStartAvailability(
@@ -388,8 +422,8 @@ export function resolveProductionContextActions(input: {
 
   if (input.designStatus === "PRODUCTION_RELEASED") {
     const canMarkLive = canRoleMarkDesignLive(input.roleCode);
-    const liveReviewOk = input.liveReviewCompleted !== false;
-    // Hide Mark Live entirely when role/state cannot perform it.
+    // Require explicit true — omit/undefined must not expose Mark Live early.
+    const liveReviewOk = input.liveReviewCompleted === true;
     if (canMarkLive && liveReviewOk) {
       actions.push(
         buildAction(WORKFLOW_ACTION_CODES.MARK_LIVE, {

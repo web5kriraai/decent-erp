@@ -9,6 +9,7 @@ import { ROLE_CODES } from "@/lib/permissions";
 import {
   canRoleAccessApprovalsHub,
   canRoleActOnStageApproval,
+  canRoleSeeStageApproval,
   filterStageApprovalsForRole,
   getApprovalHubTabsForRole,
   getStageApprovalOwnerRole,
@@ -16,6 +17,14 @@ import {
 } from "@/lib/stage-approval-rbac";
 
 describe("stage-approval-rbac", () => {
+  it("maps LIVE_REVIEW to Management and allows Admin override", () => {
+    expect(getStageApprovalOwnerRole("LIVE_REVIEW")).toBe(ROLE_CODES.MANAGEMENT);
+    expect(canRoleActOnStageApproval(ROLE_CODES.MANAGEMENT, "LIVE_REVIEW")).toBe(true);
+    expect(canRoleActOnStageApproval(ROLE_CODES.ADMIN, "LIVE_REVIEW")).toBe(true);
+    expect(canRoleActOnStageApproval(ROLE_CODES.PRODUCTION_HEAD, "LIVE_REVIEW")).toBe(false);
+    expect(canRoleActOnStageApproval(ROLE_CODES.DESIGN_HEAD, "LIVE_REVIEW")).toBe(false);
+  });
+
   it("maps stage owners from spec roles", () => {
     expect(getStageApprovalOwnerRole("SKETCH_APPROVAL")).toBe(ROLE_CODES.DESIGN_HEAD);
     expect(getStageApprovalOwnerRole("PUNCH_CHECK")).toBe(ROLE_CODES.SAMPLE_CHECKER);
@@ -43,6 +52,33 @@ describe("stage-approval-rbac", () => {
     ];
     expect(filterStageApprovalsForRole(ROLE_CODES.DESIGN_HEAD, items)).toHaveLength(1);
     expect(filterStageApprovalsForRole(ROLE_CODES.SAMPLE_CHECKER, items)).toHaveLength(2);
+  });
+
+  it("lets owner roles see stage approvals assigned to others", () => {
+    expect(
+      canRoleSeeStageApproval(ROLE_CODES.DESIGN_HEAD, "FINAL_APPROVAL", {
+        isAssignee: false,
+        isUnassigned: false,
+      }),
+    ).toBe(true);
+    expect(
+      canRoleSeeStageApproval(ROLE_CODES.ADMIN, "PUNCH_CHECK", {
+        isAssignee: false,
+        isUnassigned: false,
+      }),
+    ).toBe(true);
+    expect(
+      canRoleSeeStageApproval(ROLE_CODES.PRODUCTION_HEAD, "LIVE_REVIEW", {
+        isAssignee: false,
+        isUnassigned: true,
+      }),
+    ).toBe(true);
+    expect(
+      canRoleSeeStageApproval(ROLE_CODES.PRODUCTION_HEAD, "LIVE_REVIEW", {
+        isAssignee: false,
+        isUnassigned: false,
+      }),
+    ).toBe(false);
   });
 
   it("exposes hub tabs per role", () => {

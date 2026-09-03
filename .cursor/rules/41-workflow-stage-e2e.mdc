@@ -1,0 +1,53 @@
+---
+description: End-to-end protocol for workflow/stage-approval stuck bugs (CHECKING, missing queue items, wrong CTA, RBAC drift).
+globs: "**/workflow-stage-gate*,**/stage-approval*,**/task-service*,**/production-service*,**/production-handoff*,**/design-workflow*,**/workflow-actions/**,**/task-dialog-config*,**/ApprovalsView*,**/InlineStageApproval*,**/TaskStageApproval*,**/api/approvals/**,**/api/tasks/**/end/**,**/api/tasks/**/approve-stage/**,**/api/production/ensure-ladder/**"
+alwaysApply: false
+---
+
+# Workflow / stage-approval E2E bug hunt
+
+Treat “task ended but no approval”, wrong CTA, missing Design Head / Management / Admin queue items, stuck CHECKING, and header status drift as **one class**: state-machine + queue + CTA + RBAC drift.
+
+## Hard rules
+
+1. Server gate math wins over UI. Never fix only the dialog/CTA.
+2. Two systems — do not conflate:
+   - **Stage approvals** = `DesignTask` + `isApproval` (`CONCEPT_REVIEW`, `SKETCH_APPROVAL`, `PUNCH_CHECK`, `SAMPLE_CHECK`, `FINAL_APPROVAL`, `LIVE_REVIEW`)
+   - **Management sign-off** = `DesignApproval` + `ApprovalLevel` (CHECKER → DESIGN_HEAD → MANAGEMENT)
+3. `LIVE_REVIEW` is **not** a checker gate for `PROD_RELEASE`. Ladder: `PROD_HANDOFF` → `PROD_INSTRUCTION` → `PROD_RELEASE` → `LIVE_REVIEW`.
+4. `CHECKING` unlocks dependents; `COMPLETED` still required for side effects (`releaseToProduction` only on `PROD_RELEASE` COMPLETED).
+5. Prefer **heal + invariant + test** over one-off data patches.
+6. Verify every touched transition on hub, design detail, CTA, header status, and role workbench for Design Head / Sample Checker / Management / Admin.
+
+## Canonical files
+
+- Gate: `src/lib/services/workflow-stage-gate.ts` (+ `.test.ts`)
+- End/approve: `src/lib/services/task-service.ts`
+- Queue: `src/lib/services/stage-approval-queue.ts`
+- RBAC: `src/lib/stage-approval-rbac.ts`, `src/lib/approval-hub-rbac.ts`
+- CTAs: `src/lib/workflow-actions/resolve.ts`, `src/lib/design-workflow.ts`
+- Dialog hint: `src/lib/task-dialog-config.ts` (must match server)
+- Production/heal: `production-service.ts`, `production-handoff-unlock.ts`, `design-service.ts` (`reconcileStuckWorkflowTasks`)
+
+## Investigation (evidence before edits)
+
+0. Record design.status, each task `{code,status,assigneeId,dependencySequence}`, open ApprovalLevels, viewer role.
+1. Classify: checker gate vs production ladder; expected end via `resolveWorkTaskEndStatus`.
+2. Assert after `endTask`: status matches gate; next unlocked to ASSIGNED; gated work CHECKING; `PROD_RELEASE` COMPLETED → release attempted; after approve → promote CHECKING work.
+3. Visibility: same item on hub Stage tab, design surface, CTA, header, workbench — rule out PENDING-not-unlocked, wrong assignee orphan, Admin assignee-scope, dashboard≠hub, wrong CTA preference.
+4. Heal stuck DB rows from `getDesignById`, approve preflight, ensure-ladder (idempotent + audited). Pattern: `healStuckProdReleaseChecking`.
+5. Fix gate/unlock/queue/RBAC/CTA together; extend `workflow-stage-gate.test.ts` (+ queue/RBAC tests).
+6. Accept: work end → status → next ASSIGNED → owner sees hub+design → approve → promote → design.status/side effects → CTA updates.
+
+## Gate map
+
+- SKETCH → SKETCH_APPROVAL (Design Head, inline)
+- PUNCH → PUNCH_CHECK (Sample Checker, panel)
+- MACHINE_SAMPLE → SAMPLE_CHECK (Sample Checker, end dialog)
+- COSTING → FINAL_APPROVAL (Design Head, inline)
+- PROD_RELEASE → always COMPLETED → `releaseToProduction` → unlock LIVE_REVIEW
+- LIVE_REVIEW → Management after release path; **not** a gate for PROD_RELEASE
+
+## Output
+
+Diagnosis + failed invariant → files → heal triggers → tests → manual unblock ids → remaining gaps. Do not stop at the wrong button.

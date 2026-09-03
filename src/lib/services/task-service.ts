@@ -23,7 +23,7 @@ import {
   closeOpenCorrectionsForTask,
 } from "@/lib/services/correction-service";
 import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
-import { canRoleActOnStageApproval } from "@/lib/stage-approval-rbac";
+import { canRoleActOnStageApproval, getStageApprovalUiConfig } from "@/lib/stage-approval-rbac";
 import { isStageApprovalActionable } from "@/lib/design-workflow";
 import { releaseToProduction } from "@/lib/services/production-service";
 import { resolveStatusAfterAssign, reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
@@ -524,6 +524,16 @@ export async function endTask(
     if (task.version !== input.version) {
       throw conflict(APP_ERROR_CODES.CONCURRENCY_CONFLICT);
     }
+
+    const stageUi = getStageApprovalUiConfig(task.subProcess.code);
+    if (task.subProcess.isApproval && stageUi && stageUi.surface !== "task_end_dialog") {
+      throw businessRule(
+        APP_ERROR_CODES.APPROVAL_NOT_ALLOWED,
+        undefined,
+        "Use the stage approval actions for this task — it cannot be completed from the timer End dialog.",
+      );
+    }
+
     if (!["RUNNING", "ON_HOLD"].includes(task.status)) {
       throw conflict(
         APP_ERROR_CODES.TASK_WRONG_STATUS,
@@ -845,7 +855,11 @@ export async function endTask(
     return { updated, triggerProductionRelease };
   }).then(async (result) => {
     if (result.triggerProductionRelease) {
-      await releaseToProduction(result.updated.designId, employeeId, correlationId);
+      try {
+        await releaseToProduction(result.updated.designId, employeeId, correlationId);
+      } catch {
+        // Task is already COMPLETED; heal/ensure-ladder/design-open will retry release.
+      }
     }
     return result.updated;
   });
@@ -874,6 +888,24 @@ export async function completeStageApproval(
     effectiveRoleCode = actor?.role.code;
   }
 
+  // Heal PROD_RELEASE stuck in CHECKING (LIVE_REVIEW was wrongly treated as a gate).
+  {
+    const peek = await prisma.designTask.findUnique({
+      where: { id: taskId },
+      select: { designId: true, subProcess: { select: { code: true } } },
+    });
+    if (peek?.subProcess.code === "LIVE_REVIEW") {
+      const { healStuckProdReleaseChecking } = await import(
+        "@/lib/services/production-service"
+      );
+      await healStuckProdReleaseChecking(
+        peek.designId,
+        employeeId,
+        `${correlationId}-pre-live-review`,
+      );
+    }
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const task = await tx.designTask.findUnique({
       where: { id: taskId },
@@ -886,6 +918,25 @@ export async function completeStageApproval(
 
     if (!canRoleActOnStageApproval(effectiveRoleCode, task.subProcess.code)) {
       throw createAppError(APP_ERROR_CODES.PERMISSION_DENIED, 403);
+    }
+
+    const uiConfig = getStageApprovalUiConfig(task.subProcess.code);
+    if (uiConfig) {
+      const decisionAction =
+        decision === "APPROVED"
+          ? "approve"
+          : decision === "REJECT"
+            ? "reject"
+            : decision === "CORRECTION_REQUIRED"
+              ? "correction"
+              : null;
+      if (!decisionAction || !uiConfig.actions.includes(decisionAction)) {
+        throw businessRule(
+          APP_ERROR_CODES.APPROVAL_NOT_ALLOWED,
+          undefined,
+          `This stage does not allow “${decision.replace(/_/g, " ").toLowerCase()}”.`,
+        );
+      }
     }
 
     const workCode = workSubProcessCodeForApproval(task.subProcess.code);
@@ -943,16 +994,17 @@ export async function completeStageApproval(
         "Resume this task before recording the approval.",
       );
     }
-    if (
-      task.assignedEmployeeId != null &&
-      task.assignedEmployeeId !== employeeId
-    ) {
-      throw createAppError(APP_ERROR_CODES.TASK_NOT_ASSIGNED, 403);
-    }
-
     const now = new Date();
 
-    if (task.assignedEmployeeId == null) {
+    // Owner / Admin may take over an approval assigned to someone else (hub oversee).
+    if (task.assignedEmployeeId == null || task.assignedEmployeeId !== employeeId) {
+      if (
+        task.assignedEmployeeId != null &&
+        task.assignedEmployeeId !== employeeId &&
+        !canRoleActOnStageApproval(effectiveRoleCode, task.subProcess.code)
+      ) {
+        throw createAppError(APP_ERROR_CODES.TASK_NOT_ASSIGNED, 403);
+      }
       await tx.designTask.update({
         where: { id: taskId },
         data: { assignedEmployeeId: employeeId, version: { increment: 1 } },

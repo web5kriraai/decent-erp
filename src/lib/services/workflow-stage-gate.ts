@@ -2,6 +2,8 @@ import {
   effectiveDependencySequence,
   isDependencySatisfiedStatus,
 } from "@/lib/services/task-dependency";
+import { isProductionPostApprovalCode } from "@/lib/services/production-workflow";
+import { isStageApprovalCode } from "@/lib/stage-approval-rbac";
 
 /** Statuses where a manager may (re)assign an employee. */
 export const WORKFLOW_ASSIGNABLE_STATUSES = new Set(["PENDING", "ASSIGNED"]);
@@ -10,7 +12,7 @@ export type StageGateTask = {
   id: string;
   dependencySequence: number | null;
   sequence: number;
-  subProcess?: { isApproval?: boolean } | null;
+  subProcess?: { isApproval?: boolean; code?: string } | null;
 };
 
 export type StageGateSibling = {
@@ -28,8 +30,19 @@ export function isWorkflowStepAssignable(status: string): boolean {
 }
 
 /**
+ * Approvals that gate execute work (Sketch→Sketch Approval). Excludes LIVE_REVIEW
+ * and other production ladder steps — those are sequential workflow, not checkers.
+ */
+export function isWorkStageApprovalGate(code: string | null | undefined): boolean {
+  if (!code) return false;
+  if (isProductionPostApprovalCode(code)) return false;
+  return isStageApprovalCode(code);
+}
+
+/**
  * Nearest approval stage that gates this work task — e.g. SKETCH → SKETCH_APPROVAL.
  * Skips approvals separated by other open work stages (PUNCH does not wait on SAMPLE_CHECK).
+ * Does not treat LIVE_REVIEW as a gate for PROD_RELEASE.
  */
 export function findStageApprovalGate(
   workTask: StageGateTask,
@@ -41,6 +54,7 @@ export function findStageApprovalGate(
     .filter(
       (s) =>
         s.subProcess?.isApproval &&
+        isWorkStageApprovalGate(s.subProcess.code) &&
         effectiveDependencySequence(s) > workSeq &&
         !isDependencySatisfiedStatus(s.status) &&
         s.status !== "COMPLETED",
@@ -66,12 +80,16 @@ export function findStageApprovalGate(
 /**
  * When a stage-approval gate exists, work must end as CHECKING (even if the client
  * requested COMPLETED). Without a gate, end as COMPLETED (even if CHECKING was requested).
+ * PROD_RELEASE is never gated by LIVE_REVIEW — it must complete to trigger ERP release.
  */
 export function resolveWorkTaskEndStatus(
   workTask: StageGateTask,
   siblings: StageGateSibling[],
   requested: "COMPLETED" | "CHECKING",
 ): "COMPLETED" | "CHECKING" {
+  if (workTask.subProcess?.code === "PROD_RELEASE") {
+    return "COMPLETED";
+  }
   if (workTask.subProcess?.isApproval) {
     return requested === "CHECKING" ? "CHECKING" : "COMPLETED";
   }
@@ -103,7 +121,12 @@ export function findCheckingWorkTasksReleasedByApproval(
     if (openWorkBetween) return false;
 
     const nextApproval = siblings
-      .filter((s) => s.subProcess?.isApproval && effectiveDependencySequence(s) > workSeq)
+      .filter(
+        (s) =>
+          s.subProcess?.isApproval &&
+          isWorkStageApprovalGate(s.subProcess.code) &&
+          effectiveDependencySequence(s) > workSeq,
+      )
       .sort((a, b) => effectiveDependencySequence(a) - effectiveDependencySequence(b))[0];
 
     return nextApproval != null && String(nextApproval.id) === String(approvalTask.id);

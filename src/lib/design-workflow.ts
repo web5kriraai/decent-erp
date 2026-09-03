@@ -10,6 +10,7 @@ import {
   resolveEffectiveTaskStatus,
   type StageGateSibling,
 } from "@/lib/services/workflow-stage-gate";
+import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
 import { PERMISSIONS } from "@/lib/permissions";
 import {
   canRoleActOnStageApproval,
@@ -35,12 +36,12 @@ export { isWorkflowStepAssignable };
 function canAccessStageApproval(
   roleCode: string | undefined,
   approvalCode: string,
-  isMine: boolean,
-  isUnassigned: boolean,
+  _isMine: boolean,
+  _isUnassigned: boolean,
 ): boolean {
   if (!roleCode) return false;
-  if (!canRoleActOnStageApproval(roleCode, approvalCode)) return false;
-  return isMine || isUnassigned;
+  // Owner / Admin oversee: visibility is role-based, not assignee-scoped.
+  return canRoleActOnStageApproval(roleCode, approvalCode);
 }
 
 function isInlinePendingStageApproval(code: string): boolean {
@@ -281,7 +282,12 @@ export function findNextActionableTask(
       isApprovalStage &&
       canAccessStageApproval(roleCode, approvalCode, isMine, isUnassigned)
     ) {
-      if (["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"].includes(task.status)) {
+      if (["PENDING", "ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"].includes(task.status)) {
+        const workCode = workSubProcessCodeForApproval(approvalCode);
+        const workTask = workCode
+          ? tasks.find((t) => t.subProcess?.code === workCode)
+          : undefined;
+        if (!isStageApprovalActionable(approvalCode, workTask)) continue;
         return task;
       }
     }
@@ -311,6 +317,11 @@ export function isStageApprovalActionable(
     case "SAMPLE_CHECK":
       return workTask?.status === "CHECKING";
     case "FINAL_APPROVAL":
+      return (
+        workTask?.status != null && ["CHECKING", "COMPLETED"].includes(workTask.status)
+      );
+    case "LIVE_REVIEW":
+      // Production release must be finished (or stuck CHECKING from the old gate bug).
       return (
         workTask?.status != null && ["CHECKING", "COMPLETED"].includes(workTask.status)
       );
@@ -347,6 +358,10 @@ export function getStageApprovalBlockedMessage(
 
   if (approvalCode === "FINAL_APPROVAL") {
     return "Waiting for costing to be completed before final approval.";
+  }
+
+  if (approvalCode === "LIVE_REVIEW") {
+    return "Production Release must be completed before Live Design Review.";
   }
 
   return "Waiting for prior work to be submitted for checking.";
@@ -472,7 +487,7 @@ export function getPendingStageApproval(input: {
 
   for (const task of tasks) {
     if (!task.subProcess?.isApproval) continue;
-    if (!["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"].includes(task.status)) continue;
+    if (!["PENDING", "ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"].includes(task.status)) continue;
 
     const ready = isTaskReady(
       {

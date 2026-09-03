@@ -212,6 +212,101 @@ describe("workflow-actions resolve", () => {
     }
   });
 
+  it("hides Mark Live when liveReviewCompleted is omitted", () => {
+    const actions = resolveProductionContextActions({
+      permissions: [PERMISSIONS.PRODUCTION_RELEASE],
+      roleCode: "MANAGEMENT",
+      designStatus: "PRODUCTION_RELEASED",
+      designId: "1",
+    });
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.MARK_LIVE)).toBeUndefined();
+  });
+
+  it("hides Live Design Review CTA until Production Release is finished", () => {
+    const design: DesignSummary = {
+      id: "1",
+      ideaRef: "IDEA-1",
+      collectionName: "Test",
+      status: "APPROVED",
+      priority: "MEDIUM",
+      tasks: [
+        task({
+          id: "pr",
+          sequence: 10,
+          status: "RUNNING",
+          subProcess: { id: 10, name: "Production Release", code: "PROD_RELEASE", isApproval: false },
+        }),
+        task({
+          id: "lr",
+          sequence: 11,
+          status: "PENDING",
+          subProcess: { id: 11, name: "Live Design Review", code: "LIVE_REVIEW", isApproval: true },
+        }),
+      ],
+    };
+
+    const actions = resolveDesignContextActions({
+      design,
+      permissions: [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.DESIGN_APPROVE],
+      roleCode: "MANAGEMENT",
+    });
+
+    expect(actions.find((a) => a.label === "Open Live Design Review")).toBeUndefined();
+    expect(actions.find((a) => a.label === "Open Management Sign-off")).toBeUndefined();
+  });
+
+  it("shows Live Design Review CTA when Production Release is complete", () => {
+    const design: DesignSummary = {
+      id: "1",
+      ideaRef: "IDEA-1",
+      collectionName: "Test",
+      status: "PRODUCTION_RELEASED",
+      priority: "MEDIUM",
+      tasks: [
+        task({
+          id: "pr",
+          sequence: 10,
+          status: "COMPLETED",
+          subProcess: { id: 10, name: "Production Release", code: "PROD_RELEASE", isApproval: false },
+        }),
+        task({
+          id: "lr",
+          sequence: 11,
+          status: "ASSIGNED",
+          assignedEmployeeId: 9,
+          subProcess: { id: 11, name: "Live Design Review", code: "LIVE_REVIEW", isApproval: true },
+        }),
+      ],
+    };
+
+    const actions = resolveDesignContextActions({
+      design,
+      permissions: [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.DESIGN_APPROVE],
+      roleCode: "MANAGEMENT",
+    });
+
+    expect(actions.find((a) => a.label === "Open Live Design Review")?.enabled).toBe(true);
+    expect(actions.find((a) => a.label === "Open Management Sign-off")).toBeUndefined();
+  });
+
+  it("hides execute Start/End for Live Design Review stage panel tasks", () => {
+    const actions = resolveTaskContextActions({
+      task: {
+        id: "lr",
+        designId: "1",
+        status: "ASSIGNED",
+        sequence: 11,
+        dependencySequence: 11,
+        assignedEmployeeId: 1,
+        subProcess: { name: "Live Design Review", code: "LIVE_REVIEW", isApproval: true },
+        workflowPeers: [],
+      },
+      isAssignee: true,
+      permissions: [PERMISSIONS.TASK_EXECUTE],
+    });
+    expect(actions).toHaveLength(0);
+  });
+
   it("omits raise correction when permission missing", () => {
     const actions = resolveCorrectionContextActions({
       permissions: [PERMISSIONS.TASK_EXECUTE],

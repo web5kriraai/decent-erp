@@ -107,7 +107,7 @@ export async function getManagementWorkbenchSummary(employeeId: number) {
     approvedCount,
     releasedCount,
     underDevelopment,
-    liveReviewTasks,
+    stageApprovals,
   ] = await Promise.all([
     prisma.designConcept.count({
       where: {
@@ -120,20 +120,22 @@ export async function getManagementWorkbenchSummary(employeeId: number) {
     prisma.designConcept.count({
       where: { status: { in: ["ACTIVE", "APPROVAL_PENDING", "ON_HOLD"] } },
     }),
-    prisma.designTask.findMany({
-      where: {
-        subProcess: { code: "LIVE_REVIEW" },
-        status: { in: ["ASSIGNED", "RUNNING", "ON_HOLD"] },
-        design: { status: "PRODUCTION_RELEASED" },
-      },
-      take: 8,
-      include: {
-        design: { select: { id: true, ideaRef: true, collectionName: true, status: true } },
-        subProcess: { select: { name: true } },
-      },
-      orderBy: { dueAt: "asc" },
-    }),
+    // Same visibility rules as Approvals hub Stage tab (owner oversee + ready PENDING).
+    listStageApprovalQueue(employeeId, "MANAGEMENT"),
   ]);
+
+  const liveReviewQueue = stageApprovals.filter((item) => item.stageCode === "LIVE_REVIEW");
+  const liveReviewTasks = liveReviewQueue.slice(0, 8).map((item) => ({
+    id: item.taskId,
+    status: item.status,
+    design: {
+      id: item.designId,
+      ideaRef: item.ideaRef,
+      collectionName: item.collectionName,
+      status: "PRODUCTION_RELEASED",
+    },
+    subProcess: { name: item.stageName },
+  }));
 
   const highPriorityActionable =
     actionableDesignIds.size === 0
@@ -167,7 +169,7 @@ export async function getManagementWorkbenchSummary(employeeId: number) {
     approvedCount,
     releasedCount,
     underDevelopment,
-    liveReviewPending: liveReviewTasks.length,
+    liveReviewPending: liveReviewQueue.length,
     liveReviewTasks,
     managementLevelId: managementLevel?.id ?? null,
     recentApprovalQueue,

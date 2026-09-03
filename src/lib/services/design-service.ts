@@ -248,7 +248,7 @@ export async function listDesigns(filters: {
 }
 
 export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: number }) {
-  await reconcileStuckWorkflowTasks(id);
+  await reconcileStuckWorkflowTasks(id, options?.viewerEmployeeId);
 
   const correctionScope =
     options?.viewerEmployeeId != null
@@ -296,8 +296,31 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
   return design;
 }
 
-/** Repair designs where a prior stage is satisfied but the next task stayed PENDING. */
-async function reconcileStuckWorkflowTasks(designId: bigint): Promise<void> {
+/**
+ * Repair designs where a prior stage is satisfied but the next task stayed PENDING.
+ * Also heals PROD_RELEASE stuck in CHECKING (LIVE_REVIEW was wrongly treated as a gate).
+ */
+async function reconcileStuckWorkflowTasks(
+  designId: bigint,
+  viewerEmployeeId?: number,
+): Promise<void> {
+  const correlationId = `workflow-reconcile-${designId.toString()}`;
+
+  let actorId = viewerEmployeeId;
+  if (actorId == null) {
+    const design = await prisma.designConcept.findUnique({
+      where: { id: designId },
+      select: { designHeadEmployeeId: true },
+    });
+    actorId = design?.designHeadEmployeeId ?? undefined;
+  }
+  if (actorId != null) {
+    const { healStuckProdReleaseChecking } = await import(
+      "@/lib/services/production-service"
+    );
+    await healStuckProdReleaseChecking(designId, actorId, `${correlationId}-heal`);
+  }
+
   const tasks = await prisma.designTask.findMany({
     where: { designId },
     orderBy: { sequence: "asc" },
@@ -319,7 +342,6 @@ async function reconcileStuckWorkflowTasks(designId: bigint): Promise<void> {
 
   if (!hasStuckSuccessor) return;
 
-  const correlationId = `workflow-reconcile-${designId.toString()}`;
   await prisma.$transaction(async (tx) => {
     for (const task of tasks) {
       if (!isDependencySatisfiedStatus(task.status)) continue;

@@ -1,15 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import { useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { DataTable } from "@/components/DataTable";
-import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
-import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
-import { StatusBadge } from "@/components/StatusBadge";
 import {
   useApprovedDesigns,
   useEnsureProductionLadder,
@@ -20,40 +16,77 @@ import {
   useRetryHandoffSync,
   useSyncDesignHandoffs,
 } from "@/hooks/use-production";
-import { getMarkLiveAvailability } from "@/lib/action-availability";
-import { resolveProductionContextActions } from "@/lib/workflow-actions";
+import {
+  canEnsureProductionLadder,
+  canRoleMarkDesignLive,
+} from "@/lib/action-availability";
 import { canViewErpChain } from "@/lib/erp-rbac";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
+import { classifyProductionDeskRow } from "@/lib/services/production-desk-snapshot";
+import { ProductionDeskMetrics } from "@/features/production/ProductionDeskMetrics";
+import { ProductionDeskTools } from "@/features/production/ProductionDeskTools";
 import {
-  getHandoffDisplayStatus,
-  isSimulatedErpReference,
-} from "@/lib/services/erp-integration-config";
+  ProductionErpHandoffsSection,
+  ProductionErpModePill,
+} from "@/features/production/ProductionErpStatus";
+import { ProductionGoLiveSection } from "@/features/production/ProductionGoLiveSection";
+import { ProductionPipelineBoard } from "@/features/production/ProductionPipelineBoard";
 
 export function ProductionReleaseView() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const roleCode = session?.user?.roleCode;
+  const employeeId = session?.user?.employeeId;
+
   const canRelease = permissions.includes(PERMISSIONS.PRODUCTION_RELEASE);
-  const showErpChainLink = canViewErpChain(permissions);
+  const canExecuteTasks = permissions.includes(PERMISSIONS.TASK_EXECUTE);
+  const canMarkLive = canRoleMarkDesignLive(roleCode);
+  const canEnsureLadder = canEnsureProductionLadder(roleCode, permissions);
+  const showErpOps = canViewErpChain(permissions);
 
   const designsQuery = useApprovedDesigns(canRelease);
-  const releasedQuery = useReleasedDesigns(canRelease);
-  const markLive = useMarkDesignLive();
-  const handoffsQuery = useProductionHandoffs(canRelease);
-  const retrySync = useRetryHandoffSync();
+  const releasedQuery = useReleasedDesigns(canRelease && canMarkLive);
+  const handoffsQuery = useProductionHandoffs(canRelease && showErpOps);
   const erpStatusQuery = useErpIntegrationStatus(canRelease);
+  const markLive = useMarkDesignLive();
+  const retrySync = useRetryHandoffSync();
   const syncDesignHandoffs = useSyncDesignHandoffs();
   const ensureLadder = useEnsureProductionLadder();
 
-  const erpMode = erpStatusQuery.data?.mode ?? "simulated";
-  const handoffDesignIds = [...new Set((handoffsQuery.data ?? []).map((h) => h.design.id))];
+  const designs = designsQuery.data ?? [];
+  const released = releasedQuery.data ?? [];
+  const handoffs = handoffsQuery.data ?? [];
 
-  const productionActions = resolveProductionContextActions({
-    permissions,
-    roleCode,
-    designStatus: releasedQuery.data?.[0]?.status,
-  });
+  const metrics = useMemo(() => {
+    const counts = {
+      blocked: 0,
+      handoff: 0,
+      instruction: 0,
+      ready: 0,
+      missing_ladder: 0,
+    };
+    for (const row of designs) {
+      const bucket = classifyProductionDeskRow({
+        releaseReady: row.releaseReady,
+        nextAction: row.nextAction,
+        stages: row.ladderStages ?? [],
+      });
+      counts[bucket] += 1;
+    }
+    return counts;
+  }, [designs]);
+
+  if (sessionStatus === "loading") {
+    return (
+      <div className="page-shell page-shell--wide production-desk-page">
+        <PageHeader title="Production Desk" subtitle="Loading…" />
+        <QueryState isLoading isError={false} error={null} skeletonVariant="table">
+          {null}
+        </QueryState>
+      </div>
+    );
+  }
 
   if (!canRelease) {
     return (
@@ -64,70 +97,33 @@ export function ProductionReleaseView() {
   }
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--wide production-desk-page">
       <PageHeader
         title="Production Desk"
-        subtitle="Complete production instruction and release via My Tasks. ERP module sync runs after release."
+        subtitle="Track handoff → instruction → release. Complete steps on My Tasks."
+        actions={
+          <div className="production-desk-header-actions">
+            <ProductionErpModePill
+              status={erpStatusQuery.data}
+              showErpChainLink={showErpOps}
+            />
+            {canExecuteTasks ? (
+              <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
+                Open My Tasks
+              </AppButtonLink>
+            ) : null}
+          </div>
+        }
       />
 
-      <AppCard title="ERP integration" className="stack-section">
-        <p className="mb-3 text-sm">
-          Mode:{" "}
-          <StatusBadge
-            status={erpMode === "live" ? "ACTIVE" : "CHECKING"}
-            label={erpMode === "live" ? "Live ERP" : "Simulated (LOCAL-*)"}
-          />
-        </p>
-        <p className="text-muted-inline m-0">
-          {erpStatusQuery.data?.message ??
-            "Configure ERP_API_BASE_URL for live Grey → Cutting → Embroidery → Garmenting → Finishing → Ready Stock → Sales → Sales Return → Accounts sync."}
-        </p>
-        {erpStatusQuery.data?.syncOrder?.length ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Sync order: {erpStatusQuery.data.syncOrder.join(" → ")}
-          </p>
-        ) : null}
-        {showErpChainLink ? (
-          <p className="mt-3 mb-0 text-sm">
-            <Link href={ROUTES.production.erpChain} className="data-table-link">
-              Open in-app ERP Chain
-            </Link>
-            {" — operate Grey → Accounts after release (seeds stage rows automatically)."}
-          </p>
-        ) : null}
-      </AppCard>
-
-      <AppCard title="Production desk actions" className="stack-section">
-        <div className="mb-3 flex flex-wrap gap-2">
-          <AppButton
-            type="button"
-            appVariant="secondary"
-            size="sm"
-            disabled={ensureLadder.isPending}
-            onClick={() => ensureLadder.mutate(undefined)}
-          >
-            {ensureLadder.isPending
-              ? "Ensuring stages…"
-              : "Ensure production stages for approved designs"}
-          </AppButton>
-        </div>
-        <p className="text-muted-inline mb-3 mt-0 text-xs">
-          Use this if a Spec 8-Step / custom pattern was approved but Production Handoff never
-          appeared. Adds PROD_* tasks and unlocks handoff.
-        </p>
-        <ContextualActionsPanel actions={productionActions} />
-      </AppCard>
-
-      <AppCard title="How release works" className="stack-section">
-        <ol className="m-0 list-decimal space-y-1 pl-5 text-sm leading-relaxed">
-          <li>Design Head completes <strong>Production Handoff</strong> after management approval.</li>
-          <li>Production Head completes <strong>Production Instruction</strong> on My Tasks.</li>
-          <li>Production Head completes <strong>Production Release</strong> on My Tasks — this triggers ERP handoff.</li>
-        </ol>
-        <p className="mt-3 text-sm">
-          <Link href={ROUTES.work.tasks} className="data-table-link">Open My Tasks</Link>
-        </p>
-      </AppCard>
+      <ProductionDeskMetrics
+        blocked={metrics.blocked + metrics.missing_ladder}
+        handoff={metrics.handoff}
+        instruction={metrics.instruction}
+        ready={metrics.ready}
+        awaitingLive={released.length}
+        showAwaitingLive={canMarkLive}
+      />
 
       <QueryState
         isLoading={designsQuery.isLoading}
@@ -136,264 +132,56 @@ export function ProductionReleaseView() {
         onRetry={() => designsQuery.refetch()}
         skeletonVariant="table"
       >
-        <AppCard title="Approved — production workflow" className="stack-section">
-          <DataTable
-            columns={[
-              {
-                key: "ideaRef",
-                header: "Design",
-                render: (row) => (
-                  <Link href={ROUTES.designs.detail(row.id)} className="data-table-link">
-                    {row.ideaRef}
-                  </Link>
-                ),
-              },
-              { key: "collectionName", header: "Collection" },
-              { key: "productType", header: "Product", render: (r) => r.productType.name },
-              { key: "designHead", header: "Design Head", render: (r) => r.designHead.name },
-              {
-                key: "costs",
-                header: "Costing",
-                render: (r) => (r.costs.length > 0 ? "Complete" : "Missing"),
-              },
-              {
-                key: "releaseReady",
-                header: "Release gate",
-                render: (r) =>
-                  r.releaseReady ? (
-                    <StatusBadge status="COMPLETED" label="Ready" />
-                  ) : (
-                    <div>
-                      <StatusBadge status="CHECKING" label="Blocked" />
-                      {r.releaseMissing?.length ? (
-                        <p className="data-table-subtext mt-1 max-w-56">
-                          Missing: {r.releaseMissing.slice(0, 3).join("; ")}
-                          {r.releaseMissing.length > 3
-                            ? ` (+${r.releaseMissing.length - 3})`
-                            : ""}
-                        </p>
-                      ) : null}
-                    </div>
-                  ),
-              },
-              {
-                key: "actions",
-                header: "Next step",
-                align: "right",
-                render: () => (
-                  <AppButtonLink href={ROUTES.work.tasks} appVariant="ghost" size="sm">
-                    My Tasks
-                  </AppButtonLink>
-                ),
-              },
-            ]}
-            rows={designsQuery.data ?? []}
-            getRowKey={(r) => r.id}
-            emptyTitle="No approved designs in production queue"
-            emptyDescription="Designs appear here after management approval. Release is completed on My Tasks."
-          />
-        </AppCard>
+        <ProductionPipelineBoard
+          designs={designs}
+          roleCode={roleCode}
+          permissions={permissions}
+          employeeId={employeeId}
+        />
       </QueryState>
 
-      <QueryState
-        isLoading={releasedQuery.isLoading}
-        isError={releasedQuery.isError}
-        error={releasedQuery.error}
-        onRetry={() => releasedQuery.refetch()}
-        skeletonVariant="table"
-      >
-        <AppCard title="Awaiting Go-Live">
-          <DataTable
-            columns={[
-              {
-                key: "ideaRef",
-                header: "Design",
-                render: (row) => (
-                  <Link href={ROUTES.designs.detail(row.id)} className="data-table-link">
-                    {row.ideaRef}
-                  </Link>
-                ),
-              },
-              { key: "collectionName", header: "Collection" },
-              {
-                key: "productType",
-                header: "Product",
-                render: (r) => r.productType?.name ?? "—",
-              },
-              {
-                key: "designHead",
-                header: "Design Head",
-                render: (r) => r.designHead?.name ?? "—",
-              },
-              {
-                key: "status",
-                header: "Status",
-                render: () => <StatusBadge status="PRODUCTION_RELEASED" />,
-              },
-              {
-                key: "liveReview",
-                header: "Live review",
-                render: (row) =>
-                  row.liveReviewCompleted ? (
-                    <StatusBadge status="COMPLETED" label="Ready" />
-                  ) : (
-                    <StatusBadge status="CHECKING" label="Pending" />
-                  ),
-              },
-              {
-                key: "actions",
-                header: "",
-                align: "right",
-                render: (row) => {
-                  const availability = getMarkLiveAvailability(row.status, {
-                    liveReviewCompleted: row.liveReviewCompleted,
-                    roleCode,
-                  });
-                  const productionActions = resolveProductionContextActions({
-                    permissions,
-                    roleCode,
-                    designStatus: row.status,
-                    designId: row.id,
-                  });
-                  const canShowMarkLive = productionActions.some(
-                    (a) => a.code === "MARK_LIVE" && a.enabled,
-                  );
-                  if (!canShowMarkLive) {
-                    return availability.reason ? (
-                      <span className="text-right text-xs text-muted-foreground">
-                        {availability.reason}
-                      </span>
-                    ) : null;
-                  }
-                  return (
-                    <div className="flex max-w-56 flex-col items-end gap-1">
-                      <AppButton
-                        type="button"
-                        appVariant="primary"
-                        size="sm"
-                        disabled={markLive.isPending || !availability.available}
-                        title={availability.reason}
-                        onClick={() => markLive.mutate(row.id)}
-                      >
-                        Mark Live
-                      </AppButton>
-                      {!availability.available && availability.reason ? (
-                        <span className="text-right text-xs text-muted-foreground">
-                          {availability.reason}
-                        </span>
-                      ) : null}
-                    </div>
-                  );
-                },
-              },
-            ]}
-            rows={releasedQuery.data ?? []}
-            getRowKey={(r) => r.id}
-            emptyTitle="No designs awaiting go-live"
-            emptyDescription="Production-released designs will appear here for final live marking."
-          />
-        </AppCard>
-      </QueryState>
-
-      <QueryState
-        isLoading={handoffsQuery.isLoading}
-        isError={handoffsQuery.isError}
-        error={handoffsQuery.error}
-        onRetry={() => handoffsQuery.refetch()}
-        skeletonVariant="table"
-      >
-        <AppCard
-          title="ERP Handoffs (Grey → … → Sales → Sales Return → Accounts)"
-          className="stack-section"
-          headerAction={
-            handoffDesignIds.length > 0 ? (
-              <AppButton
-                type="button"
-                appVariant="secondary"
-                size="sm"
-                disabled={syncDesignHandoffs.isPending}
-                onClick={() => syncDesignHandoffs.mutate(handoffDesignIds[0])}
-              >
-                Sync all modules (latest design)
-              </AppButton>
-            ) : null
-          }
+      {canMarkLive ? (
+        <QueryState
+          isLoading={releasedQuery.isLoading}
+          isError={releasedQuery.isError}
+          error={releasedQuery.error}
+          onRetry={() => releasedQuery.refetch()}
+          skeletonVariant="table"
         >
-          <DataTable
-            columns={[
-              {
-                key: "design",
-                header: "Design",
-                render: (row) => (
-                  <Link href={ROUTES.designs.detail(row.design.id)} className="data-table-link">
-                    {row.design.ideaRef}
-                  </Link>
-                ),
-              },
-              { key: "erpModule", header: "Module" },
-              { key: "designNumber", header: "Design No." },
-              {
-                key: "status",
-                header: "Sync Status",
-                render: (row) => {
-                  const display = getHandoffDisplayStatus({
-                    status: row.status,
-                    erpReference: row.erpReference,
-                  });
-                  const badgeStatus =
-                    display === "LOCAL"
-                      ? "CHECKING"
-                      : display === "FAILED"
-                        ? "REJECTED"
-                        : display === "QUEUED"
-                          ? "PENDING"
-                          : "COMPLETED";
-                  return <StatusBadge status={badgeStatus} label={display} />;
-                },
-              },
-              {
-                key: "error",
-                header: "Last error",
-                render: (row) =>
-                  row.payload?.error ? (
-                    <span className="text-xs text-muted-foreground">{row.payload.error}</span>
-                  ) : (
-                    "—"
-                  ),
-              },
-              { key: "erpReference", header: "ERP Ref", render: (r) => (
-                <span className="inline-flex items-center gap-2">
-                  <span>{r.erpReference ?? "—"}</span>
-                  {isSimulatedErpReference(r.erpReference) ? (
-                    <StatusBadge status="CHECKING" label="Simulated" />
-                  ) : null}
-                </span>
-              ) },
-              {
-                key: "actions",
-                header: "",
-                align: "right",
-                render: (row) =>
-                  row.status === "FAILED" || row.status === "QUEUED" ? (
-                    <AppButton
-                      type="button"
-                      appVariant="secondary"
-                      size="sm"
-                      disabled={retrySync.isPending}
-                      onClick={() => retrySync.mutate(row.id)}
-                    >
-                      Retry sync
-                    </AppButton>
-                  ) : null,
-              },
-            ]}
-            rows={handoffsQuery.data ?? []}
-            getRowKey={(r) => r.id}
-            emptyTitle="No ERP handoffs yet"
-            emptyDescription="Handoffs are created when designs are released to production."
+          <ProductionGoLiveSection
+            designs={released}
+            roleCode={roleCode}
+            permissions={permissions}
+            markLivePending={markLive.isPending}
+            onMarkLive={(id) => markLive.mutate(id)}
           />
-        </AppCard>
-      </QueryState>
+        </QueryState>
+      ) : null}
+
+      {showErpOps ? (
+        <QueryState
+          isLoading={handoffsQuery.isLoading}
+          isError={handoffsQuery.isError}
+          error={handoffsQuery.error}
+          onRetry={() => handoffsQuery.refetch()}
+          skeletonVariant="table"
+        >
+          <ProductionErpHandoffsSection
+            handoffs={handoffs}
+            syncPending={syncDesignHandoffs.isPending}
+            retryPending={retrySync.isPending}
+            onSyncLatest={(designId) => syncDesignHandoffs.mutate(designId)}
+            onRetry={(id) => retrySync.mutate(id)}
+          />
+        </QueryState>
+      ) : null}
+
+      {canEnsureLadder ? (
+        <ProductionDeskTools
+          ensurePending={ensureLadder.isPending}
+          onEnsureLadder={() => ensureLadder.mutate(undefined)}
+        />
+      ) : null}
     </div>
   );
 }

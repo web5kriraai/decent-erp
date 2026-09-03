@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildWorkflowSteps,
+  findNextActionableTask,
   getDesignWorkflowActions,
   getDesignWorkflowContext,
   getPendingStageApproval,
   getWorkflowPanelHeaderStatus,
+  isStageApprovalActionable,
   isWorkflowStepAssignable,
 } from "@/lib/design-workflow";
 import { ROLE_CODES } from "@/lib/permissions";
@@ -599,5 +601,36 @@ describe("workflow panel header status", () => {
     });
 
     expect(header).toBe("IN_PROGRESS");
+  });
+
+  it("treats LIVE_REVIEW as actionable only after Production Release is checking or completed", () => {
+    expect(isStageApprovalActionable("LIVE_REVIEW", { status: "RUNNING" })).toBe(false);
+    expect(isStageApprovalActionable("LIVE_REVIEW", { status: "CHECKING" })).toBe(true);
+    expect(isStageApprovalActionable("LIVE_REVIEW", { status: "COMPLETED" })).toBe(true);
+    expect(isStageApprovalActionable("LIVE_REVIEW", undefined)).toBe(false);
+  });
+
+  it("does not surface LIVE_REVIEW as next actionable before Production Release finishes", () => {
+    const tasks = [
+      task({
+        id: "pr",
+        sequence: 10,
+        status: "RUNNING",
+        assignedEmployeeId: 5,
+        subProcess: { id: 10, name: "Production Release", code: "PROD_RELEASE", isApproval: false },
+      }),
+      task({
+        id: "lr",
+        sequence: 11,
+        status: "ASSIGNED",
+        assignedEmployeeId: 9,
+        subProcess: { id: 11, name: "Live Design Review", code: "LIVE_REVIEW", isApproval: true },
+      }),
+    ];
+
+    expect(findNextActionableTask(tasks, 9, ROLE_CODES.MANAGEMENT)).toBeNull();
+
+    tasks[0].status = "COMPLETED";
+    expect(findNextActionableTask(tasks, 9, ROLE_CODES.MANAGEMENT)?.id).toBe("lr");
   });
 });

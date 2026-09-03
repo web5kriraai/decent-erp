@@ -7,6 +7,7 @@ export const STAGE_APPROVAL_CODES = [
   "PUNCH_CHECK",
   "SAMPLE_CHECK",
   "FINAL_APPROVAL",
+  "LIVE_REVIEW",
 ] as const;
 
 export type StageApprovalCode = (typeof STAGE_APPROVAL_CODES)[number];
@@ -31,6 +32,7 @@ export const STAGE_APPROVAL_OWNER_ROLE: Record<StageApprovalCode, string> = {
   PUNCH_CHECK: ROLE_CODES.SAMPLE_CHECKER,
   SAMPLE_CHECK: ROLE_CODES.SAMPLE_CHECKER,
   FINAL_APPROVAL: ROLE_CODES.DESIGN_HEAD,
+  LIVE_REVIEW: ROLE_CODES.MANAGEMENT,
 };
 
 export const STAGE_APPROVAL_UI: Record<StageApprovalCode, StageApprovalUiConfig> = {
@@ -74,6 +76,14 @@ export const STAGE_APPROVAL_UI: Record<StageApprovalCode, StageApprovalUiConfig>
     showChecklist: false,
     title: "Final approval — your action",
   },
+  LIVE_REVIEW: {
+    surface: "task_panel",
+    actions: ["approve"],
+    showCompare: false,
+    showGallery: false,
+    showChecklist: false,
+    title: "Live Design Review — go-live decision",
+  },
 };
 
 export function isStageApprovalCode(code: string): code is StageApprovalCode {
@@ -101,13 +111,26 @@ export function canRoleActOnStageApproval(
   options: { isAssignee?: boolean } = {},
 ): boolean {
   if (!roleCode) return false;
+  if (roleCode === ROLE_CODES.ADMIN) return isStageApprovalCode(approvalCode);
   const ownerRole = getStageApprovalOwnerRole(approvalCode);
   if (!ownerRole) return false;
   if (roleCode !== ownerRole) return false;
-  if (options.isAssignee === false) {
-    return true;
-  }
+  void options;
   return true;
+}
+
+/**
+ * Owner role / Admin may see stage approvals for their codes even when assigned
+ * to someone else (Approvals hub + design detail). Without an acting role, only
+ * the assignee (or unassigned personal queue) sees the item.
+ */
+export function canRoleSeeStageApproval(
+  roleCode: string | null | undefined,
+  approvalCode: string,
+  options: { isAssignee?: boolean; isUnassigned?: boolean } = {},
+): boolean {
+  if (canRoleActOnStageApproval(roleCode, approvalCode)) return true;
+  return Boolean(options.isAssignee || options.isUnassigned);
 }
 
 export type ApprovalHubTabs = {
@@ -127,7 +150,7 @@ export function getApprovalHubTabsForRole(roleCode: string | null | undefined): 
     case ROLE_CODES.SAMPLE_CHECKER:
       return { stage: true, ready: false, management: true };
     case ROLE_CODES.MANAGEMENT:
-      return { stage: false, ready: false, management: true };
+      return { stage: true, ready: false, management: true };
     default:
       return { stage: false, ready: false, management: false };
   }

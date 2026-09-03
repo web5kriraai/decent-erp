@@ -2,14 +2,24 @@ import { prisma } from "@/lib/db";
 import { isTaskReady } from "@/lib/services/task-dependency";
 import {
   canRoleActOnStageApproval,
+  canRoleSeeStageApproval,
   filterStageApprovalsForRole,
+  STAGE_APPROVAL_CODES,
 } from "@/lib/stage-approval-rbac";
+import { isStageApprovalActionable } from "@/lib/design-workflow";
 
 import type { StageApprovalQueueItem } from "@/lib/types/api";
 
 export type { StageApprovalQueueItem };
 
-const OPEN_APPROVAL_STATUSES = ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"] as const;
+/** Include PENDING so ready-but-not-unlocked approvals appear (same as design detail). */
+const OPEN_APPROVAL_STATUSES = [
+  "PENDING",
+  "ASSIGNED",
+  "RUNNING",
+  "ON_HOLD",
+  "CHECKING",
+] as const;
 
 /** Maps workflow approval sub-process codes to the work task they gate. */
 export const WORK_CODE_BY_APPROVAL: Record<string, string> = {
@@ -18,6 +28,7 @@ export const WORK_CODE_BY_APPROVAL: Record<string, string> = {
   SAMPLE_CHECK: "MACHINE_SAMPLE",
   FINAL_APPROVAL: "COSTING",
   CONCEPT_REVIEW: "SKETCH",
+  LIVE_REVIEW: "PROD_RELEASE",
 };
 
 export function workSubProcessCodeForApproval(approvalCode: string): string | null {
@@ -33,10 +44,26 @@ function relatedWorkTaskName(
   const work = tasks.find((t) => t.subProcess.code === workCode);
   if (!work) return null;
   if (work.status === "CHECKING") return work.subProcess.name;
-  if (approvalCode === "FINAL_APPROVAL" && ["CHECKING", "COMPLETED"].includes(work.status)) {
+  if (
+    (approvalCode === "FINAL_APPROVAL" || approvalCode === "LIVE_REVIEW") &&
+    ["CHECKING", "COMPLETED"].includes(work.status)
+  ) {
     return work.subProcess.name;
   }
-  return work.status === "CHECKING" ? work.subProcess.name : null;
+  return null;
+}
+
+export function isStageApprovalVisibleToViewer(input: {
+  roleCode?: string | null;
+  approvalCode: string;
+  assignedEmployeeId: number | null;
+  viewerEmployeeId: number;
+}): boolean {
+  const { roleCode, approvalCode, assignedEmployeeId, viewerEmployeeId } = input;
+  return canRoleSeeStageApproval(roleCode, approvalCode, {
+    isAssignee: assignedEmployeeId === viewerEmployeeId,
+    isUnassigned: assignedEmployeeId == null,
+  });
 }
 
 /** Workflow stage approvals (Final Approval, Sketch Approval, etc.) — not the management chain. */
@@ -44,11 +71,20 @@ export async function listStageApprovalQueue(
   employeeId: number,
   roleCode?: string | null,
 ): Promise<StageApprovalQueueItem[]> {
+  // Design Head / Checker / Management / Admin: org-wide candidates, then filter by owned codes.
+  const ownerOversee =
+    roleCode != null &&
+    STAGE_APPROVAL_CODES.some((code) => canRoleActOnStageApproval(roleCode, code));
+
   const candidates = await prisma.designTask.findMany({
     where: {
       subProcess: { isApproval: true },
       status: { in: [...OPEN_APPROVAL_STATUSES] },
-      OR: [{ assignedEmployeeId: employeeId }, { assignedEmployeeId: null }],
+      ...(ownerOversee
+        ? {}
+        : {
+            OR: [{ assignedEmployeeId: employeeId }, { assignedEmployeeId: null }],
+          }),
     },
     orderBy: [{ dueAt: "asc" }, { sequence: "asc" }],
     include: {
@@ -98,20 +134,19 @@ export async function listStageApprovalQueue(
     );
     if (!ready) continue;
 
-    const isMine = task.assignedEmployeeId === employeeId;
-    const isUnassigned = task.assignedEmployeeId == null;
-    if (!isMine && !isUnassigned) continue;
+    const workCode = workSubProcessCodeForApproval(task.subProcess.code);
+    const linkedWork = workCode
+      ? siblings.find((s) => s.subProcess.code === workCode)
+      : undefined;
+    if (!isStageApprovalActionable(task.subProcess.code, linkedWork)) continue;
+
     if (
-      roleCode &&
-      !canRoleActOnStageApproval(roleCode, task.subProcess.code) &&
-      !isMine
-    ) {
-      continue;
-    }
-    if (
-      roleCode &&
-      isUnassigned &&
-      !canRoleActOnStageApproval(roleCode, task.subProcess.code)
+      !isStageApprovalVisibleToViewer({
+        roleCode,
+        approvalCode: task.subProcess.code,
+        assignedEmployeeId: task.assignedEmployeeId,
+        viewerEmployeeId: employeeId,
+      })
     ) {
       continue;
     }

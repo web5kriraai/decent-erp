@@ -88,7 +88,9 @@ describe("workflow stage gates", () => {
 
   it("resolves machine sample to COMPLETED once sample checking is finished", () => {
     const siblings: StageGateSibling[] = [
-      stage("5", 5, "CHECKING", { subProcess: { name: "Machine Sample", code: "MACHINE_SAMPLE", isApproval: false } }),
+      stage("5", 5, "CHECKING", {
+        subProcess: { name: "Machine Sample", code: "MACHINE_SAMPLE", isApproval: false },
+      }),
       stage("6", 6, "COMPLETED", {
         subProcess: { name: "Sample Checking", code: "SAMPLE_CHECK", isApproval: true },
       }),
@@ -96,7 +98,13 @@ describe("workflow stage gates", () => {
 
     expect(
       resolveEffectiveTaskStatus(
-        { id: "5", dependencySequence: 5, sequence: 5, status: "CHECKING", subProcess: { isApproval: false } },
+        {
+          id: "5",
+          dependencySequence: 5,
+          sequence: 5,
+          status: "CHECKING",
+          subProcess: { isApproval: false },
+        },
         siblings,
       ),
     ).toBe("COMPLETED");
@@ -107,5 +115,42 @@ describe("workflow stage gates", () => {
         siblings,
       ).map((t) => t.id),
     ).toEqual(["5"]);
+  });
+
+  it("does not treat LIVE_REVIEW as a gate for PROD_RELEASE", () => {
+    const siblings: StageGateSibling[] = [
+      stage("10", 10, "RUNNING", {
+        subProcess: { name: "Production Release", code: "PROD_RELEASE", isApproval: false },
+      }),
+      stage("11", 11, "PENDING", {
+        subProcess: { name: "Live Design Review", code: "LIVE_REVIEW", isApproval: true },
+        assignedEmployeeId: 20,
+      }),
+    ];
+
+    expect(
+      findStageApprovalGate(
+        {
+          id: "10",
+          dependencySequence: 10,
+          sequence: 10,
+          subProcess: { isApproval: false, code: "PROD_RELEASE" },
+        },
+        siblings,
+      ),
+    ).toBeNull();
+
+    expect(
+      resolveWorkTaskEndStatus(
+        {
+          id: "10",
+          dependencySequence: 10,
+          sequence: 10,
+          subProcess: { isApproval: false, code: "PROD_RELEASE" },
+        },
+        siblings,
+        "CHECKING",
+      ),
+    ).toBe("COMPLETED");
   });
 });

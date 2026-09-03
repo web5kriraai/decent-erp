@@ -4,7 +4,7 @@ import {
   type MyTaskRow,
 } from "@/lib/services/action-center";
 import { isTaskReady } from "@/lib/services/task-dependency";
-import { ROLE_CODES } from "@/lib/permissions";
+import { PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
 
 export type ActionAvailability = {
   available: boolean;
@@ -13,6 +13,19 @@ export type ActionAvailability = {
 
 export function canRoleMarkDesignLive(roleCode: string | null | undefined): boolean {
   return roleCode === ROLE_CODES.MANAGEMENT || roleCode === ROLE_CODES.ADMIN;
+}
+
+/**
+ * Recovery tool on Production Desk: append/unlock PROD_* ladder for stuck approved designs.
+ * Requires PRODUCTION_RELEASE plus Management/Admin role or WORKFLOW_OVERRIDE.
+ */
+export function canEnsureProductionLadder(
+  roleCode: string | null | undefined,
+  permissions: string[],
+): boolean {
+  if (!permissions.includes(PERMISSIONS.PRODUCTION_RELEASE)) return false;
+  if (roleCode === ROLE_CODES.MANAGEMENT || roleCode === ROLE_CODES.ADMIN) return true;
+  return permissions.includes(PERMISSIONS.WORKFLOW_OVERRIDE);
 }
 
 export function describeDependencyBlocker(blocker: DepSibling): string {
@@ -96,7 +109,8 @@ export function getMarkLiveAvailability(
       reason: "Only production-released designs can be marked live.",
     };
   }
-  if (options?.liveReviewCompleted === false) {
+  // Require explicit completion — omit/undefined must not unlock Mark Live.
+  if (options?.liveReviewCompleted !== true) {
     return {
       available: false,
       reason: "Management live design review must be completed before marking live.",

@@ -287,6 +287,27 @@ export async function getTaskTimeDetail(
     await reconcileTaskReadiness(taskId, viewerEmployeeId, correlationId);
   }
 
+  const peek = await prisma.designTask.findUnique({
+    where: { id: taskId },
+    select: {
+      designId: true,
+      subProcess: { select: { code: true } },
+    },
+  });
+  if (
+    peek &&
+    (peek.subProcess.code === "PROD_RELEASE" || peek.subProcess.code === "LIVE_REVIEW")
+  ) {
+    const { healStuckProdReleaseChecking } = await import(
+      "@/lib/services/production-service"
+    );
+    await healStuckProdReleaseChecking(
+      peek.designId,
+      viewerEmployeeId,
+      `${correlationId}-heal-prod-release`,
+    );
+  }
+
   const task = await prisma.designTask.findUnique({
     where: { id: taskId },
     include: taskTimeInclude,
