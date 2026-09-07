@@ -11,6 +11,8 @@ vi.mock("@/lib/notifications", () => ({
 
 vi.mock("@/lib/services/assignment-service", () => ({
   resolveEmployeeForRole: vi.fn().mockResolvedValue(42),
+  resolveAssigneeForDesignTask: vi.fn().mockResolvedValue(42),
+  resolveSkillIdForStageCode: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/errors/create-app-error", () => {

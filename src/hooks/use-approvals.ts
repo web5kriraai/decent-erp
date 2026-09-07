@@ -107,8 +107,8 @@ export function useRequestDesignApproval() {
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.designHead });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.management });
       toast.success(
-        "Design approved for production",
-        "Production handoff is unlocked. Continue from the design or production desk.",
+        "Sent for management approval",
+        "Checker → Design Head → Management must decide before production handoff unlocks.",
       );
     },
     // Form shows the message inline — avoid a second floating error box.

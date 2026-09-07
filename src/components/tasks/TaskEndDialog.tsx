@@ -133,6 +133,7 @@ export function TaskEndDialog({
         `/api/designs/${designId}/production-readiness`,
       ),
     enabled: open && isProdRelease && !!designId,
+    refetchOnMount: "always",
   });
   const existingSummary = costsQuery.data?.summary;
   const existingCosts = costsQuery.data?.costs ?? [];

@@ -25,7 +25,7 @@ type DesignWorkflowPanelProps = {
   designId: string;
   canAssign: boolean;
   onAssignTask?: (task: DesignTask) => void;
-  /** @deprecated Option A removed management sign-off CTA */
+  /** Optional; management sign-off CTA lives on Approvals hub / request-sign-off page. */
   showSignOffCta?: boolean;
   /** Secondary workflow tools (e.g. override) — sits in the card header. */
   headerActions?: ReactNode;

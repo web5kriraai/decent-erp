@@ -1,5 +1,6 @@
 import { ROLE_CODES } from "@/lib/permissions";
 import {
+  canRoleSeeManagementSignOff,
   canRoleSeeReadyForSignOff,
 } from "@/lib/approval-hub-rbac";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
@@ -197,6 +198,7 @@ export function canRoleSeeStageApproval(
 export type ApprovalHubTabs = {
   stage: boolean;
   ready: boolean;
+  management: boolean;
 };
 
 export type ApprovalHubTabId = keyof ApprovalHubTabs;
@@ -210,18 +212,19 @@ export function canRoleSeeStageApprovalsHub(roleCode: string | null | undefined)
 
 /**
  * Which Approvals hub tabs each role may see.
- * Option A: Stage gates + Design Head ready-to-approve only (no management decide chain).
+ * Stage gates + Design Head ready-to-request + management decide chain (spec Stage 9).
  */
 export function getApprovalHubTabsForRole(roleCode: string | null | undefined): ApprovalHubTabs {
   return {
     stage: canRoleSeeStageApprovalsHub(roleCode),
     ready: canRoleSeeReadyForSignOff(roleCode),
+    management: canRoleSeeManagementSignOff(roleCode),
   };
 }
 
 export function canRoleAccessApprovalsHub(roleCode: string | null | undefined): boolean {
   const tabs = getApprovalHubTabsForRole(roleCode);
-  return tabs.stage || tabs.ready;
+  return tabs.stage || tabs.ready || tabs.management;
 }
 
 export function isApprovalHubTabAllowed(
@@ -233,7 +236,6 @@ export function isApprovalHubTabAllowed(
 
 /**
  * Deep-link into Approvals hub using only tabs the role can open.
- * Legacy preferred "management" maps to ready (DH) or stage.
  */
 export function approvalsHubHrefForRole(
   roleCode: string | null | undefined,
@@ -241,11 +243,16 @@ export function approvalsHubHrefForRole(
 ): string {
   const tabs = getApprovalHubTabsForRole(roleCode);
   const normalized: ApprovalHubTabId | undefined =
-    preferred === "management" ? (tabs.ready ? "ready" : "stage") : preferred;
+    preferred === "management"
+      ? tabs.management
+        ? "management"
+        : tabs.ready
+          ? "ready"
+          : "stage"
+      : preferred;
   const order: ApprovalHubTabId[] = normalized
-    ? [normalized, "stage", "ready"]
-    : ["stage", "ready"];
-  // Keep path in sync with ROUTES.quality.approvals (avoid importing routes → cycle).
+    ? [normalized, "stage", "ready", "management"]
+    : ["stage", "ready", "management"];
   const base = "/quality/approvals";
   for (const tab of order) {
     if (tabs[tab]) return `${base}?tab=${tab}`;

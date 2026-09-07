@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { createAppError, notFound, businessRule } from "@/lib/errors/create-app-error";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
-import { resolveEmployeeForRole } from "@/lib/services/assignment-service";
+import { resolveAssigneeForDesignTask, resolveEmployeeForRole, resolveSkillIdForStageCode } from "@/lib/services/assignment-service";
 import {
   isProductionPostApprovalCode,
   PRODUCTION_POST_APPROVAL_CODES,
@@ -129,6 +129,8 @@ export async function unlockProductionHandoffTask(
       id: true,
       assignedEmployeeId: true,
       assignedRoleId: true,
+      requiredSkillId: true,
+      subProcessId: true,
       subProcess: { select: { code: true, capabilities: true } },
     },
   });
@@ -149,7 +151,16 @@ export async function unlockProductionHandoffTask(
   let assigneeId =
     handoffTask.assignedEmployeeId ?? design?.designHeadEmployeeId ?? null;
   if (!assigneeId) {
-    assigneeId = await resolveEmployeeForRole(handoffTask.assignedRoleId);
+    assigneeId = await resolveAssigneeForDesignTask(
+      {
+        assignedRoleId: handoffTask.assignedRoleId,
+        requiredSkillId: handoffTask.requiredSkillId,
+        designId,
+        subProcessId: handoffTask.subProcessId,
+        subProcessCode: handoffTask.subProcess.code,
+      },
+      { tx },
+    );
   }
 
   await tx.designTask.update({
@@ -206,7 +217,8 @@ export async function appendProductionStageTasks(
   let created = 0;
   for (const stage of missing) {
     const role = roles[stage.role];
-    const assignee = await resolveEmployeeForRole(role.id);
+    const skillId = await resolveSkillIdForStageCode(tx, stage.code);
+    const assignee = await resolveEmployeeForRole(role.id, { skillId, tx });
 
     await tx.designTask.create({
       data: {
@@ -214,6 +226,7 @@ export async function appendProductionStageTasks(
         processId: stage.processId,
         subProcessId: stage.subProcessId,
         assignedRoleId: role.id,
+        requiredSkillId: skillId,
         assignedEmployeeId: assignee,
         status: "PENDING",
         priority: "HIGH",

@@ -13,7 +13,7 @@ import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { Button } from "@/components/ui/button";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
-import { useProcessMasters, useProductTypes } from "@/hooks/use-masters";
+import { useProcessMasters, useProductTypes, useSkills } from "@/hooks/use-masters";
 import type { CreateWorkflowPatternPayload, Priority, WorkflowPattern } from "@/lib/types/api";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import { parseStageCapabilities } from "@/lib/workflow/stage-capabilities";
@@ -23,6 +23,7 @@ type TaskDraft = {
   processId: number | "";
   subProcessId: number | "";
   defaultRoleId: number | "";
+  defaultSkillId: number | "";
   expectedMinutes: string;
   dayOffset: string;
   priority: Priority | "";
@@ -42,6 +43,7 @@ function emptyTask(index: number): TaskDraft {
     processId: "",
     subProcessId: "",
     defaultRoleId: "",
+    defaultSkillId: "",
     expectedMinutes: "60",
     dayOffset: "0",
     priority: "MEDIUM",
@@ -74,6 +76,7 @@ export function CreateWorkflowPatternModal({
   const processesQuery = useProcessMasters(open);
   const productTypesQuery = useProductTypes(open);
   const rolesQuery = useAdminRoles(open);
+  const skillsQuery = useSkills(open);
 
   const [name, setName] = useState("");
   const [productTypeId, setProductTypeId] = useState<number | "">("");
@@ -84,6 +87,7 @@ export function CreateWorkflowPatternModal({
 
   const processes = processesQuery.data ?? [];
   const roles = rolesQuery.data ?? [];
+  const skills = skillsQuery.data ?? [];
 
   function resetForm() {
     setName("");
@@ -109,6 +113,7 @@ export function CreateWorkflowPatternModal({
           processId: task.processId,
           subProcessId: task.subProcessId,
           defaultRoleId: task.defaultRoleId,
+          defaultSkillId: task.defaultSkillId ?? "",
           expectedMinutes: String(task.expectedMinutes),
           dayOffset: String(task.dayOffset ?? 0),
           priority: task.priority ?? "MEDIUM",
@@ -199,20 +204,26 @@ export function CreateWorkflowPatternModal({
   }
 
   function handleProcessChange(task: TaskDraft, processId: number | "") {
-    updateTask(task.id, { processId, subProcessId: "", defaultRoleId: "" });
+    updateTask(task.id, { processId, subProcessId: "", defaultRoleId: "", defaultSkillId: "" });
   }
 
   function handleSubProcessChange(task: TaskDraft, subProcessId: number | "") {
     if (!task.processId || !subProcessId) {
-      updateTask(task.id, { subProcessId, defaultRoleId: "" });
+      updateTask(task.id, { subProcessId, defaultRoleId: "", defaultSkillId: "" });
       return;
     }
 
     const process = processes.find((p) => p.id === task.processId);
     const subProcess = process?.subProcesses.find((sp) => sp.id === subProcessId);
+    const roleId = subProcess?.defaultRoleId ?? task.defaultRoleId;
+    const matchingSkill =
+      roleId !== ""
+        ? skills.find((s) => s.defaultRoleId === roleId)
+        : undefined;
     updateTask(task.id, {
       subProcessId,
-      defaultRoleId: subProcess?.defaultRoleId ?? task.defaultRoleId,
+      defaultRoleId: roleId,
+      defaultSkillId: matchingSkill?.id ?? "",
     });
   }
 
@@ -249,6 +260,7 @@ export function CreateWorkflowPatternModal({
           processId: Number(task.processId),
           subProcessId: Number(task.subProcessId),
           defaultRoleId: Number(task.defaultRoleId),
+          defaultSkillId: task.defaultSkillId === "" ? null : Number(task.defaultSkillId),
           expectedMinutes: Number(task.expectedMinutes),
           sequence,
           dayOffset: Number(task.dayOffset) || 0,
@@ -459,6 +471,21 @@ export function CreateWorkflowPatternModal({
                           ? "Default role is required"
                           : undefined
                       }
+                    />
+                    <FormSelect
+                      id={`task-${task.id}-skill`}
+                      label="Default Skill (optional)"
+                      value={task.defaultSkillId === "" ? null : String(task.defaultSkillId)}
+                      onValueChange={(v) =>
+                        updateTask(task.id, {
+                          defaultSkillId: v ? Number(v) : "",
+                        })
+                      }
+                      options={skills.map((skill) => ({
+                        value: String(skill.id),
+                        label: `${skill.name} (${skill.code})`,
+                      }))}
+                      placeholder="Any skill for role"
                     />
                     <FormTextField
                       id={`task-${task.id}-minutes`}

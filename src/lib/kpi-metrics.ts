@@ -11,9 +11,14 @@ export const SPEC_KPI_METRICS = [
   { code: "DOCUMENTATION", weight: 5, label: "Documentation Discipline" },
 ] as const;
 
-export const KPI_CALCULATION_VERSION = 2;
+/** Bumped when correction penalty scope narrowed to MISTAKE-only (spec Stage 7). */
+export const KPI_CALCULATION_VERSION = 3;
 
-export const MISTAKE_CORRECTION_TYPES = ["MISTAKE", "MACHINE", "MATERIAL"] as const;
+/**
+ * Spec Stage 7 / §8–9: only employee MISTAKE corrections penalize KPI.
+ * MACHINE / MATERIAL / IMPROVEMENT / CUSTOMER_CHANGE / OTHER are excluded.
+ */
+export const MISTAKE_CORRECTION_TYPES = ["MISTAKE"] as const;
 
 export const ERP_HANDOFF_MODULES = [
   "GREY_MATERIAL",

@@ -1,5 +1,5 @@
 /**
- * Unified approvals hub — stage + ready-to-approve (Option A: no management decide chain).
+ * Unified approvals hub — stage + ready-to-request + management decide chain.
  */
 import { expect, test } from "@playwright/test";
 import {
@@ -99,7 +99,7 @@ test.describe("Approvals hub", () => {
     await expect(page.getByRole("tab", { name: /Ready to approve/i })).toBeVisible();
     const designRow = page.getByRole("row", { name: new RegExp(design.ideaRef) });
     await expect(designRow).toBeVisible();
-    const requestLink = designRow.getByRole("link", { name: /Approve for production/i });
+    const requestLink = designRow.getByRole("link", { name: /Request management approval|Approve for production/i });
     await expect(requestLink).toBeVisible();
     await expect(requestLink).toHaveAttribute(
       "href",
@@ -109,23 +109,25 @@ test.describe("Approvals hub", () => {
     await requestLink.click();
     await expect(page).toHaveURL(new RegExp(`/quality/approvals/request-sign-off/${design.id}`));
     await expect(
-      page.getByRole("heading", { name: new RegExp(`Approve for production · ${design.ideaRef}`) }),
+      page.getByRole("heading", {
+        name: new RegExp(`(Request management approval|Approve for production) · ${design.ideaRef}`),
+      }),
     ).toBeVisible();
     await page.locator("#requesterRemark").fill(
-      "E2E Design Head approve for production with full package context.",
+      "E2E Design Head request for management approval with full package context.",
     );
-    await page.getByRole("button", { name: /Approve for production/i }).click();
+    await page.getByRole("button", { name: /Request management approval|Approve for production/i }).click();
     await expect(page).toHaveURL(new RegExp(`/designs/${design.id}`), { timeout: 20_000 });
 
-    const approved = await getDesign(page, design.id);
-    expect(approved.status).toBe("APPROVED");
+    const pending = await getDesign(page, design.id);
+    expect(pending.status).toBe("APPROVAL_PENDING");
 
     await login(page, USERS.checker.email, DEMO);
-    const checkerPending = await apiGetJson<unknown[]>(page, "/api/approvals");
-    expect(checkerPending).toEqual([]);
+    const checkerPending = await apiGetJson<Array<{ designId: string }>>(page, "/api/approvals");
+    expect(checkerPending.some((row) => row.designId === design.id)).toBe(true);
 
     await page.goto("/quality/approvals?tab=management");
-    await expect(page).toHaveURL(/\/quality\/approvals\?tab=stage/, { timeout: 10_000 });
-    await expect(page.getByRole("tab", { name: /Management sign-off/i })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/quality\/approvals\?tab=management/, { timeout: 10_000 });
+    await expect(page.getByRole("tab", { name: /Management sign-off/i })).toBeVisible();
   });
 });

@@ -4,7 +4,7 @@ import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { businessRule, notFound } from "@/lib/errors/create-app-error";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { prisma } from "@/lib/db";
-import { resolveEmployeeForRole } from "@/lib/services/assignment-service";
+import { resolveAssigneeForDesignTask } from "@/lib/services/assignment-service";
 import {
   isDesignClosedForOverride,
   isOpenTaskStatus,
@@ -19,6 +19,8 @@ type TaskRow = {
   status: string;
   assignedEmployeeId: number | null;
   assignedRoleId: number;
+  requiredSkillId: number | null;
+  subProcessId: number;
   subProcess: { code: string; name: string; isApproval: boolean };
 };
 
@@ -141,7 +143,16 @@ async function assignLandingTask(
 ): Promise<number | null> {
   let resolved = assigneeId ?? target.assignedEmployeeId;
   if (!resolved) {
-    resolved = await resolveEmployeeForRole(target.assignedRoleId);
+    resolved = await resolveAssigneeForDesignTask(
+      {
+        assignedRoleId: target.assignedRoleId,
+        requiredSkillId: target.requiredSkillId,
+        designId: target.designId,
+        subProcessId: target.subProcessId,
+        subProcessCode: target.subProcess?.code,
+      },
+      { tx },
+    );
   }
 
   await tx.designTask.update({

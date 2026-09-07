@@ -1,7 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { StatusBadge } from "@/components/StatusBadge";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { apiGet } from "@/lib/api-client";
@@ -16,6 +18,21 @@ type TaskQualityContextProps = {
   designId: string;
   subProcessCode?: string;
 };
+
+function ContextTile({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="task-quality-tile">
+      <span className="task-quality-tile-label">{label}</span>
+      <div className="task-quality-tile-value">{children}</div>
+    </div>
+  );
+}
 
 export function TaskQualityContextPanel({ designId, subProcessCode }: TaskQualityContextProps) {
   const { data: session } = useSession();
@@ -47,28 +64,31 @@ export function TaskQualityContextPanel({ designId, subProcessCode }: TaskQualit
 
   return (
     <AppCard title="Quality context" className="task-quality-context stack-section-sm">
-      <dl className="workflow-context-grid">
-        <dt>Sketch</dt>
-        <dd>{sketch?.status.replace(/_/g, " ") ?? "—"}</dd>
-        <dt>Punching</dt>
-        <dd>{punch?.status.replace(/_/g, " ") ?? "—"}</dd>
-        <dt>Machine sample</dt>
-        <dd>{machineSample?.status.replace(/_/g, " ") ?? "—"}</dd>
-        <dt>Material</dt>
-        <dd>{matReq?.status.replace(/_/g, " ") ?? "—"}</dd>
+      <div className="task-quality-grid">
+        <ContextTile label="Sketch">
+          <StatusBadge status={sketch?.status ?? "PENDING"} />
+        </ContextTile>
+        <ContextTile label="Punching">
+          <StatusBadge status={punch?.status ?? "PENDING"} />
+        </ContextTile>
+        <ContextTile label="Machine sample">
+          <StatusBadge status={machineSample?.status ?? "PENDING"} />
+        </ContextTile>
+        <ContextTile label="Material">
+          <StatusBadge status={matReq?.status ?? "PENDING"} />
+        </ContextTile>
         {canViewCorrections ? (
-          <>
-            <dt>My open corrections</dt>
-            <dd>{openCorrections.length}</dd>
-          </>
+          <ContextTile label="My open corrections">
+            <span className="task-quality-tile-count">{openCorrections.length}</span>
+          </ContextTile>
         ) : null}
-      </dl>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <AppButtonLink href={ROUTES.designs.detail(designId)} appVariant="ghost" size="sm">
+      </div>
+      <div className="task-quality-actions">
+        <AppButtonLink href={ROUTES.designs.detail(designId)} appVariant="outline" size="sm">
           Design files
         </AppButtonLink>
         {canViewCorrections && openCorrections.length > 0 ? (
-          <AppButtonLink href={ROUTES.quality.corrections} appVariant="ghost" size="sm">
+          <AppButtonLink href={ROUTES.quality.corrections} appVariant="outline" size="sm">
             View my corrections
           </AppButtonLink>
         ) : null}

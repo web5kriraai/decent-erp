@@ -100,23 +100,28 @@ describe("stage-approval-rbac", () => {
     expect(getApprovalHubTabsForRole(ROLE_CODES.DESIGN_HEAD)).toEqual({
       stage: true,
       ready: true,
+      management: true,
     });
     expect(getApprovalHubTabsForRole(ROLE_CODES.SAMPLE_CHECKER)).toEqual({
       stage: true,
       ready: false,
+      management: true,
     });
     expect(getApprovalHubTabsForRole(ROLE_CODES.MANAGEMENT)).toEqual({
       stage: true,
       ready: false,
+      management: true,
     });
     expect(getApprovalHubTabsForRole(ROLE_CODES.PUNCHING_DESIGNER)).toEqual({
       stage: false,
       ready: false,
+      management: false,
     });
     expect(canRoleAccessApprovalsHub(ROLE_CODES.PUNCHING_DESIGNER)).toBe(false);
     expect(getApprovalHubTabsForRole(ROLE_CODES.ADMIN)).toEqual({
       stage: true,
       ready: false,
+      management: true,
     });
     expect(canRoleAccessApprovalsHub(ROLE_CODES.ADMIN)).toBe(true);
     expect(canRoleSeeReadyForSignOff(ROLE_CODES.ADMIN)).toBe(false);
@@ -129,7 +134,7 @@ describe("stage-approval-rbac", () => {
       "/quality/approvals?tab=ready",
     );
     expect(approvalsHubHrefForRole(ROLE_CODES.SAMPLE_CHECKER, "management")).toBe(
-      "/quality/approvals?tab=stage",
+      "/quality/approvals?tab=management",
     );
   });
 });
@@ -148,6 +153,9 @@ describe("approval-hub-rbac", () => {
     expect(canRoleActOnManagementLevel(ROLE_CODES.ADMIN, "MANAGEMENT_APPROVAL")).toBe(true);
     expect(canRoleSeeReadyForSignOff(ROLE_CODES.DESIGN_HEAD)).toBe(true);
     expect(canRoleSeeReadyForSignOff(ROLE_CODES.MANAGEMENT)).toBe(false);
-    expect(canRoleSeeManagementSignOff(ROLE_CODES.ADMIN)).toBe(false);
+    expect(canRoleSeeManagementSignOff(ROLE_CODES.ADMIN)).toBe(true);
+    expect(canRoleSeeManagementSignOff(ROLE_CODES.SAMPLE_CHECKER)).toBe(true);
+    expect(canRoleSeeManagementSignOff(ROLE_CODES.MANAGEMENT)).toBe(true);
+    expect(canRoleSeeManagementSignOff(ROLE_CODES.SKETCH_DESIGNER)).toBe(false);
   });
 });

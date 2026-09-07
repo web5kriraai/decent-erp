@@ -1,9 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { canRoleSeeManagementSignOff } from "@/lib/approval-hub-rbac";
 import { designHasCosting } from "@/lib/services/costing-service";
 import {
   collectPresentStageGaps,
+  isDesignHeadFinalGateSatisfied,
+  isDesignLifecycleReadyForRelease,
+  shouldRequireManagementApprovalLevels,
   type ReadinessTaskSnapshot,
 } from "@/lib/services/production-release-readiness-utils";
 import {
@@ -13,6 +15,11 @@ import {
 
 export { collectPresentStageGaps } from "@/lib/services/production-release-readiness-utils";
 export type { ReadinessTaskSnapshot } from "@/lib/services/production-release-readiness-utils";
+export {
+  isDesignHeadFinalGateSatisfied,
+  isDesignLifecycleReadyForRelease,
+  shouldRequireManagementApprovalLevels,
+} from "@/lib/services/production-release-readiness-utils";
 
 type Tx = Prisma.TransactionClient;
 
@@ -24,7 +31,7 @@ export type ProductionReleaseReadiness = {
 /**
  * Server-authoritative checklist before production release.
  * Design-side stages and data gates are required only when present on the design.
- * Legacy management ApprovalLevel chain only when management decide UI is enabled.
+ * Spec Stage 9 — full Management ApprovalLevel chain is always required before APPROVED.
  */
 export async function validateProductionReleaseReadiness(
   designId: bigint,
@@ -39,14 +46,6 @@ export async function validateProductionReleaseReadiness(
   });
   if (!design) {
     return { ok: false, missing: ["Design record"] };
-  }
-
-  if (
-    design.status !== "APPROVED" &&
-    design.status !== "PRODUCTION_ACCEPTED" &&
-    design.status !== "PRODUCTION_RELEASED"
-  ) {
-    missing.push("Management / final approval (design must be Approved)");
   }
 
   const designTasks = await db.designTask.findMany({
@@ -74,14 +73,21 @@ export async function validateProductionReleaseReadiness(
     missing.push("Development costing");
   }
 
-  // Option A: management decide chain disabled — skip per-level ApprovalLevel checklist
-  // for Design Head sign-off path. Legacy chain only when product UI re-enables it.
-  if (canRoleSeeManagementSignOff(null)) {
+  const approvalRowCount = await db.designApproval.count({ where: { designId } });
+  const requireManagementLevels = shouldRequireManagementApprovalLevels({
+    designStatus: design.status,
+    hasAnyDesignApproval: approvalRowCount > 0,
+  });
+
+  // Spec Stage 9 — all active ApprovalLevels must pass before release.
+  if (requireManagementLevels) {
     const levels = await db.approvalLevel.findMany({
       where: { active: true },
       orderBy: { sequence: "asc" },
     });
-    if (levels.length > 0) {
+    if (levels.length === 0) {
+      missing.push("Management approval levels (configure Approval Levels)");
+    } else {
       const approvals = await db.designApproval.findMany({
         where: { designId, decision: { in: ["APPROVED", "SKIPPED"] } },
       });
@@ -115,9 +121,63 @@ export async function validateProductionReleaseReadiness(
     };
   }
 
+  const finalGateSatisfied = isDesignHeadFinalGateSatisfied(tasksByCode);
+  if (
+    !isDesignLifecycleReadyForRelease({
+      designStatus: design.status,
+      finalGateSatisfied,
+      managementDecideStarted: requireManagementLevels,
+    })
+  ) {
+    missing.push("Management / final approval (design must be Approved)");
+  }
+
   missing.push(...collectPresentStageGaps(tasksByCode));
 
   return { ok: missing.length === 0, missing };
+}
+
+/**
+ * Promote APPROVAL_PENDING → APPROVED only when the full release checklist is green
+ * (including complete management decide). Never promotes ACTIVE/ON_HOLD past Stage 9.
+ */
+export async function healDesignApprovedForRelease(
+  designId: bigint,
+  tx?: Tx,
+): Promise<{ healed: boolean; status: string }> {
+  const db = tx ?? prisma;
+  const design = await db.designConcept.findUnique({
+    where: { id: designId },
+    select: { status: true },
+  });
+  if (!design) {
+    return { healed: false, status: "MISSING" };
+  }
+  if (
+    design.status === "APPROVED" ||
+    design.status === "PRODUCTION_ACCEPTED" ||
+    design.status === "PRODUCTION_RELEASED" ||
+    design.status === "LIVE"
+  ) {
+    return { healed: false, status: design.status };
+  }
+
+  // Only heal from APPROVAL_PENDING after the decide chain is complete.
+  // ACTIVE/ON_HOLD must go through Design Head request sign-off first.
+  if (design.status !== "APPROVAL_PENDING") {
+    return { healed: false, status: design.status };
+  }
+
+  const readiness = await validateProductionReleaseReadiness(designId, db);
+  if (!readiness.ok) {
+    return { healed: false, status: design.status };
+  }
+
+  await db.designConcept.update({
+    where: { id: designId },
+    data: { status: "APPROVED" },
+  });
+  return { healed: true, status: "APPROVED" };
 }
 
 /** Re-export for callers that need presence check without full readiness. */

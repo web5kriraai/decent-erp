@@ -1,5 +1,5 @@
 import type { Prisma, Priority } from "@prisma/client";
-import { resolveEmployeesForRoles } from "@/lib/services/assignment-service";
+import { resolveAssigneesForPatternTasks } from "@/lib/services/assignment-service";
 import {
   effectiveDependencySequence,
   initialStatusForCreate,
@@ -10,6 +10,7 @@ type PatternTaskRow = {
   processId: number;
   subProcessId: number;
   defaultRoleId: number;
+  defaultSkillId?: number | null;
   expectedMinutes: number;
   priority: Priority;
   sequence: number;
@@ -24,6 +25,7 @@ export type TaskCreateRow = {
   subProcessId: number;
   assignedEmployeeId?: number;
   assignedRoleId: number;
+  requiredSkillId?: number | null;
   expectedMinutes: number;
   priority: Priority;
   status: "PENDING" | "ASSIGNED";
@@ -78,12 +80,17 @@ export async function buildTasksFromPatternTasks(
   options?: { baseDate?: Date; firstAssigneeId?: number; designPriority?: Priority },
 ): Promise<TaskCreateRow[]> {
   const base = options?.baseDate ?? new Date();
-  const roleMap = await resolveEmployeesForRoles(patternTasks.map((p) => p.defaultRoleId));
+  const assignees = await resolveAssigneesForPatternTasks(
+    patternTasks.map((pt) => ({
+      defaultRoleId: pt.defaultRoleId,
+      defaultSkillId: pt.defaultSkillId ?? null,
+    })),
+  );
 
   const rows: TaskCreateRow[] = patternTasks.map((pt, index) => {
     const plannedStart = addWorkingDays(base, pt.dayOffset);
     const dueAt = new Date(plannedStart.getTime() + pt.expectedMinutes * 60_000);
-    const resolvedEmployee = roleMap.get(pt.defaultRoleId) ?? undefined;
+    const resolvedEmployee = assignees[index] ?? undefined;
     const isFirst = index === 0;
     const assignee = isFirst && options?.firstAssigneeId ? options.firstAssigneeId : resolvedEmployee;
 
@@ -92,6 +99,7 @@ export async function buildTasksFromPatternTasks(
       processId: pt.processId,
       subProcessId: pt.subProcessId,
       assignedRoleId: pt.defaultRoleId,
+      requiredSkillId: pt.defaultSkillId ?? null,
       assignedEmployeeId: assignee,
       expectedMinutes: pt.expectedMinutes,
       // Pattern step priority wins; design priority is the fallback default.

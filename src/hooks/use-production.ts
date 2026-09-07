@@ -63,7 +63,7 @@ export function useMarkDesignLive() {
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.production.released });
-      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffs() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffsRoot });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       toast.success("Design is live", data.ideaRef);
     },
@@ -166,7 +166,7 @@ export function useRetryHandoffSync() {
     mutationFn: (handoffId: string) =>
       apiPost<ProductionHandoffRow>("/api/production/handoffs", { handoffId }),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffs() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffsRoot });
       toast.success("ERP sync complete", `${data.erpModule} → ${data.erpReference ?? "synced"}`);
     },
     onError: (error) => toast.errorFromApi(error, "ERP sync failed"),
@@ -201,7 +201,7 @@ export function useSyncDesignHandoffs() {
         { designId },
       ),
     onSuccess: (results) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffs() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffsRoot });
       const synced = results.filter((r) => r.status === "SYNCED").length;
       toast.success("ERP sync batch complete", `${synced}/${results.length} modules synced`);
     },
@@ -243,11 +243,16 @@ export function useErpStageChains(enabled = true) {
 }
 
 /** Single-design chain for PROD_RELEASE task detail (maps stage list → chain shape). */
-export function useErpStageChainForDesign(designId: string | undefined, enabled = true) {
+export function useErpStageChainForDesign(
+  designId: string | number | undefined,
+  enabled = true,
+) {
+  const normalizedId =
+    designId != null && String(designId).trim() !== "" ? String(designId) : undefined;
   return useQuery({
-    queryKey: queryKeys.production.erpStages(designId),
+    queryKey: queryKeys.production.erpStages(normalizedId),
     queryFn: async (): Promise<ErpStageChain | null> => {
-      if (!designId) return null;
+      if (!normalizedId) return null;
       type StageWithDesign = ErpStageRow & {
         designNumber?: string;
         design?: {
@@ -259,7 +264,7 @@ export function useErpStageChainForDesign(designId: string | undefined, enabled 
         };
       };
       const stages = await apiGet<StageWithDesign[]>(
-        `/api/erp/stages?designId=${encodeURIComponent(designId)}`,
+        `/api/erp/stages?designId=${encodeURIComponent(normalizedId)}`,
       );
       if (!Array.isArray(stages) || stages.length === 0) return null;
       const first = stages[0];
@@ -276,7 +281,7 @@ export function useErpStageChainForDesign(designId: string | undefined, enabled 
         }
       }
       return {
-        designId: String(design?.id ?? designId),
+        designId: String(design?.id ?? normalizedId),
         designNumber: first.designNumber ?? design?.designNumber ?? "",
         ideaRef: design?.ideaRef ?? "",
         collectionName: design?.collectionName ?? "",
@@ -286,7 +291,7 @@ export function useErpStageChainForDesign(designId: string | undefined, enabled 
         stages,
       };
     },
-    enabled: enabled && !!designId,
+    enabled: enabled && !!normalizedId,
   });
 }
 
@@ -298,7 +303,7 @@ export function useBackfillErpStages() {
       backfill: true,
     }),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStages() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStagesRoot });
       toast.success("ERP stages backfilled", `${data.seeded.length} design(s)`);
     },
     onError: (error) => toast.errorFromApi(error, "Could not backfill ERP stages"),
@@ -323,6 +328,7 @@ export function useEnsureProductionLadder() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.production.approved });
       queryClient.invalidateQueries({ queryKey: queryKeys.production.inbox });
+      queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStagesRoot });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       toast.success(
@@ -359,9 +365,18 @@ export function useErpStageAction() {
         remark: input.remark,
         marginPercent: input.marginPercent,
       }),
-    onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStages() });
-      queryClient.invalidateQueries({ queryKey: ["reports", "design-success"] });
+    onSuccess: async (_data, vars) => {
+      // Root prefix must match both list + per-design keys (trailing undefined never matched design queries).
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStagesRoot }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStatus }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.production.released }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.production.inbox }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.production.handoffsRoot }),
+        queryClient.invalidateQueries({ queryKey: ["reports", "design-success"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.designs.all }),
+        queryClient.invalidateQueries({ queryKey: ["designs", "detail"] }),
+      ]);
       toast.success(
         vars.action === "start" ? "Stage started" : "Stage completed",
         "ERP chain updated",

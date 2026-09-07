@@ -29,6 +29,9 @@ describe("KPI metrics spec", () => {
   it("treats improvement separately from mistake types (TC-10)", () => {
     expect(MISTAKE_CORRECTION_TYPES).toContain("MISTAKE");
     expect(MISTAKE_CORRECTION_TYPES).not.toContain("IMPROVEMENT");
+    expect(MISTAKE_CORRECTION_TYPES).not.toContain("CUSTOMER_CHANGE");
+    expect(MISTAKE_CORRECTION_TYPES).not.toContain("MACHINE");
+    expect(MISTAKE_CORRECTION_TYPES).not.toContain("MATERIAL");
   });
 });
 

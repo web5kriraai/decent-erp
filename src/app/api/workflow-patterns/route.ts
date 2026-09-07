@@ -10,6 +10,7 @@ const taskSchema = z.object({
   processId: z.number().int().positive(),
   subProcessId: z.number().int().positive(),
   defaultRoleId: z.number().int().positive(),
+  defaultSkillId: z.number().int().positive().nullable().optional(),
   expectedMinutes: z.number().int().positive(),
   sequence: z.number().int().positive(),
   dayOffset: z.number().int().nonnegative().optional(),

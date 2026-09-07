@@ -98,6 +98,7 @@ export function RaiseCorrectionModal({
   const [extraMinutes, setExtraMinutes] = useState("");
   const [extraCost, setExtraCost] = useState("");
   const [routeSeededFor, setRouteSeededFor] = useState("");
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   if (openKey !== loadedKey) {
     setLoadedKey(openKey);
@@ -111,6 +112,7 @@ export function RaiseCorrectionModal({
     setExtraMinutes(initial.extraMinutes);
     setExtraCost(initial.extraCost);
     setRouteSeededFor("");
+    setAttemptedSubmit(false);
   }
 
   const designQuery = useDesign(designId, open && !!designId);
@@ -216,8 +218,6 @@ export function RaiseCorrectionModal({
     selectedRoute,
     routeTargetTask,
   ]);
-
-  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   function handleClose() {
     setLoadedKey("closed");

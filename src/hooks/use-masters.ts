@@ -26,6 +26,22 @@ export function useHoldReasons(enabled = true) {
   });
 }
 
+export type SkillOption = {
+  id: number;
+  code: string;
+  name: string;
+  defaultRoleId?: number | null;
+};
+
+export function useSkills(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.masters.skills,
+    queryFn: () => apiGet<SkillOption[]>("/api/masters/skills"),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
+}
+
 export function useProductTypes(enabled = true) {
   return useQuery({
     queryKey: queryKeys.masters.productTypes,

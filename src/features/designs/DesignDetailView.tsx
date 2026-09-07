@@ -21,6 +21,7 @@ import { DesignWorkflowPanel } from "@/components/designs/DesignWorkflowPanel";
 import { DesignActiveTaskTimer } from "@/components/designs/DesignActiveTaskTimer";
 import { CompactDesignActions } from "@/components/designs/CompactDesignActions";
 import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprovalCard";
+import { ManagementApprovalCard } from "@/components/designs/ManagementApprovalCard";
 import { getPendingStageApproval } from "@/lib/design-workflow";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
@@ -161,7 +162,6 @@ export function DesignDetailView({
                 designId={designId}
                 canAssign={canAssign}
                 onAssignTask={setAssignTask}
-                showSignOffCta={false}
                 headerActions={
                   canOverrideWorkflow ? (
                     <WorkflowOverrideActions
@@ -172,6 +172,13 @@ export function DesignDetailView({
                 }
               />
             </div>
+
+            {designQuery.data.status === "APPROVAL_PENDING" ? (
+              <ManagementApprovalCard
+                designId={designId}
+                ideaRef={designQuery.data.ideaRef}
+              />
+            ) : null}
 
             <DesignCompletionSummaryPanel
               designId={designId}

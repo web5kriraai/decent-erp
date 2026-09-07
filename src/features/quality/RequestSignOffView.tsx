@@ -123,11 +123,11 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
       collectionName: design.collectionName,
       productType: design.productType?.name,
       priority: design.priority,
-      stageName: "Approve for production",
+      stageName: "Request management approval",
       status: design.status,
       nextStepHint: costingBlocked
         ? "Complete costing first"
-        : "Approve for production",
+        : "Submit to Checker → Design Head → Management chain",
       description: undefined,
       priorStage: completed
         ? {
@@ -184,7 +184,7 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
         {design ? (
           <>
             <PageHeader
-              title={`Approve for production · ${design.ideaRef}`}
+              title={`Request management approval · ${design.ideaRef}`}
               subtitle={design.collectionName}
               actions={
                 <>
@@ -212,7 +212,7 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
 
                 {costingBlocked ? (
                   <p className="form-hint" role="status">
-                    Add costing before approve.{" "}
+                    Add costing before request.{" "}
                     <AppButtonLink href={ROUTES.finance.costing} appVariant="ghost" size="sm">
                       Open Costing
                     </AppButtonLink>
@@ -221,7 +221,7 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
 
                 <FormTextArea
                   id="requesterRemark"
-                  label="Approver remark"
+                  label="Requester remark"
                   required
                   rows={4}
                   value={requesterRemark}
@@ -253,7 +253,7 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
                     disabled={!canSubmit}
                     onClick={() => void handleSubmit()}
                   >
-                    {requestApproval.isPending ? "Approving…" : "Approve for production"}
+                    {requestApproval.isPending ? "Submitting…" : "Request management approval"}
                   </AppButton>
                 </div>
               </AppCard>

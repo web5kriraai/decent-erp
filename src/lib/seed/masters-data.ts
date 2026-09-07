@@ -62,6 +62,7 @@ export const PROCESS_SEED = [
 export function buildStandardWorkflowTasks(
   roles: RoleLookup,
   subs: Record<string, { id: number; processId: number }>,
+  skills?: Record<string, number>,
 ) {
   const rows = [
     { code: "CONCEPT_REVIEW", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 0, priority: "HIGH" as const },
@@ -86,6 +87,7 @@ export function buildStandardWorkflowTasks(
     processId: subs[row.code].processId,
     subProcessId: subs[row.code].id,
     defaultRoleId: roles[row.role].id,
+    defaultSkillId: skillIdForStage(row.code, skills),
     expectedMinutes: row.expectedMinutes,
     dayOffset: row.dayOffset,
     priority: row.priority,
@@ -101,6 +103,7 @@ export function buildStandardWorkflowTasks(
 export function buildCanonicalEightStepWorkflowTasks(
   roles: RoleLookup,
   subs: Record<string, { id: number; processId: number }>,
+  skills?: Record<string, number>,
 ) {
   const rows = [
     { code: "CONCEPT_REVIEW", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 0, priority: "HIGH" as const },
@@ -117,11 +120,39 @@ export function buildCanonicalEightStepWorkflowTasks(
     processId: subs[row.code].processId,
     subProcessId: subs[row.code].id,
     defaultRoleId: roles[row.role].id,
+    defaultSkillId: skillIdForStage(row.code, skills),
     expectedMinutes: row.expectedMinutes,
     dayOffset: row.dayOffset,
     priority: row.priority,
     sequence: index + 1,
   }));
+}
+
+/** Stage code → Skill.code (aligned with assignment-service STAGE_TO_SKILL_CODE). */
+const STAGE_SKILL: Record<string, string> = {
+  CONCEPT_REVIEW: "DESIGN_LEAD",
+  SKETCH: "SKETCH",
+  SKETCH_APPROVAL: "DESIGN_LEAD",
+  PUNCH: "PUNCH",
+  PUNCH_CHECK: "SAMPLE_CHECK",
+  MAT_REQ: "DESIGN_LEAD",
+  FABRIC_ISSUE: "PRODUCTION_LEAD",
+  MACHINE_SAMPLE: "MACHINE_SAMPLE",
+  SAMPLE_RECEIVE: "MACHINE_SAMPLE",
+  SAMPLE_CHECK: "SAMPLE_CHECK",
+  COSTING: "COSTING",
+  FINAL_APPROVAL: "DESIGN_LEAD",
+  PROD_HANDOFF: "DESIGN_LEAD",
+  PROD_INSTRUCTION: "PRODUCTION_LEAD",
+  PROD_RELEASE: "PRODUCTION_LEAD",
+  LIVE_REVIEW: "MANAGEMENT",
+};
+
+function skillIdForStage(stageCode: string, skills?: Record<string, number>): number | null {
+  if (!skills) return null;
+  const skillCode = STAGE_SKILL[stageCode];
+  if (!skillCode) return null;
+  return skills[skillCode] ?? null;
 }
 
 export const CHECKLIST_SEED = [

@@ -3,14 +3,19 @@ import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { businessRule, notFound } from "@/lib/errors/create-app-error";
-import { resolveEmployeeForRole } from "@/lib/services/assignment-service";
-import { validateProductionReleaseReadiness } from "@/lib/services/production-release-readiness";
+import { resolveAssigneeForDesignTask } from "@/lib/services/assignment-service";
+import {
+  healDesignApprovedForRelease,
+  validateProductionReleaseReadiness,
+} from "@/lib/services/production-release-readiness";
 
 export async function acceptProductionHandoff(
   designId: bigint,
   actorId: number,
   correlationId: string,
 ) {
+  await healDesignApprovedForRelease(designId);
+
   const readiness = await validateProductionReleaseReadiness(designId);
   const missing = readiness.missing.filter(
     (item) =>
@@ -26,6 +31,8 @@ export async function acceptProductionHandoff(
   }
 
   return prisma.$transaction(async (tx) => {
+    await healDesignApprovedForRelease(designId, tx);
+
     const design = await tx.designConcept.findUnique({
       where: { id: designId },
       select: { id: true, ideaRef: true, status: true, designHeadEmployeeId: true },
@@ -72,7 +79,17 @@ export async function acceptProductionHandoff(
 
     let assigneeId = instruction.assignedEmployeeId ?? actorId;
     if (!instruction.assignedEmployeeId) {
-      assigneeId = (await resolveEmployeeForRole(instruction.assignedRoleId)) ?? actorId;
+      assigneeId =
+        (await resolveAssigneeForDesignTask(
+          {
+            assignedRoleId: instruction.assignedRoleId,
+            requiredSkillId: instruction.requiredSkillId,
+            designId,
+            subProcessId: instruction.subProcessId,
+            subProcessCode: "PROD_INSTRUCTION",
+          },
+          { tx },
+        )) ?? actorId;
     }
 
     const updated = await tx.designTask.update({

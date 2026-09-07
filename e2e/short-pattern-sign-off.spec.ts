@@ -1,6 +1,6 @@
 /**
- * Short Concept→Sketch pattern: Approve for production without Finance costing
- * (screenshot / design-312-style regression — presence-driven transition policy).
+ * Short Concept→Sketch pattern: request management approval without Finance costing
+ * (presence-driven transition policy) then complete Checker → DH → Management chain.
  */
 import { expect, test } from "@playwright/test";
 import {
@@ -15,6 +15,7 @@ import {
   completeTaskForUser,
   getDesign,
   getDesignTaskByCode,
+  submitManagementApprovals,
 } from "./helpers/workflow";
 
 const DEMO = "Demo@123";
@@ -31,7 +32,7 @@ async function employeeIdFor(page: import("@playwright/test").Page, email: strin
 }
 
 test.describe("Short pattern sign-off (no costing)", () => {
-  test("Concept→Sketch approve for production without Finance costing", async ({ page }) => {
+  test("Concept→Sketch management decide without Finance costing", async ({ page }) => {
     test.setTimeout(180_000);
 
     await login(page, USERS.admin.email, USERS.admin.password);
@@ -127,14 +128,16 @@ test.describe("Short pattern sign-off (no costing)", () => {
 
     await page.goto(`/quality/approvals/request-sign-off/${design.id}`);
     await expect(
-      page.getByRole("heading", { name: new RegExp(`Approve for production · ${design.ideaRef}`) }),
+      page.getByRole("heading", {
+        name: new RegExp(`Request management approval · ${design.ideaRef}`),
+      }),
     ).toBeVisible();
 
     // Presence-driven: no Finance costing blocker for short patterns
     await expect(page.getByText(/Add at least one cost entry/i)).toHaveCount(0);
     await expect(page.getByText(/Not required/i)).toBeVisible();
 
-    // Before approve: short pattern has no COSTING / PROD_* tasks → no phantom gaps
+    // Before request: short pattern has no COSTING / PROD_* tasks → no phantom gaps
     const preReadiness = await apiGetJson<{ ok: boolean; missing: string[] }>(
       page,
       `/api/designs/${design.id}/production-readiness`,
@@ -142,14 +145,26 @@ test.describe("Short pattern sign-off (no costing)", () => {
     expect(preReadiness.missing).not.toContain("Development costing");
     expect(preReadiness.missing).not.toContain("Production handoff from Design Head");
     expect(preReadiness.missing).not.toContain("Production instruction");
+    // Stage 9 — management decide still required before release
+    expect(preReadiness.ok).toBe(false);
+    expect(
+      preReadiness.missing.some(
+        (m) => /approval/i.test(m) || /Management \/ final approval/i.test(m),
+      ),
+    ).toBe(true);
 
     await page.locator("#requesterRemark").fill(
-      "E2E short Concept→Sketch approve for production without costing (design-312 regression).",
+      "E2E short Concept→Sketch request management approval without costing (design-312 regression).",
     );
-    const approveBtn = page.getByRole("button", { name: /Approve for production/i });
-    await expect(approveBtn).toBeEnabled();
-    await approveBtn.click();
+    const requestBtn = page.getByRole("button", { name: /Request management approval/i });
+    await expect(requestBtn).toBeEnabled();
+    await requestBtn.click();
     await expect(page).toHaveURL(new RegExp(`/designs/${design.id}`), { timeout: 20_000 });
+
+    const pending = await getDesign(page, design.id);
+    expect(pending.status).toBe("APPROVAL_PENDING");
+
+    await submitManagementApprovals(page, design.id);
 
     const approved = await getDesign(page, design.id);
     expect(approved.status).toBe("APPROVED");

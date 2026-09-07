@@ -620,12 +620,12 @@ export function getDesignWorkflowContext(input: {
     return {
       ...empty,
       summary:
-        "Legacy status — management decide chain was removed. Design Head should re-approve for production from Approvals → Ready to approve (or ask admin to heal).",
-      currentStage: "Legacy approval pending",
+        "Awaiting management decide chain (Sample Checker → Design Head → Management).",
+      currentStage: "Management approval",
       currentStatus: "approval pending",
-      nextAction: "Approve for production",
+      nextAction: "Complete management sign-off",
       waitingMessage:
-        "Contact Design Head to complete Approve for production, or run the APPROVAL_PENDING heal.",
+        "Open Approvals → Management sign-off. Production handoff unlocks after the final Management approval.",
       nextActionHint: null,
     };
   }

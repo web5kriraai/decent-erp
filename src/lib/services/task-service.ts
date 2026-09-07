@@ -276,6 +276,16 @@ export async function assertTaskAssignedToEmployee(taskId: bigint, employeeId: n
 
 export async function startTask(taskId: bigint, employeeId: number, correlationId: string) {
   const result = await prisma.$transaction(async (tx) => {
+    const { assertEmployeeHasNoOtherRunningTask } = await import(
+      "@/lib/services/employee-task-lock"
+    );
+    const lockCheck = await assertEmployeeHasNoOtherRunningTask(tx, employeeId, taskId);
+    if (!lockCheck.ok) {
+      throw conflict(APP_ERROR_CODES.TASK_ALREADY_RUNNING, {
+        runningTaskId: lockCheck.runningTaskId.toString(),
+      });
+    }
+
     const { startOfUtcDay } = await import("@/lib/services/time-calculation");
     const workDate = startOfUtcDay(new Date());
     const closed = await tx.workdaySession.findUnique({
@@ -283,15 +293,6 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
     });
     if (closed) {
       throw conflict(APP_ERROR_CODES.WORKDAY_CLOSED);
-    }
-
-    const running = await tx.designTask.findFirst({
-      where: { assignedEmployeeId: employeeId, status: "RUNNING" },
-    });
-    if (running && running.id !== taskId) {
-      throw conflict(APP_ERROR_CODES.TASK_ALREADY_RUNNING, {
-        runningTaskId: running.id.toString(),
-      });
     }
 
     const task = await tx.designTask.findUnique({
@@ -493,21 +494,22 @@ export async function resumeTask(
   version?: number,
 ) {
   return prisma.$transaction(async (tx) => {
+    const { assertEmployeeHasNoOtherRunningTask } = await import(
+      "@/lib/services/employee-task-lock"
+    );
+    const lockCheck = await assertEmployeeHasNoOtherRunningTask(tx, employeeId, taskId);
+    if (!lockCheck.ok) {
+      throw conflict(APP_ERROR_CODES.TASK_ALREADY_RUNNING, {
+        runningTaskId: lockCheck.runningTaskId.toString(),
+      });
+    }
+
     const task = await getTaskForEmployee(taskId, employeeId);
     if (task.status !== "ON_HOLD") {
       throw conflict(APP_ERROR_CODES.TASK_WRONG_STATUS, undefined, "Only on-hold tasks can be resumed.");
     }
     if (version != null && task.version !== version) {
       throw conflict(APP_ERROR_CODES.CONCURRENCY_CONFLICT);
-    }
-
-    const running = await tx.designTask.findFirst({
-      where: { assignedEmployeeId: employeeId, status: "RUNNING" },
-    });
-    if (running && running.id !== taskId) {
-      throw conflict(APP_ERROR_CODES.TASK_ALREADY_RUNNING, {
-        runningTaskId: running.id.toString(),
-      });
     }
 
     const now = new Date();
@@ -1140,6 +1142,15 @@ export async function completeStageApproval(
     }
 
     if (status === "ASSIGNED") {
+      const { assertEmployeeHasNoOtherRunningTask } = await import(
+        "@/lib/services/employee-task-lock"
+      );
+      const lockCheck = await assertEmployeeHasNoOtherRunningTask(tx, employeeId, taskId);
+      if (!lockCheck.ok) {
+        throw conflict(APP_ERROR_CODES.TASK_ALREADY_RUNNING, {
+          runningTaskId: lockCheck.runningTaskId.toString(),
+        });
+      }
       await tx.taskTimeEvent.create({
         data: {
           taskId,
@@ -1329,10 +1340,19 @@ async function reopenSampleCheckAfterResample(
     );
   }
 
-  const { resolveEmployeeForRole } = await import("@/lib/services/assignment-service");
+  const { resolveAssigneeForDesignTask } = await import("@/lib/services/assignment-service");
   let assigneeId = sampleCheck.assignedEmployeeId;
   if (!assigneeId && sampleCheck.assignedRoleId) {
-    assigneeId = await resolveEmployeeForRole(sampleCheck.assignedRoleId);
+    assigneeId = await resolveAssigneeForDesignTask(
+      {
+        assignedRoleId: sampleCheck.assignedRoleId,
+        requiredSkillId: sampleCheck.requiredSkillId,
+        designId,
+        subProcessId: sampleCheck.subProcessId,
+        subProcessCode: "SAMPLE_CHECK",
+      },
+      { tx },
+    );
   }
 
   await tx.designTask.update({
@@ -1383,9 +1403,12 @@ async function spawnResampleTask(
     );
   }
 
-  const { resolveEmployeeForRole } = await import("@/lib/services/assignment-service");
+  const { resolveEmployeeForRole, resolveSkillIdForStageCode } = await import(
+    "@/lib/services/assignment-service"
+  );
   const roleId = resample.defaultRoleId ?? sourceTask.assignedRoleId;
-  const assigneeId = roleId ? await resolveEmployeeForRole(roleId) : null;
+  const skillId = await resolveSkillIdForStageCode(tx, "MACHINE_SAMPLE");
+  const assigneeId = roleId ? await resolveEmployeeForRole(roleId, { skillId, tx }) : null;
   const maxSeq = await tx.designTask.aggregate({
     where: { designId: sourceTask.designId },
     _max: { sequence: true },
@@ -1401,6 +1424,7 @@ async function spawnResampleTask(
       subProcessId: resample.id,
       assignedEmployeeId: assigneeId,
       assignedRoleId: roleId,
+      requiredSkillId: skillId,
       status: initialStatusForCreate({ hasAssignee: !!assigneeId, isReady: true }),
       priority: sourceTask.priority,
       expectedMinutes: sourceTask.expectedMinutes,

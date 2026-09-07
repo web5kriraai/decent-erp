@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { IconClipboardCheck } from "@/components/icons";
 import { DataTable } from "@/components/DataTable";
-import { AppButtonLink } from "@/components/ui/AppButton";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
@@ -14,15 +14,28 @@ import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Modal,
+  ModalFooterActions,
+} from "@/components/ui/Modal";
+import {
+  ApprovalDecisionForm,
+  defaultApprovalDecisionFormState,
+  isApprovalDecisionFormValid,
+  type ApprovalDecisionFormState,
+} from "@/components/approvals/ApprovalDecisionForm";
 import { ROUTES } from "@/config/routes";
 import { resolveWorkOpenHref } from "@/lib/resolve-work-open-href";
-import { useApprovalsHub } from "@/hooks/use-approvals";
+import { useApprovalsHub, useSubmitApproval } from "@/hooks/use-approvals";
+import { useEmployeeOptions } from "@/hooks/use-corrections";
+import { parseApprovalRequestPackage } from "@/lib/approval-request-package";
 import { canRoleAccessApprovalsHub, getApprovalHubTabsForRole } from "@/lib/stage-approval-rbac";
+import type { PendingApprovalQueueItem } from "@/lib/types/api";
 
-type ApprovalTab = "stage" | "ready";
+type ApprovalTab = "stage" | "ready" | "management";
 
 function isApprovalTab(value: string | null): value is ApprovalTab {
-  return value === "stage" || value === "ready";
+  return value === "stage" || value === "ready" || value === "management";
 }
 
 function TabCountBadge({ count }: { count: number }) {
@@ -48,25 +61,41 @@ export function ApprovalsView() {
   const canAccessHub = canRoleAccessApprovalsHub(roleCode);
 
   const hubQuery = useApprovalsHub(canAccessHub);
+  const submitApproval = useSubmitApproval();
+  const [decideItem, setDecideItem] = useState<PendingApprovalQueueItem | null>(null);
+  const [formState, setFormState] = useState<ApprovalDecisionFormState>(
+    defaultApprovalDecisionFormState(),
+  );
+  const employeesQuery = useEmployeeOptions(!!decideItem);
 
   const stageItems = hubQuery.data?.stageApprovals ?? [];
   const readyItems = hubQuery.data?.readyForSignOff ?? [];
+  const managementItems = hubQuery.data?.managementApprovals ?? [];
 
   const visibleTabs = useMemo(() => {
     const tabs: ApprovalTab[] = [];
     if (hubTabs.stage) tabs.push("stage");
     if (hubTabs.ready) tabs.push("ready");
+    if (hubTabs.management) tabs.push("management");
     return tabs;
-  }, [hubTabs.ready, hubTabs.stage]);
+  }, [hubTabs.management, hubTabs.ready, hubTabs.stage]);
 
   const defaultTab = useMemo<ApprovalTab>(() => {
+    if (hubTabs.management && managementItems.length > 0) return "management";
     if (hubTabs.stage && stageItems.length > 0) return "stage";
     if (hubTabs.ready && readyItems.length > 0) return "ready";
     return visibleTabs[0] ?? "stage";
-  }, [hubTabs.ready, hubTabs.stage, readyItems.length, stageItems.length, visibleTabs]);
+  }, [
+    hubTabs.management,
+    hubTabs.ready,
+    hubTabs.stage,
+    managementItems.length,
+    readyItems.length,
+    stageItems.length,
+    visibleTabs,
+  ]);
 
   const tabParam = searchParams.get("tab");
-  // Legacy ?tab=management redirects to first allowed tab (ready for DH, else stage).
   const activeTab: ApprovalTab =
     isApprovalTab(tabParam) && visibleTabs.includes(tabParam) ? tabParam : defaultTab;
 
@@ -96,6 +125,37 @@ export function ApprovalsView() {
 
   function retryAll() {
     hubQuery.refetch();
+  }
+
+  async function handleManagementSubmit() {
+    if (!decideItem || !isApprovalDecisionFormValid(formState, decideItem.costingReady)) return;
+    const result = await submitApproval.mutateAsync({
+      designId: decideItem.designId,
+      taskId: decideItem.task?.id,
+      approvalLevelId: decideItem.currentLevel.id,
+      decision: formState.decision,
+      remark: formState.remark.trim() || undefined,
+      correctionType:
+        formState.decision === "CORRECTION_REQUIRED" ? formState.correctionType : undefined,
+      routeSubProcessCode:
+        formState.decision === "CORRECTION_REQUIRED" ? formState.routeSubProcessCode : undefined,
+      responsibleEmployeeId:
+        formState.decision === "CORRECTION_REQUIRED" && formState.responsibleEmployeeId
+          ? Number(formState.responsibleEmployeeId)
+          : undefined,
+    });
+    setFormState(defaultApprovalDecisionFormState());
+    await hubQuery.refetch();
+    if (result.nextLevel && !result.chainComplete) {
+      const next = (hubQuery.data?.managementApprovals ?? []).find(
+        (row) => row.designId === decideItem.designId,
+      );
+      if (next) {
+        setDecideItem(next);
+        return;
+      }
+    }
+    setDecideItem(null);
   }
 
   const stagePanel = (
@@ -167,7 +227,7 @@ export function ApprovalsView() {
   );
 
   const readyPanel = (
-    <AppCard title={showTabChrome ? undefined : "Ready to approve"}>
+    <AppCard title={showTabChrome ? undefined : "Ready to request sign-off"}>
       <DataTable
         columns={[
           {
@@ -196,8 +256,8 @@ export function ApprovalsView() {
                   appVariant="primary"
                   size="icon-sm"
                   className="table-icon-action"
-                  title="Approve for production"
-                  aria-label="Approve for production"
+                  title="Request management approval"
+                  aria-label="Request management approval"
                 >
                   <IconClipboardCheck aria-hidden />
                 </AppButtonLink>
@@ -207,15 +267,79 @@ export function ApprovalsView() {
         ]}
         rows={readyItems}
         getRowKey={(row) => row.designId}
-        emptyTitle="No designs ready to approve for production"
+        emptyTitle="No designs ready to request management approval"
+      />
+    </AppCard>
+  );
+
+  const managementPanel = (
+    <AppCard title={showTabChrome ? undefined : "Management sign-off"}>
+      <DataTable
+        columns={[
+          {
+            key: "design",
+            header: "Design",
+            render: (row) => (
+              <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
+                {row.design.ideaRef}
+              </Link>
+            ),
+          },
+          {
+            key: "collection",
+            header: "Collection",
+            render: (row) => row.design.collectionName,
+          },
+          {
+            key: "level",
+            header: "Your level",
+            render: (row) => row.currentLevel.name,
+          },
+          {
+            key: "next",
+            header: "Next",
+            render: (row) => row.nextLevelName ?? "Final",
+          },
+          {
+            key: "actions",
+            header: "",
+            align: "right",
+            render: (row) => (
+              <TableIconActionGroup>
+                <AppButton
+                  type="button"
+                  appVariant="primary"
+                  size="icon-sm"
+                  className="table-icon-action"
+                  title="Decide"
+                  aria-label="Decide"
+                  onClick={() => {
+                    setFormState(defaultApprovalDecisionFormState());
+                    setDecideItem(row);
+                  }}
+                >
+                  <IconClipboardCheck aria-hidden />
+                </AppButton>
+              </TableIconActionGroup>
+            ),
+          },
+        ]}
+        rows={managementItems}
+        getRowKey={(row) => `${row.designId}-${row.currentLevel.id}`}
+        emptyTitle="No management sign-offs waiting for you"
       />
     </AppCard>
   );
 
   function panelForTab(tab: ApprovalTab) {
     if (tab === "ready") return readyPanel;
+    if (tab === "management") return managementPanel;
     return stagePanel;
   }
+
+  const requestPackage = decideItem
+    ? parseApprovalRequestPackage(decideItem.approvalRequestPackage)
+    : null;
 
   return (
     <div className="page-shell">
@@ -239,19 +363,77 @@ export function ApprovalsView() {
               ) : null}
               {hubTabs.ready ? (
                 <TabsTrigger value="ready" className="action-center-tab-trigger">
-                  Ready to approve
+                  Ready to request
                   <TabCountBadge count={readyItems.length} />
+                </TabsTrigger>
+              ) : null}
+              {hubTabs.management ? (
+                <TabsTrigger value="management" className="action-center-tab-trigger">
+                  Management sign-off
+                  <TabCountBadge count={managementItems.length} />
                 </TabsTrigger>
               ) : null}
             </TabsList>
 
             {hubTabs.stage ? <TabsContent value="stage">{stagePanel}</TabsContent> : null}
             {hubTabs.ready ? <TabsContent value="ready">{readyPanel}</TabsContent> : null}
+            {hubTabs.management ? (
+              <TabsContent value="management">{managementPanel}</TabsContent>
+            ) : null}
           </Tabs>
         ) : (
           panelForTab(activeTab)
         )}
       </QueryState>
+
+      <Modal
+        open={!!decideItem}
+        title={decideItem ? `Decide ${decideItem.design.ideaRef}` : "Decide"}
+        size="lg"
+        onClose={() => setDecideItem(null)}
+        footer={
+          <ModalFooterActions>
+            <AppButton type="button" appVariant="outline" onClick={() => setDecideItem(null)}>
+              Cancel
+            </AppButton>
+            <AppButton
+              type="button"
+              disabled={
+                !decideItem ||
+                submitApproval.isPending ||
+                !isApprovalDecisionFormValid(formState, decideItem.costingReady)
+              }
+              onClick={() => void handleManagementSubmit()}
+            >
+              {submitApproval.isPending ? "Submitting…" : "Submit Decision"}
+            </AppButton>
+          </ModalFooterActions>
+        }
+      >
+        {decideItem ? (
+          <ApprovalDecisionForm
+            designId={decideItem.designId}
+            requestPackage={requestPackage}
+            costingReady={decideItem.costingReady}
+            decisionOptions={[
+              ...(decideItem.costingReady !== false
+                ? [{ value: "APPROVED" as const, label: "Approve" }]
+                : []),
+              { value: "REJECTED", label: "Reject" },
+              { value: "CORRECTION_REQUIRED", label: "Send for Correction" },
+            ]}
+            state={formState}
+            onChange={setFormState}
+            stageAssignees={decideItem.stageAssignees}
+            employeeOptions={(employeesQuery.data ?? []).map((e) => ({
+              id: e.id,
+              name: e.name,
+            }))}
+            nextLevelName={decideItem.nextLevelName}
+            onEnterSubmit={() => void handleManagementSubmit()}
+          />
+        ) : null}
+      </Modal>
     </div>
   );
 }

@@ -254,8 +254,11 @@ export async function requestDesignApproval(
       },
     });
     if (!design) throw new ApiError("Design not found", 404);
+    if (design.status === "APPROVAL_PENDING") {
+      return design;
+    }
     if (!["DRAFT", "ACTIVE"].includes(design.status)) {
-      throw new ApiError("Design cannot be approved for production from current status", 422);
+      throw new ApiError("Design cannot be submitted for management approval from current status", 422);
     }
 
     const stagesComplete =
@@ -348,17 +351,15 @@ export async function requestDesignApproval(
     const updated = await tx.designConcept.update({
       where: { id: designId },
       data: {
-        status: "APPROVED",
+        status: "APPROVAL_PENDING",
         approvalRequestPackage: packagePayload,
       },
     });
 
-    await ensureProductionLadderAndUnlock(tx, designId, correlationId);
-
     await writeAuditLog(tx, {
       entityType: "DesignConcept",
       entityId: designId.toString(),
-      action: "DESIGN_APPROVED",
+      action: "APPROVAL_REQUESTED",
       userId: requesterId,
       correlationId,
       before: { status: design.status },
@@ -368,7 +369,7 @@ export async function requestDesignApproval(
     return updated;
   }).then(async (design) => {
     await enqueueOutboxAndNotify(
-      "DESIGN_APPROVED",
+      "APPROVAL_PENDING",
       { designId: design.id.toString(), ideaRef: design.ideaRef },
       correlationId,
     );
@@ -377,8 +378,8 @@ export async function requestDesignApproval(
 }
 
 /**
- * @deprecated Option A removed the Checker→DH→Management decide chain.
- * Final approve is Design Head Request Sign-off → APPROVED.
+ * Checker → Design Head → Management decide chain (spec Stage 9).
+ * Final level APPROVED marks design APPROVED and unlocks production ladder.
  */
 export async function submitApproval(
   input: {
@@ -394,17 +395,28 @@ export async function submitApproval(
   approverEmployeeId: number,
   correlationId: string,
 ) {
-  void input;
-  void approverEmployeeId;
-  void correlationId;
-  throw new ApiError(
-    "Management decide chain was removed. Design Head approves for production via Request Sign-off after all stages are complete.",
-    410,
-  );
+  return submitApprovalChain(input, approverEmployeeId, correlationId);
 }
 
-/** Legacy implementation retained for reference / one-off migration tooling — not used by product APIs. */
+/** @deprecated Alias — use submitApproval. */
 export async function submitApprovalLegacy(
+  input: {
+    designId: bigint;
+    taskId?: bigint;
+    approvalLevelId: number;
+    decision: ApprovalDecision;
+    remark?: string;
+    correctionType?: string;
+    routeSubProcessCode?: string;
+    responsibleEmployeeId?: number;
+  },
+  approverEmployeeId: number,
+  correlationId: string,
+) {
+  return submitApprovalChain(input, approverEmployeeId, correlationId);
+}
+
+async function submitApprovalChain(
   input: {
     designId: bigint;
     taskId?: bigint;
@@ -421,9 +433,34 @@ export async function submitApprovalLegacy(
   return prisma.$transaction(async (tx) => {
     const design = await tx.designConcept.findUnique({ where: { id: input.designId } });
     if (!design) throw new ApiError("Design not found", 404);
+    if (design.status !== "APPROVAL_PENDING") {
+      throw new ApiError(
+        "Design must be awaiting management approval (Design Head request sign-off first)",
+        422,
+      );
+    }
 
     const level = await tx.approvalLevel.findUnique({ where: { id: input.approvalLevelId } });
     if (!level) throw new ApiError("Approval level not found", 404);
+
+    const activeLevels = await tx.approvalLevel.findMany({
+      where: { active: true },
+      orderBy: { sequence: "asc" },
+    });
+    const passedApprovals = await tx.designApproval.findMany({
+      where: { designId: input.designId, decision: { in: ["APPROVED", "SKIPPED"] } },
+      select: { approvalLevelId: true },
+    });
+    const passedIds = new Set(passedApprovals.map((a) => a.approvalLevelId));
+    const nextRequired = activeLevels.find((l) => !passedIds.has(l.id));
+    if (!nextRequired || nextRequired.id !== input.approvalLevelId) {
+      throw new ApiError(
+        nextRequired
+          ? `Next required approval is ${nextRequired.name}, not ${level.name}`
+          : "All management approval levels are already complete",
+        409,
+      );
+    }
 
     if (level.requiredRoleId) {
       const approver = await tx.employee.findUnique({
@@ -693,7 +730,7 @@ export async function submitApprovalLegacy(
       after: approval,
     });
 
-    let designStatus = design.status;
+    let designStatus: string = design.status;
     let chainComplete = false;
     let nextLevel: { id: number; code: string; name: string; sequence: number } | null = null;
 
@@ -743,6 +780,12 @@ export async function submitApprovalLegacy(
           designId: input.designId.toString(),
           taskId: input.taskId?.toString(),
         },
+        correlationId,
+      );
+    } else if (result.chainComplete && result.designStatus === "APPROVED") {
+      await enqueueOutboxAndNotify(
+        "DESIGN_APPROVED",
+        { designId: input.designId.toString() },
         correlationId,
       );
     }
@@ -802,6 +845,23 @@ export async function healApprovalPendingDesigns(
           : "stages incomplete";
       skipped.push({ designId, reason });
       continue;
+    }
+
+    const levels = await prisma.approvalLevel.findMany({
+      where: { active: true },
+      orderBy: { sequence: "asc" },
+    });
+    if (levels.length > 0) {
+      const approvals = await prisma.designApproval.findMany({
+        where: { designId: design.id, decision: { in: ["APPROVED", "SKIPPED"] } },
+        select: { approvalLevelId: true },
+      });
+      const passed = new Set(approvals.map((a) => a.approvalLevelId));
+      const missingLevel = levels.find((l) => !passed.has(l.id));
+      if (missingLevel) {
+        skipped.push({ designId, reason: `management chain incomplete (${missingLevel.name})` });
+        continue;
+      }
     }
 
     await prisma.$transaction(async (tx) => {

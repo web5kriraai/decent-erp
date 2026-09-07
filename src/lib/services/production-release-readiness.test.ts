@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { collectPresentStageGaps } from "@/lib/services/production-release-readiness-utils";
+import {
+  collectPresentStageGaps,
+  isDesignHeadFinalGateSatisfied,
+  isDesignLifecycleReadyForRelease,
+  shouldRequireManagementApprovalLevels,
+} from "@/lib/services/production-release-readiness-utils";
 import { evaluateTransition } from "@/lib/workflow/transition-policies";
 
 describe("collectPresentStageGaps (pattern-aware readiness)", () => {
@@ -66,6 +71,95 @@ describe("collectPresentStageGaps (pattern-aware readiness)", () => {
     });
     expect(missing).toContain("Sketch work");
     expect(missing).toContain("Sketch approval");
+  });
+
+  it("ignores SKIPPED sample chain (no sample approval / file gaps)", () => {
+    const missing = collectPresentStageGaps({
+      MACHINE_SAMPLE: {
+        status: "SKIPPED",
+        isFileRequired: true,
+        hasFile: false,
+      },
+      SAMPLE_CHECK: { status: "SKIPPED", isApproval: true },
+      FINAL_APPROVAL: { status: "COMPLETED", isApproval: true },
+      PROD_HANDOFF: { status: "COMPLETED" },
+      PROD_INSTRUCTION: { status: "COMPLETED" },
+    });
+    expect(missing).toEqual([]);
+  });
+
+  it("still requires file when MACHINE_SAMPLE is active without upload", () => {
+    const missing = collectPresentStageGaps({
+      MACHINE_SAMPLE: {
+        status: "CHECKING",
+        isFileRequired: true,
+        hasFile: false,
+      },
+    });
+    expect(missing).toContain("Machine sample file");
+  });
+});
+
+describe("management decide / lifecycle readiness helpers", () => {
+  it("always requires ApprovalLevels until design is past APPROVED", () => {
+    expect(
+      shouldRequireManagementApprovalLevels({
+        designStatus: "ACTIVE",
+        hasAnyDesignApproval: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRequireManagementApprovalLevels({
+        designStatus: "APPROVAL_PENDING",
+        hasAnyDesignApproval: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRequireManagementApprovalLevels({
+        designStatus: "ACTIVE",
+        hasAnyDesignApproval: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRequireManagementApprovalLevels({
+        designStatus: "APPROVED",
+        hasAnyDesignApproval: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("treats only APPROVED+ as lifecycle-ready (no ACTIVE bypass)", () => {
+    expect(
+      isDesignLifecycleReadyForRelease({
+        designStatus: "ACTIVE",
+        finalGateSatisfied: true,
+        managementDecideStarted: false,
+      }),
+    ).toBe(false);
+    expect(
+      isDesignLifecycleReadyForRelease({
+        designStatus: "APPROVAL_PENDING",
+        finalGateSatisfied: true,
+        managementDecideStarted: true,
+      }),
+    ).toBe(false);
+    expect(
+      isDesignLifecycleReadyForRelease({
+        designStatus: "APPROVED",
+        finalGateSatisfied: true,
+        managementDecideStarted: true,
+      }),
+    ).toBe(true);
+    expect(
+      isDesignHeadFinalGateSatisfied({
+        FINAL_APPROVAL: { status: "COMPLETED" },
+      }),
+    ).toBe(true);
+    expect(
+      isDesignHeadFinalGateSatisfied({
+        SAMPLE_CHECK: { status: "SKIPPED" },
+      }),
+    ).toBe(true);
   });
 });
 

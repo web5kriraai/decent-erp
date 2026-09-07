@@ -213,12 +213,14 @@ export type WorkflowPatternTask = {
   processId: number;
   subProcessId: number;
   defaultRoleId: number;
+  defaultSkillId?: number | null;
   dayOffset?: number;
   priority?: Priority;
   dependencySequence?: number | null;
   process?: { id: number; code: string; name: string };
   subProcess?: { id: number; code: string; name: string };
   defaultRole?: { id: number; code: string; name: string };
+  defaultSkill?: { id: number; code: string; name: string } | null;
 };
 
 export type WorkflowPattern = {
@@ -239,6 +241,7 @@ export type CreateWorkflowPatternPayload = {
     processId: number;
     subProcessId: number;
     defaultRoleId: number;
+    defaultSkillId?: number | null;
     expectedMinutes: number;
     sequence: number;
     dayOffset?: number;

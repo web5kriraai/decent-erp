@@ -118,6 +118,7 @@ model Employee {
   role            Role      @relation(fields: [roleId], references: [id])
   accounts        Account[]
   sessions        Session[]
+  skills          EmployeeSkill[]
 
   designHeadConcepts   DesignConcept[] @relation("DesignHead")
   createdConcepts      DesignConcept[] @relation("CreatedBy")
@@ -153,8 +154,39 @@ model Role {
   workflowPatternTasks WorkflowPatternTask[]
   designSubProcessMasters DesignSubProcessMaster[]
   approvalLevels ApprovalLevel[]
+  skills      Skill[]
 
   @@map("roles")
+}
+
+/** Spec §6.2 — skill master for RoleId/SkillId assignee resolution. */
+model Skill {
+  id          Int      @id @default(autoincrement()) @map("skill_id")
+  code        String   @unique
+  name        String
+  /** Optional default role this skill typically maps to. */
+  defaultRoleId Int?   @map("default_role_id")
+  active      Boolean  @default(true)
+
+  defaultRole Role?    @relation(fields: [defaultRoleId], references: [id])
+  employees   EmployeeSkill[]
+  patternTasks WorkflowPatternTask[]
+  designTasks  DesignTask[]
+
+  @@map("skills")
+}
+
+model EmployeeSkill {
+  employeeId Int @map("employee_id")
+  skillId    Int @map("skill_id")
+  active     Boolean @default(true)
+  proficiency Int @default(1)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  skill    Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, skillId])
+  @@map("employee_skills")
 }
 
 model Permission {
@@ -337,6 +369,8 @@ model WorkflowPatternTask {
   processId           Int  @map("process_id")
   subProcessId        Int  @map("sub_process_id")
   defaultRoleId       Int  @map("default_role_id")
+  /** Optional SkillId for eligible-employee resolution (spec §6.2). */
+  defaultSkillId      Int? @map("default_skill_id")
   expectedMinutes     Int  @map("expected_minutes")
   dayOffset           Int  @default(0) @map("day_offset")
   priority            Priority @default(MEDIUM)
@@ -349,6 +383,7 @@ model WorkflowPatternTask {
   process         DesignProcessMaster    @relation(fields: [processId], references: [id])
   subProcess      DesignSubProcessMaster @relation(fields: [subProcessId], references: [id])
   defaultRole     Role                   @relation(fields: [defaultRoleId], references: [id])
+  defaultSkill    Skill?                 @relation(fields: [defaultSkillId], references: [id])
 
   @@index([workflowPatternId, sequence])
   @@map("workflow_pattern_tasks")
@@ -511,6 +546,8 @@ model DesignTask {
   subProcessId        Int        @map("sub_process_id")
   assignedEmployeeId  Int?       @map("assigned_employee_id")
   assignedRoleId      Int        @map("assigned_role_id")
+  /** Snapshot of pattern defaultSkillId for RoleId/SkillId resolution (spec §6.2). */
+  requiredSkillId     Int?       @map("required_skill_id")
   status              TaskStatus @default(PENDING)
   priority            Priority   @default(MEDIUM)
   expectedMinutes     Int        @map("expected_minutes")
@@ -533,6 +570,7 @@ model DesignTask {
   process          DesignProcessMaster    @relation(fields: [processId], references: [id])
   subProcess       DesignSubProcessMaster @relation(fields: [subProcessId], references: [id])
   assignedEmployee Employee?              @relation("AssignedEmployee", fields: [assignedEmployeeId], references: [id])
+  requiredSkill    Skill?                 @relation(fields: [requiredSkillId], references: [id], onDelete: SetNull)
   timeEvents       TaskTimeEvent[]
   corrections      DesignCorrection[]
   approvals        DesignApproval[]

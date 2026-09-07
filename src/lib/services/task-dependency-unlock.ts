@@ -1,11 +1,11 @@
-import type { Prisma } from "@prisma/client";
-import { enqueueOutboxAndNotify } from "@/lib/notifications";
-import { resolveEmployeeForRole } from "@/lib/services/assignment-service";
+import { resolveAssigneeForDesignTask } from "@/lib/services/assignment-service";
 import {
   effectiveDependencySequence,
   isDependencySatisfiedStatus,
 } from "@/lib/services/task-dependency";
 import { isProductionPostApprovalCode } from "@/lib/services/production-workflow";
+import { enqueueOutboxAndNotify } from "@/lib/notifications";
+import type { Prisma } from "@prisma/client";
 
 type UnlockFromTask = {
   id: bigint;
@@ -19,6 +19,9 @@ export type UnlockPeerCandidate = {
   id: bigint | string;
   assignedEmployeeId?: number | null;
   assignedRoleId?: number;
+  requiredSkillId?: number | null;
+  designId?: bigint;
+  subProcessId?: number;
   dependencySequence: number | null;
   sequence: number;
   status: string;
@@ -98,8 +101,11 @@ export async function unlockNextDependentTasks(
     orderBy: [{ dependencySequence: "asc" }, { sequence: "asc" }],
     select: {
       id: true,
+      designId: true,
       assignedEmployeeId: true,
       assignedRoleId: true,
+      requiredSkillId: true,
+      subProcessId: true,
       dependencySequence: true,
       sequence: true,
       status: true,
@@ -116,7 +122,16 @@ export async function unlockNextDependentTasks(
   for (const peer of peers) {
     let assigneeId = peer.assignedEmployeeId ?? null;
     if (!assigneeId && peer.assignedRoleId != null) {
-      assigneeId = await resolveEmployeeForRole(peer.assignedRoleId);
+      assigneeId = await resolveAssigneeForDesignTask(
+        {
+          assignedRoleId: peer.assignedRoleId,
+          requiredSkillId: peer.requiredSkillId,
+          designId: peer.designId ?? fromTask.designId,
+          subProcessId: peer.subProcessId ?? 0,
+          subProcessCode: peer.subProcess?.code,
+        },
+        { tx },
+      );
     }
 
     const peerId = typeof peer.id === "bigint" ? peer.id : BigInt(peer.id);

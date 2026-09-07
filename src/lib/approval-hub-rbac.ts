@@ -36,7 +36,20 @@ export function canRoleSeeReadyForSignOff(roleCode: string | null | undefined): 
   return roleCode === ROLE_CODES.DESIGN_HEAD;
 }
 
-/** @deprecated Option A removed the management decide chain — always false for product UI. */
-export function canRoleSeeManagementSignOff(_roleCode: string | null | undefined): boolean {
-  return false;
+/** Roles that participate in the Checker → Design Head → Management decide chain. */
+export function canRoleSeeManagementSignOff(roleCode: string | null | undefined): boolean {
+  if (!roleCode) return false;
+  if (roleCode === ROLE_CODES.ADMIN) return true;
+  return Object.values(MANAGEMENT_LEVEL_OWNER_ROLE).includes(roleCode);
+}
+
+/** Filter pending management-queue items to levels this role may decide. */
+export function filterManagementApprovalsForRole<
+  T extends { currentLevel: { code?: string } },
+>(roleCode: string | null | undefined, items: T[]): T[] {
+  if (!roleCode) return [];
+  if (roleCode === ROLE_CODES.ADMIN) return items;
+  return items.filter((item) =>
+    canRoleActOnManagementLevel(roleCode, item.currentLevel.code ?? ""),
+  );
 }

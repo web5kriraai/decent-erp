@@ -556,8 +556,17 @@ export async function reopenSourceCheckAfterRoutedRework(
 
   let assigneeId = sourceTask.assignedEmployeeId;
   if (!assigneeId && sourceTask.assignedRoleId) {
-    const { resolveEmployeeForRole } = await import("@/lib/services/assignment-service");
-    assigneeId = await resolveEmployeeForRole(sourceTask.assignedRoleId);
+    const { resolveAssigneeForDesignTask } = await import("@/lib/services/assignment-service");
+    assigneeId = await resolveAssigneeForDesignTask(
+      {
+        assignedRoleId: sourceTask.assignedRoleId,
+        requiredSkillId: sourceTask.requiredSkillId,
+        designId: sourceTask.designId,
+        subProcessId: sourceTask.subProcessId,
+        subProcessCode: sourceTask.subProcess.code,
+      },
+      { tx },
+    );
   }
 
   await tx.designTask.update({

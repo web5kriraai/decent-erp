@@ -175,11 +175,11 @@ export function DesignHeadDashboard() {
             <WorkbenchQueueCard
               title="Ready to approve"
               href={approvalsHubHrefForRole(roleCode, "ready")}
-              linkLabel="Approve for production"
-              emptyMessage="No designs ready to approve for production."
+              linkLabel="Request management approval"
+              emptyMessage="No designs ready for management approval."
             >
               {!summary?.readyForSignOffDesigns?.length ? (
-                <WorkbenchEmpty message="When all workflow stages finish, designs appear here for Design Head final approve." />
+                <WorkbenchEmpty message="When all workflow stages finish, designs appear here for Design Head to request management approval." />
               ) : (
                 <ul className="detail-task-list">
                   {summary.readyForSignOffDesigns.map((item) => (
@@ -202,7 +202,7 @@ export function DesignHeadDashboard() {
             emptyMessage="No handoffs waiting on you."
           >
             {!summary?.handoffTasks?.length ? (
-              <WorkbenchEmpty message="Approve for production first — handoff unlocks after Approved status." />
+              <WorkbenchEmpty message="Request management approval first — handoff unlocks after Approved status." />
             ) : (
               <ul className="detail-task-list">
                 {summary.handoffTasks.map((task) => (

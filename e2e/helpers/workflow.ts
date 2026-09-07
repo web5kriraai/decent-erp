@@ -521,14 +521,19 @@ export async function requestDesignApproval(
   return apiPostJson(page, `/api/designs/${designId}/request-approval`, {
     requesterRemark:
       options?.requesterRemark ??
-      "E2E Design Head approve for production with full package context.",
+      "E2E Design Head request management approval with full package context.",
     summaryNote: options?.summaryNote,
   });
 }
 
 export async function requestDesignApprovalIfNeeded(page: Page, designId: string) {
   const design = await getDesign(page, designId);
-  if (design.status === "APPROVED" || design.status === "PRODUCTION_RELEASED" || design.status === "LIVE") {
+  if (
+    design.status === "APPROVED" ||
+    design.status === "APPROVAL_PENDING" ||
+    design.status === "PRODUCTION_RELEASED" ||
+    design.status === "LIVE"
+  ) {
     return design;
   }
   await login(page, USERS.designHead.email, USERS.designHead.password);
@@ -555,9 +560,29 @@ export async function submitApprovalAtLevel(
   });
 }
 
+/** Design Head request → Checker → Design Head → Management decide chain (spec Stage 9). */
 export async function submitManagementApprovals(page: Page, designId: string) {
-  // Option A: Design Head Request Sign-off is the final approve (no level chain).
   await requestDesignApprovalIfNeeded(page, designId);
+
+  let design = await getDesign(page, designId);
+  if (
+    design.status === "APPROVED" ||
+    design.status === "PRODUCTION_RELEASED" ||
+    design.status === "LIVE"
+  ) {
+    return;
+  }
+
+  await login(page, USERS.admin.email, USERS.admin.password);
+  const levels = await apiGetJson<ApprovalLevelRow[]>(page, "/api/approvals?view=levels");
+  const ordered = [...levels].sort((a, b) => a.sequence - b.sequence);
+
+  for (const level of ordered) {
+    design = await getDesign(page, designId);
+    if (design.status === "APPROVED" || design.status === "REJECTED") break;
+    if (design.status !== "APPROVAL_PENDING") break;
+    await submitApprovalAtLevel(page, designId, level, "APPROVED");
+  }
 }
 
 export async function bypassDesignToPhase(

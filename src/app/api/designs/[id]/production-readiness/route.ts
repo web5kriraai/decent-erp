@@ -1,6 +1,9 @@
 import { withApiHandler, jsonOk } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
-import { validateProductionReleaseReadiness } from "@/lib/services/production-release-readiness";
+import {
+  healDesignApprovedForRelease,
+  validateProductionReleaseReadiness,
+} from "@/lib/services/production-release-readiness";
 import { getFloorErpProgress } from "@/lib/services/erp-stage-service";
 
 export async function GET(
@@ -11,8 +14,11 @@ export async function GET(
   return withApiHandler(
     [PERMISSIONS.COST_VIEW, PERMISSIONS.PRODUCTION_RELEASE, PERMISSIONS.TASK_EXECUTE],
     async (ctx) => {
-      const readiness = await validateProductionReleaseReadiness(BigInt(id));
-      const floor = await getFloorErpProgress(BigInt(id));
+      const designId = BigInt(id);
+      // Promote APPROVAL_PENDING→APPROVED only when Stage 9 decide + checklist are green.
+      await healDesignApprovedForRelease(designId);
+      const readiness = await validateProductionReleaseReadiness(designId);
+      const floor = await getFloorErpProgress(designId);
       const missing = [
         ...readiness.missing,
         ...floor.missing.map((m) => `Floor ERP · ${m}`),

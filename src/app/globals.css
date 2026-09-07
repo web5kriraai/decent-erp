@@ -3077,6 +3077,209 @@ a.sidebar-link--active:hover {
   min-width: 0;
 }
 
+/* ---- Task quality context ---- */
+
+.task-quality-grid,
+.handoff-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 0.75rem;
+}
+
+.task-quality-tile,
+.handoff-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--muted) 40%, var(--card));
+  padding: 0.75rem 0.85rem;
+}
+
+.task-quality-tile-label,
+.handoff-tile-label {
+  font-size: var(--font-size-caption);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-neutral-500);
+}
+
+.task-quality-tile-value,
+.handoff-tile-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-height: 1.5rem;
+}
+
+.task-quality-tile-count {
+  font-size: 1.25rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+.task-quality-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ---- Action handoff banner ---- */
+
+.action-handoff-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--muted) 28%, var(--card));
+  padding: 0.9rem 1rem;
+}
+
+.action-handoff-banner--dense {
+  gap: 0.7rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.handoff-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.handoff-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+}
+
+.handoff-idea {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+.handoff-stage {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--foreground);
+}
+
+.handoff-meta,
+.handoff-description {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  line-height: 1.45;
+  color: var(--color-neutral-500);
+}
+
+.handoff-description {
+  color: color-mix(in srgb, var(--foreground) 88%, transparent);
+}
+
+.handoff-tile--accent {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+}
+
+.handoff-tile--wide {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 720px) {
+  .handoff-tile--wide {
+    grid-column: span 2;
+  }
+}
+
+.handoff-tile-text {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 550;
+  line-height: 1.35;
+  color: var(--foreground);
+}
+
+.handoff-metric-value {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+.handoff-metric-sub {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+.handoff-prior {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.handoff-prior-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+}
+
+.handoff-prior-name {
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--foreground);
+}
+
+.handoff-prior-meta {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+.handoff-prior-remark {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--foreground) 90%, transparent);
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.handoff-blockers {
+  list-style: none;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 35%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--card));
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: var(--font-size-caption);
+  color: var(--color-warning-foreground, #78350f);
+}
+
 /* ---- Detail lists ---- */
 
 .detail-list {

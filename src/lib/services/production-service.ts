@@ -14,6 +14,7 @@ import {
   PRODUCTION_DESK_LADDER_CODES,
 } from "@/lib/services/production-desk-snapshot";
 import {
+  healDesignApprovedForRelease,
   validateProductionReleaseReadiness,
 } from "@/lib/services/production-release-readiness";
 import { formatProductionReleaseMissing } from "@/lib/services/production-workflow";
@@ -134,26 +135,9 @@ export async function releaseToProduction(
       return { design, newlyReleased: false as const };
     }
 
-    // Heal: management chain finished but design still APPROVAL_PENDING (bypass / race).
-    if (design.status === "APPROVAL_PENDING") {
-      const levels = await tx.approvalLevel.findMany({
-        where: { active: true },
-        select: { id: true },
-      });
-      if (levels.length > 0) {
-        const approvals = await tx.designApproval.findMany({
-          where: { designId, decision: { in: ["APPROVED", "SKIPPED"] } },
-          select: { approvalLevelId: true },
-        });
-        const passed = new Set(approvals.map((a) => a.approvalLevelId));
-        if (levels.every((l) => passed.has(l.id))) {
-          await tx.designConcept.update({
-            where: { id: designId },
-            data: { status: "APPROVED" },
-          });
-          design.status = "APPROVED";
-        }
-      }
+    const healed = await healDesignApprovedForRelease(designId, tx);
+    if (healed.healed) {
+      design.status = "APPROVED";
     }
 
     if (design.status !== "APPROVED" && design.status !== "PRODUCTION_ACCEPTED") {

@@ -127,7 +127,7 @@ const TEXTILE_END_COPY: Partial<
   PROD_RELEASE: {
     description: "",
     remarkLabel: "Release note",
-    remarkPlaceholder: "Optional note…",
+    remarkPlaceholder: "Note for production / ERP…",
     nextStepHint: "",
     priorContextSlots: ["remark", "files"],
   },

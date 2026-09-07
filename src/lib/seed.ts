@@ -184,10 +184,58 @@ export async function seedDatabase() {
     });
   }
 
+  // Spec §6.2 — skill master + employee skill links for RoleId/SkillId resolution.
+  const skillDefs = [
+    { code: "SKETCH", name: "Sketch Design", role: ROLE_CODES.SKETCH_DESIGNER },
+    { code: "PUNCH", name: "Embroidery Punching", role: ROLE_CODES.PUNCHING_DESIGNER },
+    { code: "MACHINE_SAMPLE", name: "Machine Sample Operation", role: ROLE_CODES.MACHINE_OPERATOR },
+    { code: "SAMPLE_CHECK", name: "Sample Quality Check", role: ROLE_CODES.SAMPLE_CHECKER },
+    { code: "COSTING", name: "Development Costing", role: ROLE_CODES.COSTING_TEAM },
+    { code: "DESIGN_LEAD", name: "Design Leadership", role: ROLE_CODES.DESIGN_HEAD },
+    { code: "PRODUCTION_LEAD", name: "Production Leadership", role: ROLE_CODES.PRODUCTION_HEAD },
+    { code: "MANAGEMENT", name: "Management Oversight", role: ROLE_CODES.MANAGEMENT },
+  ] as const;
+
+  const skillByCode: Record<string, number> = {};
+  for (const skill of skillDefs) {
+    const roleId = roles[skill.role]?.id;
+    const row = await prisma.skill.upsert({
+      where: { code: skill.code },
+      update: { name: skill.name, defaultRoleId: roleId ?? null, active: true },
+      create: {
+        code: skill.code,
+        name: skill.name,
+        defaultRoleId: roleId ?? null,
+      },
+    });
+    skillByCode[skill.code] = row.id;
+  }
+
+  const skillEmailMap: Record<string, string> = {
+    "sketch@decent-erp.local": "SKETCH",
+    "punch@decent-erp.local": "PUNCH",
+    "machine@decent-erp.local": "MACHINE_SAMPLE",
+    "checker@decent-erp.local": "SAMPLE_CHECK",
+    "costing@decent-erp.local": "COSTING",
+    "designhead@decent-erp.local": "DESIGN_LEAD",
+    "production@decent-erp.local": "PRODUCTION_LEAD",
+    "management@decent-erp.local": "MANAGEMENT",
+  };
+  for (const [email, skillCode] of Object.entries(skillEmailMap)) {
+    const emp = await prisma.employee.findUnique({ where: { email } });
+    const skillId = skillByCode[skillCode];
+    if (!emp || !skillId) continue;
+    await prisma.employeeSkill.upsert({
+      where: { employeeId_skillId: { employeeId: emp.id, skillId } },
+      update: { active: true, proficiency: 3 },
+      create: { employeeId: emp.id, skillId, proficiency: 3 },
+    });
+  }
+
   const sareeType = await prisma.productType.findUniqueOrThrow({ where: { code: "SAREE" } });
   const festiveSeason = await prisma.season.findUniqueOrThrow({ where: { code: "FEST26" } });
-  const fullWorkflowTasks = buildStandardWorkflowTasks(roles, subIndex);
-  const eightStepTasks = buildCanonicalEightStepWorkflowTasks(roles, subIndex);
+  const fullWorkflowTasks = buildStandardWorkflowTasks(roles, subIndex, skillByCode);
+  const eightStepTasks = buildCanonicalEightStepWorkflowTasks(roles, subIndex, skillByCode);
 
   async function upsertPatternWithTasks(
     productTypeId: number,

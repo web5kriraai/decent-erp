@@ -25,6 +25,7 @@ export const queryKeys = {
     processes: ["masters", "processes"] as const,
     workflowPatterns: ["masters", "workflow-patterns"] as const,
     holdReasons: ["masters", "hold-reasons"] as const,
+    skills: ["masters", "skills"] as const,
     productTypes: ["masters", "product-types"] as const,
     productTypesAdmin: ["masters", "product-types", "all"] as const,
     seasons: ["masters", "seasons"] as const,
@@ -60,9 +61,19 @@ export const queryKeys = {
   production: {
     approved: ["production", "approved"] as const,
     released: ["production", "released"] as const,
-    handoffs: (designId?: string) => ["production", "handoffs", designId] as const,
+    /** Prefix for invalidateQueries — matches list + per-design handoff keys. */
+    handoffsRoot: ["production", "handoffs"] as const,
+    handoffs: (designId?: string) =>
+      designId
+        ? (["production", "handoffs", "design", designId] as const)
+        : (["production", "handoffs", "list"] as const),
     erpStatus: ["production", "erp-status"] as const,
-    erpStages: (designId?: string) => ["production", "erp-stages", designId] as const,
+    /** Prefix for invalidateQueries — matches list + per-design ERP stage keys. */
+    erpStagesRoot: ["production", "erp-stages"] as const,
+    erpStages: (designId?: string) =>
+      designId
+        ? (["production", "erp-stages", "design", designId] as const)
+        : (["production", "erp-stages", "list"] as const),
     inbox: ["production", "inbox"] as const,
     returnOptions: (designId: string) => ["production", "return-options", designId] as const,
   },

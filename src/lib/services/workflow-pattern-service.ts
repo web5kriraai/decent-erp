@@ -8,6 +8,7 @@ export type WorkflowPatternTaskInput = {
   processId: number;
   subProcessId: number;
   defaultRoleId: number;
+  defaultSkillId?: number | null;
   expectedMinutes: number;
   sequence: number;
   dayOffset?: number;
@@ -182,6 +183,7 @@ export async function createWorkflowPattern(
             processId: task.processId,
             subProcessId: task.subProcessId,
             defaultRoleId: task.defaultRoleId,
+            defaultSkillId: task.defaultSkillId ?? null,
             expectedMinutes: task.expectedMinutes,
             sequence: task.sequence,
             dayOffset: task.dayOffset ?? 0,
@@ -197,6 +199,7 @@ export async function createWorkflowPattern(
             process: { select: { id: true, code: true, name: true } },
             subProcess: { select: { id: true, code: true, name: true } },
             defaultRole: { select: { id: true, code: true, name: true } },
+            defaultSkill: { select: { id: true, code: true, name: true } },
           },
         },
         productType: { select: { id: true, code: true, name: true } },
@@ -240,6 +243,7 @@ export async function updateWorkflowPatternTasks(
         processId: task.processId,
         subProcessId: task.subProcessId,
         defaultRoleId: task.defaultRoleId,
+        defaultSkillId: task.defaultSkillId ?? null,
         expectedMinutes: task.expectedMinutes,
         sequence: task.sequence,
         dayOffset: task.dayOffset ?? 0,
@@ -257,6 +261,7 @@ export async function updateWorkflowPatternTasks(
             process: { select: { id: true, code: true, name: true } },
             subProcess: { select: { id: true, code: true, name: true } },
             defaultRole: { select: { id: true, code: true, name: true } },
+            defaultSkill: { select: { id: true, code: true, name: true } },
           },
         },
         productType: { select: { id: true, code: true, name: true } },
@@ -341,6 +346,7 @@ export async function cloneWorkflowPattern(
             processId: task.processId,
             subProcessId: task.subProcessId,
             defaultRoleId: task.defaultRoleId,
+            defaultSkillId: task.defaultSkillId ?? null,
             expectedMinutes: task.expectedMinutes,
             sequence: task.sequence,
             dayOffset: task.dayOffset,
@@ -356,6 +362,7 @@ export async function cloneWorkflowPattern(
             process: { select: { id: true, code: true, name: true } },
             subProcess: { select: { id: true, code: true, name: true } },
             defaultRole: { select: { id: true, code: true, name: true } },
+            defaultSkill: { select: { id: true, code: true, name: true } },
           },
         },
         productType: { select: { id: true, code: true, name: true } },

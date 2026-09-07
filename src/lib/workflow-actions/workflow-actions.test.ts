@@ -397,15 +397,14 @@ describe("workflow-actions resolve", () => {
     ).toBeUndefined();
   });
 
-  it("does not expose management decide actions (Option A)", () => {
+  it("exposes management decide action when approval context is present", () => {
     const actions = resolveApprovalContextActions({
       permissions: [PERMISSIONS.DESIGN_APPROVE],
       roleCode: "MANAGEMENT",
       canAccessHub: true,
       approval: { designId: "1", costingReady: false },
     });
-    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL)).toBeUndefined();
-    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL)).toBeUndefined();
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL)?.enabled).toBe(true);
     expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE)?.enabled).toBe(
       true,
     );

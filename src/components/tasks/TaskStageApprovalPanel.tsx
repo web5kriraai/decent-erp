@@ -55,7 +55,7 @@ function nextStepHintForApproval(code: string): string {
     case "LIVE_REVIEW":
       return "Design goes live";
     case "FINAL_APPROVAL":
-      return "Ready to approve for production";
+      return "Ready to request management approval";
     default:
       return "Opens the next stage";
   }

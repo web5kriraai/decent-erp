@@ -243,7 +243,7 @@ describe("design workflow actions", () => {
       approvalsQueueHref: "/quality/approvals",
     });
 
-    expect(actions.some((a) => a.label === "Approve for production")).toBe(false);
+    expect(actions.some((a) => a.label === "Request management approval")).toBe(false);
   });
 
   it("shows request final approval only when no open stage actions remain", () => {
@@ -261,7 +261,7 @@ describe("design workflow actions", () => {
       approvalsQueueHref: "/quality/approvals",
     });
 
-    expect(actions.some((a) => a.label === "Approve for production")).toBe(true);
+    expect(actions.some((a) => a.label === "Request management approval")).toBe(true);
     const request = actions.find((a) => a.kind === "request_approval");
     expect(request?.href).toBe(`/quality/approvals/request-sign-off/${completedDesign.id}`);
   });

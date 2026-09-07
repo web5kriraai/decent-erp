@@ -65,7 +65,7 @@ export const PAGE_META = {
   },
   requestSignOff: {
     title: "Request Sign-off",
-    description: "Approve for production",
+    description: "Request management approval",
   },
   costing: {
     title: "Costing",

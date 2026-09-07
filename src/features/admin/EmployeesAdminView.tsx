@@ -282,27 +282,51 @@ function EmployeeFormModal({
   onSubmit,
   submitLabel,
 }: EmployeeFormModalProps) {
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+
+  const fieldErrors = {
+    roleCode: !form.roleCode ? "Role is required" : undefined,
+    name:
+      form.name.trim().length < 2 ? "Full name must be at least 2 characters" : undefined,
+    email: !form.email.trim() ? "Email is required" : undefined,
+    password:
+      requirePassword && form.password.length < 8
+        ? "Password must be at least 8 characters"
+        : undefined,
+  };
+
   const canSubmit =
-    form.name.trim().length >= 2 &&
-    form.email.trim().length > 0 &&
-    form.roleCode &&
-    (requirePassword ? form.password.length >= 8 : true);
+    !fieldErrors.roleCode &&
+    !fieldErrors.name &&
+    !fieldErrors.email &&
+    !fieldErrors.password;
+
+  function handleSubmit() {
+    setAttemptedSubmit(true);
+    if (!canSubmit || isPending) return;
+    onSubmit();
+  }
+
+  function handleClose() {
+    setAttemptedSubmit(false);
+    onClose();
+  }
 
   return (
     <Modal
       open={open}
       title={title}
-      onClose={onClose}
+      onClose={handleClose}
       size="lg"
       footer={
         <ModalFooterActions>
-          <AppButton type="button" appVariant="outline" onClick={onClose}>
+          <AppButton type="button" appVariant="outline" onClick={handleClose}>
             Cancel
           </AppButton>
           <AppButton
             type="button"
-            disabled={!canSubmit || isPending}
-            onClick={onSubmit}
+            disabled={isPending}
+            onClick={handleSubmit}
           >
             {isPending ? "Saving…" : submitLabel}
           </AppButton>
@@ -320,6 +344,7 @@ function EmployeeFormModal({
             value: role.code,
             label: role.displayName,
           }))}
+          error={attemptedSubmit ? fieldErrors.roleCode : undefined}
         />
 
         <FormTextField
@@ -329,6 +354,7 @@ function EmployeeFormModal({
           value={form.name}
           onChange={(e) => onChange({ ...form, name: e.target.value })}
           placeholder="Employee name"
+          error={attemptedSubmit ? fieldErrors.name : undefined}
         />
 
         <FormTextField
@@ -339,6 +365,7 @@ function EmployeeFormModal({
           value={form.email}
           onChange={(e) => onChange({ ...form, email: e.target.value })}
           placeholder="name@decent-erp.local"
+          error={attemptedSubmit ? fieldErrors.email : undefined}
         />
 
         <FormTextField
@@ -351,6 +378,7 @@ function EmployeeFormModal({
           placeholder={requirePassword ? "Minimum 8 characters" : "Leave blank to keep current"}
           autoComplete="new-password"
           hint={!requirePassword ? "Role changes from this form also apply on next login." : undefined}
+          error={attemptedSubmit ? fieldErrors.password : undefined}
         />
 
         {showActiveToggle && (

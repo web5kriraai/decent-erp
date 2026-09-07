@@ -143,8 +143,9 @@ export function resolveDesignContextActions(input: {
       actions.push(
         buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL, {
           enabled: true,
-          label: "Approve for production",
-          description: "Submit the package to approve this design and unlock production handoff.",
+          label: "Request management approval",
+          description:
+            "Submit the package for Checker → Design Head → Management decide before production unlocks.",
           designId: design.id,
           href: ROUTES.quality.requestSignOff(design.id),
         }),
@@ -320,9 +321,16 @@ export function resolveApprovalContextActions(input: {
     );
   }
 
-  // Option A: level decide actions removed — Design Head uses Request Sign-off → APPROVED.
-  void input.approval;
-  void canApprove;
+  // Management decide actions are available via Approvals hub (Checker → DH → Management).
+  if (canApprove && input.approval) {
+    actions.push(
+      buildAction(WORKFLOW_ACTION_CODES.APPROVE_LEVEL, {
+        enabled: true,
+        designId: input.approval.designId,
+        href: ROUTES.quality.approvals + "?tab=management",
+      }),
+    );
+  }
   return actions;
 }
 
