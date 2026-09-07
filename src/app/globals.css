@@ -5,12 +5,12 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ==========================================================================
-   Decent ERP — Decent Technologies light brand (standard enterprise)
-   See DESIGN.md — navy primary; light sidebar; logo only on black (#000) plate
+   Decent ERP - Decent Technologies light brand (standard enterprise)
+   See DESIGN.md - navy primary; light sidebar; logo only on black (#000) plate
    ========================================================================== */
 
 :root {
-  /* Brand — navy primary (enterprise standard); crimson = accent only */
+  /* Brand - navy primary (enterprise standard); crimson = accent only */
   --color-primary: #172747;
   --color-primary-hover: #243a5c;
   --color-primary-light: #e8ecf2;
@@ -24,7 +24,7 @@
   /*
    * Surfaces:
    * - sidebar = white (light chrome)
-   * - logo assets are transparent PNGs — do not wrap in black boxes on sidebar
+   * - logo assets are transparent PNGs - do not wrap in black boxes on sidebar
    */
   --color-sidebar-bg: #ffffff;
   --color-logo-plate: #000000; /* login/favicons only when a dark plate is needed */
@@ -35,7 +35,7 @@
   --kanban-column-width: 18.75rem;
   --kanban-board-gap: 1rem;
 
-  /* Semantic — crimson family reserved for danger / accent, not CTAs */
+  /* Semantic - crimson family reserved for danger / accent, not CTAs */
   --color-success: #1b6e3a;
   --color-success-bg: #e8f5ec;
   --color-warning: #9a6700;
@@ -45,7 +45,7 @@
   --color-info: #026aa7;
   --color-info-bg: #e8f4fc;
 
-  /* Neutrals — ink aligns with logo navy */
+  /* Neutrals - ink aligns with logo navy */
   --color-neutral-900: #172747;
   --color-neutral-700: #334155;
   --color-neutral-600: #475569;
@@ -58,7 +58,7 @@
   --color-border: #dce3ec;
   --color-border-strong: #b8c4d4;
 
-  /* Layout — rem-based for zoom/accessibility */
+  /* Layout - rem-based for zoom/accessibility */
   --sidebar-width: 16.25rem; /* 260px */
   --sidebar-width-collapsed: 4.5rem;
   --sidebar-collapsed-width: 4.5rem;
@@ -69,7 +69,7 @@
   --topbar-search-max: min(36rem, 100%);
   --touch-min: 2.75rem; /* 44px touch target */
 
-  /* Fluid typography — scales phone → large desktop */
+  /* Fluid typography - scales phone → large desktop */
   --font-family-base: Inter, Roboto, system-ui, sans-serif;
   --font-family-mono: ui-monospace, "Cascadia Code", monospace;
   --font-size-h1: clamp(1.25rem, 1.1rem + 0.6vw, 1.75rem);
@@ -99,7 +99,7 @@
   --card-foreground: var(--color-neutral-900);
   --popover: #ffffff;
   --popover-foreground: var(--color-neutral-900);
-  /* Concrete values — must not reference --color-* or @theme mapping cycles */
+  /* Concrete values - must not reference --color-* or @theme mapping cycles */
   --primary: #172747;
   --primary-foreground: #ffffff;
   --secondary: #e8ecf2;
@@ -275,7 +275,7 @@ h3 {
 
 /* ---- Layout ---- */
 
-/* Scrollable region — mouse wheel works; scrollbar hidden */
+/* Scrollable region - mouse wheel works; scrollbar hidden */
 .scroll-region {
   overflow-y: auto;
   overflow-x: hidden;
@@ -337,7 +337,7 @@ h3 {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  min-width: 0; /* allow flex child to shrink — prevents page overflow */
+  min-width: 0; /* allow flex child to shrink - prevents page overflow */
   min-height: 0;
   height: 100%;
   max-height: 100%;
@@ -366,12 +366,31 @@ h3 {
 .page-shell,
 .page-shell--wide,
 .page-shell--narrow {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   width: 100%;
   max-width: 100%;
   margin: 0;
   padding: var(--content-padding);
   min-width: 0;
   box-sizing: border-box;
+}
+
+/* Page shell owns vertical rhythm — avoid double spacing from section margins. */
+.page-shell > .stack-section,
+.page-shell > .stack-section-sm,
+.page-shell--wide > .stack-section,
+.page-shell--wide > .stack-section-sm,
+.page-shell--narrow > .stack-section,
+.page-shell--narrow > .stack-section-sm {
+  margin-bottom: 0;
+}
+
+.page-shell > .page-header,
+.page-shell--wide > .page-header,
+.page-shell--narrow > .page-header {
+  margin-bottom: 0;
 }
 
 /* Phone-first refinements */
@@ -467,6 +486,26 @@ h3 {
   margin-bottom: 0;
 }
 
+/**
+ * Vertical flex stack with real gap. Prefer this over `.stack-section` + inline `gap`
+ * (stack-section is margin-only and does not establish a flex formatting context).
+ */
+.vstack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vstack-gap, 0.75rem);
+  width: 100%;
+  min-width: 0;
+}
+
+.vstack--tight {
+  --vstack-gap: 0.5rem;
+}
+
+.vstack--loose {
+  --vstack-gap: 1rem;
+}
+
 .text-caption-muted {
   font-size: var(--font-size-caption);
   color: var(--color-neutral-500);
@@ -539,7 +578,7 @@ h3 {
   width: 100%;
 }
 
-/* Multi-section form layouts — use width before stacking */
+/* Multi-section form layouts - use width before stacking */
 .form-layout {
   display: grid;
   gap: 1rem;
@@ -549,6 +588,7 @@ h3 {
 .form-layout--split {
   grid-template-columns: 1fr;
   align-items: start;
+  gap: 1rem;
 }
 
 @media (min-width: 1100px) {
@@ -602,7 +642,7 @@ h3 {
   max-width: 100%;
 }
 
-/* ---- Cards (legacy fallback — prefer AppCard / shadcn Card) ---- */
+/* ---- Cards (legacy fallback - prefer AppCard / shadcn Card) ---- */
 
 .card {
   background: var(--card);
@@ -641,7 +681,7 @@ h3 {
   color: var(--color-primary-dark);
 }
 
-/* ---- Buttons (legacy fallback — prefer AppButton / shadcn Button) ---- */
+/* ---- Buttons (legacy fallback - prefer AppButton / shadcn Button) ---- */
 
 /* Pointer on all clickable buttons (overrides Tailwind base reset) */
 button:not(:disabled),
@@ -794,7 +834,7 @@ a.btn-warning:hover {
 }
 
 /*
- * CTA / button-styled anchors — readable at rest, theme-aligned with .btn-*.
+ * CTA / button-styled anchors - readable at rest, theme-aligned with .btn-*.
  * Document `a { color }` must never paint brand-blue labels on brand-blue fills.
  * Unlayered so these win over @layer base link styles.
  */
@@ -821,7 +861,7 @@ a.btn-warning:hover {
   text-decoration: none;
 }
 
-/* Primary CTA — white on brand blue (AppButton / Quick actions / workflow) */
+/* Primary CTA - white on brand blue (AppButton / Quick actions / workflow) */
 a[data-slot="button"][data-app-variant="primary"],
 button[data-slot="button"][data-app-variant="primary"] {
   background-color: var(--primary);
@@ -836,7 +876,7 @@ button[data-slot="button"][data-app-variant="primary"]:hover:not(:disabled) {
   border-color: var(--color-primary-hover);
 }
 
-/* Secondary CTA — brand on tinted fill */
+/* Secondary CTA - brand on tinted fill */
 a[data-slot="button"][data-app-variant="secondary"],
 button[data-slot="button"][data-app-variant="secondary"] {
   background-color: var(--color-primary-light);
@@ -985,7 +1025,7 @@ button[data-slot="button"][data-app-variant="warning"]:hover:not(:disabled) {
   box-shadow: none;
 }
 
-/* Full-bleed tables inside cards — no top/bottom gap on every page */
+/* Full-bleed tables inside cards - no top/bottom gap on every page */
 [data-slot="card"]:has(.app-table-wrap),
 [data-slot="card"]:has(.data-table-wrap) {
   gap: 0;
@@ -1110,6 +1150,57 @@ button[data-slot="button"][data-app-variant="warning"]:hover:not(:disabled) {
 .data-table-actions {
   text-align: right;
   white-space: nowrap;
+}
+
+/* ---- Pagination ---- */
+
+.pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-neutral-50) 80%, var(--card));
+  font-size: var(--font-size-caption, 0.8125rem);
+  color: var(--color-neutral-700);
+}
+
+.pagination-bar__summary {
+  margin: 0;
+}
+
+.pagination-bar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pagination-bar__pages {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pagination-bar__page-label {
+  min-width: 6.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-neutral-600);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .table-icon-actions,
@@ -1237,7 +1328,7 @@ button[data-slot="button"][data-app-variant="warning"]:hover:not(:disabled) {
   color: var(--color-neutral-500);
 }
 
-/* Semantic left-rail only — base fill/border/type stay identical */
+/* Semantic left-rail only - base fill/border/type stay identical */
 .stat-card--accent {
   border-left-color: var(--primary);
 }
@@ -1625,7 +1716,7 @@ button.sidebar-brand-mark:hover {
   outline-offset: 2px;
 }
 
-/* legacy full-bleed logo link — unused */
+/* legacy full-bleed logo link - unused */
 .sidebar-brand-logo-link {
   display: none;
 }
@@ -1842,7 +1933,7 @@ a.sidebar-link--active:hover {
     display: none;
   }
 
-  /* Force hamburger visible — beats Tailwind utility display */
+  /* Force hamburger visible - beats Tailwind utility display */
   .topbar-menu-btn {
     display: inline-flex !important;
     width: 2.75rem !important;
@@ -3446,7 +3537,7 @@ a.sidebar-link--active:hover {
   color: var(--color-neutral-700);
 }
 
-/* ---- Nav chips (Quick actions) + Tabs — one inactive / one active ---- */
+/* ---- Nav chips (Quick actions) + Tabs - one inactive / one active ---- */
 
 .nav-chip-row {
   display: flex;
@@ -3501,7 +3592,7 @@ a.sidebar-link--active:hover {
   outline-offset: 2px;
 }
 
-/* Active / selected — identical everywhere */
+/* Active / selected - identical everywhere */
 [data-slot="button"][data-app-surface="nav-chip"][data-active="true"],
 [data-slot="button"][data-app-surface="nav-chip"][aria-current="page"],
 [data-slot="tabs-trigger"][data-active],
@@ -4544,16 +4635,21 @@ a.sidebar-link--active:hover {
 }
 
 .file-uploader {
-  border: 1px dashed var(--color-neutral-300);
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 2px dashed var(--color-neutral-300);
   border-radius: var(--radius-md);
   padding: 1.25rem;
   text-align: center;
-  background: var(--color-neutral-50);
+  background: color-mix(in srgb, var(--color-primary-light) 35%, var(--card));
+  margin: 0;
+  cursor: pointer;
 }
 
 .file-uploader--drag {
   border-color: var(--color-primary);
-  background: var(--color-primary-light);
+  background: color-mix(in srgb, var(--color-primary-light) 80%, var(--card));
 }
 
 .image-gallery {
@@ -4684,7 +4780,7 @@ a.sidebar-link--active:hover {
   }
 
   /*
-   * Document links only — exclude button CTAs, legacy .btn, and chrome links
+   * Document links only - exclude button CTAs, legacy .btn, and chrome links
    * so brand link color cannot wash out primary button labels.
    */
   a:not([data-slot="button"]):not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-ghost):not(.btn-danger):not(.btn-outline):not(.btn-warning):not(.sidebar-link):not(.sidebar-brand-link):not(.sidebar-brand-logo-link):not(.sidebar-brand-mark) {
@@ -5487,6 +5583,14 @@ a.sidebar-link--active:hover {
   background: var(--card);
 }
 
+.production-desk-erp-hint {
+  max-width: 18rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  line-height: 1.25;
+}
+
 .production-desk-erp-link {
   font-size: 0.8125rem;
   font-weight: 550;
@@ -5496,6 +5600,40 @@ a.sidebar-link--active:hover {
 
 .production-desk-erp-link:hover {
   text-decoration: underline;
+}
+
+.design-kanban-header-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.design-kanban-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.erp-golive-callout {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--color-warning, #b45309) 35%, var(--border));
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, #fef3c7 65%, var(--card));
+}
+
+.erp-golive-callout__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.erp-golive-callout__list {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  line-height: 1.45;
 }
 
 .production-desk-flow {

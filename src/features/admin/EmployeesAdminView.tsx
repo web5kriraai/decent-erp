@@ -216,12 +216,6 @@ export function EmployeesAdminView() {
               </AppButton>
             }
           />
-
-          <p className="role-admin-note">
-            New users sign in with their email and the password you set. Role and permission changes
-            apply on their next login. Your own System Admin account cannot be deactivated or
-            demoted.
-          </p>
         </AppCard>
       </QueryState>
 

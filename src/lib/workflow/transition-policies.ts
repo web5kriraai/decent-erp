@@ -1,5 +1,5 @@
 /**
- * Transition Policy Registry — single source of truth for cross-stage data gates.
+ * Transition Policy Registry - single source of truth for cross-stage data gates.
  *
  * Flow = which DesignTasks exist (pattern). Behavior = StageCapabilities.
  * This module evaluates whether present, active capability-bearing stages

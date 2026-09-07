@@ -71,7 +71,7 @@ export function getTaskHoldDialogConfig(task: TaskDialogTask): HoldDialogConfig 
   };
 }
 
-/** Optional textile-specific copy overlays (UX from handoff plan — not behavior switches). */
+/** Optional textile-specific copy overlays (UX from handoff plan - not behavior switches). */
 const TEXTILE_END_COPY: Partial<
   Record<
     string,

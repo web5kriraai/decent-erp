@@ -1,7 +1,7 @@
 import { permissionDeniedMessage } from "@/lib/user-messages";
 
 /**
- * Application error codes — safe to expose to clients.
+ * Application error codes - safe to expose to clients.
  * Technical details go in server logs only (via correlationId).
  */
 export const APP_ERROR_CODES = {
@@ -20,6 +20,7 @@ export const APP_ERROR_CODES = {
   WORKDAY_CLOSED: "WORKDAY_CLOSED",
 
   REQUIRED_FILE_MISSING: "REQUIRED_FILE_MISSING",
+  PRIMARY_IMAGE_REQUIRED: "PRIMARY_IMAGE_REQUIRED",
   CHECKLIST_INCOMPLETE: "CHECKLIST_INCOMPLETE",
   SAMPLE_OUTCOME_REQUIRED: "SAMPLE_OUTCOME_REQUIRED",
 
@@ -51,7 +52,7 @@ export const APP_ERROR_MESSAGES: Record<AppErrorCode, string> = {
   NOT_FOUND: "We couldn't find that item. It may have been removed or moved.",
   CONCURRENCY_CONFLICT:
     "Someone else updated this just now. Refresh the page, check the latest status, and try again.",
-  INTERNAL_ERROR: "Something went wrong on our side. Nothing was saved — please try once more.",
+  INTERNAL_ERROR: "Something went wrong on our side. Nothing was saved - please try once more.",
 
   TASK_NOT_FOUND: "That task isn't in the system anymore.",
   TASK_NOT_ASSIGNED: "This task isn't assigned to you.",
@@ -61,6 +62,8 @@ export const APP_ERROR_MESSAGES: Record<AppErrorCode, string> = {
   WORKDAY_CLOSED: "Your workday is closed. You can start task time again on the next workday.",
 
   REQUIRED_FILE_MISSING: "Please upload the required file before you submit.",
+  PRIMARY_IMAGE_REQUIRED:
+    "Upload at least one design image and mark it as primary before starting workflow tasks.",
   CHECKLIST_INCOMPLETE: "Please tick all required checklist items before you submit.",
   SAMPLE_OUTCOME_REQUIRED: "Choose Approve, Reject, or Re-sample before submitting.",
 
@@ -82,7 +85,7 @@ export const APP_ERROR_MESSAGES: Record<AppErrorCode, string> = {
 
   WORKFLOW_OVERRIDE_DENIED: "Workflow override isn't enabled for your role on this design.",
   WORKFLOW_TARGET_INVALID: "That phase isn't valid for this workflow action.",
-  WORKFLOW_DESIGN_CLOSED: "This design is closed — it can't be moved to another phase.",
+  WORKFLOW_DESIGN_CLOSED: "This design is closed - it can't be moved to another phase.",
   WORKFLOW_BYPASS_BLOCKED: "That phase can't be reached yet because earlier work is still open.",
 };
 
@@ -100,6 +103,7 @@ export function inferCodeFromMessage(message: string, status: number): AppErrorC
   if (status === 409 && m.includes("workday")) return APP_ERROR_CODES.WORKDAY_CLOSED;
   if (m.includes("cannot start") && m.includes("prior")) return APP_ERROR_CODES.TASK_DEPENDENCY_BLOCKED;
   if (m.includes("upload") && m.includes("file")) return APP_ERROR_CODES.REQUIRED_FILE_MISSING;
+  if (m.includes("primary") && m.includes("image")) return APP_ERROR_CODES.PRIMARY_IMAGE_REQUIRED;
   if (m.includes("production release is not available")) return APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED;
   if (m.includes("costing must be complete") || m.includes("at least one cost"))
     return APP_ERROR_CODES.COSTING_REQUIRED;
@@ -177,7 +181,7 @@ export function humanizeClientError(input: {
   } else if (input.status === 400 && code === APP_ERROR_CODES.VALIDATION_FAILED) {
     hint = "Check the highlighted fields and try again.";
   } else if (input.status >= 500) {
-    hint = "If this keeps happening, ask support — they can look up the server log.";
+    hint = "If this keeps happening, ask support - they can look up the server log.";
   }
 
   return { title, hint };

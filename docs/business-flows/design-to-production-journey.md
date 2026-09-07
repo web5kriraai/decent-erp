@@ -1,6 +1,6 @@
 # Design-to-Production Journey
 
-Non-technical end-to-end business flow for Decent ERP design operations — from creating a concept through production release and going live.
+Non-technical end-to-end business flow for Decent ERP design operations - from creating a concept through production release and going live.
 
 **Audience:** Product Managers, Designers, QA, and business stakeholders.
 
@@ -32,9 +32,9 @@ flowchart TD
   Start([Start: New design concept]) --> CreateConcept
 
   subgraph phase1 [1. Create and set up]
-    CreateConcept[Design Head creates concept — product, season, workflow pattern]
+    CreateConcept[Design Head creates concept - product, season, workflow pattern]
     CreateValid{Required details complete and valid?}
-    CreateFail[Cannot save — fix missing or invalid details]
+    CreateFail[Cannot save - fix missing or invalid details]
     PatternTasks[Stage checklist is built from the chosen pattern]
     ConceptReview[Concept review advances automatically]
     AssignSketch[Sketch is assigned to Sketch Designer]
@@ -44,19 +44,19 @@ flowchart TD
   CreateValid -->|No| CreateFail --> CreateConcept
   CreateValid -->|Yes| PatternTasks --> ConceptReview --> AssignSketch
 
-  subgraph phase2 [2. Do the work — any stage]
+  subgraph phase2 [2. Do the work - any stage]
     OpenMyWork[Assignee opens My Work]
     EmptyQueue{Any assigned work ready to start?}
-    EmptyMsg[Empty list — wait for assignment or prior stage]
+    EmptyMsg[Empty list - wait for assignment or prior stage]
     Unassigned{Is this work unassigned?}
     NeedAssign[Design Head assigns or reassigns a person]
     StartWork[Start work]
     DuringWork{Need a break or blocked?}
-    HoldWork[Put on hold — reason required]
+    HoldWork[Put on hold - reason required]
     ResumeWork[Resume work]
     EndAttempt[Try to finish]
     EndValid{Remark and required files or checklist complete?}
-    EndInvalid[Cannot finish — add missing inputs]
+    EndInvalid[Cannot finish - add missing inputs]
     Submitted[Work submitted for next stage or review]
   end
 
@@ -72,7 +72,7 @@ flowchart TD
   EndValid -->|No| EndInvalid --> EndAttempt
   EndValid -->|Yes| Submitted
 
-  subgraph phase3 [3. Stage path — main sequence]
+  subgraph phase3 [3. Stage path - main sequence]
     SketchDone[Sketch Designer completes sketch]
     SketchAppr{Design Head: approve sketch?}
     SketchReturn[Return sketch for rework]
@@ -82,9 +82,9 @@ flowchart TD
     MaterialFabric[Material and fabric issue stages complete]
     MachineSample[Machine Operator completes sample]
     SampleCheck{Sample Checker: sample outcome?}
-    SampleApprove[Approve sample — continue]
-    SampleReject[Reject — correction required]
-    SampleResample[Re-sample — machine runs again]
+    SampleApprove[Approve sample - continue]
+    SampleReject[Reject - correction required]
+    SampleResample[Re-sample - machine runs again]
     CostingStage[Costing Team enters costs and finishes costing]
     FinalStageReady[Final approval stage is ready]
   end
@@ -109,23 +109,23 @@ flowchart TD
   MaterialFabric --> LaterStages
   MachineSample --> LaterStages
 
-  subgraph phase4 [4. Corrections — anytime during quality]
+  subgraph phase4 [4. Corrections - anytime during quality]
     OpenCorrList[Someone opens Corrections]
     CorrListCheck{Any open corrections?}
-    EmptyCorr([Empty corrections list — nothing open])
+    EmptyCorr([Empty corrections list - nothing open])
     RaiseCorr[Authorized person raises a correction]
     CorrValid{Reason and route-to stage provided?}
-    CorrInvalid[Cannot raise — fix required fields]
+    CorrInvalid[Cannot raise - fix required fields]
     RouteRework[Work is sent to the chosen stage owner]
     ReworkDone[Owner fixes and completes rework]
     CorrClose{How is the correction closed?}
-    CorrDone[Marked done — pipeline can continue]
-    CorrRejected[Marked rejected — source work restored for action]
+    CorrDone[Marked done - pipeline can continue]
+    CorrRejected[Marked rejected - source work restored for action]
   end
 
   OpenCorrList --> CorrListCheck
   CorrListCheck -->|None| EmptyCorr
-  CorrListCheck -->|Yes — track or close existing| CorrClose
+  CorrListCheck -->|Yes - track or close existing| CorrClose
   CorrListCheck -->|Raise new| RaiseCorr
   RaiseCorr --> CorrValid
   CorrValid -->|No| CorrInvalid --> RaiseCorr
@@ -139,17 +139,17 @@ flowchart TD
 
   subgraph phase5 [5. Ready for sign-off and management chain]
     StagesDone{All required stages complete?}
-    NotReady[Not ready — finish open stages or costing first]
+    NotReady[Not ready - finish open stages or costing first]
     ReadyList[Design appears under Ready for sign-off]
-    EmptyApprovals([Approvals queue empty — nothing to act on])
+    EmptyApprovals([Approvals queue empty - nothing to act on])
     RequestSignOff[Design Head requests management approval]
-    ChainL1{Level 1 — Sample Checker}
-    ChainL2{Level 2 — Design Head}
-    ChainL3{Level 3 — Management}
+    ChainL1{Level 1 - Sample Checker}
+    ChainL2{Level 2 - Design Head}
+    ChainL3{Level 3 - Management}
     CostGate{Have costs been entered for this design?}
-    CostBlock[Final approve blocked — Costing Team must add costs]
-    DesignRejected([Outcome: Design rejected — journey stopped])
-    CorrFromChain[Design reopened — correction raised from sign-off]
+    CostBlock[Final approve blocked - Costing Team must add costs]
+    DesignRejected([Outcome: Design rejected - journey stopped])
+    CorrFromChain[Design reopened - correction raised from sign-off]
     FullyApproved[Design fully approved]
   end
 
@@ -175,14 +175,14 @@ flowchart TD
   subgraph phase6 [6. Production]
     Handoff[Design Head completes production handoff]
     AcceptQ{Production Head: accept handoff?}
-    ReturnClarify[Return for clarification — history kept]
+    ReturnClarify[Return for clarification - history kept]
     Instruct[Production Head writes production instruction]
     ReleaseReady{Release checklist complete?}
-    ReleaseBlock[Cannot release — complete missing items]
+    ReleaseBlock[Cannot release - complete missing items]
     Release[Release to production]
     LiveReview{Management: mark design live?}
-    ReleasedPending[Released — waiting for live confirmation]
-    Live([Outcome: Design live — journey complete])
+    ReleasedPending[Released - waiting for live confirmation]
+    Live([Outcome: Design live - journey complete])
   end
 
   FullyApproved --> Handoff --> AcceptQ
@@ -197,7 +197,7 @@ flowchart TD
     Bypass[Design Head sends to a QC phase or jumps to a phase]
     DesignHold[Design put on hold at concept level]
     DesignResume[Design resumed to active]
-    CancelClose([Outcome: Design closed — journey stopped])
+    CancelClose([Outcome: Design closed - journey stopped])
   end
 
   AssignSketch -.-> Bypass
@@ -215,13 +215,13 @@ flowchart TD
 ### How to read this diagram
 
 1. **Happy path:** Create → sketch → punch → material/fabric → sample → costing → request sign-off → three approval levels → production handoff → accept → instruction → release → live.
-2. **Loops:** Hold/resume, invalid inputs, corrections, re-sample, stage returns, and production return all send work back to an earlier step — they are not dead ends.
+2. **Loops:** Hold/resume, invalid inputs, corrections, re-sample, stage returns, and production return all send work back to an earlier step - they are not dead ends.
 3. **Terminal outcomes:**
-   - **Design live** — success
-   - **Design rejected** — stopped at management (or stage) reject
-   - **Design closed** — intentionally closed
-   - **Approvals / corrections empty** — nothing to do right now (refresh when work arrives)
-   - **Released — waiting live** — temporary; Management can still mark live
+   - **Design live** - success
+   - **Design rejected** - stopped at management (or stage) reject
+   - **Design closed** - intentionally closed
+   - **Approvals / corrections empty** - nothing to do right now (refresh when work arrives)
+   - **Released - waiting live** - temporary; Management can still mark live
 
 ---
 
@@ -253,7 +253,7 @@ Use this as an end-to-end testing checklist. Each row maps a decision or path fr
 | Finish with incomplete sample checklist when approving | Approve path blocked or notes required per checklist rules |
 | Valid finish | Work submits; next stage or review unlocks as expected |
 
-### 3. Stage path — approvals and sample outcomes
+### 3. Stage path - approvals and sample outcomes
 
 | Path / condition | What to test |
 | --- | --- |
@@ -262,9 +262,9 @@ Use this as an end-to-end testing checklist. Each row maps a decision or path fr
 | Punch approve | Material / fabric (or next) stages can proceed |
 | Punch return | Punching rework is required before continuing |
 | Material and fabric complete | Machine sample becomes ready |
-| Sample — Approve | Costing / later stages can proceed |
-| Sample — Reject | Correction path opens; design does not pretend sample passed |
-| Sample — Re-sample | Machine Operator gets sample work again; checker waits for new sample |
+| Sample - Approve | Costing / later stages can proceed |
+| Sample - Reject | Correction path opens; design does not pretend sample passed |
+| Sample - Re-sample | Machine Operator gets sample work again; checker waits for new sample |
 | Costing entry + finish | Costs visible on the design; final approval readiness can progress |
 
 ### 4. Corrections
@@ -289,7 +289,7 @@ Use this as an end-to-end testing checklist. Each row maps a decision or path fr
 | Request management approval | Design enters the sign-off chain; Level 1 (Sample Checker) can act |
 | Level 1 Approve | Advances to Design Head level |
 | Level 1 Correction required | Design reopens; correction path available; chain does not complete |
-| Level 1 Reject | Design rejected — journey stopped; no production handoff |
+| Level 1 Reject | Design rejected - journey stopped; no production handoff |
 | Level 2 Approve / Correction / Reject | Same three outcomes; approve advances to Management |
 | Level 3 Approve **without** costs | Final approve blocked; message to add costs first |
 | Level 3 Approve **with** costs | Design fully approved; production handoff becomes available |
@@ -305,8 +305,8 @@ Use this as an end-to-end testing checklist. Each row maps a decision or path fr
 | Return for clarification | Design routes back with reason; history preserved; correction/clarification path available |
 | Instruction incomplete / release checklist incomplete | Release blocked with clear missing items |
 | Valid release | Design released to production; Management live review becomes available |
-| Live review — still reviewing | Design stays released / pending live; can mark live later |
-| Mark live | Terminal success — design is live |
+| Live review - still reviewing | Design stays released / pending live; can mark live later |
+| Mark live | Terminal success - design is live |
 
 ### 7. Alternate and exception paths
 
@@ -315,7 +315,7 @@ Use this as an end-to-end testing checklist. Each row maps a decision or path fr
 | Design Head send to QC / bypass phase (authorized) | Design lands on the chosen phase; assignees can continue from there |
 | Unauthorized user attempts QC send/bypass | Action not available or blocked |
 | Design on hold → resume | Work can continue after resume |
-| Close design from applicable states | Design closed — journey stopped; no further pipeline actions |
+| Close design from applicable states | Design closed - journey stopped; no further pipeline actions |
 | Rejected design | No production handoff; optional close remains a business outcome |
 | Notifications (if enabled) | Relevant roles get notified on assignment, correction, approval request, production return |
 

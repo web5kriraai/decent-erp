@@ -111,6 +111,6 @@ export function useRequestDesignApproval() {
         "Checker → Design Head → Management must decide before production handoff unlocks.",
       );
     },
-    // Form shows the message inline — avoid a second floating error box.
+    // Form shows the message inline - avoid a second floating error box.
   });
 }

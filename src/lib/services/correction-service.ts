@@ -115,7 +115,7 @@ export async function relockLaterStagesAfterCorrection(
       tx,
       row,
       input.actorId,
-      "Correction raised — later stage re-locked",
+      "Correction raised - later stage re-locked",
     );
 
     await tx.designTask.update({
@@ -170,7 +170,7 @@ export async function createOrReopenRoutedTask(
       tx,
       existing,
       input.actorId ?? assigneeId ?? existing.assignedEmployeeId ?? 0,
-      "Correction routed — rework required",
+      "Correction routed - rework required",
     );
 
     return tx.designTask.update({
@@ -395,12 +395,15 @@ export async function updateCorrection(
       throw new ApiError("You do not have access to this correction", 403);
     }
 
-    if (input.status && input.status !== existing.status) {
+    const nextStatus = input.status
+      ? (normalizeCorrectionStatus(input.status) as CorrectionStatus)
+      : undefined;
+
+    if (nextStatus && nextStatus !== existing.status) {
       const allowed = getAllowedCorrectionStatusOptions(existing.status);
-      const nextNormalized = normalizeCorrectionStatus(input.status);
-      if (!allowed.includes(nextNormalized as (typeof allowed)[number])) {
+      if (!allowed.includes(nextStatus as (typeof allowed)[number])) {
         throw new ApiError(
-          `Cannot change correction status from ${normalizeCorrectionStatus(existing.status)} to ${nextNormalized}.`,
+          `Cannot change correction status from ${normalizeCorrectionStatus(existing.status)} to ${nextStatus}.`,
           422,
         );
       }
@@ -408,11 +411,14 @@ export async function updateCorrection(
 
     const updated = await tx.designCorrection.update({
       where: { id },
-      data: input,
+      data: {
+        ...input,
+        ...(nextStatus ? { status: nextStatus } : {}),
+      },
       include: correctionInclude,
     });
 
-    if (input.status === "DONE" && existing.status !== "DONE") {
+    if (nextStatus === "DONE" && existing.status !== "DONE") {
       const sourceTask = await tx.designTask.findUnique({
         where: { id: existing.taskId },
         include: { subProcess: { select: { code: true, isApproval: true } } },
@@ -424,7 +430,7 @@ export async function updateCorrection(
         });
         if (routed && !isRoutedReworkSatisfied(routed.status)) {
           throw new ApiError(
-            "Rework is still open. Kumar (or the routed owner) must complete the rework stage before this correction can be marked Done.",
+            "Rework is still open. The assigned employee must complete the rework stage before this correction can be marked Done.",
             422,
           );
         }
@@ -464,7 +470,7 @@ export async function updateCorrection(
       }
     }
 
-    if (input.status === "REJECTED" && existing.status !== "REJECTED") {
+    if (nextStatus === "REJECTED" && existing.status !== "REJECTED") {
       const sourceTask = await tx.designTask.findUnique({ where: { id: existing.taskId } });
       if (sourceTask && sourceTask.status === "CORRECTION_REQUIRED") {
         await tx.designTask.update({

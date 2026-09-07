@@ -40,7 +40,6 @@ import {
   Lock,
   LogOut,
   Menu,
-  Network,
   Package,
   Pause,
   PauseCircle,
@@ -75,7 +74,7 @@ export type IconProps = Omit<LucideProps, "ref"> & {
 };
 
 /**
- * Single icon surface for Decent ERP — Lucide only, shared stroke/size defaults.
+ * Single icon surface for Decent ERP - Lucide only, shared stroke/size defaults.
  * Import icons from here; do not import from `lucide-react` in feature/UI code.
  */
 function createIcon(Lucide: LucideIcon, displayName: string) {
@@ -94,12 +93,11 @@ function createIcon(Lucide: LucideIcon, displayName: string) {
   return WrappedIcon;
 }
 
-// —— Navigation / brand actions ——
+// -- Navigation / brand actions --
 export const IconDashboard = createIcon(LayoutDashboard, "IconDashboard");
 export const IconDesigns = createIcon(Boxes, "IconDesigns");
 export const IconKanban = createIcon(Kanban, "IconKanban");
 export const IconTasks = createIcon(ListTodo, "IconTasks");
-export const IconPipelineDeps = createIcon(Network, "IconPipelineDeps");
 export const IconCorrections = createIcon(AlertTriangle, "IconCorrections");
 export const IconApprovals = createIcon(ClipboardCheck, "IconApprovals");
 export const IconCosting = createIcon(IndianRupee, "IconCosting");
@@ -130,7 +128,7 @@ export const IconClose = createIcon(X, "IconClose");
 export const IconShieldCheck = createIcon(ShieldCheck, "IconShieldCheck");
 export const IconGitBranch = createIcon(GitBranch, "IconGitBranch");
 
-// —— Feedback / status ——
+// -- Feedback / status --
 export const IconAlertTriangle = createIcon(AlertTriangle, "IconAlertTriangle");
 export const IconAlertCircle = createIcon(AlertCircle, "IconAlertCircle");
 export const IconCheckCircle2 = createIcon(CheckCircle2, "IconCheckCircle2");
@@ -144,7 +142,7 @@ export const IconSkipForward = createIcon(SkipForward, "IconSkipForward");
 export const IconRotateCcw = createIcon(RotateCcw, "IconRotateCcw");
 export const IconLoader2 = createIcon(Loader2, "IconLoader2");
 
-// —— Actions / table ——
+// -- Actions / table --
 export const IconTrash2 = createIcon(Trash2, "IconTrash2");
 export const IconPencil = createIcon(Pencil, "IconPencil");
 export const IconCopy = createIcon(Copy, "IconCopy");
@@ -156,14 +154,14 @@ export const IconEye = createIcon(Eye, "IconEye");
 export const IconArrowRight = createIcon(ArrowRight, "IconArrowRight");
 export const IconRefreshCw = createIcon(RefreshCw, "IconRefreshCw");
 
-// —— Media / files ——
+// -- Media / files --
 export const IconFile = createIcon(File, "IconFile");
 export const IconFileText = createIcon(FileText, "IconFileText");
 export const IconUploadCloud = createIcon(UploadCloud, "IconUploadCloud");
 export const IconFolderOpen = createIcon(FolderOpen, "IconFolderOpen");
 export const IconPackage = createIcon(Package, "IconPackage");
 
-// —— People / domain ——
+// -- People / domain --
 export const IconUserRound = createIcon(UserRound, "IconUserRound");
 export const IconBell = createIcon(Bell, "IconBell");
 export const IconHome = createIcon(Home, "IconHome");
@@ -174,7 +172,7 @@ export const IconClipboardList = createIcon(ClipboardList, "IconClipboardList");
 export const IconClipboardCheck = createIcon(ClipboardCheck, "IconClipboardCheck");
 export const IconIndianRupee = createIcon(IndianRupee, "IconIndianRupee");
 
-// —— Timer controls ——
+// -- Timer controls --
 export const IconPlay = createIcon(Play, "IconPlay");
 export const IconPause = createIcon(Pause, "IconPause");
 export const IconSquare = createIcon(Square, "IconSquare");

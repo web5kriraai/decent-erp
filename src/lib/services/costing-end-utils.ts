@@ -1,8 +1,12 @@
 export const COST_ENTRY_TYPES = ["TIME", "MATERIAL", "MACHINE", "CORRECTION"] as const;
 export type CostType = (typeof COST_ENTRY_TYPES)[number];
 
+export const COST_CATEGORIES = ["FABRIC", "EMBROIDERY", "STITCHING", "SALARY", "OTHER"] as const;
+export type CostCategory = (typeof COST_CATEGORIES)[number];
+
 export type CostEntryInput = {
   costType: CostType;
+  costCategory?: CostCategory | null;
   description?: string;
   amount: number;
 };

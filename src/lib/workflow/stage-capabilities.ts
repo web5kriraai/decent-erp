@@ -45,7 +45,7 @@ export const stageCapabilitiesSchema = z.object({
   showChecklist: z.boolean().default(false),
   approvalTitle: z.string().optional(),
 
-  /** Gate linkage — which work stage unlocks this approval. */
+  /** Gate linkage - which work stage unlocks this approval. */
   workPrecursor: workPrecursorSchema.optional(),
   /**
    * When precursor must be CHECKING only vs CHECKING|COMPLETED.
@@ -81,7 +81,7 @@ export const TEXTILE_CAPABILITIES_BY_CODE: Record<string, StageCapabilities> = {
     isApproval: true,
     approvalSurface: "inline_card",
     approvalActions: ["approve", "correction", "reject"],
-    approvalTitle: "Concept review — your action",
+    approvalTitle: "Concept review - your action",
     workGateMode: "always",
     autoAdvanceOnCreate: true,
   }),
@@ -112,7 +112,7 @@ export const TEXTILE_CAPABILITIES_BY_CODE: Record<string, StageCapabilities> = {
     approvalActions: ["approve", "correction", "reject"],
     showCompare: true,
     showGallery: true,
-    approvalTitle: "Punching check — review decision",
+    approvalTitle: "Punching check - review decision",
     workPrecursor: { bySubProcessCode: "PUNCH" },
     workGateMode: "checking_or_completed",
   }),
@@ -129,6 +129,14 @@ export const TEXTILE_CAPABILITIES_BY_CODE: Record<string, StageCapabilities> = {
     requiresFile: true,
     forcesChecking: true,
     machineOutput: true,
+    isCorrectionAllowed: true,
+  }),
+  SAMPLE_CUTTING: caps({
+    forcesChecking: true,
+    isCorrectionAllowed: true,
+  }),
+  SAMPLE_STITCHING: caps({
+    forcesChecking: true,
     isCorrectionAllowed: true,
   }),
   SAMPLE_RECEIVE: caps({
@@ -162,7 +170,7 @@ export const TEXTILE_CAPABILITIES_BY_CODE: Record<string, StageCapabilities> = {
     isApproval: true,
     approvalSurface: "inline_card",
     approvalActions: ["approve", "correction", "reject"],
-    approvalTitle: "Final approval — costing & sample ready?",
+    approvalTitle: "Final approval - costing & sample ready?",
     workPrecursor: { bySubProcessCode: "COSTING" },
     workGateMode: "checking_or_completed",
   }),
@@ -186,7 +194,7 @@ export const TEXTILE_CAPABILITIES_BY_CODE: Record<string, StageCapabilities> = {
     isApproval: true,
     approvalSurface: "task_panel",
     approvalActions: ["approve"],
-    approvalTitle: "Live Design Review — go-live decision",
+    approvalTitle: "Live Design Review - go-live decision",
     workPrecursor: { bySubProcessCode: "PROD_RELEASE" },
     workGateMode: "checking_or_completed",
     unlockAfterDesignApproved: true,
@@ -205,7 +213,7 @@ export const TEXTILE_APPROVAL_OWNER_ROLE: Record<string, string> = {
 
 /**
  * Parse DB / form JSON as a partial layer for merge.
- * Do not apply Zod defaults here — that would poison merge with `isApproval: false`
+ * Do not apply Zod defaults here - that would poison merge with `isApproval: false`
  * and wipe textile / column layers.
  */
 export function parseStageCapabilities(raw: unknown): Partial<StageCapabilities> | null {

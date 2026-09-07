@@ -1,4 +1,4 @@
-/** Pure task-dependency helpers — safe to import from client components. */
+/** Pure task-dependency helpers - safe to import from client components. */
 
 /** Prior-stage statuses that unlock the next dependency sequence. */
 export const DEPENDENCY_SATISFIED_STATUSES = [

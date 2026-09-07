@@ -6,7 +6,7 @@ const DEFAULT_LOCAL_STORAGE_DIR = ".local-storage";
 
 let cachedLocalRoot: string | undefined;
 
-/** Resolved at runtime — never at module load — to keep Turbopack tracing scoped. */
+/** Resolved at runtime - never at module load - to keep Turbopack tracing scoped. */
 export function getLocalStorageRoot(): string {
   if (cachedLocalRoot !== undefined) return cachedLocalRoot;
 

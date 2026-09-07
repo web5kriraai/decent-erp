@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
-import type { HoldReason, ProductType, Season, WorkflowPattern } from "@/lib/types/api";
+import type { HoldReason, WorkflowPattern } from "@/lib/types/api";
 
 export function useWorkflowPatterns(enabled = true, includeInactive = false) {
   return useQuery({
@@ -42,22 +42,37 @@ export function useSkills(enabled = true) {
   });
 }
 
-export function useProductTypes(enabled = true) {
+export type CatalogMaster = {
+  id: number;
+  code: string;
+  name: string;
+  active?: boolean;
+  isActive?: boolean;
+  description?: string | null;
+  sortOrder?: number;
+  masterType?: string;
+};
+
+export function useMasterCatalog(masterType: string, enabled = true, includeInactive = false) {
   return useQuery({
-    queryKey: queryKeys.masters.productTypes,
-    queryFn: () => apiGet<ProductType[]>("/api/masters/product-types"),
-    enabled,
+    queryKey: queryKeys.masters.catalog(masterType, includeInactive),
+    queryFn: () =>
+      apiGet<CatalogMaster[]>(
+        `/api/masters/catalog?masterType=${encodeURIComponent(masterType)}${
+          includeInactive ? "&includeInactive=1" : ""
+        }`,
+      ),
+    enabled: enabled && !!masterType,
     staleTime: 10 * 60_000,
   });
 }
 
+export function useProductTypes(enabled = true) {
+  return useMasterCatalog("PRODUCT_CATEGORY", enabled);
+}
+
 export function useSeasons(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.masters.seasons,
-    queryFn: () => apiGet<Season[]>("/api/masters/seasons"),
-    enabled,
-    staleTime: 10 * 60_000,
-  });
+  return useMasterCatalog("SEASON", enabled);
 }
 
 export type ComponentTypeMaster = {
@@ -67,12 +82,22 @@ export type ComponentTypeMaster = {
   productTypeId?: number | null;
   sequence: number;
   active: boolean;
+  sortOrder?: number;
 };
 
 export function useComponentTypes(enabled = true) {
   return useQuery({
     queryKey: queryKeys.masters.componentTypes,
-    queryFn: () => apiGet<ComponentTypeMaster[]>("/api/masters/component-types"),
+    queryFn: async () => {
+      const rows = await apiGet<CatalogMaster[]>("/api/masters/component-types");
+      return rows.map((r) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        sequence: r.sortOrder ?? 0,
+        active: r.active ?? r.isActive ?? true,
+      })) as ComponentTypeMaster[];
+    },
     enabled,
     staleTime: 10 * 60_000,
   });
@@ -142,5 +167,63 @@ export function useMasterEmployees(enabled = true) {
     queryFn: () => apiGet<MasterEmployee[]>("/api/masters/employees"),
     enabled,
     staleTime: 5 * 60_000,
+  });
+}
+
+export function useFabrics(enabled = true) {
+  return useMasterCatalog("FABRIC_QUALITY", enabled);
+}
+
+export function useMachines(enabled = true) {
+  return useMasterCatalog("MACHINE", enabled);
+}
+
+export function useStitchingTypes(enabled = true) {
+  return useMasterCatalog("STITCHING_TYPE", enabled);
+}
+
+export function useDesignGrades(enabled = true) {
+  return useMasterCatalog("DESIGN_GRADE", enabled);
+}
+
+export function useCorrectionReasons(enabled = true) {
+  return useMasterCatalog("CORRECTION_TYPE", enabled);
+}
+
+export type ConceptTargetAttainment = {
+  targetCount: number;
+  createdCount: number;
+  percent: number;
+  periodYear: number;
+  periodMonth: number;
+};
+
+export type ConceptTargetsResponse = {
+  periodYear: number;
+  periodMonth: number;
+  targets: Array<{
+    id: number;
+    periodYear: number;
+    periodMonth: number;
+    targetCount: number;
+    seasonId?: number | null;
+    productTypeId?: number | null;
+    note?: string | null;
+    season?: { id: number; code: string; name: string } | null;
+    productType?: { id: number; code: string; name: string } | null;
+  }>;
+  attainment: ConceptTargetAttainment;
+};
+
+export function useConceptTargets(enabled = true, year?: number, month?: number) {
+  const now = new Date();
+  const y = year ?? now.getUTCFullYear();
+  const m = month ?? now.getUTCMonth() + 1;
+  return useQuery({
+    queryKey: queryKeys.masters.conceptTargets(y, m),
+    queryFn: () =>
+      apiGet<ConceptTargetsResponse>(`/api/masters/concept-targets?year=${y}&month=${m}`),
+    enabled,
+    staleTime: 60_000,
   });
 }

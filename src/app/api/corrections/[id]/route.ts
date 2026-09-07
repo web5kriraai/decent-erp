@@ -3,8 +3,11 @@ import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-ut
 import { PERMISSIONS } from "@/lib/permissions";
 import { updateCorrection } from "@/lib/services/correction-service";
 
+/** Full Prisma CorrectionStatus; ASSIGNED/CHECKING accepted and normalized to IN_PROGRESS. */
 const schema = z.object({
-  status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "REJECTED"]).optional(),
+  status: z
+    .enum(["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING", "DONE", "REJECTED"])
+    .optional(),
   rootCause: z.string().optional(),
   extraMinutes: z.number().int().min(0).optional().nullable(),
   extraCost: z.number().nonnegative().optional().nullable(),

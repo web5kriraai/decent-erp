@@ -1,5 +1,15 @@
 export type UploadCategory = "PRODUCT_IMAGE" | "SKETCH" | "PUNCHING";
 
+/** Design-concept media kinds stored on DesignImage.mediaKind. */
+export type ConceptMediaKind = "IMAGE" | "AUDIO" | "VIDEO" | "FILE";
+
+export const CONCEPT_MEDIA_KINDS: ConceptMediaKind[] = [
+  "IMAGE",
+  "AUDIO",
+  "VIDEO",
+  "FILE",
+];
+
 const MB = 1024 * 1024;
 
 export const UPLOAD_MAX_BYTES: Record<UploadCategory, number> = {
@@ -7,6 +17,44 @@ export const UPLOAD_MAX_BYTES: Record<UploadCategory, number> = {
   SKETCH: 25 * MB,
   PUNCHING: 50 * MB,
 };
+
+export const CONCEPT_MEDIA_MAX_BYTES: Record<ConceptMediaKind, number> = {
+  IMAGE: 10 * MB,
+  AUDIO: 20 * MB,
+  VIDEO: 80 * MB,
+  FILE: 50 * MB,
+};
+
+const AUDIO_EXTENSIONS = new Set(["mp3", "wav", "m4a", "ogg", "webm"]);
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov"]);
+const CONCEPT_FILE_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "ppt",
+  "pptx",
+  "txt",
+  "csv",
+  "zip",
+  "emb",
+  "dst",
+]);
+const CONCEPT_FILE_MIMES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/octet-stream",
+]);
 
 const PRODUCT_IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const SKETCH_MIMES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -114,7 +162,7 @@ export function validateUploadFile(
     return { ok: true };
   }
 
-  // Punching: browsers often omit MIME for EMB/DST — allow octet-stream by extension.
+  // Punching: browsers often omit MIME for EMB/DST - allow octet-stream by extension.
   if (PUNCHING_EXTENSIONS.has(ext)) {
     return { ok: true };
   }
@@ -230,5 +278,128 @@ export function validateUploadFileClient(
   return validateUploadFile(
     { name: file.name, type: file.type || "", size: file.size },
     category,
+  );
+}
+
+export function parseConceptMediaKind(
+  raw: string | null | undefined,
+): ConceptMediaKind {
+  const normalized = raw?.toUpperCase();
+  if (
+    normalized === "IMAGE" ||
+    normalized === "AUDIO" ||
+    normalized === "VIDEO" ||
+    normalized === "FILE"
+  ) {
+    return normalized;
+  }
+  return "IMAGE";
+}
+
+export function limitLabelForMediaKind(kind: ConceptMediaKind): string {
+  return `${Math.round(CONCEPT_MEDIA_MAX_BYTES[kind] / MB)}MB`;
+}
+
+export function acceptForConceptMedia(kind: ConceptMediaKind): string {
+  if (kind === "AUDIO") return "audio/*,.mp3,.wav,.m4a,.ogg,.webm";
+  if (kind === "VIDEO") return "video/*,.mp4,.webm,.mov";
+  if (kind === "FILE") {
+    return ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.emb,.dst,application/pdf,application/zip";
+  }
+  return "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
+}
+
+/** Broad accept for auto-detect upload (image / audio / video / docs). */
+export function acceptForAllConceptMedia(): string {
+  return [
+    acceptForConceptMedia("IMAGE"),
+    acceptForConceptMedia("AUDIO"),
+    acceptForConceptMedia("VIDEO"),
+    acceptForConceptMedia("FILE"),
+  ].join(",");
+}
+
+/**
+ * Validate concept media (IMAGE/AUDIO/VIDEO/FILE).
+ * IMAGE reuses PRODUCT_IMAGE rules + magic bytes when a buffer is provided.
+ */
+export function validateConceptMedia(
+  file: { name: string; type: string; size: number },
+  kind: ConceptMediaKind,
+  buffer?: Uint8Array | ArrayBuffer,
+): UploadValidationResult {
+  const maxBytes = CONCEPT_MEDIA_MAX_BYTES[kind];
+  if (file.size > maxBytes) {
+    return {
+      ok: false,
+      status: 413,
+      message: `${kind === "FILE" ? "File" : kind.charAt(0) + kind.slice(1).toLowerCase()} exceeds ${limitLabelForMediaKind(kind)} limit`,
+    };
+  }
+
+  const ext = fileExtension(file.name);
+  const mime = (file.type || "").toLowerCase();
+
+  if (kind === "IMAGE") {
+    const meta = validateUploadFile(file, "PRODUCT_IMAGE");
+    if (!meta.ok) return meta;
+    if (buffer) return validateUploadContent(buffer, file, "PRODUCT_IMAGE");
+    return { ok: true };
+  }
+
+  if (kind === "AUDIO") {
+    const mimeOk = mime.startsWith("audio/");
+    const extOk = AUDIO_EXTENSIONS.has(ext);
+    if (!mimeOk && !extOk) {
+      return {
+        ok: false,
+        status: 400,
+        message: "Audio must be MP3, WAV, M4A, OGG, or WebM",
+      };
+    }
+    return { ok: true };
+  }
+
+  if (kind === "VIDEO") {
+    const mimeOk = mime.startsWith("video/");
+    const extOk = VIDEO_EXTENSIONS.has(ext);
+    if (!mimeOk && !extOk) {
+      return {
+        ok: false,
+        status: 400,
+        message: "Video must be MP4, WebM, or MOV",
+      };
+    }
+    return { ok: true };
+  }
+
+  // FILE
+  const mimeOk = CONCEPT_FILE_MIMES.has(mime) || isLooseBinaryMime(mime);
+  const extOk = CONCEPT_FILE_EXTENSIONS.has(ext);
+  if (!extOk) {
+    return {
+      ok: false,
+      status: 400,
+      message:
+        "Files must be PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, TXT, CSV, ZIP, EMB, or DST",
+    };
+  }
+  if (!mimeOk && !isLooseBinaryMime(mime)) {
+    return {
+      ok: false,
+      status: 400,
+      message: "File type is not allowed for concept attachments",
+    };
+  }
+  return { ok: true };
+}
+
+export function validateConceptMediaClient(
+  file: File,
+  kind: ConceptMediaKind,
+): UploadValidationResult {
+  return validateConceptMedia(
+    { name: file.name, type: file.type || "", size: file.size },
+    kind,
   );
 }

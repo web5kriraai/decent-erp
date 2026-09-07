@@ -65,6 +65,11 @@ export function useUpdateDesign() {
       trendReference?: string;
       celebrityReference?: string;
       priority?: string;
+      fabricId?: number | null;
+      machineId?: number | null;
+      stitchingTypeId?: number | null;
+      designGradeId?: number | null;
+      targetGrade?: string | null;
     }) => apiPatch<DesignSummary>(`/api/designs/${designId}`, payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });

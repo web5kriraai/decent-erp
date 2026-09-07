@@ -15,7 +15,7 @@ import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useDesign } from "@/hooks/use-designs";
 import { useEmployeeOptions, useRaiseCorrection } from "@/hooks/use-corrections";
-import type { RaiseCorrectionPayload } from "@/hooks/use-corrections";
+import { useCorrectionReasons } from "@/hooks/use-masters";
 import type { HandoffContext } from "@/lib/handoff-context";
 import {
   correctionRouteCodesFromStages,
@@ -36,10 +36,18 @@ type RaiseCorrectionModalProps = {
   defaultAssigneeName?: string;
 };
 
-const CORRECTION_TYPE_OPTIONS: {
-  value: RaiseCorrectionPayload["correctionType"];
-  label: string;
-}[] = [
+const CORRECTION_ENUM_CODES = [
+  "MISTAKE",
+  "IMPROVEMENT",
+  "CUSTOMER_CHANGE",
+  "MACHINE",
+  "MATERIAL",
+  "OTHER",
+] as const;
+
+type CorrectionEnumCode = (typeof CORRECTION_ENUM_CODES)[number];
+
+const CORRECTION_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "MISTAKE", label: "Mistake" },
   { value: "IMPROVEMENT", label: "Improvement" },
   { value: "CUSTOMER_CHANGE", label: "Customer Change" },
@@ -47,6 +55,12 @@ const CORRECTION_TYPE_OPTIONS: {
   { value: "MATERIAL", label: "Material Issue" },
   { value: "OTHER", label: "Other" },
 ];
+
+function mapCatalogCodeToCorrectionType(code: string): CorrectionEnumCode {
+  return CORRECTION_ENUM_CODES.includes(code as CorrectionEnumCode)
+    ? (code as CorrectionEnumCode)
+    : "OTHER";
+}
 
 /** Preferred rework targets for the correction loop (capability-driven). */
 function suggestedRouteCode(
@@ -60,7 +74,7 @@ function buildInitialState(defaultDesignId?: string, defaultTaskId?: string) {
   return {
     designId: defaultDesignId ?? "",
     taskId: defaultTaskId ?? "",
-    correctionType: "IMPROVEMENT" as RaiseCorrectionPayload["correctionType"],
+    correctionCatalogCode: "IMPROVEMENT",
     responsibleEmployeeId: "" as number | "",
     routeToSubProcessId: "" as number | "",
     rootCause: "",
@@ -84,14 +98,14 @@ export function RaiseCorrectionModal({
   const isPrefilled = !!(defaultDesignId && defaultTaskId);
   const designsQuery = useDesignsList(open && !isPrefilled);
   const employeesQuery = useEmployeeOptions(open);
+  const correctionReasons = useCorrectionReasons(open);
   const raiseCorrection = useRaiseCorrection();
 
   const openKey = open ? `${defaultDesignId ?? ""}:${defaultTaskId ?? ""}` : "closed";
   const [loadedKey, setLoadedKey] = useState("closed");
   const [designId, setDesignId] = useState(defaultDesignId ?? "");
   const [taskId, setTaskId] = useState(defaultTaskId ?? "");
-  const [correctionType, setCorrectionType] =
-    useState<RaiseCorrectionPayload["correctionType"]>("IMPROVEMENT");
+  const [correctionCatalogCode, setCorrectionCatalogCode] = useState("IMPROVEMENT");
   const [responsibleEmployeeId, setResponsibleEmployeeId] = useState<number | "">("");
   const [routeToSubProcessId, setRouteToSubProcessId] = useState<number | "">("");
   const [rootCause, setRootCause] = useState("");
@@ -105,7 +119,7 @@ export function RaiseCorrectionModal({
     const initial = buildInitialState(defaultDesignId, defaultTaskId);
     setDesignId(initial.designId);
     setTaskId(initial.taskId);
-    setCorrectionType(initial.correctionType);
+    setCorrectionCatalogCode(initial.correctionCatalogCode);
     setResponsibleEmployeeId(initial.responsibleEmployeeId);
     setRouteToSubProcessId(initial.routeToSubProcessId);
     setRootCause(initial.rootCause);
@@ -116,7 +130,14 @@ export function RaiseCorrectionModal({
   }
 
   const designQuery = useDesign(designId, open && !!designId);
+  const correctionType = mapCatalogCodeToCorrectionType(correctionCatalogCode);
   const isMistake = correctionType === "MISTAKE";
+
+  const correctionTypeOptions = useMemo(() => {
+    const catalog = correctionReasons.data ?? [];
+    if (catalog.length === 0) return CORRECTION_TYPE_OPTIONS;
+    return catalog.map((r) => ({ value: r.code, label: r.name }));
+  }, [correctionReasons.data]);
 
   const selectedTask = (designQuery.data?.tasks ?? []).find((t) => t.id === taskId);
   const routeOptions = useMemo(() => {
@@ -225,10 +246,14 @@ export function RaiseCorrectionModal({
     onClose();
   }
 
-  function handleCorrectionTypeChange(value: RaiseCorrectionPayload["correctionType"]) {
-    setCorrectionType(value);
-    if (value !== "MISTAKE") {
+  function handleCorrectionCatalogChange(code: string) {
+    setCorrectionCatalogCode(code);
+    if (mapCatalogCodeToCorrectionType(code) !== "MISTAKE") {
       setResponsibleEmployeeId("");
+    }
+    const reason = (correctionReasons.data ?? []).find((r) => r.code === code);
+    if (reason && !rootCause.trim()) {
+      setRootCause(reason.name);
     }
   }
 
@@ -252,13 +277,23 @@ export function RaiseCorrectionModal({
     ) {
       return;
     }
+    const reasonLabel =
+      (correctionReasons.data ?? []).find((r) => r.code === correctionCatalogCode)?.name ??
+      correctionCatalogCode;
+    const feedback = rootCause.trim();
+    const rootCauseWithCatalog =
+      mapCatalogCodeToCorrectionType(correctionCatalogCode) === "OTHER" &&
+      !feedback.toLowerCase().includes(reasonLabel.toLowerCase())
+        ? `[${reasonLabel}] ${feedback}`
+        : feedback;
+
     await raiseCorrection.mutateAsync({
       designId,
       taskId,
       correctionType,
       responsibleEmployeeId: responsibleEmployeeId ? Number(responsibleEmployeeId) : null,
       routeToSubProcessId: Number(routeToSubProcessId),
-      rootCause: rootCause.trim(),
+      rootCause: rootCauseWithCatalog,
       extraMinutes: extraMinutes.trim() ? Number(extraMinutes) : null,
       extraCost: extraCost.trim() ? Number(extraCost) : null,
     });
@@ -354,11 +389,9 @@ export function RaiseCorrectionModal({
             id="corrType"
             label="Type"
             required
-            value={correctionType}
-            onValueChange={(v) =>
-              handleCorrectionTypeChange(v as RaiseCorrectionPayload["correctionType"])
-            }
-            options={CORRECTION_TYPE_OPTIONS}
+            value={correctionCatalogCode}
+            onValueChange={(v) => handleCorrectionCatalogChange(v)}
+            options={correctionTypeOptions}
           />
           <FormSelect
             id="corrResponsible"

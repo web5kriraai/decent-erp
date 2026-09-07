@@ -31,7 +31,7 @@ type DataTableProps<T extends Record<string, unknown>> = {
   flush?: boolean;
 };
 
-/** Canonical data grid — same font, header bg, zebra, and borders on every page. */
+/** Canonical data grid - same font, header bg, zebra, and borders on every page. */
 export function DataTable<T extends Record<string, unknown>>({
   columns,
   rows,

@@ -9,7 +9,7 @@ export const STANDARD_WORKFLOW_PRODUCT_CODES = [
 export type StandardWorkflowProductCode =
   (typeof STANDARD_WORKFLOW_PRODUCT_CODES)[number];
 
-/** Spec §6.2 — Concept → Final Approval (8 steps). Prefer for UAT/demo. */
+/** Spec §6.2 - Concept → Final Approval (8 steps). Prefer for UAT/demo. */
 export function canonicalEightStepPatternName(productTypeName: string): string {
   return `Spec 8-Step ${productTypeName} (Concept→Final)`;
 }

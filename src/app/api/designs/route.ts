@@ -20,10 +20,15 @@ const createDesignSchema = z
     trendReference: z.string().optional(),
     celebrityReference: z.string().optional(),
     targetGrade: z.string().optional(),
+    designGradeId: z.number().int().positive().optional(),
+    fabricId: z.number().int().positive().optional(),
+    machineId: z.number().int().positive().optional(),
+    stitchingTypeId: z.number().int().positive().optional(),
     estimatedCost: z.number().nonnegative().optional(),
     assignmentMode: z.enum(["AUTOMATIC", "MANUAL"]),
     workflowPatternId: z.number().int().optional(),
     componentTypeIds: z.array(z.number().int().positive()).optional(),
+    componentSpecs: z.record(z.string(), z.string()).optional(),
     manualTasks: z
       .array(
         z.object({

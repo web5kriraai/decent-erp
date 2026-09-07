@@ -15,7 +15,7 @@ const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
     designSubProcessMaster: { findFirst: vi.fn() },
     role: { findUnique: vi.fn() },
-    productType: { findUnique: vi.fn() },
+    masterCatalog: { findUnique: vi.fn() },
     workflowPattern: {
       findUnique: vi.fn(),
       create: vi.fn(),
@@ -77,7 +77,11 @@ describe("createWorkflowPattern", () => {
     vi.clearAllMocks();
     prismaMock.designSubProcessMaster.findFirst.mockResolvedValue({ id: 10, code: "SKETCH" });
     prismaMock.role.findUnique.mockResolvedValue({ id: 2 });
-    prismaMock.productType.findUnique.mockResolvedValue({ id: 1 });
+    prismaMock.masterCatalog.findUnique.mockResolvedValue({
+      id: 1,
+      masterType: "PRODUCT_CATEGORY",
+      isActive: true,
+    });
   });
 
   it("persists dayOffset, priority, and dependencySequence", async () => {

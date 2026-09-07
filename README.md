@@ -15,6 +15,10 @@ Production-ready Next.js full-stack application for textile design operations: c
 | Charts | **Recharts** (KPI dashboards) |
 | Tests | **Vitest** + GitHub Actions CI |
 
+### Spec vs implemented stack (intentional)
+
+The Tech Spec PDF reference stack (React 18 + Vite SPA, .NET-style REST, SQL Server 2022) was **intentionally** replaced with Next.js App Router + PostgreSQL + Prisma. Domain APIs, RBAC, and the relational model remain aligned with the Design Management contract; see [`Docs/CODEBASE_SPEC_COMPLIANCE.md`](../Docs/CODEBASE_SPEC_COMPLIANCE.md) §2.
+
 ---
 
 ## Quick start (local)
@@ -176,6 +180,14 @@ Change all passwords before production. After an admin changes a user's role, th
 - **Employees** - create, edit, activate/deactivate, assign role, reset password
 - **Roles & Access** - read-only role catalog with permission matrix
 - **Process Masters** - create processes; hold reasons and approval levels via API
+- **Master Catalog** - unified `master_catalog` table (product category, season, fabric, machine, correction type, and all prototype master types) with tile admin UI at `/admin/masters`
+- **Materials** - design material request / stock / indent / issue at `/work/materials` (bound to MAT_REQ / FABRIC_ISSUE stage completion)
+- **Ops workbenches** - Sketch / Punching / Sample boards under My Work
+- **Reports CSV export** - Design Performance, Cost, Material, Delay, Ranking via `/api/reports/export`
+- **Bulk approvals** - approve selected management sign-offs
+- **Concept Targets** - monthly idea targets by season/product category under Master Data → Concept Targets (`?tab=targets`)
+- **KPI weightage admin** - edit role metric weights under Master Data → KPI Weights
+- **UAT checklist** - [`docs/UAT_SIGN_OFF_CHECKLIST.md`](docs/UAT_SIGN_OFF_CHECKLIST.md)
 - **Workflow Patterns** - create patterns, rename/activate, clone as new version, and edit task steps (`GET/POST /api/workflow-patterns`, `PATCH /api/workflow-patterns/{id}/tasks`, `POST /api/workflow-patterns/{id}/clone`); four patterns seeded: *Standard Saree*, *Standard Suit*, *Standard Kurti*, *Standard Lehenga*
 - **Audit Log** - filterable admin action history
 
@@ -189,7 +201,7 @@ Change all passwords before production. After an admin changes a user's role, th
 
 - Extended analytics beyond the nine weighted KPI metrics (custom scorecards / benchmarking)
 - Multi-tenant / multi-company isolation
-
+- PDF report export (CSV export is available)
 
 ## How to work with the project
 
@@ -210,13 +222,13 @@ flowchart LR
   K --> L[Live Review + Mark Live]
 ```
 
-1. **Design Head** — create concept; workflow auto-advances Concept Review and assigns Sketch to the sketch designer; later approvals (sketch, punch check, final, etc.) stay manual.
-2. **Role executors** — complete tasks on **My Action Center** (start / hold / end); quality checkers see **Quality context** on task detail.
-3. **Design Head** — assign/reassign, request final approval when stages are complete; compact **primary actions** on design detail.
-4. **Checker / Management** — **Quality → Approvals** multi-level chain; management **Live design review** queue after production release.
-5. **Costing** — enter costs before management final approval completes.
-6. **Production Head** — **Accept production handoff** on production desk → instruction → release (ERP handoff); **Returned / clarification** inbox for production returns.
-7. **Notifications** — in-app bell in the top bar; background worker still handles email when SMTP is configured.
+1. **Design Head** - create concept; workflow auto-advances Concept Review and assigns Sketch to the sketch designer; later approvals (sketch, punch check, final, etc.) stay manual.
+2. **Role executors** - complete tasks on **My Action Center** (start / hold / end); quality checkers see **Quality context** on task detail.
+3. **Design Head** - assign/reassign, request final approval when stages are complete; compact **primary actions** on design detail.
+4. **Checker / Management** - **Quality → Approvals** multi-level chain; management **Live design review** queue after production release.
+5. **Costing** - enter costs before management final approval completes.
+6. **Production Head** - **Accept production handoff** on production desk → instruction → release (ERP handoff); **Returned / clarification** inbox for production returns.
+7. **Notifications** - in-app bell in the top bar; background worker still handles email when SMTP is configured.
 
 After changing workflow pattern in seed, run `npm run db:seed` and `node scripts/repair-missing-workflow-tasks.mjs` for in-flight designs.
 

@@ -27,7 +27,7 @@ type DesignWorkflowPanelProps = {
   onAssignTask?: (task: DesignTask) => void;
   /** Optional; management sign-off CTA lives on Approvals hub / request-sign-off page. */
   showSignOffCta?: boolean;
-  /** Secondary workflow tools (e.g. override) — sits in the card header. */
+  /** Secondary workflow tools (e.g. override) - sits in the card header. */
   headerActions?: ReactNode;
 };
 
@@ -52,7 +52,7 @@ export function DesignWorkflowPanel({
     [design.status, steps, workflowContext],
   );
 
-  // Page header already shows design.status — only show a different stage badge here.
+  // Page header already shows design.status - only show a different stage badge here.
   const showHeaderBadge =
     workflowHeaderStatus.replace(/\s+/g, "_").toUpperCase() !==
     design.status.replace(/\s+/g, "_").toUpperCase();

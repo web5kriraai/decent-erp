@@ -29,8 +29,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
     const body = await parseBody(request, createSchema);
-    const productType = await prisma.productType.findUnique({ where: { id: body.productTypeId } });
-    if (!productType) throw new ApiError("Product type not found", 404);
+    const productType = await prisma.masterCatalog.findUnique({ where: { id: body.productTypeId } });
+    if (!productType || productType.masterType !== "PRODUCT_CATEGORY") {
+      throw new ApiError("Product type not found", 404);
+    }
     const process = await prisma.designProcessMaster.findUnique({ where: { id: body.processId } });
     if (!process) throw new ApiError("Process not found", 404);
 

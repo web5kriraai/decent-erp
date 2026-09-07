@@ -127,7 +127,7 @@ export function useUpdateRolePermissions() {
         await updateSession({ permissions: fresh.permissions, roleCode: fresh.roleCode });
       }
     } catch {
-      // Non-blocking — user can sign out/in if refresh fails.
+      // Non-blocking - user can sign out/in if refresh fails.
     }
   }
 

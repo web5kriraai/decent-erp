@@ -3,7 +3,9 @@ import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { autoAdvanceConceptReview } from "@/lib/services/concept-review-auto-advance";
 import { ApiError } from "@/lib/api-utils";
-import type { AssignmentMode, Priority, WorkType } from "@prisma/client";
+import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
+import { businessRule } from "@/lib/errors/create-app-error";
+import type { AssignmentMode, Priority, Prisma, WorkType } from "@prisma/client";
 import {
   applyCreateReadiness,
   buildTasksFromPatternTasks,
@@ -31,6 +33,10 @@ export type CreateDesignInput = {
   trendReference?: string;
   celebrityReference?: string;
   targetGrade?: string;
+  designGradeId?: number;
+  fabricId?: number;
+  machineId?: number;
+  stitchingTypeId?: number;
   estimatedCost?: number;
   standardCost?: number;
   processId?: number;
@@ -45,6 +51,7 @@ export type CreateDesignInput = {
     sequence?: number;
   }>;
   componentTypeIds?: number[];
+  componentSpecs?: Record<string, string>;
 };
 
 function generateIdeaRef() {
@@ -91,6 +98,10 @@ export async function createDesignWithTasks(
         trendReference: input.trendReference,
         celebrityReference: input.celebrityReference,
         targetGrade: input.targetGrade,
+        designGradeId: input.designGradeId,
+        fabricId: input.fabricId,
+        machineId: input.machineId,
+        stitchingTypeId: input.stitchingTypeId,
         estimatedCost: input.estimatedCost,
         standardCost: input.standardCost,
         assignmentMode: input.assignmentMode,
@@ -149,7 +160,13 @@ export async function createDesignWithTasks(
     tasksToCreate = applyCreateReadiness(tasksToCreate);
 
     if (input.componentTypeIds?.length) {
-      await createDesignComponents(tx, design.id, input.componentTypeIds);
+      const specs: Record<number, string | undefined> = {};
+      if (input.componentSpecs) {
+        for (const [key, value] of Object.entries(input.componentSpecs)) {
+          specs[Number(key)] = value;
+        }
+      }
+      await createDesignComponents(tx, design.id, input.componentTypeIds, specs);
     }
 
     await createDesignProcessInstances(tx, design.id, tasksToCreate);
@@ -179,18 +196,12 @@ export async function createDesignWithTasks(
       after: activatedDesign,
     });
 
-    await tx.notificationOutbox.create({
-      data: {
-        eventType: "DESIGN_CREATED",
-        payload: { designId: design.id.toString(), ideaRef: design.ideaRef },
-      },
-    });
-
     return activatedDesign;
   }).then(async (design) => {
+    // Single post-commit outbox + queue job (avoid duplicate in-tx outbox rows).
     await enqueueOutboxAndNotify(
       "DESIGN_CREATED",
-      { designId: design.id.toString() },
+      { designId: design.id.toString(), ideaRef: design.ideaRef },
       correlationId,
     );
     try {
@@ -260,6 +271,10 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
     include: {
       productType: true,
       season: true,
+      fabric: true,
+      machine: true,
+      stitchingType: true,
+      designGrade: true,
       designHead: { select: { id: true, name: true } },
       components: { include: { componentType: true } },
       images: true,
@@ -373,6 +388,11 @@ export async function updateDesign(
     workType?: WorkType;
     trendReference?: string;
     celebrityReference?: string;
+    designGradeId?: number | null;
+    fabricId?: number | null;
+    machineId?: number | null;
+    stitchingTypeId?: number | null;
+    targetGrade?: string | null;
     version: number;
   },
   userId: number,
@@ -395,6 +415,11 @@ export async function updateDesign(
         workType: data.workType,
         trendReference: data.trendReference,
         celebrityReference: data.celebrityReference,
+        ...(data.designGradeId !== undefined ? { designGradeId: data.designGradeId } : {}),
+        ...(data.fabricId !== undefined ? { fabricId: data.fabricId } : {}),
+        ...(data.machineId !== undefined ? { machineId: data.machineId } : {}),
+        ...(data.stitchingTypeId !== undefined ? { stitchingTypeId: data.stitchingTypeId } : {}),
+        ...(data.targetGrade !== undefined ? { targetGrade: data.targetGrade } : {}),
         version: { increment: 1 },
       },
     });
@@ -423,6 +448,24 @@ export async function updateDesign(
   });
 }
 
+/** Require at least one DesignImage marked primary before ACTIVE workflow work. */
+export async function assertDesignHasPrimaryImage(
+  designId: bigint,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+) {
+  const primary = await client.designImage.findFirst({
+    where: { designId, isPrimary: true },
+    select: { id: true },
+  });
+  if (!primary) {
+    throw businessRule(
+      APP_ERROR_CODES.PRIMARY_IMAGE_REQUIRED,
+      { designId: designId.toString() },
+      "Upload at least one design image and mark it as primary before starting workflow tasks.",
+    );
+  }
+}
+
 export async function updateDesignStatus(
   id: bigint,
   status: import("@prisma/client").DesignStatus,
@@ -438,6 +481,10 @@ export async function updateDesignStatus(
     }
 
     assertAllowedDesignStatusTransition(existing.status, status);
+
+    if (status === "ACTIVE" && existing.status !== "ACTIVE") {
+      await assertDesignHasPrimaryImage(id, tx);
+    }
 
     const updated = await tx.designConcept.update({
       where: { id },

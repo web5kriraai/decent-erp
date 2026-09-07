@@ -1,5 +1,5 @@
 /**
- * Unified approvals hub — stage + ready-to-request + management decide chain.
+ * Unified approvals hub - stage + ready-to-request + management decide chain.
  */
 import { expect, test } from "@playwright/test";
 import {

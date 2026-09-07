@@ -9,7 +9,7 @@ import {
 import { permissionDeniedMessage } from "@/lib/user-messages";
 
 /**
- * List / retry ERP handoffs — aligned with Production Desk ERP ops UI (canViewErpChain).
+ * List / retry ERP handoffs - aligned with Production Desk ERP ops UI (canViewErpChain).
  * Requires PRODUCTION_RELEASE and at least one ERP operate permission.
  */
 export async function GET(request: Request) {

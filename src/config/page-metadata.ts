@@ -9,7 +9,7 @@ export type PageMeta = {
   description: string;
 };
 
-/** Static route metadata — titles match nav / breadcrumbs. */
+/** Static route metadata - titles match nav / breadcrumbs. */
 export const PAGE_META = {
   login: {
     title: "Sign In",
@@ -51,10 +51,6 @@ export const PAGE_META = {
     title: "My Time Today",
     description: "Your time today",
   },
-  pipelineDependencies: {
-    title: "Pipeline Dependencies",
-    description: "Waiting tasks",
-  },
   corrections: {
     title: "Corrections",
     description: "Corrections",
@@ -94,6 +90,14 @@ export const PAGE_META = {
   reportsDesignSuccess: {
     title: "Design Success Report",
     description: "Design success",
+  },
+  reportsSampleStatus: {
+    title: "Sample Status Report",
+    description: "Sample decisions by stage",
+  },
+  reportsProductionStart: {
+    title: "Production Start Report",
+    description: "Production starts by product type",
   },
   reportsHub: {
     title: "Reports Hub",

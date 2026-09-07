@@ -1,6 +1,6 @@
 import { ROLE_CODES } from "@/lib/permissions";
 
-/** Management sign-off chain level codes (Layer 2) — aligned with seed ApprovalLevel rows. */
+/** Management sign-off chain level codes (Layer 2) - aligned with seed ApprovalLevel rows. */
 export const MANAGEMENT_APPROVAL_LEVEL_CODES = [
   "CHECKER_APPROVAL",
   "DESIGN_HEAD_APPROVAL",

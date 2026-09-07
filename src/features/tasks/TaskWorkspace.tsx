@@ -143,7 +143,9 @@ export function TaskWorkspace() {
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
   const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [checklistNote, setChecklistNote] = useState("");
-  const [sampleOutcome, setSampleOutcome] = useState<"APPROVE" | "REJECT" | "RESAMPLE" | "">("");
+  const [sampleOutcome, setSampleOutcome] = useState<
+    "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE" | ""
+  >("");
   const [costEntries, setCostEntries] = useState<
     Array<{ costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION"; description?: string; amount: number }>
   >([]);
@@ -361,7 +363,13 @@ export function TaskWorkspace() {
     const failed = checklist.length - passed;
     if (checklist.length > 0 && passed === 0) return;
     if (failed > 0 && !checklistNote.trim()) return;
-    if (isSampleCheck && sampleOutcome === "APPROVE" && failed > 0) return;
+    if (
+      isSampleCheck &&
+      (sampleOutcome === "APPROVE" || sampleOutcome === "PASS") &&
+      failed > 0
+    ) {
+      return;
+    }
 
     const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
@@ -488,7 +496,7 @@ export function TaskWorkspace() {
               />
               {blocksTimerEnd && isTimerActive ? (
                 <p className="mb-3 text-sm text-muted-foreground" role="status">
-                  This is a stage approval — finish with Approve / Reject on the task page. Hold
+                  This is a stage approval - finish with Approve / Reject on the task page. Hold
                   still works here.
                 </p>
               ) : null}
@@ -625,7 +633,7 @@ export function TaskWorkspace() {
           <TabsContent value="upcoming">
             <TaskList
               tasks={center?.upcoming ?? []}
-              emptyMessage="No upcoming tasks — prior stages will unlock work for you."
+              emptyMessage="No upcoming tasks - prior stages will unlock work for you."
               variant="upcoming"
             />
           </TabsContent>

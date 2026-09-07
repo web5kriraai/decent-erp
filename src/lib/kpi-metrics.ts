@@ -1,4 +1,4 @@
-/** Spec §9.1 — nine KPI metrics with official weights (percent). */
+/** Spec §9.1 - nine KPI metrics with official weights (percent). */
 export const SPEC_KPI_METRICS = [
   { code: "ON_TIME_COMPLETION", weight: 20, label: "On-time Completion" },
   { code: "QUALITY_APPROVAL", weight: 20, label: "Quality / Approval" },

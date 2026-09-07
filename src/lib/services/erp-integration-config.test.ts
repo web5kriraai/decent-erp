@@ -1,6 +1,9 @@
 import { describe, expect, it, afterEach } from "vitest";
 import {
   ERP_MODULE_SYNC_ORDER,
+  erpGoLiveChecklistItems,
+  erpModeDisplayLabel,
+  erpModeShortHint,
   erpSyncOrderMessage,
   getErpIntegrationMode,
   getHandoffDisplayStatus,
@@ -72,5 +75,17 @@ describe("erp-integration-config", () => {
     expect(erpSyncOrderMessage("simulated")).toContain("SALES_RETURN");
     expect(erpSyncOrderMessage("simulated")).toContain("ACCOUNTS");
     expect(erpSyncOrderMessage("live")).toMatch(/Live ERP sync order/);
+  });
+
+  it("exposes Live vs Simulated/LOCAL display helpers", () => {
+    expect(erpModeDisplayLabel("live")).toBe("Live ERP");
+    expect(erpModeDisplayLabel("simulated")).toMatch(/LOCAL/);
+    expect(erpModeShortHint("simulated")).toContain("ERP_API_BASE_URL");
+    expect(erpModeShortHint("live")).toMatch(/connected/i);
+    const checklist = erpGoLiveChecklistItems();
+    expect(checklist.length).toBeGreaterThanOrEqual(3);
+    expect(checklist.some((item) => item.includes("ERP_API_BASE_URL"))).toBe(true);
+    expect(checklist.some((item) => /handoff/i.test(item))).toBe(true);
+    expect(checklist.some((item) => /manual/i.test(item))).toBe(true);
   });
 });

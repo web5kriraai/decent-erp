@@ -107,7 +107,7 @@ export async function releaseToProduction(
     },
   });
   if (!existing) throw notFound(APP_ERROR_CODES.DESIGN_NOT_FOUND);
-  // Idempotent: already released / live — no duplicate handoffs or notify.
+  // Idempotent: already released / live - no duplicate handoffs or notify.
   if (existing.status === "PRODUCTION_RELEASED" || existing.status === "LIVE") {
     return existing;
   }

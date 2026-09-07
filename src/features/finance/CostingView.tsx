@@ -31,8 +31,12 @@ export function CostingView() {
   const addCost = useAddCostEntry(selectedDesignId);
 
   const [costType, setCostType] = useState<"TIME" | "MATERIAL" | "MACHINE" | "CORRECTION">("TIME");
+  const [costCategory, setCostCategory] = useState<
+    "FABRIC" | "EMBROIDERY" | "STITCHING" | "SALARY" | "OTHER" | ""
+  >("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [expectedMrp, setExpectedMrp] = useState("");
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   const selectedDesign = useMemo(
@@ -57,11 +61,13 @@ export function CostingView() {
     if (!selectedDesignId || amountError) return;
     await addCost.mutateAsync({
       costType,
+      costCategory: costCategory || undefined,
       description: description.trim() || undefined,
       amount: Number(amount),
     });
     setAmount("");
     setDescription("");
+    setCostCategory("");
     setAttemptedSubmit(false);
   }
 
@@ -92,7 +98,7 @@ export function CostingView() {
               <option value="">Choose a design…</option>
               {designsQuery.data?.items.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.ideaRef} — {d.collectionName}
+                  {d.ideaRef} - {d.collectionName}
                 </option>
               ))}
             </select>
@@ -109,26 +115,32 @@ export function CostingView() {
           <div className="stat-grid stack-section">
             <StatCard
               label="Total"
-              value={summary ? `₹${summary.totalDevCost.toFixed(2)}` : "—"}
+              value={summary ? `₹${summary.totalDevCost.toFixed(2)}` : "-"}
               tone={summary?.hasCosting ? "success" : "warning"}
               trend={summary?.hasCosting ? "Ready" : "Incomplete"}
             />
             <StatCard label="Entries" value={String(summary?.entryCount ?? 0)} />
             <StatCard
-              label="Estimated"
+              label="Expected MRP"
               value={
-                summary?.estimatedCost != null ? `₹${summary.estimatedCost.toFixed(2)}` : "—"
+                summary?.expectedMrp != null ? `₹${summary.expectedMrp.toFixed(2)}` : "-"
               }
             />
             <StatCard
-              label="Margin"
+              label="Margin vs MRP"
               value={
-                summary?.marginAmount != null ? `₹${summary.marginAmount.toFixed(2)}` : "—"
+                summary?.mrpMarginAmount != null
+                  ? `₹${summary.mrpMarginAmount.toFixed(2)}`
+                  : summary?.marginAmount != null
+                    ? `₹${summary.marginAmount.toFixed(2)}`
+                    : "-"
               }
               trend={
-                summary?.marginPercent != null
-                  ? `${summary.marginPercent.toFixed(1)}%`
-                  : undefined
+                summary?.mrpMarginPercent != null
+                  ? `${summary.mrpMarginPercent.toFixed(1)}%`
+                  : summary?.marginPercent != null
+                    ? `${summary.marginPercent.toFixed(1)}%`
+                    : undefined
               }
             />
           </div>
@@ -152,7 +164,7 @@ export function CostingView() {
                         <td className="py-2 text-muted-foreground">
                           {summary && summary.totalDevCost > 0
                             ? `${((Number(typeAmount) / summary.totalDevCost) * 100).toFixed(0)}%`
-                            : "—"}
+                            : "-"}
                         </td>
                       </tr>
                     ))}
@@ -197,9 +209,16 @@ export function CostingView() {
                 columns={[
                   { key: "costType", header: "Type" },
                   {
+                    key: "costCategory",
+                    header: "Category",
+                    render: (r) =>
+                      (r as { costCategory?: string | null }).costCategory?.replace(/_/g, " ") ??
+                      "-",
+                  },
+                  {
                     key: "description",
                     header: "Description",
-                    render: (r) => r.description ?? "—",
+                    render: (r) => r.description ?? "-",
                   },
                   {
                     key: "amount",
@@ -241,6 +260,22 @@ export function CostingView() {
                     { value: "CORRECTION", label: "Correction" },
                   ]}
                 />
+                <FormSelect
+                  id="costCategory"
+                  label="R&D category"
+                  value={costCategory || null}
+                  onValueChange={(v) =>
+                    setCostCategory((v || "") as typeof costCategory)
+                  }
+                  options={[
+                    { value: "FABRIC", label: "Fabric" },
+                    { value: "EMBROIDERY", label: "Embroidery" },
+                    { value: "STITCHING", label: "Stitching" },
+                    { value: "SALARY", label: "Salary hours" },
+                    { value: "OTHER", label: "Other" },
+                  ]}
+                  placeholder="Optional category"
+                />
                 <FormTextField
                   id="costAmount"
                   label="Amount (₹)"
@@ -252,6 +287,20 @@ export function CostingView() {
                   onChange={(e) => setAmount(e.target.value)}
                   error={attemptedSubmit ? amountError : undefined}
                 />
+                <FormTextField
+                  id="expectedMrp"
+                  label="Expected MRP (₹)"
+                  type="number"
+                  min={0.01}
+                  step="0.01"
+                  value={expectedMrp}
+                  onChange={(e) => setExpectedMrp(e.target.value)}
+                  placeholder={
+                    summary?.expectedMrp != null
+                      ? String(summary.expectedMrp)
+                      : "Set planned retail MRP"
+                  }
+                />
               </div>
               <FormTextField
                 id="costDesc"
@@ -259,9 +308,25 @@ export function CostingView() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
-              <AppButton type="submit" appVariant="primary" disabled={addCost.isPending}>
-                Add entry
-              </AppButton>
+              <div className="flex flex-wrap gap-2">
+                <AppButton type="submit" appVariant="primary" disabled={addCost.isPending}>
+                  Add entry
+                </AppButton>
+                <AppButton
+                  type="button"
+                  appVariant="secondary"
+                  disabled={!selectedDesignId || !expectedMrp.trim()}
+                  onClick={async () => {
+                    const { apiPatch } = await import("@/lib/api-client");
+                    await apiPatch(`/api/designs/${selectedDesignId}/costs`, {
+                      expectedMrp: Number(expectedMrp),
+                    });
+                    await costsQuery.refetch();
+                  }}
+                >
+                  Save Expected MRP
+                </AppButton>
+              </div>
             </form>
           </AppCard>
         </>

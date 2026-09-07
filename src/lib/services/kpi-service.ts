@@ -7,15 +7,94 @@ import {
 import { computeTimeSummary } from "@/lib/services/time-calculation";
 import { countOpenCorrectionsForEmployee } from "@/lib/services/correction-service";
 
+const kpiScoreInclude = {
+  employee: {
+    select: {
+      id: true,
+      name: true,
+      employeeCode: true,
+      role: { select: { code: true } },
+    },
+  },
+} as const;
+
 export async function getEmployeeKpiDashboard(employeeId?: number) {
   const where = employeeId ? { employeeId } : {};
   return prisma.employeeKpiScore.findMany({
     where,
-    orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
-    include: {
-      employee: { select: { id: true, name: true, employeeCode: true, role: { select: { code: true } } } },
-    },
+    orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }, { id: "desc" }],
+    include: kpiScoreInclude,
   });
+}
+
+/** Paginated employee KPI scores with aggregates for dashboard stats/chart. */
+export async function listEmployeeKpiScores(filters: {
+  employeeId?: number;
+  limit?: number;
+  offset?: number;
+}) {
+  const rawLimit = Number(filters.limit ?? 25);
+  const rawOffset = Number(filters.offset ?? 0);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 25;
+  const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
+  const where = filters.employeeId ? { employeeId: filters.employeeId } : {};
+
+  const [items, total, byEmployee, byMetric] = await Promise.all([
+    prisma.employeeKpiScore.findMany({
+      where,
+      take: limit,
+      skip: offset,
+      orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }, { id: "desc" }],
+      include: kpiScoreInclude,
+    }),
+    prisma.employeeKpiScore.count({ where }),
+    prisma.employeeKpiScore.groupBy({
+      by: ["employeeId"],
+      where,
+      _sum: { weightedScore: true },
+      _count: { _all: true },
+    }),
+    prisma.employeeKpiScore.groupBy({
+      by: ["metricCode"],
+      where,
+      _count: { _all: true },
+    }),
+  ]);
+
+  const employeeIds = byEmployee.map((row) => row.employeeId);
+  const employees =
+    employeeIds.length > 0
+      ? await prisma.employee.findMany({
+          where: { id: { in: employeeIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+  const nameById = new Map(employees.map((e) => [e.id, e.name]));
+
+  const chart = byEmployee
+    .map((row) => ({
+      employeeId: row.employeeId,
+      name: (nameById.get(row.employeeId) ?? `Emp ${row.employeeId}`).split(" ")[0],
+      score: Number(row._sum.weightedScore ?? 0),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const metricCounts = Object.fromEntries(
+    byMetric.map((row) => [row.metricCode, row._count._all]),
+  ) as Record<string, number>;
+
+  return {
+    items,
+    total,
+    limit,
+    offset,
+    summary: {
+      scoreRecordCount: total,
+      employeeCount: byEmployee.length,
+      chart,
+      metricCounts,
+    },
+  };
 }
 
 export async function getDesignHeadKpi() {
@@ -324,4 +403,117 @@ export async function getDesignSuccessReport(year: number, month: number) {
     },
     orderBy: { salesValue: "desc" },
   });
+}
+
+function utcMonthRange(year: number, month: number) {
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 1));
+  return { start, end };
+}
+
+/** Sample Status report: designs by sampleDecision + currentStage for a month. */
+export async function getSampleStatusReport(year: number, month: number) {
+  const { start, end } = utcMonthRange(year, month);
+
+  const designs = await prisma.designConcept.findMany({
+    where: {
+      OR: [
+        { sampleDecisionAtUtc: { gte: start, lt: end } },
+        {
+          sampleDecision: null,
+          createdAtUtc: { gte: start, lt: end },
+        },
+      ],
+    },
+    select: {
+      id: true,
+      ideaRef: true,
+      collectionName: true,
+      sampleDecision: true,
+      currentStage: true,
+      status: true,
+      productType: { select: { name: true } },
+    },
+    orderBy: { updatedAtUtc: "desc" },
+    take: 500,
+  });
+
+  const byDecision: Record<string, number> = {
+    PASS: 0,
+    HOLD: 0,
+    REJECT: 0,
+    PENDING: 0,
+  };
+  const byStage: Record<string, number> = {};
+
+  for (const d of designs) {
+    const decisionKey = d.sampleDecision ?? "PENDING";
+    byDecision[decisionKey] = (byDecision[decisionKey] ?? 0) + 1;
+    const stageKey = d.currentStage ?? "UNSET";
+    byStage[stageKey] = (byStage[stageKey] ?? 0) + 1;
+  }
+
+  return {
+    year,
+    month,
+    total: designs.length,
+    byDecision,
+    byStage,
+    designs,
+  };
+}
+
+/**
+ * Production Start report: designs that reached PRODUCTION_RELEASED or
+ * PRODUCTION_ACCEPTED in the period, grouped by product type.
+ */
+export async function getProductionStartReport(year: number, month: number) {
+  const { start, end } = utcMonthRange(year, month);
+
+  const designs = await prisma.designConcept.findMany({
+    where: {
+      status: { in: ["PRODUCTION_RELEASED", "PRODUCTION_ACCEPTED", "LIVE"] },
+      OR: [
+        { productionHandoffs: { some: { releasedAtUtc: { gte: start, lt: end } } } },
+        {
+          status: { in: ["PRODUCTION_ACCEPTED", "PRODUCTION_RELEASED", "LIVE"] },
+          updatedAtUtc: { gte: start, lt: end },
+        },
+      ],
+    },
+    select: {
+      id: true,
+      ideaRef: true,
+      designNumber: true,
+      collectionName: true,
+      status: true,
+      productType: { select: { id: true, code: true, name: true } },
+    },
+    orderBy: { updatedAtUtc: "desc" },
+    take: 500,
+  });
+
+  const byProductType: Record<string, { productTypeId: number; name: string; code: string; count: number }> =
+    {};
+
+  for (const d of designs) {
+    const key = d.productType?.code ?? "UNKNOWN";
+    if (!byProductType[key]) {
+      byProductType[key] = {
+        productTypeId: d.productType?.id ?? 0,
+        name: d.productType?.name ?? "Unknown",
+        code: key,
+        count: 0,
+      };
+    }
+    byProductType[key].count += 1;
+  }
+
+  return {
+    year,
+    month,
+    total: designs.length,
+    byProductType: Object.values(byProductType).sort((a, b) => b.count - a.count),
+    designs,
+  };
 }

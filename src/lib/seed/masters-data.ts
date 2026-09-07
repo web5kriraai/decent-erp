@@ -38,9 +38,11 @@ export const PROCESS_SEED = [
       { code: "MAT_REQ", name: "Material Requirement", sequence: 1, role: ROLE_CODES.DESIGN_HEAD },
       { code: "FABRIC_ISSUE", name: "Fabric Issue", sequence: 2, role: ROLE_CODES.PRODUCTION_HEAD },
       { code: "MACHINE_SAMPLE", name: "Machine Sample", sequence: 3, role: ROLE_CODES.MACHINE_OPERATOR, isFileRequired: true },
-      { code: "SAMPLE_RECEIVE", name: "Sample Receive", sequence: 4, role: ROLE_CODES.MACHINE_OPERATOR },
-      { code: "SAMPLE_CHECK", name: "Sample Checking", sequence: 5, role: ROLE_CODES.SAMPLE_CHECKER, isApproval: true },
-      { code: "RESAMPLE", name: "Re-Sample", sequence: 6, role: ROLE_CODES.MACHINE_OPERATOR },
+      { code: "SAMPLE_CUTTING", name: "Sample Cutting", sequence: 4, role: ROLE_CODES.MACHINE_OPERATOR },
+      { code: "SAMPLE_STITCHING", name: "Sample Stitching", sequence: 5, role: ROLE_CODES.MACHINE_OPERATOR },
+      { code: "SAMPLE_RECEIVE", name: "Sample Receive", sequence: 6, role: ROLE_CODES.MACHINE_OPERATOR },
+      { code: "SAMPLE_CHECK", name: "Sample Checking", sequence: 7, role: ROLE_CODES.SAMPLE_CHECKER, isApproval: true },
+      { code: "RESAMPLE", name: "Re-Sample", sequence: 8, role: ROLE_CODES.MACHINE_OPERATOR },
     ],
   },
   {
@@ -58,7 +60,7 @@ export const PROCESS_SEED = [
   },
 ] as const;
 
-/** Spec §6.2 — full master workflow chain (materials + production stages). */
+/** Spec §6.2 - full master workflow chain (materials + production stages). */
 export function buildStandardWorkflowTasks(
   roles: RoleLookup,
   subs: Record<string, { id: number; processId: number }>,
@@ -73,14 +75,16 @@ export function buildStandardWorkflowTasks(
     { code: "MAT_REQ", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 4, priority: "MEDIUM" as const },
     { code: "FABRIC_ISSUE", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 120, dayOffset: 5, priority: "MEDIUM" as const },
     { code: "MACHINE_SAMPLE", role: ROLE_CODES.MACHINE_OPERATOR, expectedMinutes: 360, dayOffset: 5, priority: "MEDIUM" as const },
-    { code: "SAMPLE_RECEIVE", role: ROLE_CODES.MACHINE_OPERATOR, expectedMinutes: 60, dayOffset: 6, priority: "MEDIUM" as const },
-    { code: "SAMPLE_CHECK", role: ROLE_CODES.SAMPLE_CHECKER, expectedMinutes: 180, dayOffset: 6, priority: "HIGH" as const },
-    { code: "COSTING", role: ROLE_CODES.COSTING_TEAM, expectedMinutes: 120, dayOffset: 7, priority: "MEDIUM" as const },
-    { code: "FINAL_APPROVAL", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 8, priority: "HIGH" as const },
-    { code: "PROD_HANDOFF", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 60, dayOffset: 9, priority: "HIGH" as const },
-    { code: "PROD_INSTRUCTION", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 120, dayOffset: 10, priority: "HIGH" as const },
-    { code: "PROD_RELEASE", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 60, dayOffset: 11, priority: "HIGH" as const },
-    { code: "LIVE_REVIEW", role: ROLE_CODES.MANAGEMENT, expectedMinutes: 60, dayOffset: 12, priority: "HIGH" as const },
+    { code: "SAMPLE_CUTTING", role: ROLE_CODES.MACHINE_OPERATOR, expectedMinutes: 180, dayOffset: 6, priority: "MEDIUM" as const },
+    { code: "SAMPLE_STITCHING", role: ROLE_CODES.MACHINE_OPERATOR, expectedMinutes: 240, dayOffset: 6, priority: "MEDIUM" as const },
+    { code: "SAMPLE_RECEIVE", role: ROLE_CODES.MACHINE_OPERATOR, expectedMinutes: 60, dayOffset: 7, priority: "MEDIUM" as const },
+    { code: "SAMPLE_CHECK", role: ROLE_CODES.SAMPLE_CHECKER, expectedMinutes: 180, dayOffset: 7, priority: "HIGH" as const },
+    { code: "COSTING", role: ROLE_CODES.COSTING_TEAM, expectedMinutes: 120, dayOffset: 8, priority: "MEDIUM" as const },
+    { code: "FINAL_APPROVAL", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 120, dayOffset: 9, priority: "HIGH" as const },
+    { code: "PROD_HANDOFF", role: ROLE_CODES.DESIGN_HEAD, expectedMinutes: 60, dayOffset: 10, priority: "HIGH" as const },
+    { code: "PROD_INSTRUCTION", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 120, dayOffset: 11, priority: "HIGH" as const },
+    { code: "PROD_RELEASE", role: ROLE_CODES.PRODUCTION_HEAD, expectedMinutes: 60, dayOffset: 12, priority: "HIGH" as const },
+    { code: "LIVE_REVIEW", role: ROLE_CODES.MANAGEMENT, expectedMinutes: 60, dayOffset: 13, priority: "HIGH" as const },
   ];
 
   return rows.map((row, index) => ({
@@ -96,7 +100,7 @@ export function buildStandardWorkflowTasks(
 }
 
 /**
- * Spec §6.2 automatic example — 8 core stages only.
+ * Spec §6.2 automatic example - 8 core stages only.
  * Optional shop stages (punch check, materials, sample receive, prod ladder)
  * are omitted; production handoff tasks are appended after management approval.
  */
@@ -138,6 +142,8 @@ const STAGE_SKILL: Record<string, string> = {
   MAT_REQ: "DESIGN_LEAD",
   FABRIC_ISSUE: "PRODUCTION_LEAD",
   MACHINE_SAMPLE: "MACHINE_SAMPLE",
+  SAMPLE_CUTTING: "MACHINE_SAMPLE",
+  SAMPLE_STITCHING: "MACHINE_SAMPLE",
   SAMPLE_RECEIVE: "MACHINE_SAMPLE",
   SAMPLE_CHECK: "SAMPLE_CHECK",
   COSTING: "COSTING",
@@ -229,32 +235,13 @@ export async function seedProcessMasters(prisma: PrismaClient, roles: RoleLookup
 }
 
 export async function seedComponentTypes(prisma: PrismaClient) {
-  for (const ct of COMPONENT_TYPE_SEED) {
-    await prisma.componentType.upsert({
-      where: { code: ct.code },
-      update: { name: ct.name, sequence: ct.sequence },
-      create: ct,
-    });
-  }
+  const { seedComponentTypes: seed } = await import("./master-catalog-seed");
+  await seed(prisma);
 }
 
 export async function seedProductProcessMappings(prisma: PrismaClient) {
-  const saree = await prisma.productType.findUnique({ where: { code: "SAREE" } });
-  if (!saree) return;
-  // Saree requires Design Development + Sample Development paths (not every production module)
-  const processes = await prisma.designProcessMaster.findMany({
-    where: { code: { in: ["DESIGN_DEV", "SAMPLE_DEV", "DESIGN_DEVELOPMENT", "SAMPLE_DEVELOPMENT"] } },
-  });
-  const fallback = processes.length
-    ? processes
-    : await prisma.designProcessMaster.findMany({ take: 2, orderBy: { sequence: "asc" } });
-  for (const proc of fallback) {
-    await prisma.productProcessMapping.upsert({
-      where: { productTypeId_processId: { productTypeId: saree.id, processId: proc.id } },
-      update: { required: true },
-      create: { productTypeId: saree.id, processId: proc.id, required: true },
-    });
-  }
+  const { seedProductProcessMappings: seed } = await import("./master-catalog-seed");
+  await seed(prisma);
 }
 
 export async function seedChecklistItems(
@@ -276,6 +263,41 @@ export async function seedChecklistItems(
       },
     });
   }
+}
+
+export const FABRIC_SEED = [
+  { code: "SILK", name: "Silk" },
+  { code: "COTTON", name: "Cotton" },
+  { code: "GEORGETTE", name: "Georgette" },
+] as const;
+
+export const MACHINE_SEED = [
+  { code: "TAJIMA_MULTI", name: "Tajima Multi-head" },
+  { code: "BARUDAN", name: "Barudan" },
+] as const;
+
+export const STITCHING_TYPE_SEED = [
+  { code: "LOCKSTITCH", name: "Lockstitch" },
+  { code: "CHAIN_STITCH", name: "Chain stitch" },
+] as const;
+
+export const DESIGN_GRADE_SEED = [
+  { code: "A", name: "Grade A" },
+  { code: "B", name: "Grade B" },
+  { code: "C", name: "Grade C" },
+] as const;
+
+export const CORRECTION_REASON_SEED = [
+  { code: "FIT_ISSUE", name: "Fit issue" },
+  { code: "COLOR_MISMATCH", name: "Color mismatch" },
+  { code: "STITCH_DEFECT", name: "Stitch defect" },
+  { code: "EMBROIDERY_ERROR", name: "Embroidery error" },
+  { code: "OTHER", name: "Other" },
+] as const;
+
+export async function seedRdCatalogMasters(prisma: PrismaClient) {
+  const { seedAllMasterCatalog } = await import("./master-catalog-seed");
+  await seedAllMasterCatalog(prisma);
 }
 
 export async function seedKpiDefinitions(prisma: PrismaClient, roles: RoleLookup) {

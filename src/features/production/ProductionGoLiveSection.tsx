@@ -51,12 +51,12 @@ export function ProductionGoLiveSection({
             {
               key: "productType",
               header: "Product",
-              render: (r) => r.productType?.name ?? "—",
+              render: (r) => r.productType?.name ?? "-",
             },
             {
               key: "designHead",
               header: "Design Head",
-              render: (r) => r.designHead?.name ?? "—",
+              render: (r) => r.designHead?.name ?? "-",
             },
             {
               key: "status",

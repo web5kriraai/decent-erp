@@ -10,7 +10,7 @@ import {
   type StageApprovalSurface,
 } from "@/lib/workflow/stage-capabilities";
 
-/** @deprecated Prefer resolveStageBehavior — kept for textile parity / tests. */
+/** @deprecated Prefer resolveStageBehavior - kept for textile parity / tests. */
 export const STAGE_APPROVAL_CODES = [
   "CONCEPT_REVIEW",
   "SKETCH_APPROVAL",
@@ -44,7 +44,7 @@ export const STAGE_APPROVAL_OWNER_ROLE: Record<StageApprovalCode, string> = {
   LIVE_REVIEW: TEXTILE_APPROVAL_OWNER_ROLE.LIVE_REVIEW,
 };
 
-/** @deprecated Prefer resolveStageBehavior — textile UI snapshot for tests. */
+/** @deprecated Prefer resolveStageBehavior - textile UI snapshot for tests. */
 export const STAGE_APPROVAL_UI: Record<StageApprovalCode, StageApprovalUiConfig> = {
   CONCEPT_REVIEW: {
     surface: "inline_card",
@@ -52,7 +52,7 @@ export const STAGE_APPROVAL_UI: Record<StageApprovalCode, StageApprovalUiConfig>
     showCompare: false,
     showGallery: false,
     showChecklist: false,
-    title: "Concept review — your action",
+    title: "Concept review - your action",
   },
   SKETCH_APPROVAL: {
     surface: "inline_card",
@@ -68,7 +68,7 @@ export const STAGE_APPROVAL_UI: Record<StageApprovalCode, StageApprovalUiConfig>
     showCompare: true,
     showGallery: true,
     showChecklist: false,
-    title: "Punching check — review decision",
+    title: "Punching check - review decision",
   },
   SAMPLE_CHECK: {
     surface: "task_end_dialog",
@@ -84,7 +84,7 @@ export const STAGE_APPROVAL_UI: Record<StageApprovalCode, StageApprovalUiConfig>
     showCompare: false,
     showGallery: false,
     showChecklist: false,
-    title: "Final approval — costing & sample ready?",
+    title: "Final approval - costing & sample ready?",
   },
   LIVE_REVIEW: {
     surface: "task_panel",
@@ -92,7 +92,7 @@ export const STAGE_APPROVAL_UI: Record<StageApprovalCode, StageApprovalUiConfig>
     showCompare: false,
     showGallery: false,
     showChecklist: false,
-    title: "Live Design Review — go-live decision",
+    title: "Live Design Review - go-live decision",
   },
 };
 
@@ -132,7 +132,7 @@ export function getStageApprovalUiConfig(
 
 /**
  * True when the stage must be completed via Approve / Correction / Reject
- * (inline card or task panel) — not the timer End dialog.
+ * (inline card or task panel) - not the timer End dialog.
  * SAMPLE_CHECK (task_end_dialog) returns false so End remains allowed.
  */
 export function usesStageApprovalActionsNotTimerEnd(

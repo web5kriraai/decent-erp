@@ -14,12 +14,27 @@ export type DesignSummary = {
   workType?: WorkType | null;
   trendReference?: string | null;
   celebrityReference?: string | null;
+  targetGrade?: string | null;
   currentStage?: string | null;
   version?: number;
+  fabricId?: number | null;
+  machineId?: number | null;
+  stitchingTypeId?: number | null;
+  designGradeId?: number | null;
   productType?: { id: number; name: string; code: string };
   season?: { id: number; name: string; code: string };
+  fabric?: { id: number; name: string; code: string } | null;
+  machine?: { id: number; name: string; code: string } | null;
+  stitchingType?: { id: number; name: string; code: string } | null;
+  designGrade?: { id: number; name: string; code: string } | null;
   designHead?: { id: number; name: string };
-  components?: Array<{ id: string; componentType?: { name: string; code: string }; specification?: string | null }>;
+  components?: Array<{
+    id: string;
+    componentTypeId?: number;
+    componentType?: { name: string; code: string };
+    specification?: string | null;
+  }>;
+  images?: Array<{ id: string; isPrimary: boolean; fileName?: string; mediaKind?: string }>;
   tasks?: DesignTask[];
   corrections?: unknown[];
   approvals?: unknown[];
@@ -32,6 +47,8 @@ export type DesignListResponse = {
 
 export type KanbanWorkflowInfo = {
   currentStage: string | null;
+  /** Sub-process code for stage-lane kanban (e.g. SKETCH, SAMPLE_CHECK). */
+  currentStageCode: string | null;
   currentStatus: string | null;
   currentOwner: string | null;
   summary: string | null;
@@ -49,6 +66,8 @@ export type KanbanDesignItem = {
   ideaRef: string;
   collectionName: string;
   status: string;
+  /** Persisted designConcept.currentStage (sub-process code), when set. */
+  currentStage?: string | null;
   priority: Priority;
   version: number;
   productType: { name: string };
@@ -367,7 +386,7 @@ export type PendingApproval = {
     process: { name: string };
     subProcess: { name: string };
   } | null;
-  /** Present on submit response — chain still has a later level. */
+  /** Present on submit response - chain still has a later level. */
   chainComplete?: boolean;
   designStatus?: string;
   nextLevel?: ApprovalLevel | null;
@@ -382,6 +401,8 @@ export type DesignImageRecord = {
   contentType: string;
   fileSize: string;
   isPrimary: boolean;
+  mediaKind?: "IMAGE" | "AUDIO" | "VIDEO" | "FILE" | string;
+  designComponentId?: string | null;
   reviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
   reviewNote?: string | null;
   uploadedAtUtc: string;
@@ -392,6 +413,7 @@ export type DesignCostRecord = {
   id: string;
   designId: string;
   costType: string;
+  costCategory?: string | null;
   description?: string | null;
   amount: number;
   enteredAtUtc: string;
@@ -401,12 +423,16 @@ export type DesignCostRecord = {
 export type DesignCostSummary = {
   totalDevCost: number;
   byType: Record<string, number>;
+  byCategory?: Record<string, number>;
   entryCount: number;
   hasCosting: boolean;
   estimatedCost?: number | null;
   standardCost?: number | null;
+  expectedMrp?: number | null;
   marginAmount?: number | null;
   marginPercent?: number | null;
+  mrpMarginAmount?: number | null;
+  mrpMarginPercent?: number | null;
 };
 
 export type ManualDesignTask = {
@@ -488,9 +514,14 @@ export type CreateDesignPayload = {
   trendReference?: string;
   celebrityReference?: string;
   targetGrade?: string;
+  designGradeId?: number;
+  fabricId?: number;
+  machineId?: number;
+  stitchingTypeId?: number;
   estimatedCost?: number;
   standardCost?: number;
   componentTypeIds?: number[];
+  componentSpecs?: Record<string, string>;
   assignmentMode: "AUTOMATIC" | "MANUAL";
   workflowPatternId?: number;
   manualTasks?: ManualDesignTask[];

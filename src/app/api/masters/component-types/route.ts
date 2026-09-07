@@ -1,12 +1,6 @@
-import { jsonOk, withApiHandler } from "@/lib/api-utils";
-import { prisma } from "@/lib/db";
+import { createLegacyCatalogCollectionHandlers } from "@/lib/services/legacy-catalog-route";
+import { MASTER_TYPES } from "@/lib/master-catalog-types";
 
-export async function GET() {
-  return withApiHandler(null, async (ctx) => {
-    const types = await prisma.componentType.findMany({
-      where: { active: true },
-      orderBy: { sequence: "asc" },
-    });
-    return jsonOk(types, ctx.correlationId);
-  });
-}
+const handlers = createLegacyCatalogCollectionHandlers(MASTER_TYPES.PRODUCT_COMPONENT);
+export const GET = handlers.GET;
+export const POST = handlers.POST;

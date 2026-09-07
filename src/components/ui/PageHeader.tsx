@@ -20,7 +20,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        // Stack on phones; side-by-side from sm up — actions wrap, never overflow
+        // Stack on phones; side-by-side from sm up - actions wrap, never overflow
         "page-header mb-4 flex flex-col gap-3 border-b border-border/70 pb-4 sm:mb-5 sm:flex-row sm:items-start sm:justify-between",
         className,
       )}

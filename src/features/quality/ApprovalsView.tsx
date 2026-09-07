@@ -27,6 +27,8 @@ import {
 import { ROUTES } from "@/config/routes";
 import { resolveWorkOpenHref } from "@/lib/resolve-work-open-href";
 import { useApprovalsHub, useSubmitApproval } from "@/hooks/use-approvals";
+import { apiPost } from "@/lib/api-client";
+import { useApiToast } from "@/components/ui/ToastProvider";
 import { useEmployeeOptions } from "@/hooks/use-corrections";
 import { parseApprovalRequestPackage } from "@/lib/approval-request-package";
 import { canRoleAccessApprovalsHub, getApprovalHubTabsForRole } from "@/lib/stage-approval-rbac";
@@ -44,7 +46,7 @@ function TabCountBadge({ count }: { count: number }) {
 }
 
 function formatCompletedAt(value: string | null) {
-  if (!value) return "—";
+  if (!value) return "-";
   return new Date(value).toLocaleDateString(undefined, {
     day: "numeric",
     month: "short",
@@ -62,6 +64,9 @@ export function ApprovalsView() {
 
   const hubQuery = useApprovalsHub(canAccessHub);
   const submitApproval = useSubmitApproval();
+  const toast = useApiToast();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkPending, setBulkPending] = useState(false);
   const [decideItem, setDecideItem] = useState<PendingApprovalQueueItem | null>(null);
   const [formState, setFormState] = useState<ApprovalDecisionFormState>(
     defaultApprovalDecisionFormState(),
@@ -184,7 +189,7 @@ export function ApprovalsView() {
           {
             key: "work",
             header: "Work submitted",
-            render: (row) => row.workStageName ?? "—",
+            render: (row) => row.workStageName ?? "-",
           },
           {
             key: "status",
@@ -272,10 +277,70 @@ export function ApprovalsView() {
     </AppCard>
   );
 
+  async function handleBulkApprove() {
+    const items = managementItems.filter((row) =>
+      selectedIds.has(`${row.designId}-${row.currentLevel.id}`),
+    );
+    if (!items.length) return;
+    setBulkPending(true);
+    try {
+      await apiPost("/api/approvals/bulk", {
+        decision: "APPROVED",
+        remark: "Bulk approved",
+        items: items.map((row) => ({
+          designId: row.designId,
+          taskId: row.task?.id,
+          approvalLevelId: row.currentLevel.id,
+        })),
+      });
+      toast.success(`Approved ${items.length} item(s)`);
+      setSelectedIds(new Set());
+      await hubQuery.refetch();
+    } catch (e) {
+      toast.errorFromApi(e, "Bulk approve failed");
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
   const managementPanel = (
-    <AppCard title={showTabChrome ? undefined : "Management sign-off"}>
+    <AppCard
+      title={showTabChrome ? undefined : "Management sign-off"}
+      headerAction={
+        <AppButton
+          type="button"
+          appVariant="primary"
+          size="sm"
+          disabled={!selectedIds.size || bulkPending}
+          onClick={() => void handleBulkApprove()}
+        >
+          Approve Selected ({selectedIds.size})
+        </AppButton>
+      }
+    >
       <DataTable
         columns={[
+          {
+            key: "select",
+            header: "Sel",
+            render: (row) => {
+              const key = `${row.designId}-${row.currentLevel.id}`;
+              return (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(key)}
+                  onChange={(e) => {
+                    setSelectedIds((prev) => {
+                      const next = new Set(prev);
+                      if (e.target.checked) next.add(key);
+                      else next.delete(key);
+                      return next;
+                    });
+                  }}
+                />
+              );
+            },
+          },
           {
             key: "design",
             header: "Design",

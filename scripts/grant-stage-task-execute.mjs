@@ -18,7 +18,7 @@ try {
   for (const code of ROLE_CODES) {
     const role = await prisma.role.findUnique({ where: { code } });
     if (!role) {
-      console.warn(`Role ${code} not found — skip`);
+      console.warn(`Role ${code} not found - skip`);
       continue;
     }
     await prisma.rolePermission.upsert({

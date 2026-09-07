@@ -1,5 +1,5 @@
 /**
- * Full workflow pipeline — concept through production release.
+ * Full workflow pipeline - concept through production release.
  */
 import { expect, test, type Page } from "@playwright/test";
 import {

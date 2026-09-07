@@ -13,7 +13,6 @@ export const queryKeys = {
     all: ["tasks"] as const,
     my: ["tasks", "my"] as const,
     actionCenter: ["tasks", "action-center"] as const,
-    pipelineDependencies: ["tasks", "pipeline-dependencies"] as const,
     detail: (id: string) => ["tasks", "detail", id] as const,
   },
   time: {
@@ -26,6 +25,8 @@ export const queryKeys = {
     workflowPatterns: ["masters", "workflow-patterns"] as const,
     holdReasons: ["masters", "hold-reasons"] as const,
     skills: ["masters", "skills"] as const,
+    catalog: (masterType?: string, includeInactive?: boolean) =>
+      ["masters", "catalog", masterType ?? "all", includeInactive ? "all" : "active"] as const,
     productTypes: ["masters", "product-types"] as const,
     productTypesAdmin: ["masters", "product-types", "all"] as const,
     seasons: ["masters", "seasons"] as const,
@@ -35,15 +36,36 @@ export const queryKeys = {
     componentTypes: ["masters", "component-types"] as const,
     checklistItems: ["masters", "checklist-items"] as const,
     employees: ["masters", "employees"] as const,
+    fabrics: ["masters", "fabrics"] as const,
+    fabricsAdmin: ["masters", "fabrics", "all"] as const,
+    machines: ["masters", "machines"] as const,
+    machinesAdmin: ["masters", "machines", "all"] as const,
+    stitchingTypes: ["masters", "stitching-types"] as const,
+    stitchingTypesAdmin: ["masters", "stitching-types", "all"] as const,
+    designGrades: ["masters", "design-grades"] as const,
+    designGradesAdmin: ["masters", "design-grades", "all"] as const,
+    correctionReasons: ["masters", "correction-reasons"] as const,
+    correctionReasonsAdmin: ["masters", "correction-reasons", "all"] as const,
+    conceptTargets: (year: number, month: number) =>
+      ["masters", "concept-targets", year, month] as const,
+    materials: (designId?: string) => ["masters", "materials", designId ?? "all"] as const,
+    kpiDefinitions: ["masters", "kpi-definitions"] as const,
   },
   kpi: {
-    employees: ["kpi", "employees"] as const,
+    /** Prefix for invalidateQueries - matches all employee KPI list pages. */
+    employeesRoot: ["kpi", "employees"] as const,
+    employees: (page?: number, pageSize?: number) =>
+      ["kpi", "employees", { page, pageSize }] as const,
     designHead: ["kpi", "design-head"] as const,
   },
   reports: {
     corrections: ["reports", "corrections"] as const,
     designSuccess: (year: number, month: number) =>
       ["reports", "design-success", year, month] as const,
+    sampleStatus: (year: number, month: number) =>
+      ["reports", "sample-status", year, month] as const,
+    productionStart: (year: number, month: number) =>
+      ["reports", "production-start", year, month] as const,
   },
   corrections: {
     all: ["corrections"] as const,
@@ -61,14 +83,14 @@ export const queryKeys = {
   production: {
     approved: ["production", "approved"] as const,
     released: ["production", "released"] as const,
-    /** Prefix for invalidateQueries — matches list + per-design handoff keys. */
+    /** Prefix for invalidateQueries - matches list + per-design handoff keys. */
     handoffsRoot: ["production", "handoffs"] as const,
     handoffs: (designId?: string) =>
       designId
         ? (["production", "handoffs", "design", designId] as const)
         : (["production", "handoffs", "list"] as const),
     erpStatus: ["production", "erp-status"] as const,
-    /** Prefix for invalidateQueries — matches list + per-design ERP stage keys. */
+    /** Prefix for invalidateQueries - matches list + per-design ERP stage keys. */
     erpStagesRoot: ["production", "erp-stages"] as const,
     erpStages: (designId?: string) =>
       designId

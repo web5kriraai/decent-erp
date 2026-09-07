@@ -111,7 +111,7 @@ function classifyProductionDesign(
     return {
       ...base,
       section: "ready_for_acceptance",
-      stageLabel: "Production accepted — start instruction",
+      stageLabel: "Production accepted - start instruction",
       needsAcceptance: false,
       assigneeName: instruction.assignedEmployee?.name,
     };

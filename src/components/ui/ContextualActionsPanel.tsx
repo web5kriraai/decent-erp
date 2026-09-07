@@ -86,7 +86,7 @@ export function ContextualActionsPanel({
             <ActionUnavailable
               key={`disabled-${action.code}`}
               compact
-              reason={`${action.label} — ${action.disabledReason}`}
+              reason={`${action.label} - ${action.disabledReason}`}
             />
           ))}
         </div>

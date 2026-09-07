@@ -5,7 +5,7 @@
 import { execSync } from "node:child_process";
 
 if (process.env.E2E_REUSE_SERVER === "1") {
-  console.log("[pretest:e2e] E2E_REUSE_SERVER=1 — leaving existing servers.");
+  console.log("[pretest:e2e] E2E_REUSE_SERVER=1 - leaving existing servers.");
   process.exit(0);
 }
 

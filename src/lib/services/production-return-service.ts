@@ -78,7 +78,7 @@ export async function returnProductionForClarification(
       throw businessRule(
         APP_ERROR_CODES.DESIGN_STATUS_INVALID,
         undefined,
-        "This design is already released — returns are not allowed after release.",
+        "This design is already released - returns are not allowed after release.",
       );
     }
 
@@ -88,7 +88,7 @@ export async function returnProductionForClarification(
       throw businessRule(
         APP_ERROR_CODES.TASK_WRONG_STATUS,
         undefined,
-        "Production instruction is already complete — use return only before acceptance finishes.",
+        "Production instruction is already complete - use return only before acceptance finishes.",
       );
     }
 

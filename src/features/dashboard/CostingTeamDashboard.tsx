@@ -97,7 +97,7 @@ export function CostingTeamDashboard() {
           />
           <StatCard
             label="Time today"
-            value={timeSummary ? formatDuration(timeSummary.totals.activeSeconds) : "—"}
+            value={timeSummary ? formatDuration(timeSummary.totals.activeSeconds) : "-"}
           />
         </div>
       </div>
@@ -143,7 +143,7 @@ export function CostingTeamDashboard() {
                     key={design.id}
                     primaryHref={ROUTES.finance.costing}
                     primaryLabel={design.ideaRef}
-                    meta={`${design.collectionName} · ${design.productType?.name ?? "—"}`}
+                    meta={`${design.collectionName} · ${design.productType?.name ?? "-"}`}
                     trailing={<StatusBadge status={design.status} />}
                   />
                 ))}

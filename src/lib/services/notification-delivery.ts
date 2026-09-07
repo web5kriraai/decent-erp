@@ -3,23 +3,35 @@ import { sendEmail, isSmtpConfigured } from "@/lib/email/smtp";
 import { buildNotificationMessage } from "@/lib/notifications/messages";
 import { createEmployeeNotification } from "@/lib/services/employee-notification-service";
 import { isWhatsAppConfigured, sendWhatsAppMessage } from "@/lib/notifications/whatsapp";
+import { isPushConfigured, sendPushNotification } from "@/lib/notifications/push";
+
+function eventAllowed(envKey: string, eventType: string): boolean {
+  const raw = process.env[envKey]?.trim();
+  if (!raw) return true; // no allow-list → all events
+  return raw.split(",").map((s) => s.trim()).filter(Boolean).includes(eventType);
+}
+
+function resolveEmployeeId(payload: Record<string, unknown>): number | null {
+  if (typeof payload.employeeId === "number") return payload.employeeId;
+  if (typeof payload.responsibleEmployeeId === "number") return payload.responsibleEmployeeId;
+  if (typeof payload.designHeadId === "number") return payload.designHeadId;
+  return null;
+}
 
 export async function deliverNotification(
   eventType: string,
   payload: Record<string, unknown>,
-): Promise<{ inApp: boolean; emailSent: boolean; emailTo?: string; whatsAppSent: boolean }> {
+): Promise<{
+  inApp: boolean;
+  emailSent: boolean;
+  emailTo?: string;
+  whatsAppSent: boolean;
+  pushSent: boolean;
+}> {
   const { subject, text, html } = buildNotificationMessage(eventType, payload);
 
   let inApp = false;
-
-  const employeeId =
-    typeof payload.employeeId === "number"
-      ? payload.employeeId
-      : typeof payload.responsibleEmployeeId === "number"
-        ? payload.responsibleEmployeeId
-        : typeof payload.designHeadId === "number"
-          ? payload.designHeadId
-          : null;
+  const employeeId = resolveEmployeeId(payload);
 
   if (employeeId != null) {
     try {
@@ -81,7 +93,7 @@ export async function deliverNotification(
   }
 
   let whatsAppSent = false;
-  if (isWhatsAppConfigured() && process.env.WHATSAPP_NOTIFY_EVENTS?.split(",").includes(eventType)) {
+  if (isWhatsAppConfigured() && eventAllowed("WHATSAPP_NOTIFY_EVENTS", eventType)) {
     const result = await sendWhatsAppMessage(`${subject}\n\n${text}`, payload);
     whatsAppSent = result.sent;
     if (!result.sent && result.reason) {
@@ -96,5 +108,21 @@ export async function deliverNotification(
     }
   }
 
-  return { inApp: inApp || true, emailSent, emailTo, whatsAppSent };
+  let pushSent = false;
+  if (isPushConfigured() && eventAllowed("PUSH_NOTIFY_EVENTS", eventType)) {
+    const result = await sendPushNotification(subject, text, { eventType, ...payload });
+    pushSent = result.sent;
+    if (!result.sent && result.reason) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          channel: "push",
+          eventType,
+          reason: result.reason,
+        }),
+      );
+    }
+  }
+
+  return { inApp, emailSent, emailTo, whatsAppSent, pushSent };
 }

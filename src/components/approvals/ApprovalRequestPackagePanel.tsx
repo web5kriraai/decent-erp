@@ -26,7 +26,7 @@ type ApprovalRequestPackagePanelProps = {
   package: ApprovalRequestPackage | null | undefined;
   designId: string;
   className?: string;
-  /** Live preview before submit — softens links / labels. */
+  /** Live preview before submit - softens links / labels. */
   preview?: boolean;
 };
 
@@ -275,7 +275,7 @@ export function ApprovalRequestPackagePanel({
                 <p className="approval-pkg-metric-sub m-0">
                   {[d.decidedBy, d.decidedAt ? new Date(d.decidedAt).toLocaleString() : null]
                     .filter(Boolean)
-                    .join(" · ") || "—"}
+                    .join(" · ") || "-"}
                 </p>
               </li>
             ))}
@@ -291,7 +291,7 @@ export function ApprovalRequestPackagePanel({
           <div className="min-w-0">
             <p className="approval-pkg-kicker">Costing</p>
             <p className="approval-pkg-metric-value">
-              {hasCosting ? `₹${snap.costingTotal.toLocaleString()}` : "—"}
+              {hasCosting ? `₹${snap.costingTotal.toLocaleString()}` : "-"}
             </p>
             <p className="approval-pkg-metric-sub">
               {costingLabel}

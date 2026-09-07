@@ -176,7 +176,7 @@ export function ExecutorWorkbench() {
                 }
               >
                   {openTasks.length === 0 ? (
-                    <QueueEmpty message="No tasks ready yet — prior stages must finish first." />
+                    <QueueEmpty message="No tasks ready yet - prior stages must finish first." />
                   ) : (
                     <ul className="detail-task-list">
                       {[...openTasks]

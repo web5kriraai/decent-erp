@@ -102,7 +102,7 @@ export function TaskStageApprovalPanel({
   });
   const isOpen = !["COMPLETED", "CANCELLED", "CORRECTION_REQUIRED"].includes(status);
 
-  // task_end_dialog stages (e.g. SAMPLE_CHECK) complete via End dialog — not this panel.
+  // task_end_dialog stages (e.g. SAMPLE_CHECK) complete via End dialog - not this panel.
   if (
     !isOpen ||
     !uiConfig ||
@@ -165,7 +165,7 @@ export function TaskStageApprovalPanel({
     workTask,
     capabilities,
   );
-  const panelTitle = uiConfig.title ?? `${stageName} — review decision`;
+  const panelTitle = uiConfig.title ?? `${stageName} - review decision`;
 
   const bannerContext: HandoffContext = handoff ?? {
     stageCode,

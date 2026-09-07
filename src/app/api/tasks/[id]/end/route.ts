@@ -17,7 +17,7 @@ const schema = z.object({
     )
     .optional(),
   checklistNote: z.string().optional(),
-  sampleOutcome: z.enum(["APPROVE", "REJECT", "RESAMPLE"]).optional(),
+  sampleOutcome: z.enum(["APPROVE", "PASS", "HOLD", "REJECT", "RESAMPLE"]).optional(),
   costEntries: z
     .array(
       z.object({

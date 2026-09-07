@@ -10,8 +10,8 @@ import {
   StorageError,
 } from "@/lib/storage";
 import {
-  resolveUploadCategory,
-  validateUploadPayload,
+  parseConceptMediaKind,
+  validateConceptMedia,
 } from "@/lib/file-upload-policy";
 
 async function listDesignImages(designId: bigint) {
@@ -51,27 +51,34 @@ export async function POST(
       const formData = await request.formData();
       const file = formData.get("file") as File | null;
       const isPrimary = formData.get("isPrimary") === "true";
-      const uploadCategory = formData.get("category")?.toString() ?? null;
+      const mediaKind = parseConceptMediaKind(
+        formData.get("mediaKind")?.toString(),
+      );
+      const designComponentIdRaw = formData.get("designComponentId")?.toString();
+      const designComponentId = designComponentIdRaw
+        ? BigInt(designComponentIdRaw)
+        : null;
 
       if (!file) throw new ApiError("File is required", 400);
 
-      const category = resolveUploadCategory(uploadCategory, file.name);
       const buffer = Buffer.from(await file.arrayBuffer());
-      const validation = validateUploadPayload(
+      const validation = validateConceptMedia(
         { name: file.name, type: file.type || "", size: file.size },
-        category,
+        mediaKind,
         buffer,
       );
       if (!validation.ok) {
         throw new ApiError(validation.message, validation.status);
       }
 
-      const contentType =
+      let contentType =
         file.type && file.type !== "application/octet-stream"
           ? file.type
-          : category === "PUNCHING"
-            ? "application/octet-stream"
-            : file.type || "application/octet-stream";
+          : file.type || "application/octet-stream";
+      if (mediaKind === "FILE" && (!file.type || file.type === "application/octet-stream")) {
+        contentType = "application/octet-stream";
+      }
+
       const storageKey = buildStorageKey(id, file.name);
       try {
         await uploadObject(storageKey, buffer, contentType);
@@ -83,7 +90,13 @@ export async function POST(
       }
 
       const image = await prisma.$transaction(async (tx) => {
-        if (isPrimary) {
+        const existingPrimary = await tx.designImage.findFirst({
+          where: { designId, isPrimary: true },
+          select: { id: true },
+        });
+        const makePrimary = isPrimary || !existingPrimary;
+
+        if (makePrimary) {
           await tx.designImage.updateMany({
             where: { designId },
             data: { isPrimary: false },
@@ -93,12 +106,14 @@ export async function POST(
         const created = await tx.designImage.create({
           data: {
             designId,
+            designComponentId,
+            mediaKind,
             storageKey,
             fileName: file.name,
             contentType,
             fileSize: BigInt(file.size),
             uploadedById: ctx.employeeId,
-            isPrimary,
+            isPrimary: makePrimary && mediaKind === "IMAGE",
           },
         });
 
@@ -108,7 +123,13 @@ export async function POST(
           action: "UPLOAD",
           userId: ctx.employeeId,
           correlationId: ctx.correlationId,
-          after: { storageKey, fileName: file.name },
+          after: {
+            storageKey,
+            fileName: file.name,
+            isPrimary: makePrimary,
+            mediaKind,
+            designComponentId: designComponentId?.toString() ?? null,
+          },
         });
 
         return created;
@@ -141,6 +162,9 @@ export async function PATCH(
         where: { id: BigInt(imageId), designId },
       });
       if (!image) throw new ApiError("Image not found", 404);
+      if ((image.mediaKind ?? "IMAGE") !== "IMAGE") {
+        throw new ApiError("Only images can be set as primary", 400);
+      }
 
       const updated = await prisma.$transaction(async (tx) => {
         await tx.designImage.updateMany({
@@ -181,6 +205,19 @@ export async function DELETE(
       where: { id: BigInt(imageId), designId: BigInt(id) },
     });
     if (!image) throw new ApiError("Image not found", 404);
+
+    await writeAuditLogDirect({
+      entityType: "DesignImage",
+      entityId: image.id.toString(),
+      action: "DELETE",
+      userId: ctx.employeeId,
+      correlationId: ctx.correlationId,
+      before: {
+        storageKey: image.storageKey,
+        fileName: image.fileName,
+        isPrimary: image.isPrimary,
+      },
+    });
 
     await deleteObject(image.storageKey);
     await prisma.designImage.delete({ where: { id: image.id } });

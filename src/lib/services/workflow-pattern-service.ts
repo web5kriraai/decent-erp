@@ -134,7 +134,7 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
   const warnings: string[] = [];
   if (!hasCostingEntry) {
     warnings.push(
-      "No costing step — cost data is not required at production sign-off.",
+      "No costing step - cost data is not required at production sign-off.",
     );
   }
   if (!resolvedSteps.some((s) => s.behavior.isApproval)) {
@@ -142,7 +142,7 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
   }
   if (!hasUnlockLadder) {
     warnings.push(
-      "No steps after approval — production steps stay omitted unless added after approve.",
+      "No steps after approval - production steps stay omitted unless added after approve.",
     );
   }
   return warnings;
@@ -161,10 +161,10 @@ export async function createWorkflowPattern(
   const versionNo = input.versionNo ?? 1;
 
   if (input.productTypeId != null) {
-    const productType = await prisma.productType.findUnique({
+    const productType = await prisma.masterCatalog.findUnique({
       where: { id: input.productTypeId },
     });
-    if (!productType) {
+    if (!productType || productType.masterType !== "PRODUCT_CATEGORY") {
       throw new ApiError("Product type not found", 422);
     }
   }

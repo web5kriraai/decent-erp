@@ -11,6 +11,8 @@ export const STAGE_TO_SKILL_CODE: Record<string, string> = {
   MAT_REQ: "DESIGN_LEAD",
   FABRIC_ISSUE: "PRODUCTION_LEAD",
   MACHINE_SAMPLE: "MACHINE_SAMPLE",
+  SAMPLE_CUTTING: "MACHINE_SAMPLE",
+  SAMPLE_STITCHING: "MACHINE_SAMPLE",
   SAMPLE_RECEIVE: "MACHINE_SAMPLE",
   SAMPLE_CHECK: "SAMPLE_CHECK",
   COSTING: "COSTING",
@@ -42,7 +44,7 @@ export type ResolveAssigneeOptions = {
 
 /**
  * Resolve RoleId (+ optional SkillId) → eligible employee with least open workload.
- * Spec §6.2 — never hardcode names; prefer skill match then least open tasks, then lowest id.
+ * Spec §6.2 - never hardcode names; prefer skill match then least open tasks, then lowest id.
  */
 export async function resolveEmployeeForRole(
   roleId: number,

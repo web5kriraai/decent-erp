@@ -48,7 +48,7 @@ function InboxList({
             meta={`${item.productType} · ${item.collectionName}`}
             detail={
               taskHref
-                ? `${item.stageLabel} — open on My Tasks`
+                ? `${item.stageLabel} - open on My Tasks`
                 : `${item.stageLabel} · Design Head: ${item.designHead}`
             }
             trailing={<StatusBadge status={item.status} />}

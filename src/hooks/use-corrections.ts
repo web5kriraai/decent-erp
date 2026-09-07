@@ -79,7 +79,13 @@ export function useUpdateCorrectionStatus() {
       status,
     }: {
       id: string;
-      status: "OPEN" | "IN_PROGRESS" | "DONE" | "REJECTED";
+      status:
+        | "OPEN"
+        | "ASSIGNED"
+        | "IN_PROGRESS"
+        | "CHECKING"
+        | "DONE"
+        | "REJECTED";
     }) => apiPatch<CorrectionRecord>(`/api/corrections/${id}`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });

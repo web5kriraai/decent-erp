@@ -35,7 +35,13 @@ export type NotificationJobPayload = {
   eventType: string;
   payload: Record<string, unknown>;
   correlationId?: string;
+  /** Marks this specific outbox row processed after delivery (avoids updateMany by eventType). */
+  outboxId?: string;
 };
+
+export function isNotificationQueueDisabled(): boolean {
+  return queueDisabled;
+}
 
 export async function enqueueNotification(job: NotificationJobPayload): Promise<void> {
   if (queueDisabled) return;

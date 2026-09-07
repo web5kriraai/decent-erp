@@ -1,6 +1,6 @@
 /**
  * Stops Next.js dev servers on ports 3000/3001.
- * Required on Windows before `npm run build` — a running dev server locks
+ * Required on Windows before `npm run build` - a running dev server locks
  * Prisma's query_engine DLL and causes EPERM during `prisma generate`.
  */
 import { execSync } from "node:child_process";

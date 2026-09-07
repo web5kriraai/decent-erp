@@ -20,7 +20,7 @@ test.describe("Production return and API errors", () => {
         designId: design.id,
         reasonCode: "TECHNICAL_FEASIBILITY",
         routeToSubProcessId: 1,
-        remark: "Should fail — handoff not done",
+        remark: "Should fail - handoff not done",
       },
       headers: { "Content-Type": "application/json" },
     });

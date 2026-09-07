@@ -314,6 +314,9 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
       );
     }
 
+    const { assertDesignHasPrimaryImage } = await import("@/lib/services/design-service");
+    await assertDesignHasPrimaryImage(task.designId, tx);
+
     const siblingRows = await tx.designTask.findMany({
       where: { designId: task.designId },
       select: {
@@ -340,7 +343,7 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
       throw businessRule(
         APP_ERROR_CODES.TASK_DEPENDENCY_BLOCKED,
         { blockerTaskId: blocker.id.toString() },
-        `Cannot start — “${label}” must be completed or sent for checking first.`,
+        `Cannot start - “${label}” must be completed or sent for checking first.`,
       );
     }
 
@@ -551,9 +554,10 @@ export async function endTask(
     attachmentIds?: number[];
     checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
     checklistNote?: string;
-    sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
+    sampleOutcome?: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE";
     costEntries?: Array<{
       costType: CostType;
+      costCategory?: "FABRIC" | "EMBROIDERY" | "STITCHING" | "SALARY" | "OTHER" | null;
       description?: string;
       amount: number;
     }>;
@@ -573,6 +577,15 @@ export async function endTask(
       throw conflict(APP_ERROR_CODES.CONCURRENCY_CONFLICT);
     }
 
+    const {
+      normalizeSampleOutcome,
+      isPassSampleOutcome,
+      isRejectSampleOutcome,
+      isHoldSampleOutcome,
+      isResampleSampleOutcome,
+      sampleDecisionForOutcome,
+    } = await import("@/lib/services/sample-outcome-utils");
+
     const stageUi = getStageApprovalUiConfig(
       task.subProcess.code,
       task.subProcess.capabilities,
@@ -591,7 +604,7 @@ export async function endTask(
       throw businessRule(
         APP_ERROR_CODES.APPROVAL_NOT_ALLOWED,
         undefined,
-        "Use the stage approval actions for this task — it cannot be completed from the timer End dialog.",
+        "Use the stage approval actions for this task - it cannot be completed from the timer End dialog.",
       );
     }
 
@@ -606,6 +619,23 @@ export async function endTask(
     const isSampleCheck = stageBehavior.sampleDecisionOutcomes;
     if (isSampleCheck && !input.sampleOutcome) {
       throw businessRule(APP_ERROR_CODES.SAMPLE_OUTCOME_REQUIRED);
+    }
+    const canonicalOutcome = input.sampleOutcome
+      ? normalizeSampleOutcome(input.sampleOutcome)
+      : null;
+    if (isSampleCheck && isHoldSampleOutcome(canonicalOutcome) && !input.outputRemark?.trim()) {
+      throw businessRule(
+        APP_ERROR_CODES.SAMPLE_OUTCOME_REQUIRED,
+        undefined,
+        "Hold requires a reason in the output remark.",
+      );
+    }
+    if (isSampleCheck && isRejectSampleOutcome(canonicalOutcome) && !input.outputRemark?.trim()) {
+      throw businessRule(
+        APP_ERROR_CODES.SAMPLE_OUTCOME_REQUIRED,
+        undefined,
+        "Reject requires a reason in the output remark.",
+      );
     }
 
     if (stageBehavior.onComplete.includes("unlockErp")) {
@@ -673,7 +703,7 @@ export async function endTask(
         );
       }
 
-      if (isSampleCheck && input.sampleOutcome === "APPROVE" && failedCount > 0) {
+      if (isSampleCheck && isPassSampleOutcome(canonicalOutcome) && failedCount > 0) {
         throw businessRule(
           APP_ERROR_CODES.CHECKLIST_INCOMPLETE,
           undefined,
@@ -763,14 +793,17 @@ export async function endTask(
             input.completionStatus === "CHECKING" ? "CHECKING" : "COMPLETED",
           );
 
-    if (isSampleCheck) {
-      if (input.sampleOutcome === "APPROVE") {
+    if (isSampleCheck && canonicalOutcome) {
+      if (isPassSampleOutcome(canonicalOutcome)) {
         nextStatus = "COMPLETED";
         await tx.designImage.updateMany({
           where: { designId: task.designId },
           data: { reviewStatus: "APPROVED", reviewNote: null },
         });
-      } else if (input.sampleOutcome === "REJECT") {
+      } else if (isHoldSampleOutcome(canonicalOutcome)) {
+        // Commercial Hold: record decision, park design ON_HOLD, complete check stage.
+        nextStatus = "COMPLETED";
+      } else if (isRejectSampleOutcome(canonicalOutcome)) {
         nextStatus = "CORRECTION_REQUIRED";
         await tx.designImage.updateMany({
           where: { designId: task.designId, isPrimary: false },
@@ -800,20 +833,33 @@ export async function endTask(
             correctionType: "IMPROVEMENT",
             responsibleEmployeeId: machineSample?.assignedEmployeeId ?? null,
             routeToSubProcessId: routeSub?.id ?? null,
-            rootCause: input.outputRemark || "Sample checking rejected — rework required",
+            rootCause: input.outputRemark || "Sample checking rejected - rework required",
           },
           employeeId,
           correlationId,
         );
-      } else if (input.sampleOutcome === "RESAMPLE") {
-        // Record this check attempt as complete, but do not unlock Costing —
+      } else if (isResampleSampleOutcome(canonicalOutcome)) {
+        // Record this check attempt as complete, but do not unlock Costing -
         // Machine Operator reworks via RESAMPLE, then Sample Checker must approve again.
         nextStatus = "COMPLETED";
         await spawnResampleTask(tx, task);
       }
+
+      const decision = sampleDecisionForOutcome(canonicalOutcome);
+      if (decision) {
+        await tx.designConcept.update({
+          where: { id: task.designId },
+          data: {
+            sampleDecision: decision,
+            sampleDecisionRemark: input.outputRemark || null,
+            sampleDecisionAtUtc: now,
+            ...(isHoldSampleOutcome(canonicalOutcome) ? { status: "ON_HOLD" } : {}),
+          },
+        });
+      }
     }
 
-    const isResampleOutcome = isSampleCheck && input.sampleOutcome === "RESAMPLE";
+    const isResampleOutcome = isSampleCheck && isResampleSampleOutcome(canonicalOutcome);
     const isResampleTask = task.subProcess.code === "RESAMPLE";
 
     await tx.taskTimeEvent.create({
@@ -855,14 +901,67 @@ export async function endTask(
     // Sample REJECT already created DesignCorrection + routed rework via raiseCorrectionInTransaction
     // which also marked the check task CORRECTION_REQUIRED; keep outputRemark from this update.
 
+    /** Bind MAT_REQ / FABRIC_ISSUE stages to design_material_lines. */
+    if (nextStatus === "COMPLETED") {
+      const stageCode = task.subProcess.code;
+      if (stageCode === "MAT_REQ") {
+        const openLines = await tx.designMaterialLine.count({
+          where: {
+            designId: task.designId,
+            status: { in: ["REQUESTED", "INDENT", "AVAILABLE"] },
+          },
+        });
+        if (openLines === 0) {
+          throw businessRule(
+            APP_ERROR_CODES.VALIDATION_FAILED,
+            { stage: "MAT_REQ" },
+            "Create at least one material request (stock or indent) before completing Material Requirement.",
+          );
+        }
+        await tx.designMaterialLine.updateMany({
+          where: {
+            designId: task.designId,
+            status: { in: ["REQUESTED", "INDENT"] },
+          },
+          data: { status: "AVAILABLE" },
+        });
+      }
+      if (stageCode === "FABRIC_ISSUE") {
+        const available = await tx.designMaterialLine.count({
+          where: { designId: task.designId, status: "AVAILABLE" },
+        });
+        if (available === 0) {
+          throw businessRule(
+            APP_ERROR_CODES.VALIDATION_FAILED,
+            { stage: "FABRIC_ISSUE" },
+            "Mark material lines Available before completing Fabric Issue (or complete MAT_REQ first).",
+          );
+        }
+        await tx.designMaterialLine.updateMany({
+          where: { designId: task.designId, status: "AVAILABLE" },
+          data: {
+            status: "ISSUED",
+            issuedById: employeeId,
+            issuedAtUtc: now,
+          },
+        });
+      }
+    }
+
     await tx.designConcept.update({
       where: { id: task.designId },
       data: {
-        currentStage: isResampleOutcome
-          ? "RESAMPLE"
-          : siblingRows.find((s) => !["COMPLETED", "CHECKING", "CANCELLED"].includes(s.status))
-              ?.subProcess.code ?? task.subProcess.code,
-        ...(nextStatus === "CHECKING" ? { status: "ACTIVE" as const } : {}),
+        currentStage: isHoldSampleOutcome(canonicalOutcome)
+          ? "SAMPLE_CHECK"
+          : isResampleOutcome
+            ? "RESAMPLE"
+            : siblingRows.find((s) => !["COMPLETED", "CHECKING", "CANCELLED"].includes(s.status))
+                ?.subProcess.code ?? task.subProcess.code,
+        ...(isHoldSampleOutcome(canonicalOutcome)
+          ? { status: "ON_HOLD" as const }
+          : nextStatus === "CHECKING"
+            ? { status: "ACTIVE" as const }
+            : {}),
       },
     });
 
@@ -879,14 +978,15 @@ export async function endTask(
           correlationId,
         });
 
-        if (isSampleCheck && input.sampleOutcome === "APPROVE") {
+        if (isSampleCheck && isPassSampleOutcome(canonicalOutcome)) {
           await closeOpenCorrectionsForTask(tx, {
             designId: task.designId,
             taskId: task.id,
           });
         }
 
-        if (!reopenedCheck) {
+        // Commercial Hold must not unlock Costing / later stages.
+        if (!reopenedCheck && !isHoldSampleOutcome(canonicalOutcome)) {
           if (task.subProcess.isApproval && nextStatus === "COMPLETED") {
             await promoteGatedWorkTasksAfterApproval(
               tx,
@@ -1013,7 +1113,7 @@ export async function completeStageApproval(
       throw businessRule(
         APP_ERROR_CODES.APPROVAL_NOT_ALLOWED,
         undefined,
-        "This task is not a stage approval — use the normal End task flow instead.",
+        "This task is not a stage approval - use the normal End task flow instead.",
       );
     }
 
@@ -1204,7 +1304,7 @@ export async function completeStageApproval(
         throw businessRule(
           APP_ERROR_CODES.WORKFLOW_NOT_READY,
           undefined,
-          "Cannot route correction — related work stage not found.",
+          "Cannot route correction - related work stage not found.",
         );
       }
 
@@ -1336,7 +1436,7 @@ async function reopenSampleCheckAfterResample(
     throw businessRule(
       APP_ERROR_CODES.WORKFLOW_NOT_READY,
       undefined,
-      "Cannot reopen sample check after re-sample — SAMPLE_CHECK stage not found.",
+      "Cannot reopen sample check after re-sample - SAMPLE_CHECK stage not found.",
     );
   }
 
@@ -1414,7 +1514,7 @@ async function spawnResampleTask(
     _max: { sequence: true },
   });
   const sequence = (maxSeq._max.sequence ?? 0) + 1;
-  // Independent of SAMPLE_CHECK completion — costing must not unlock from this task.
+  // Independent of SAMPLE_CHECK completion - costing must not unlock from this task.
   const dependencySequence = sourceTask.dependencySequence ?? sourceTask.sequence;
 
   const created = await tx.designTask.create({

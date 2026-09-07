@@ -14,7 +14,7 @@ const bodySchema = z.object({
 });
 
 /**
- * POST — append PROD_* ladder + unlock handoff for APPROVED designs missing them
+ * POST - append PROD_* ladder + unlock handoff for APPROVED designs missing them
  * (Spec 8-Step / flexible patterns stuck after management approval).
  * Restricted to Management/Admin or WORKFLOW_OVERRIDE (not bare PRODUCTION_RELEASE).
  */

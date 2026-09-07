@@ -47,7 +47,7 @@ function row(id: string, sequence: number, status: string, code: string, isAppro
   };
 }
 
-describe("every demo role — CHECKING display vs effectiveStatus", () => {
+describe("every demo role - CHECKING display vs effectiveStatus", () => {
   it("covers all seeded demo accounts", () => {
     expect(DEMO_ACCOUNTS.map((a) => a.role).sort()).toEqual(
       [

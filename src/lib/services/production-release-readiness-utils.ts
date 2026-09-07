@@ -2,7 +2,7 @@
 
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
-/** Inactive / bypassed stages — never block release and never require files. */
+/** Inactive / bypassed stages - never block release and never require files. */
 export const RELEASE_INACTIVE_STATUSES = new Set(["SKIPPED", "CANCELLED"]);
 
 /** Work stages that may sit in CHECKING while still counting as delivered. */
@@ -20,6 +20,9 @@ const TEXTILE_LABELS: Record<string, { label: string; fileLabel?: string }> = {
   MAT_REQ: { label: "Material requirement" },
   FABRIC_ISSUE: { label: "Fabric / component issue" },
   MACHINE_SAMPLE: { label: "Machine sample", fileLabel: "Machine sample file" },
+  SAMPLE_CUTTING: { label: "Sample cutting" },
+  SAMPLE_STITCHING: { label: "Sample stitching" },
+  SAMPLE_RECEIVE: { label: "Sample receive" },
   SAMPLE_CHECK: { label: "Sample approval" },
   FINAL_APPROVAL: { label: "Design Head final approval stage" },
   PROD_HANDOFF: { label: "Production handoff from Design Head" },
@@ -57,7 +60,7 @@ const POST_APPROVAL_STATUSES = new Set([
 ]);
 
 /**
- * Spec Stage 9 — Management ApprovalLevel chain is mandatory before production release.
+ * Spec Stage 9 - Management ApprovalLevel chain is mandatory before production release.
  * Once the design is past APPROVED, levels are historical (already decided).
  * `hasAnyDesignApproval` is retained for callers/tests but does not waive the chain.
  */

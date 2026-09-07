@@ -12,7 +12,7 @@ const schema = z.object({
   designId: z.string(),
 });
 
-/** Go-live queue — Management/Admin only (matches Mark Live UI). */
+/** Go-live queue - Management/Admin only (matches Mark Live UI). */
 export async function GET() {
   return withApiHandler(PERMISSIONS.PRODUCTION_RELEASE, async (ctx) => {
     if (!canRoleMarkDesignLive(ctx.roleCode)) {

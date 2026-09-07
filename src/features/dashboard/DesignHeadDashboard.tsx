@@ -16,6 +16,7 @@ import { useDesignHeadWorkbench } from "@/hooks/use-workbench";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useCorrections } from "@/hooks/use-corrections";
 import { useDesignsList } from "@/hooks/use-designs";
+import { useConceptTargets } from "@/hooks/use-masters";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -35,8 +36,10 @@ export function DesignHeadDashboard() {
   const tasksQuery = useMyTasks(true);
   const correctionsQuery = useCorrections(undefined, true);
   const designsQuery = useDesignsList(true);
+  const conceptTargetsQuery = useConceptTargets(true);
 
   const summary = summaryQuery.data;
+  const attainment = conceptTargetsQuery.data?.attainment;
   const tasks = tasksQuery.data ?? [];
   const openTasks = tasks.filter(isDashboardOpenTask);
     const corrections = (correctionsQuery.data ?? []).filter((c) =>
@@ -84,6 +87,7 @@ export function DesignHeadDashboard() {
         tasksQuery.refetch();
         correctionsQuery.refetch();
         designsQuery.refetch();
+        conceptTargetsQuery.refetch();
       }}
     >
       <div className="workbench-overview">
@@ -99,6 +103,20 @@ export function DesignHeadDashboard() {
             tone={(summary?.blockedDesigns.length ?? 0) > 0 ? "warning" : "default"}
           />
           <StatCard label="Active pipeline" value={summary?.activeDesigns ?? activeDesigns.length} />
+          <StatCard
+            label="Concept target"
+            value={
+              attainment
+                ? `${attainment.createdCount}/${attainment.targetCount || "-"}`
+                : "-"
+            }
+            trend={
+              attainment
+                ? `${attainment.percent}% this month`
+                : undefined
+            }
+            tone="accent"
+          />
           {summary && summary.overdueTasks > 0 ? (
             <StatCard
               label="Overdue tasks"
@@ -120,7 +138,7 @@ export function DesignHeadDashboard() {
             emptyMessage="No tasks ready on your action center."
           >
             {openTasks.length === 0 ? (
-              <WorkbenchEmpty message="No tasks ready yet — prior stages must finish first." />
+              <WorkbenchEmpty message="No tasks ready yet - prior stages must finish first." />
             ) : (
               <ul className="detail-task-list">
                 {openTasks.slice(0, 6).map((task) => (
@@ -202,7 +220,7 @@ export function DesignHeadDashboard() {
             emptyMessage="No handoffs waiting on you."
           >
             {!summary?.handoffTasks?.length ? (
-              <WorkbenchEmpty message="Request management approval first — handoff unlocks after Approved status." />
+              <WorkbenchEmpty message="Request management approval first - handoff unlocks after Approved status." />
             ) : (
               <ul className="detail-task-list">
                 {summary.handoffTasks.map((task) => (

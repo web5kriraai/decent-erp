@@ -55,12 +55,6 @@ export type ActionCenterResponse = {
   completed: ActionCenterTask[];
 };
 
-export type TeamPipelineDependencyItem = ActionCenterWaitingItem & {
-  employeeId: number;
-  employeeName: string;
-  employeeCode: string;
-};
-
 function toDepSibling(
   t: {
     id: bigint;
@@ -276,37 +270,3 @@ async function buildWaitingForOthersItems(employeeId: number): Promise<ActionCen
   return waitingForOthers;
 }
 
-export async function getTeamPipelineDependencies(): Promise<TeamPipelineDependencyItem[]> {
-  const employees = await prisma.employee.findMany({
-    where: {
-      active: true,
-      assignedTasks: {
-        some: {
-          status: { notIn: ["CANCELLED", "COMPLETED"] },
-          assignedEmployeeId: { not: null },
-        },
-      },
-    },
-    select: { id: true, name: true, employeeCode: true },
-    orderBy: { name: "asc" },
-  });
-
-  const results: TeamPipelineDependencyItem[] = [];
-  for (const employee of employees) {
-    const items = await buildWaitingForOthersItems(employee.id);
-    for (const item of items) {
-      results.push({
-        ...item,
-        employeeId: employee.id,
-        employeeName: employee.name,
-        employeeCode: employee.employeeCode,
-      });
-    }
-  }
-
-  return results.sort(
-    (a, b) =>
-      a.design.ideaRef.localeCompare(b.design.ideaRef) ||
-      a.employeeName.localeCompare(b.employeeName),
-  );
-}

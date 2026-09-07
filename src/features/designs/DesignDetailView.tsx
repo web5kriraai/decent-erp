@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useBreadcrumbReplacement } from "@/components/layout/BreadcrumbProvider";
 import { QueryState } from "@/components/ui/QueryState";
@@ -13,6 +15,7 @@ import { ROUTES } from "@/config/routes";
 import { useDesign } from "@/hooks/use-designs";
 import { useDesignCosts } from "@/hooks/use-costing";
 import { ImageGallery } from "@/components/ImageGallery";
+import { ConceptMediaPanel } from "@/components/ConceptMediaPanel";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
 import { DesignCompletionSummaryPanel, canViewDesignCompletionSummary } from "@/features/designs/DesignCompletionSummaryPanel";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
@@ -24,14 +27,17 @@ import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprova
 import { ManagementApprovalCard } from "@/components/designs/ManagementApprovalCard";
 import { getPendingStageApproval } from "@/lib/design-workflow";
 import { PERMISSIONS } from "@/lib/permissions";
-import type { DesignTask } from "@/lib/types/api";
+import { apiGet } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-keys";
+import type { DesignImageRecord, DesignTask } from "@/lib/types/api";
 
 export function DesignDetailView({
   designId,
+  showConceptSetup = false,
   highlightImageId = null,
 }: {
   designId: string;
-  /** @deprecated Banner removed; kept for page prop compat. */
+  /** When true (e.g. ?setup=images), emphasize the primary-image gate after create. */
   showConceptSetup?: boolean;
   highlightImageId?: string | null;
 }) {
@@ -39,6 +45,11 @@ export function DesignDetailView({
   const permissions = session?.user?.permissions ?? [];
   const employeeId = session?.user?.employeeId;
   const designQuery = useDesign(designId);
+  const imagesQuery = useQuery({
+    queryKey: queryKeys.designs.images(designId),
+    queryFn: () => apiGet<DesignImageRecord[]>(`/api/designs/${designId}/images`),
+    enabled: !!designId,
+  });
   const [assignTask, setAssignTask] = useState<DesignTask | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -51,6 +62,9 @@ export function DesignDetailView({
   const canUploadFiles = permissions.includes(PERMISSIONS.DESIGN_CREATE);
   const canOverrideWorkflow = permissions.includes(PERMISSIONS.WORKFLOW_OVERRIDE);
   const canViewCompletion = canViewDesignCompletionSummary(permissions);
+  const images = imagesQuery.data ?? designQuery.data?.images ?? [];
+  const needsPrimaryImage = images.length === 0 || !images.some((img) => img.isPrimary);
+  const showImageGate = needsPrimaryImage || (showConceptSetup && images.length === 0);
 
   const pendingStageApproval = useMemo(() => {
     if (!designQuery.data) return null;
@@ -113,7 +127,28 @@ export function DesignDetailView({
                   </AppButtonLink>
                 </>
               }
-            />
+              />
+
+            {showImageGate ? (
+              <div className="alert alert-warning" role="status">
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 text-sm font-medium">
+                    {images.length === 0
+                      ? "Add at least one design image and mark it as primary before starting workflow tasks."
+                      : "Mark one uploaded image as primary before starting workflow tasks."}
+                  </p>
+                  <p className="mt-1 mb-0 text-sm opacity-90">
+                    Workflow timers stay blocked until a primary image is set.{" "}
+                    <Link
+                      href={`${ROUTES.designs.detail(designId)}?setup=images#design-files`}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      Open image upload
+                    </Link>
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
             {canExecute ? (
               <DesignActiveTaskTimer
@@ -142,36 +177,32 @@ export function DesignDetailView({
                 sampleOutcome={isFinalApproval ? sampleOutcomeForFinal : undefined}
               />
             ) : (
-              <div className="stack-section-sm">
-                <CompactDesignActions
-                  design={designQuery.data}
-                  permissions={permissions}
-                  employeeId={employeeId}
-                  roleCode={roleCode}
-                  onAssignTask={(taskId) => {
-                    const task = designQuery.data.tasks?.find((t) => t.id === taskId);
-                    if (task) setAssignTask(task);
-                  }}
-                />
-              </div>
+              <CompactDesignActions
+                design={designQuery.data}
+                permissions={permissions}
+                employeeId={employeeId}
+                roleCode={roleCode}
+                onAssignTask={(taskId) => {
+                  const task = designQuery.data.tasks?.find((t) => t.id === taskId);
+                  if (task) setAssignTask(task);
+                }}
+              />
             )}
 
-            <div className="stack-section">
-              <DesignWorkflowPanel
-                design={designQuery.data}
-                designId={designId}
-                canAssign={canAssign}
-                onAssignTask={setAssignTask}
-                headerActions={
-                  canOverrideWorkflow ? (
-                    <WorkflowOverrideActions
-                      designId={designId}
-                      design={designQuery.data}
-                    />
-                  ) : null
-                }
-              />
-            </div>
+            <DesignWorkflowPanel
+              design={designQuery.data}
+              designId={designId}
+              canAssign={canAssign}
+              onAssignTask={setAssignTask}
+              headerActions={
+                canOverrideWorkflow ? (
+                  <WorkflowOverrideActions
+                    designId={designId}
+                    design={designQuery.data}
+                  />
+                ) : null
+              }
+            />
 
             {designQuery.data.status === "APPROVAL_PENDING" ? (
               <ManagementApprovalCard
@@ -187,12 +218,30 @@ export function DesignDetailView({
             />
 
             {showDesignFiles ? (
-              <AppCard title="Design Files" id="design-files" className="stack-section">
-                <ImageGallery
-                  designId={designId}
-                  canUpload={canUploadFiles}
-                  highlightImageId={highlightImageId}
-                />
+              <AppCard title="Design Files" id="design-files">
+                <div className="vstack vstack--loose">
+                  {canUploadFiles ? (
+                    <ConceptMediaPanel
+                      designId={designId}
+                      canUpload={canUploadFiles}
+                      components={(designQuery.data?.components ?? []).map((c) => ({
+                        id: c.id,
+                        label: c.componentType?.name ?? c.id,
+                      }))}
+                      onUploaded={() => imagesQuery.refetch()}
+                    />
+                  ) : null}
+                  <ImageGallery
+                    designId={designId}
+                    canUpload={canUploadFiles}
+                    highlightImageId={highlightImageId}
+                    components={(designQuery.data?.components ?? []).map((c) => ({
+                      id: c.id,
+                      label: c.componentType?.name ?? c.id,
+                    }))}
+                    showUploader={false}
+                  />
+                </div>
               </AppCard>
             ) : null}
 

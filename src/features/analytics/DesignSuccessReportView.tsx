@@ -24,6 +24,10 @@ import { AppButton } from "@/components/ui/AppButton";
 import { apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
+import {
+  erpGoLiveChecklistItems,
+  erpModeDisplayLabel,
+} from "@/lib/services/erp-integration-config";
 
 type DesignSuccessSyncResult = {
   ingested: boolean;
@@ -107,11 +111,18 @@ export function DesignSuccessReportView() {
   const rows = reportQuery.data ?? [];
   const totalSales = rows.reduce((sum, row) => sum + Number(row.salesValue ?? 0), 0);
   const erpMode = erpStatusQuery.data?.mode ?? lastSync?.mode ?? "simulated";
+  const isSimulated = erpMode === "simulated";
+  const goLiveItems = erpGoLiveChecklistItems();
 
   return (
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Design Success Report"
+        subtitle={
+          isSimulated
+            ? "Simulated ERP - enter metrics manually until ERP_API_BASE_URL is configured."
+            : "Live ERP feed - sync partner metrics or adjust rows manually."
+        }
         actions={
           <>
             <AppButton
@@ -131,7 +142,7 @@ export function DesignSuccessReportView() {
               {erpSync.isPending ? "Syncing…" : "Sync from ERP"}
             </AppButton>
             <AppButton type="button" appVariant="primary" size="sm" onClick={() => setUpsertOpen(true)}>
-              Add / Update Metric
+              {isSimulated ? "Enter metric (manual)" : "Add / Update Metric"}
             </AppButton>
           </>
         }
@@ -142,18 +153,30 @@ export function DesignSuccessReportView() {
           Mode:{" "}
           <StatusBadge
             status={erpMode === "live" ? "ACTIVE" : "CHECKING"}
-            label={erpMode === "live" ? "Live ERP" : "Simulated"}
+            label={erpModeDisplayLabel(erpMode)}
           />
         </p>
         <p className="m-0 text-sm text-muted-foreground">
           {erpStatusQuery.data?.message ??
-            "Configure ERP_API_BASE_URL to pull production/sales/return metrics automatically."}
+            (isSimulated
+              ? "ERP_API_BASE_URL is unset - partner ingest is simulated. Manual metric entry stays fully usable."
+              : "Live partner feed is active.")}
         </p>
+        {isSimulated ? (
+          <div className="erp-golive-callout mt-3">
+            <p className="erp-golive-callout__title">Go-live checklist</p>
+            <ul className="erp-golive-callout__list">
+              {goLiveItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {lastSync ? (
           <p className="mt-2 text-xs text-muted-foreground">
             Last sync: {lastSync.ingested ? "ingested" : "no data"}
             {lastSync.designNumber ? ` · ${lastSync.designNumber}` : ""}
-            {lastSync.reason ? ` — ${lastSync.reason}` : ""}
+            {lastSync.reason ? ` - ${lastSync.reason}` : ""}
           </p>
         ) : null}
       </AppCard>
@@ -196,13 +219,13 @@ export function DesignSuccessReportView() {
               header: "Design",
               render: (row) =>
                 row.design
-                  ? `${row.design.ideaRef} — ${row.design.collectionName}`
+                  ? `${row.design.ideaRef} - ${row.design.collectionName}`
                   : row.designId,
             },
             {
               key: "productType",
               header: "Product",
-              render: (row) => row.design?.productType?.name ?? "—",
+              render: (row) => row.design?.productType?.name ?? "-",
             },
             { key: "productionQty", header: "Prod Qty", align: "right" },
             { key: "salesQty", header: "Sales Qty", align: "right" },
@@ -211,13 +234,13 @@ export function DesignSuccessReportView() {
               header: "Sales Value",
               align: "right",
               render: (row) =>
-                row.salesValue != null ? `₹${Number(row.salesValue).toLocaleString()}` : "—",
+                row.salesValue != null ? `₹${Number(row.salesValue).toLocaleString()}` : "-",
             },
             {
               key: "marginPercent",
               header: "Margin %",
               align: "right",
-              render: (row) => (row.marginPercent != null ? `${row.marginPercent}%` : "—"),
+              render: (row) => (row.marginPercent != null ? `${row.marginPercent}%` : "-"),
             },
             {
               key: "sync",
@@ -239,13 +262,17 @@ export function DesignSuccessReportView() {
           rows={rows}
           getRowKey={(row) => String(row.id)}
           emptyTitle="No design success metrics for this period"
-          emptyDescription="Add metrics manually or sync from live ERP when ERP_API_BASE_URL is configured."
+          emptyDescription={
+            isSimulated
+              ? "Use Enter metric (manual) while ERP is simulated, or configure ERP_API_BASE_URL and sync."
+              : "Add metrics manually or sync from live ERP."
+          }
         />
       </QueryState>
 
       <Modal
         open={upsertOpen}
-        title="Upsert design success metric"
+        title={isSimulated ? "Manual metric entry (simulated ERP)" : "Upsert design success metric"}
         onClose={() => setUpsertOpen(false)}
         footer={
           <ModalFooterActions>
@@ -259,6 +286,12 @@ export function DesignSuccessReportView() {
         }
       >
         <ModalForm>
+          {isSimulated ? (
+            <p className="m-0 mb-3 text-sm text-muted-foreground">
+              Partner ERP ingest is offline. Enter production/sales figures here - they are stored
+              in-app and remain valid after you go live.
+            </p>
+          ) : null}
           <FormTextField
             id="dsDesignId"
             label="Design ID"

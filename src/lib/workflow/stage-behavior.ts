@@ -62,7 +62,7 @@ export type ResolvedStageBehavior = {
 };
 
 /**
- * Column flags only — never invent approvalSurface/actions here.
+ * Column flags only - never invent approvalSurface/actions here.
  * Inventing `task_panel` used to overwrite textile `inline_card` whenever
  * `isApproval: true` was passed from the DB, hiding design-page approve cards.
  */
@@ -113,7 +113,7 @@ function deriveEndDialogMode(caps: StageCapabilities): EndDialogMode {
 
 /**
  * Resolve runtime stage behavior from capabilities metadata (with textile + column fallbacks).
- * Codes are IDs only — behavior comes from capabilities.
+ * Codes are IDs only - behavior comes from capabilities.
  */
 export function resolveStageBehavior(input: StageBehaviorInput): ResolvedStageBehavior {
   const textile = capabilitiesForTextileCode(input.code);

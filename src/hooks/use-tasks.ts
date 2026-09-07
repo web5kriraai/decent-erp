@@ -35,21 +35,6 @@ export type ActionCenterData = {
   completed: DesignTask[];
 };
 
-export type TeamPipelineDependencyItem = ActionCenterWaitingItem & {
-  employeeId: number;
-  employeeName: string;
-  employeeCode: string;
-};
-
-export function usePipelineDependencies(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.tasks.pipelineDependencies,
-    queryFn: () => apiGet<TeamPipelineDependencyItem[]>("/api/tasks/pipeline-dependencies"),
-    enabled,
-    refetchInterval: 60_000,
-  });
-}
-
 export function useActionCenter(enabled = true) {
   return useQuery({
     queryKey: queryKeys.tasks.actionCenter,
@@ -162,7 +147,7 @@ export function useTaskMutations() {
       completionStatus: "COMPLETED" | "CHECKING";
       checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
       checklistNote?: string;
-      sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
+      sampleOutcome?: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE";
       costEntries?: Array<{
         costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION";
         description?: string;
@@ -236,7 +221,7 @@ export function useCompleteStageApproval() {
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });
       const label =
         variables.decision === "REJECT"
-          ? "Stage rejected — correction routed"
+          ? "Stage rejected - correction routed"
           : variables.decision === "CORRECTION_REQUIRED"
             ? "Correction requested"
             : "Stage approved";

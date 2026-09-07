@@ -61,7 +61,7 @@ export function WorkflowPatternsView() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.workflowPatterns });
-      toast.success("Workflow pattern updated", `${data.name} — ${data.tasks.length} steps`);
+      toast.success("Workflow pattern updated", `${data.name} - ${data.tasks.length} steps`);
       if (data.warnings?.length) {
         toast.success("Pattern notes", data.warnings.join(" "));
       }

@@ -1,6 +1,6 @@
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
-/** @deprecated Prefer unlockAfterDesignApproved capability — textile ladder snapshot. */
+/** @deprecated Prefer unlockAfterDesignApproved capability - textile ladder snapshot. */
 export const PRODUCTION_POST_APPROVAL_CODES = [
   "PROD_HANDOFF",
   "PROD_INSTRUCTION",

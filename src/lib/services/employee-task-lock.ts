@@ -10,7 +10,7 @@ type Tx = Prisma.TransactionClient;
  * START requests cannot both observe "no RUNNING task" and both succeed.
  */
 export async function lockEmployeeTaskMutation(tx: Tx, employeeId: number): Promise<void> {
-  // pg_advisory_xact_lock(key1, key2) — namespace 0x5441534B ("TASK") + employeeId
+  // pg_advisory_xact_lock(key1, key2) - namespace 0x5441534B ("TASK") + employeeId
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(0x5441534B, ${employeeId}::int)`;
 }
 

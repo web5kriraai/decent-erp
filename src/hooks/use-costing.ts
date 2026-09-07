@@ -24,6 +24,7 @@ export function useAddCostEntry(designId: string) {
   return useMutation({
     mutationFn: (payload: {
       costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION";
+      costCategory?: "FABRIC" | "EMBROIDERY" | "STITCHING" | "SALARY" | "OTHER";
       description?: string;
       amount: number;
     }) => apiPost<DesignCostRecord>(`/api/designs/${designId}/costs`, payload),

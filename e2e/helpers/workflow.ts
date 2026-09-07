@@ -1,5 +1,5 @@
 /**
- * E2E workflow helpers — complete assigned tasks via API.
+ * E2E workflow helpers - complete assigned tasks via API.
  */
 import type { Page } from "@playwright/test";
 import { apiGetJson, apiPatchJson, apiPostJson, login, USERS } from "./auth";
@@ -130,7 +130,7 @@ export async function clearStaleRunningTasks(page: Page, exceptTaskId?: string) 
 
     await apiPostJson(page, `/api/tasks/${task.id}/end`, {
       version: detail.version,
-      outputRemark: "E2E cleanup — end stale running task",
+      outputRemark: "E2E cleanup - end stale running task",
       completionStatus: "COMPLETED",
       sampleOutcome: detail.subProcess.code === "SAMPLE_CHECK" ? "APPROVE" : undefined,
       checklist,

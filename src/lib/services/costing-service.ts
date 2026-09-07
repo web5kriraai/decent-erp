@@ -28,43 +28,57 @@ export async function getCostSummary(designId: bigint) {
   const [design, costs] = await Promise.all([
     prisma.designConcept.findUnique({
       where: { id: designId },
-      select: { estimatedCost: true, standardCost: true },
+      select: { estimatedCost: true, standardCost: true, expectedMrp: true },
     }),
     prisma.designCost.findMany({ where: { designId } }),
   ]);
 
   const byType: Record<string, number> = {};
+  const byCategory: Record<string, number> = {};
   let totalDevCost = 0;
 
   for (const cost of costs) {
     const amount = Number(cost.amount);
     byType[cost.costType] = (byType[cost.costType] ?? 0) + amount;
+    const cat = cost.costCategory ?? "OTHER";
+    byCategory[cat] = (byCategory[cat] ?? 0) + amount;
     totalDevCost += amount;
   }
 
   const estimated = design?.estimatedCost != null ? Number(design.estimatedCost) : null;
   const standard = design?.standardCost != null ? Number(design.standardCost) : null;
+  const expectedMrp = design?.expectedMrp != null ? Number(design.expectedMrp) : null;
   const baseline = estimated ?? standard;
   const marginAmount = baseline != null ? baseline - totalDevCost : null;
   const marginPercent =
     baseline != null && baseline > 0 && marginAmount != null
       ? (marginAmount / baseline) * 100
       : null;
+  const mrpMarginAmount = expectedMrp != null ? expectedMrp - totalDevCost : null;
+  const mrpMarginPercent =
+    expectedMrp != null && expectedMrp > 0 && mrpMarginAmount != null
+      ? (mrpMarginAmount / expectedMrp) * 100
+      : null;
 
   return {
     totalDevCost,
     byType,
+    byCategory,
     entryCount: costs.length,
     hasCosting: costs.some((c) => Number(c.amount) > 0),
     estimatedCost: estimated,
     standardCost: standard,
+    expectedMrp,
     marginAmount,
     marginPercent,
+    mrpMarginAmount,
+    mrpMarginPercent,
   };
 }
 
 export type CostEntryCreateInput = {
   costType: CostType;
+  costCategory?: "FABRIC" | "EMBROIDERY" | "STITCHING" | "SALARY" | "OTHER" | null;
   description?: string;
   amount: number;
 };
@@ -97,6 +111,7 @@ export async function createCostEntryInTx(
     data: {
       designId,
       costType: input.costType,
+      costCategory: input.costCategory ?? null,
       description: input.description,
       amount: input.amount,
       enteredById,

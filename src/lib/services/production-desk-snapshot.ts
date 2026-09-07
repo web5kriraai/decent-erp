@@ -118,7 +118,7 @@ export function buildProductionDeskLadderSnapshot(
 /**
  * Whether the current user may open/execute the desk next-action CTA.
  * Matches Task Detail control: TASK_EXECUTE + assignee (or owning role when unassigned).
- * Admin is not a free pass — they must be the assignee to execute ladder work.
+ * Admin is not a free pass - they must be the assignee to execute ladder work.
  */
 export function canOpenProductionDeskNextAction(input: {
   roleCode?: string | null;

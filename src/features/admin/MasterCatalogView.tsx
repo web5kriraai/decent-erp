@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QueryState } from "@/components/ui/QueryState";
 import { DataTable } from "@/components/DataTable";
@@ -9,18 +9,22 @@ import {
   Modal,
   ModalFooterActions,
   ModalForm,
-  ModalFormGrid,
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
+import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
-import { useProcessMasters } from "@/hooks/use-masters";
-import type { ProductType, Season } from "@/lib/types/api";
+import { useProcessMasters, type CatalogMaster } from "@/hooks/use-masters";
+import {
+  MASTER_HUB_TILES,
+  MASTER_TYPE_LABELS,
+  type MasterType,
+} from "@/lib/master-catalog-types";
+import Link from "next/link";
 
 type ProductProcessMapping = {
   id: number;
@@ -35,78 +39,88 @@ export function MasterCatalogView() {
   const queryClient = useQueryClient();
   const toast = useApiToast();
   const processesQuery = useProcessMasters(true);
+  const [selectedType, setSelectedType] = useState<MasterType | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editItem, setEditItem] = useState<CatalogMaster | null>(null);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [sortOrder, setSortOrder] = useState("0");
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editSortOrder, setEditSortOrder] = useState("0");
+  const [mappingOpen, setMappingOpen] = useState(false);
+  const [mapProductTypeId, setMapProductTypeId] = useState<number | "">("");
+  const [mapProcessId, setMapProcessId] = useState<number | "">("");
 
-  const productTypesQuery = useQuery({
-    queryKey: queryKeys.masters.productTypesAdmin,
-    queryFn: () => apiGet<ProductType[]>("/api/masters/product-types?includeInactive=1"),
+  const catalogQuery = useQuery({
+    queryKey: queryKeys.masters.catalog(selectedType ?? undefined, true),
+    queryFn: () =>
+      apiGet<CatalogMaster[]>(
+        `/api/masters/catalog?masterType=${selectedType}&includeInactive=1`,
+      ),
+    enabled: !!selectedType,
   });
 
-  const seasonsQuery = useQuery({
-    queryKey: queryKeys.masters.seasonsAdmin,
-    queryFn: () => apiGet<Season[]>("/api/masters/seasons?includeInactive=1"),
+  const countsQuery = useQuery({
+    queryKey: queryKeys.masters.catalog(undefined, true),
+    queryFn: () => apiGet<CatalogMaster[]>("/api/masters/catalog?includeInactive=1"),
   });
+
+  const countsByType = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of countsQuery.data ?? []) {
+      if (!row.masterType) continue;
+      map.set(row.masterType, (map.get(row.masterType) ?? 0) + 1);
+    }
+    return map;
+  }, [countsQuery.data]);
+
+  const productTypes = useMemo(
+    () => (countsQuery.data ?? []).filter((r) => r.masterType === "PRODUCT_CATEGORY"),
+    [countsQuery.data],
+  );
 
   const mappingsQuery = useQuery({
     queryKey: queryKeys.masters.productProcessMappings(),
     queryFn: () => apiGet<ProductProcessMapping[]>("/api/masters/product-process-mappings"),
   });
 
-  const [productTypeOpen, setProductTypeOpen] = useState(false);
-  const [seasonOpen, setSeasonOpen] = useState(false);
-  const [mappingOpen, setMappingOpen] = useState(false);
-  const [ptCode, setPtCode] = useState("");
-  const [ptName, setPtName] = useState("");
-  const [seasonCode, setSeasonCode] = useState("");
-  const [seasonName, setSeasonName] = useState("");
-  const [mapProductTypeId, setMapProductTypeId] = useState<number | "">("");
-  const [mapProcessId, setMapProcessId] = useState<number | "">("");
-
-  const createProductType = useMutation({
-    mutationFn: () => apiPost("/api/masters/product-types", { code: ptCode, name: ptName }),
+  const createItem = useMutation({
+    mutationFn: () =>
+      apiPost("/api/masters/catalog", {
+        masterType: selectedType,
+        code,
+        name,
+        description: description || null,
+        sortOrder: Number(sortOrder) || 0,
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.productTypes });
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.productTypesAdmin });
-      toast.success("Product type created");
-      setProductTypeOpen(false);
-      setPtCode("");
-      setPtName("");
+      queryClient.invalidateQueries({ queryKey: ["masters", "catalog"] });
+      toast.success("Master item created");
+      setCreateOpen(false);
+      setCode("");
+      setName("");
+      setDescription("");
+      setSortOrder("0");
     },
-    onError: (e) => toast.errorFromApi(e, "Could not create product type"),
+    onError: (e) => toast.errorFromApi(e, "Could not create master item"),
   });
 
-  const updateProductType = useMutation({
-    mutationFn: (payload: { id: number; name?: string; active?: boolean }) =>
-      apiPatch(`/api/masters/product-types/${payload.id}`, payload),
+  const patchItem = useMutation({
+    mutationFn: (payload: {
+      id: number;
+      name?: string;
+      description?: string | null;
+      sortOrder?: number;
+      isActive?: boolean;
+    }) => apiPatch(`/api/masters/catalog/${payload.id}`, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.productTypes });
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.productTypesAdmin });
-      toast.success("Product type updated");
+      queryClient.invalidateQueries({ queryKey: ["masters", "catalog"] });
+      toast.success("Master item updated");
+      setEditItem(null);
     },
-    onError: (e) => toast.errorFromApi(e, "Could not update product type"),
-  });
-
-  const createSeason = useMutation({
-    mutationFn: () => apiPost("/api/masters/seasons", { code: seasonCode, name: seasonName }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.seasons });
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.seasonsAdmin });
-      toast.success("Season created");
-      setSeasonOpen(false);
-      setSeasonCode("");
-      setSeasonName("");
-    },
-    onError: (e) => toast.errorFromApi(e, "Could not create season"),
-  });
-
-  const updateSeason = useMutation({
-    mutationFn: (payload: { id: number; name?: string; active?: boolean }) =>
-      apiPatch(`/api/masters/seasons/${payload.id}`, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.seasons });
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.seasonsAdmin });
-      toast.success("Season updated");
-    },
-    onError: (e) => toast.errorFromApi(e, "Could not update season"),
+    onError: (e) => toast.errorFromApi(e, "Could not update master item"),
   });
 
   const createMapping = useMutation({
@@ -118,7 +132,7 @@ export function MasterCatalogView() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.productProcessMappings() });
-      toast.success("Process mapping added");
+      toast.success("Product–process mapping created");
       setMappingOpen(false);
       setMapProductTypeId("");
       setMapProcessId("");
@@ -126,270 +140,333 @@ export function MasterCatalogView() {
     onError: (e) => toast.errorFromApi(e, "Could not create mapping"),
   });
 
-  const deleteMapping = useMutation({
-    mutationFn: (id: number) => apiDelete(`/api/masters/product-process-mappings/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.productProcessMappings() });
-      toast.success("Mapping removed");
-    },
-    onError: (e) => toast.errorFromApi(e, "Could not remove mapping"),
-  });
+  const rows = catalogQuery.data ?? [];
 
-  const productTypes = productTypesQuery.data ?? [];
-  const seasons = seasonsQuery.data ?? [];
-  const processes = processesQuery.data ?? [];
-  const mappings = mappingsQuery.data ?? [];
+  if (!selectedType) {
+    return (
+      <div className="vstack vstack--loose">
+        <AppCard title="Master Setup" description="Configure design management masters">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+              gap: 12,
+            }}
+          >
+            {MASTER_HUB_TILES.map((tile) => {
+              if (tile.kind === "link") {
+                return (
+                  <Link
+                    key={tile.id}
+                    href={tile.href}
+                    className="panel"
+                    style={{
+                      display: "block",
+                      padding: 16,
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      textDecoration: "none",
+                      color: "inherit",
+                    }}
+                  >
+                    <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>{tile.label}</h3>
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+                      Open structured master
+                    </p>
+                  </Link>
+                );
+              }
+              const count = countsByType.get(tile.masterType) ?? 0;
+              return (
+                <button
+                  key={tile.masterType}
+                  type="button"
+                  onClick={() => setSelectedType(tile.masterType)}
+                  style={{
+                    textAlign: "left",
+                    padding: 16,
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    background: "var(--surface)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>{tile.label}</h3>
+                  <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+                    {count} records
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </AppCard>
 
-  return (
-    <div className="stack-section">
-      <AppCard
-        className="stack-section"
-        title="Product Types"
-        headerAction={
-          <AppButton type="button" appVariant="primary" size="sm" onClick={() => setProductTypeOpen(true)}>
-            Add Product Type
-          </AppButton>
-        }
-      >
-        <QueryState
-          isLoading={productTypesQuery.isLoading}
-          isError={productTypesQuery.isError}
-          error={productTypesQuery.error}
-          onRetry={() => productTypesQuery.refetch()}
-          skeletonVariant="table"
-        >
-          <DataTable
-            columns={[
-              { key: "code", header: "Code" },
-              { key: "name", header: "Name" },
-              {
-                key: "active",
-                header: "Status",
-                render: (row) => (
-                  <StatusBadge
-                    status={row.active === false ? "CLOSED" : "ACTIVE"}
-                    label={row.active === false ? "Inactive" : "Active"}
-                  />
-                ),
-              },
-              {
-                key: "actions",
-                header: "",
-                align: "right",
-                render: (row) => (
-                  <TableIconActionGroup>
-                    <TableIconAction
-                      action={row.active === false ? "activate" : "deactivate"}
-                      disabled={updateProductType.isPending}
-                      onClick={() =>
-                        updateProductType.mutate({
-                          id: row.id,
-                          active: row.active === false,
-                        })
-                      }
-                    />
-                  </TableIconActionGroup>
-                ),
-              },
-            ]}
-            rows={productTypes}
-            getRowKey={(row) => String(row.id)}
-            emptyTitle="No product types"
-          />
-        </QueryState>
-      </AppCard>
-
-      <AppCard
-        className="stack-section"
-        title="Seasons"
-        headerAction={
-          <AppButton type="button" appVariant="primary" size="sm" onClick={() => setSeasonOpen(true)}>
-            Add Season
-          </AppButton>
-        }
-      >
-        <QueryState
-          isLoading={seasonsQuery.isLoading}
-          isError={seasonsQuery.isError}
-          error={seasonsQuery.error}
-          onRetry={() => seasonsQuery.refetch()}
-          skeletonVariant="table"
-        >
-          <DataTable
-            columns={[
-              { key: "code", header: "Code" },
-              { key: "name", header: "Name" },
-              {
-                key: "active",
-                header: "Status",
-                render: (row) => (
-                  <StatusBadge
-                    status={row.active === false ? "CLOSED" : "ACTIVE"}
-                    label={row.active === false ? "Inactive" : "Active"}
-                  />
-                ),
-              },
-              {
-                key: "actions",
-                header: "",
-                align: "right",
-                render: (row) => (
-                  <TableIconActionGroup>
-                    <TableIconAction
-                      action={row.active === false ? "activate" : "deactivate"}
-                      disabled={updateSeason.isPending}
-                      onClick={() =>
-                        updateSeason.mutate({
-                          id: row.id,
-                          active: row.active === false,
-                        })
-                      }
-                    />
-                  </TableIconActionGroup>
-                ),
-              },
-            ]}
-            rows={seasons}
-            getRowKey={(row) => String(row.id)}
-            emptyTitle="No seasons"
-          />
-        </QueryState>
-      </AppCard>
-
-      <AppCard
-        className="stack-section"
-        title="Product–Process Mappings"
-        headerAction={
-          <AppButton type="button" appVariant="primary" size="sm" onClick={() => setMappingOpen(true)}>
-            Add Mapping
-          </AppButton>
-        }
-      >
-        <QueryState
-          isLoading={mappingsQuery.isLoading}
-          isError={mappingsQuery.isError}
-          error={mappingsQuery.error}
-          onRetry={() => mappingsQuery.refetch()}
-          skeletonVariant="table"
-        >
-          <DataTable
-            columns={[
-              {
-                key: "productType",
-                header: "Product Type",
-                render: (row) => row.productType?.name ?? row.productTypeId,
-              },
-              {
-                key: "process",
-                header: "Process",
-                render: (row) => row.process?.name ?? row.processId,
-              },
-              {
-                key: "required",
-                header: "Required",
-                render: (row) => (row.required ? "Yes" : "No"),
-              },
-              {
-                key: "actions",
-                header: "",
-                align: "right",
-                render: (row) => (
-                  <TableIconActionGroup>
-                    <TableIconAction
-                      action="remove"
-                      className="text-destructive"
-                      disabled={deleteMapping.isPending}
-                      onClick={() => deleteMapping.mutate(row.id)}
-                    />
-                  </TableIconActionGroup>
-                ),
-              },
-            ]}
-            rows={mappings}
-            getRowKey={(row) => String(row.id)}
-            emptyTitle="No mappings"
-          />
-        </QueryState>
-      </AppCard>
-
-      <Modal
-        open={productTypeOpen}
-        title="Add Product Type"
-        onClose={() => setProductTypeOpen(false)}
-        footer={
-          <ModalFooterActions>
-            <AppButton appVariant="outline" onClick={() => setProductTypeOpen(false)}>Cancel</AppButton>
-            <AppButton disabled={!ptCode || !ptName || createProductType.isPending} onClick={() => createProductType.mutate()}>
-              Create
+        <AppCard
+          title="Product–Process Mappings"
+          headerAction={
+            <AppButton type="button" appVariant="primary" size="sm" onClick={() => setMappingOpen(true)}>
+              Add Mapping
             </AppButton>
-          </ModalFooterActions>
-        }
-      >
-        <ModalForm>
-          <FormTextField id="ptCode" label="Code" required value={ptCode} onChange={(e) => setPtCode(e.target.value)} />
-          <FormTextField id="ptName" label="Name" required value={ptName} onChange={(e) => setPtName(e.target.value)} />
-        </ModalForm>
-      </Modal>
+          }
+        >
+          <QueryState
+            isLoading={mappingsQuery.isLoading}
+            isError={mappingsQuery.isError}
+            error={mappingsQuery.error}
+            onRetry={() => mappingsQuery.refetch()}
+            skeletonVariant="table"
+          >
+            <DataTable
+              columns={[
+                {
+                  key: "product",
+                  header: "Product",
+                  render: (row) => row.productType?.name ?? row.productTypeId,
+                },
+                {
+                  key: "process",
+                  header: "Process",
+                  render: (row) => row.process?.name ?? row.processId,
+                },
+                {
+                  key: "required",
+                  header: "Required",
+                  render: (row) => (row.required ? "Yes" : "No"),
+                },
+              ]}
+              rows={mappingsQuery.data ?? []}
+              getRowKey={(row) => String(row.id)}
+              emptyTitle="No product–process mappings"
+            />
+          </QueryState>
+        </AppCard>
 
-      <Modal
-        open={seasonOpen}
-        title="Add Season"
-        onClose={() => setSeasonOpen(false)}
-        footer={
-          <ModalFooterActions>
-            <AppButton appVariant="outline" onClick={() => setSeasonOpen(false)}>Cancel</AppButton>
-            <AppButton disabled={!seasonCode || !seasonName || createSeason.isPending} onClick={() => createSeason.mutate()}>
-              Create
-            </AppButton>
-          </ModalFooterActions>
-        }
-      >
-        <ModalForm>
-          <FormTextField id="seasonCode" label="Code" required value={seasonCode} onChange={(e) => setSeasonCode(e.target.value)} />
-          <FormTextField id="seasonName" label="Name" required value={seasonName} onChange={(e) => setSeasonName(e.target.value)} />
-        </ModalForm>
-      </Modal>
-
-      <Modal
-        open={mappingOpen}
-        title="Add Product–Process Mapping"
-        onClose={() => setMappingOpen(false)}
-        footer={
-          <ModalFooterActions>
-            <AppButton appVariant="outline" onClick={() => setMappingOpen(false)}>Cancel</AppButton>
-            <AppButton
-              disabled={!mapProductTypeId || !mapProcessId || createMapping.isPending}
-              onClick={() => createMapping.mutate()}
-            >
-              Add
-            </AppButton>
-          </ModalFooterActions>
-        }
-      >
-        <ModalForm>
-          <ModalFormGrid>
+        <Modal
+          open={mappingOpen}
+          title="Add Product–Process Mapping"
+          onClose={() => setMappingOpen(false)}
+          footer={
+            <ModalFooterActions>
+              <AppButton appVariant="outline" onClick={() => setMappingOpen(false)}>
+                Cancel
+              </AppButton>
+              <AppButton
+                disabled={!mapProductTypeId || !mapProcessId || createMapping.isPending}
+                onClick={() => createMapping.mutate()}
+              >
+                Create
+              </AppButton>
+            </ModalFooterActions>
+          }
+        >
+          <ModalForm>
             <FormSelect
-              id="mapPt"
-              label="Product Type"
+              id="map-product"
+              label="Product category"
               required
               value={mapProductTypeId === "" ? null : String(mapProductTypeId)}
               onValueChange={(v) => setMapProductTypeId(v ? Number(v) : "")}
-              options={productTypes.filter((pt) => pt.active !== false).map((pt) => ({
+              options={productTypes.map((pt) => ({
                 value: String(pt.id),
                 label: pt.name,
               }))}
-              placeholder="Select product type"
+              placeholder="Select…"
             />
             <FormSelect
-              id="mapProc"
+              id="map-process"
               label="Process"
               required
               value={mapProcessId === "" ? null : String(mapProcessId)}
               onValueChange={(v) => setMapProcessId(v ? Number(v) : "")}
-              options={processes.map((p) => ({ value: String(p.id), label: p.name }))}
-              placeholder="Select process"
+              options={(processesQuery.data ?? []).map((p) => ({
+                value: String(p.id),
+                label: p.name,
+              }))}
+              placeholder="Select…"
             />
-          </ModalFormGrid>
+          </ModalForm>
+        </Modal>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <AppCard
+        title={MASTER_TYPE_LABELS[selectedType]}
+        description={`master_type = ${selectedType}`}
+        headerAction={
+          <div style={{ display: "flex", gap: 8 }}>
+            <AppButton type="button" appVariant="outline" size="sm" onClick={() => setSelectedType(null)}>
+              Back
+            </AppButton>
+            <AppButton type="button" appVariant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+              Add Item
+            </AppButton>
+          </div>
+        }
+      >
+        <QueryState
+          isLoading={catalogQuery.isLoading}
+          isError={catalogQuery.isError}
+          error={catalogQuery.error}
+          onRetry={() => catalogQuery.refetch()}
+          skeletonVariant="table"
+        >
+          <DataTable
+            columns={[
+              { key: "code", header: "Code" },
+              { key: "name", header: "Name" },
+              {
+                key: "description",
+                header: "Description",
+                render: (row) => row.description || "—",
+              },
+              {
+                key: "sortOrder",
+                header: "Sort",
+                render: (row) => String(row.sortOrder ?? 0),
+              },
+              {
+                key: "active",
+                header: "Status",
+                render: (row) => (
+                  <StatusBadge
+                    status={(row.active ?? row.isActive) === false ? "CLOSED" : "ACTIVE"}
+                    label={(row.active ?? row.isActive) === false ? "Inactive" : "Active"}
+                  />
+                ),
+              },
+              {
+                key: "actions",
+                header: "Actions",
+                render: (row) => (
+                  <TableIconActionGroup>
+                    <TableIconAction
+                      action="edit"
+                      label="Edit"
+                      onClick={() => {
+                        setEditItem(row);
+                        setEditName(row.name);
+                        setEditDescription(row.description ?? "");
+                        setEditSortOrder(String(row.sortOrder ?? 0));
+                      }}
+                    />
+                    <TableIconAction
+                      action={(row.active ?? row.isActive) === false ? "activate" : "deactivate"}
+                      label={(row.active ?? row.isActive) === false ? "Activate" : "Deactivate"}
+                      onClick={() =>
+                        patchItem.mutate({
+                          id: row.id,
+                          isActive: (row.active ?? row.isActive) === false,
+                        })
+                      }
+                    />
+                  </TableIconActionGroup>
+                ),
+              },
+            ]}
+            rows={rows}
+            getRowKey={(row) => String(row.id)}
+            emptyTitle="No catalog items"
+          />
+        </QueryState>
+      </AppCard>
+
+      <Modal
+        open={createOpen}
+        title={`Add ${MASTER_TYPE_LABELS[selectedType]}`}
+        onClose={() => setCreateOpen(false)}
+        footer={
+          <ModalFooterActions>
+            <AppButton appVariant="outline" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </AppButton>
+            <AppButton
+              disabled={!code || !name || createItem.isPending}
+              onClick={() => createItem.mutate()}
+            >
+              Create
+            </AppButton>
+          </ModalFooterActions>
+        }
+      >
+        <ModalForm>
+          <FormTextField
+            id="mc-code"
+            label="Code"
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <FormTextField
+            id="mc-name"
+            label="Name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <FormTextField
+            id="mc-desc"
+            label="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <FormTextField
+            id="mc-sort"
+            label="Sort order"
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+          />
+        </ModalForm>
+      </Modal>
+
+      <Modal
+        open={!!editItem}
+        title={`Edit ${editItem?.code ?? ""}`}
+        onClose={() => setEditItem(null)}
+        footer={
+          <ModalFooterActions>
+            <AppButton appVariant="outline" onClick={() => setEditItem(null)}>
+              Cancel
+            </AppButton>
+            <AppButton
+              disabled={!editName || !editItem || patchItem.isPending}
+              onClick={() =>
+                editItem &&
+                patchItem.mutate({
+                  id: editItem.id,
+                  name: editName,
+                  description: editDescription || null,
+                  sortOrder: Number(editSortOrder) || 0,
+                })
+              }
+            >
+              Save
+            </AppButton>
+          </ModalFooterActions>
+        }
+      >
+        <ModalForm>
+          <FormTextField
+            id="mc-edit-name"
+            label="Name"
+            required
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+          <FormTextField
+            id="mc-edit-desc"
+            label="Description"
+            value={editDescription}
+            onChange={(e) => setEditDescription(e.target.value)}
+          />
+          <FormTextField
+            id="mc-edit-sort"
+            label="Sort order"
+            value={editSortOrder}
+            onChange={(e) => setEditSortOrder(e.target.value)}
+          />
         </ModalForm>
       </Modal>
     </div>

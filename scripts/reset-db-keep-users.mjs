@@ -1,5 +1,5 @@
 /**
- * Fresh operational data — wipe designs, tasks, time, corrections, KPI scores,
+ * Fresh operational data - wipe designs, tasks, time, corrections, KPI scores,
  * notifications, and audit history. Keeps employees, roles, permissions, accounts,
  * and master/reference data (processes, patterns, hold reasons, etc.).
  *
@@ -94,7 +94,7 @@ async function main() {
   const beforeTasks = await prisma.designTask.count();
 
   console.log("═".repeat(60));
-  console.log("  Decent ERP — Fresh data (keep users & masters)");
+  console.log("  Decent ERP - Fresh data (keep users & masters)");
   console.log("═".repeat(60));
   console.log(`  Employees kept:     ${beforeUsers}`);
   console.log(`  Designs to remove:  ${beforeDesigns}`);
@@ -138,7 +138,8 @@ async function main() {
     designs: await prisma.designConcept.count(),
     tasks: await prisma.designTask.count(),
     holdReasons: await prisma.taskHoldReason.count(),
-    productTypes: await prisma.productType.count(),
+    productTypes: await prisma.masterCatalog.count({ where: { masterType: "PRODUCT_CATEGORY" } }),
+    masterCatalog: await prisma.masterCatalog.count(),
     processes: await prisma.designProcessMaster.count(),
     patterns: await prisma.workflowPattern.count(),
   };

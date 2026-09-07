@@ -80,7 +80,7 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
       },
       costs: { where: { amount: { gt: 0 } }, select: { id: true }, take: 1 },
     },
-    // approvalRequestPackage is a top-level scalar — included automatically
+    // approvalRequestPackage is a top-level scalar - included automatically
     orderBy: { updatedAtUtc: "desc" },
   });
 
@@ -398,7 +398,7 @@ export async function submitApproval(
   return submitApprovalChain(input, approverEmployeeId, correlationId);
 }
 
-/** @deprecated Alias — use submitApproval. */
+/** @deprecated Alias - use submitApproval. */
 export async function submitApprovalLegacy(
   input: {
     designId: bigint;
@@ -476,7 +476,7 @@ async function submitApprovalChain(
         )
       ) {
         throw new ApiError(
-          `This approval level requires role ${requiredRole?.name ?? "with matching permissions"} — you are not authorized`,
+          `This approval level requires role ${requiredRole?.name ?? "with matching permissions"} - you are not authorized`,
           403,
         );
       }

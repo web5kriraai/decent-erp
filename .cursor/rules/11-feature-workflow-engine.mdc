@@ -8,7 +8,7 @@ alwaysApply: false
 
 Every design moves through configurable Main Processes and Sub-processes.
 **Runtime behavior is driven by `StageCapabilities` on `DesignSubProcessMaster`
-(JSON) via `resolveStageBehavior` — codes are stable IDs only, never behavior switches.**
+(JSON) via `resolveStageBehavior` - codes are stable IDs only, never behavior switches.**
 
 ## Master data
 - `DesignProcessMaster`: ProcessId, Code, Name, Sequence, Active.
@@ -26,7 +26,7 @@ Key flags: `isApproval`, `requiresFile`, `forcesChecking`, `machineOutput`,
 
 ## Transition data gates
 Cross-stage requirements (e.g. cost entries before approve-for-production) live in
-`src/lib/workflow/transition-policies.ts` — presence-driven from capabilities on
+`src/lib/workflow/transition-policies.ts` - presence-driven from capabilities on
 instantiated tasks. Do not hardcode module checks in approval/UI callers.
 
 ## Authoring a custom workflow

@@ -340,7 +340,7 @@ export async function ingestDesignSuccessFromErp(
       ingested: false,
       mode,
       reason:
-        "ERP_API_BASE_URL is not configured — design-success metrics are not fabricated in simulated mode. Add metrics manually or configure live ERP.",
+        "ERP_API_BASE_URL is not configured - design-success metrics are not fabricated in simulated mode. Add metrics manually or configure live ERP.",
     };
   }
 

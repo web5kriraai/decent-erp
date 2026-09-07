@@ -16,6 +16,11 @@ const patchSchema = z.object({
   workType: z.enum(["NEW_DESIGN", "REPEAT", "REVIVAL", "CUSTOM"]).optional(),
   trendReference: z.string().optional(),
   celebrityReference: z.string().optional(),
+  designGradeId: z.number().int().positive().nullable().optional(),
+  fabricId: z.number().int().positive().nullable().optional(),
+  machineId: z.number().int().positive().nullable().optional(),
+  stitchingTypeId: z.number().int().positive().nullable().optional(),
+  targetGrade: z.string().nullable().optional(),
   version: z.number().int().positive(),
 });
 

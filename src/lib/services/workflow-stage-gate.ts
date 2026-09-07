@@ -31,7 +31,7 @@ export function isWorkflowStepAssignable(status: string): boolean {
 
 /**
  * Approvals that gate execute work (Sketch→Sketch Approval). Excludes LIVE_REVIEW
- * and other production ladder steps — those are sequential workflow, not checkers.
+ * and other production ladder steps - those are sequential workflow, not checkers.
  */
 export function isWorkStageApprovalGate(code: string | null | undefined): boolean {
   if (!code) return false;
@@ -40,7 +40,7 @@ export function isWorkStageApprovalGate(code: string | null | undefined): boolea
 }
 
 /**
- * Nearest approval stage that gates this work task — e.g. SKETCH → SKETCH_APPROVAL.
+ * Nearest approval stage that gates this work task - e.g. SKETCH → SKETCH_APPROVAL.
  * Skips approvals separated by other open work stages (PUNCH does not wait on SAMPLE_CHECK).
  * Does not treat LIVE_REVIEW as a gate for PROD_RELEASE.
  */
@@ -80,7 +80,7 @@ export function findStageApprovalGate(
 /**
  * When a stage-approval gate exists, work must end as CHECKING (even if the client
  * requested COMPLETED). Without a gate, end as COMPLETED (even if CHECKING was requested).
- * PROD_RELEASE is never gated by LIVE_REVIEW — it must complete to trigger ERP release.
+ * PROD_RELEASE is never gated by LIVE_REVIEW - it must complete to trigger ERP release.
  */
 export function resolveWorkTaskEndStatus(
   workTask: StageGateTask,

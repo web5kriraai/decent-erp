@@ -173,8 +173,8 @@ export function TaskArtifactPanel({
 
   const typeHint =
     artifactType === "PUNCHING_FILE"
-      ? "EMB, DST, PDF — max 50 MB"
-      : "JPEG, PNG, WebP, PDF — max 25 MB";
+      ? "EMB, DST, PDF - max 50 MB"
+      : "JPEG, PNG, WebP, PDF - max 25 MB";
 
   return (
     <div className={cn("space-y-4", compact && "space-y-2")}>
@@ -234,7 +234,7 @@ export function TaskArtifactPanel({
               </div>
               {!compact ? (
                 <p className="text-xs text-muted-foreground">
-                  Please wait — submit will unlock once the upload finishes.
+                  Please wait - submit will unlock once the upload finishes.
                 </p>
               ) : null}
             </>
@@ -290,7 +290,7 @@ export function TaskArtifactPanel({
                     {artifact.sampleQty != null || artifact.wastageQty != null ? (
                       <span>
                         {" "}
-                        · Sample {artifact.sampleQty ?? "—"}, wastage {artifact.wastageQty ?? "—"}
+                        · Sample {artifact.sampleQty ?? "-"}, wastage {artifact.wastageQty ?? "-"}
                       </span>
                     ) : null}
                     {artifact.stitchCount != null ? (

@@ -11,7 +11,7 @@ type StatCardProps = {
    * accent for a single primary focus metric. Default = identical base card.
    */
   tone?: StatCardTone;
-  /** @deprecated Prefer tone="accent" — kept for call-site compatibility */
+  /** @deprecated Prefer tone="accent" - kept for call-site compatibility */
   accent?: boolean;
 };
 

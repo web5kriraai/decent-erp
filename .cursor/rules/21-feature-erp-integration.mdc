@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## Flow
 Final approval + costing complete → `PRODUCTION_RELEASED` →
-1) In-app ERP chain stages seeded (Grey→…→Accounts) — operate at `/production/erp`
+1) In-app ERP chain stages seeded (Grey→…→Accounts) - operate at `/production/erp`
 2) Outbound partner handoffs: Grey/Material → Cutting → Embroidery → Garmenting → Finishing → Ready Stock
 → Sales → Sales Return → Accounts/GST/TDS → feeds Design Success KPI.
 

@@ -161,18 +161,18 @@ function PersonRow({
         <div className="live-time-stat">
           <span className="live-time-stat-label">Active</span>
           <span className="live-time-stat-value">
-            {row.task ? formatDuration(row.task.activeSeconds) : "—"}
+            {row.task ? formatDuration(row.task.activeSeconds) : "-"}
           </span>
         </div>
         <div className="live-time-stat">
           <span className="live-time-stat-label">Hold</span>
           <span className="live-time-stat-value">
-            {row.task ? formatDuration(row.task.holdSeconds) : "—"}
+            {row.task ? formatDuration(row.task.holdSeconds) : "-"}
           </span>
         </div>
         <div className="live-time-stat">
           <span className="live-time-stat-label">Due</span>
-          <span className="live-time-stat-value">{dueLabel ?? "—"}</span>
+          <span className="live-time-stat-value">{dueLabel ?? "-"}</span>
         </div>
       </div>
 
@@ -267,6 +267,11 @@ export function AdminTimeLiveView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Live Team Time"
+        subtitle={
+          canAdjust
+            ? "Monitor RUNNING / ON_HOLD / IDLE. MASTER_ADMIN can record ADMIN_ADJUSTMENT on a running task (seconds + remark, audited)."
+            : "Monitor RUNNING / ON_HOLD / IDLE across the team."
+        }
         actions={
           <div className="live-time-header-actions">
             <AppButton

@@ -234,7 +234,7 @@ export async function startErpStage(
     },
   });
   if (result.count === 0) {
-    throw new ApiError("Stage was modified by another user — refresh and retry", 409);
+    throw new ApiError("Stage was modified by another user - refresh and retry", 409);
   }
 
   const updated = await prisma.erpStageRecord.findUniqueOrThrow({ where: { id: stageId } });
@@ -332,7 +332,7 @@ export async function completeErpStage(
       },
     });
     if (locked.count === 0) {
-      throw new ApiError("Stage was modified by another user — refresh and retry", 409);
+      throw new ApiError("Stage was modified by another user - refresh and retry", 409);
     }
 
     const next = await tx.erpStageRecord.findFirst({

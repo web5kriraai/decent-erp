@@ -1,5 +1,5 @@
 /**
- * Workflow override — bypass / send-QC and completion summary API.
+ * Workflow override - bypass / send-QC and completion summary API.
  */
 import { expect, test } from "@playwright/test";
 import { USERS, createDesignViaApi, login } from "./helpers/auth";
@@ -11,7 +11,7 @@ import {
   sendDesignToQcPhase,
 } from "./helpers/workflow";
 
-const REASON = "E2E workflow override — urgent business need";
+const REASON = "E2E workflow override - urgent business need";
 
 test.describe("Workflow override", () => {
   test("design head can bypass to a later QC phase and marks prior open tasks skipped", async ({

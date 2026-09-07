@@ -167,7 +167,7 @@ test.describe("Mark Live gate and guards", () => {
       timeout: 15_000,
     });
 
-    // Mark Live is omitted until live review completes — not shown disabled.
+    // Mark Live is omitted until live review completes - not shown disabled.
     await expect(page.getByRole("button", { name: "Mark Live" })).toHaveCount(0);
     await expect(page.getByText(/Complete Live Design Review first/i).first()).toBeVisible();
   });

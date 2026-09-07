@@ -14,6 +14,7 @@ import {
   seedKpiDefinitions,
   seedProcessMasters,
   seedProductProcessMappings,
+  seedRdCatalogMasters,
 } from "./seed/masters-data";
 import {
   STANDARD_WORKFLOW_PRODUCT_CODES,
@@ -106,10 +107,15 @@ export async function seedDatabase() {
     { code: "LEHENGA", name: "Lehenga" },
   ];
   for (const pt of productTypes) {
-    await prisma.productType.upsert({
-      where: { code: pt.code },
-      update: {},
-      create: pt,
+    await prisma.masterCatalog.upsert({
+      where: { masterType_code: { masterType: "PRODUCT_CATEGORY", code: pt.code } },
+      update: { name: pt.name, isActive: true },
+      create: {
+        masterType: "PRODUCT_CATEGORY",
+        code: pt.code,
+        name: pt.name,
+        isActive: true,
+      },
     });
   }
 
@@ -119,14 +125,20 @@ export async function seedDatabase() {
     { code: "FEST26", name: "Festive 2026" },
   ];
   for (const s of seasons) {
-    await prisma.season.upsert({
-      where: { code: s.code },
-      update: {},
-      create: s,
+    await prisma.masterCatalog.upsert({
+      where: { masterType_code: { masterType: "SEASON", code: s.code } },
+      update: { name: s.name, isActive: true },
+      create: {
+        masterType: "SEASON",
+        code: s.code,
+        name: s.name,
+        isActive: true,
+      },
     });
   }
 
   await seedComponentTypes(prisma);
+  await seedRdCatalogMasters(prisma);
 
   const roles = Object.fromEntries(
     (
@@ -184,7 +196,7 @@ export async function seedDatabase() {
     });
   }
 
-  // Spec §6.2 — skill master + employee skill links for RoleId/SkillId resolution.
+  // Spec §6.2 - skill master + employee skill links for RoleId/SkillId resolution.
   const skillDefs = [
     { code: "SKETCH", name: "Sketch Design", role: ROLE_CODES.SKETCH_DESIGNER },
     { code: "PUNCH", name: "Embroidery Punching", role: ROLE_CODES.PUNCHING_DESIGNER },
@@ -232,8 +244,12 @@ export async function seedDatabase() {
     });
   }
 
-  const sareeType = await prisma.productType.findUniqueOrThrow({ where: { code: "SAREE" } });
-  const festiveSeason = await prisma.season.findUniqueOrThrow({ where: { code: "FEST26" } });
+  const sareeType = await prisma.masterCatalog.findUniqueOrThrow({
+    where: { masterType_code: { masterType: "PRODUCT_CATEGORY", code: "SAREE" } },
+  });
+  const festiveSeason = await prisma.masterCatalog.findUniqueOrThrow({
+    where: { masterType_code: { masterType: "SEASON", code: "FEST26" } },
+  });
   const fullWorkflowTasks = buildStandardWorkflowTasks(roles, subIndex, skillByCode);
   const eightStepTasks = buildCanonicalEightStepWorkflowTasks(roles, subIndex, skillByCode);
 
@@ -283,7 +299,9 @@ export async function seedDatabase() {
   // Spec 8-step (UAT/demo) + Full chain per product type.
   const patternsByProductCode: Record<string, { id: number; eightStepId: number }> = {};
   for (const code of STANDARD_WORKFLOW_PRODUCT_CODES) {
-    const productType = await prisma.productType.findUniqueOrThrow({ where: { code } });
+    const productType = await prisma.masterCatalog.findUniqueOrThrow({
+      where: { masterType_code: { masterType: "PRODUCT_CATEGORY", code } },
+    });
     const eightStep = await upsertPatternWithTasks(
       productType.id,
       canonicalEightStepPatternName(productType.name),
@@ -315,7 +333,9 @@ export async function seedDatabase() {
   }
 
   if (!existingSample) {
-    const bodyComponent = await prisma.componentType.findUniqueOrThrow({ where: { code: "BODY" } });
+    const bodyComponent = await prisma.masterCatalog.findUniqueOrThrow({
+      where: { masterType_code: { masterType: "PRODUCT_COMPONENT", code: "BODY" } },
+    });
     const design = await prisma.designConcept.create({
       data: {
         ideaRef: "IDEA-SAMPLE-001",
@@ -343,6 +363,39 @@ export async function seedDatabase() {
       },
     });
 
+    const silk = await prisma.masterCatalog.findUnique({
+      where: { masterType_code: { masterType: "FABRIC_QUALITY", code: "SILK" } },
+    });
+    const zari = await prisma.masterCatalog.findUnique({
+      where: { masterType_code: { masterType: "THREAD", code: "ZARI" } },
+    });
+    if (silk) {
+      await prisma.designMaterialLine.create({
+        data: {
+          designId: design.id,
+          catalogItemId: silk.id,
+          unit: "mtr",
+          quantity: 5.5,
+          source: "STOCK",
+          status: "AVAILABLE",
+          requestedById: designHead.id,
+        },
+      });
+    }
+    if (zari) {
+      await prisma.designMaterialLine.create({
+        data: {
+          designId: design.id,
+          catalogItemId: zari.id,
+          unit: "kg",
+          quantity: 0.25,
+          source: "PURCHASE_INDENT",
+          status: "INDENT",
+          requestedById: designHead.id,
+        },
+      });
+    }
+
     await prisma.designTask.createMany({
       data: eightStepTasks.slice(0, 2).map((t, i) => ({
         designId: design.id,
@@ -369,7 +422,7 @@ export async function seedDatabase() {
       data: {
         assignedEmployeeId: sketchEmployee.id,
         assignedRoleId: roles[ROLE_CODES.SKETCH_DESIGNER].id,
-        // Do not force ASSIGNED — readiness gate owns status
+        // Do not force ASSIGNED - readiness gate owns status
       },
     });
   }

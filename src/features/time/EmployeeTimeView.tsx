@@ -78,21 +78,18 @@ export function EmployeeTimeView() {
       >
         {data && (
           <>
-            <div className="stack-section">
-              <TimeMetricGrid
-                activeSeconds={data.totals.activeSeconds}
-                holdSeconds={data.totals.holdSeconds}
-                totalElapsedSeconds={data.totals.activeSeconds + data.totals.holdSeconds}
-                extra={[
-                  { label: "Open tasks", value: String(data.totals.openTasks) },
-                  { label: "Overdue", value: String(data.totals.overdueTasks) },
-                ]}
-              />
-            </div>
+            <TimeMetricGrid
+              activeSeconds={data.totals.activeSeconds}
+              holdSeconds={data.totals.holdSeconds}
+              totalElapsedSeconds={data.totals.activeSeconds + data.totals.holdSeconds}
+              extra={[
+                { label: "Open tasks", value: String(data.totals.openTasks) },
+                { label: "Overdue", value: String(data.totals.overdueTasks) },
+              ]}
+            />
 
             {data.currentTask && (
               <AppCard
-                className="stack-section"
                 title="Current task"
                 headerAction={<StatusBadge status={data.currentTask.status} />}
               >
@@ -115,7 +112,7 @@ export function EmployeeTimeView() {
             )}
 
             {data.totals.holdByReason.length > 0 && (
-              <AppCard className="stack-section" title="Hold reasons today">
+              <AppCard title="Hold reasons today">
                 <ul className="detail-task-list mt-3">
                   {data.totals.holdByReason.map((h) => (
                     <li key={h.code}>
@@ -127,7 +124,7 @@ export function EmployeeTimeView() {
               </AppCard>
             )}
 
-            <AppCard className="stack-section" title="Tasks with time logged today" contentClassName="p-0">
+            <AppCard title="Tasks with time logged today" contentClassName="p-0">
               <DataTable<TodayTaskRow>
                 rows={data.tasksToday as TodayTaskRow[]}
                 getRowKey={(row) => row.taskId}

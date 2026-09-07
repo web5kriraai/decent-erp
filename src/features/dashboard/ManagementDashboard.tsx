@@ -10,6 +10,7 @@ import {
   getApprovalHubTabsForRole,
 } from "@/lib/stage-approval-rbac";
 import { useManagementWorkbench } from "@/hooks/use-workbench";
+import { useConceptTargets } from "@/hooks/use-masters";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -22,8 +23,10 @@ export function ManagementDashboard() {
   const roleCode = session?.user?.roleCode;
   const hubTabs = getApprovalHubTabsForRole(roleCode);
   const summaryQuery = useManagementWorkbench(true);
+  const conceptTargetsQuery = useConceptTargets(true);
 
   const summary = summaryQuery.data;
+  const attainment = conceptTargetsQuery.data?.attainment;
   const firstName = session?.user?.name?.split(" ")[0] ?? "there";
   const stageHref = approvalsHubHrefForRole(roleCode, "stage");
 
@@ -41,14 +44,29 @@ export function ManagementDashboard() {
       error={summaryQuery.error}
       onRetry={() => {
         summaryQuery.refetch();
+        conceptTargetsQuery.refetch();
       }}
     >
       <div className="workbench-overview">
         <div className="stat-grid workbench-pulse">
-          <StatCard label="Approved — production queue" value={summary?.approvedCount ?? 0} />
+          <StatCard label="Approved - production queue" value={summary?.approvedCount ?? 0} />
           <StatCard label="Released to production" value={summary?.releasedCount ?? 0} />
           <StatCard label="Live review pending" value={summary?.liveReviewPending ?? 0} />
           <StatCard label="Under development" value={summary?.underDevelopment ?? 0} />
+          <StatCard
+            label="Concept target"
+            value={
+              attainment
+                ? `${attainment.createdCount}/${attainment.targetCount || "-"}`
+                : "-"
+            }
+            trend={
+              attainment
+                ? `${attainment.percent}% · ${attainment.periodMonth}/${attainment.periodYear}`
+                : undefined
+            }
+            tone="accent"
+          />
         </div>
       </div>
 

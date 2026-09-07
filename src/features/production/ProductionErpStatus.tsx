@@ -8,6 +8,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import type { ErpIntegrationStatus, ProductionHandoffRow } from "@/hooks/use-production";
 import {
+  erpModeDisplayLabel,
+  erpModeShortHint,
   getHandoffDisplayStatus,
   isSimulatedErpReference,
 } from "@/lib/services/erp-integration-config";
@@ -20,12 +22,14 @@ export function ProductionErpModePill({
   showErpChainLink: boolean;
 }) {
   const mode = status?.mode ?? "simulated";
+  const hint = status?.message ?? erpModeShortHint(mode);
   return (
-    <div className="production-desk-erp-pill">
+    <div className="production-desk-erp-pill" title={hint}>
       <StatusBadge
         status={mode === "live" ? "ACTIVE" : "CHECKING"}
-        label={mode === "live" ? "Live ERP" : "Simulated ERP"}
+        label={erpModeDisplayLabel(mode)}
       />
+      <span className="production-desk-erp-hint">{erpModeShortHint(mode)}</span>
       {showErpChainLink ? (
         <Link href={ROUTES.production.erpChain} className="production-desk-erp-link">
           Open ERP Chain
@@ -107,7 +111,7 @@ export function ProductionErpHandoffsSection({
               row.payload?.error ? (
                 <span className="text-xs text-muted-foreground">{row.payload.error}</span>
               ) : (
-                "—"
+                "-"
               ),
           },
           {
@@ -115,7 +119,7 @@ export function ProductionErpHandoffsSection({
             header: "ERP Ref",
             render: (r) => (
               <span className="inline-flex items-center gap-2">
-                <span>{r.erpReference ?? "—"}</span>
+                <span>{r.erpReference ?? "-"}</span>
                 {isSimulatedErpReference(r.erpReference) ? (
                   <StatusBadge status="CHECKING" label="Simulated" />
                 ) : null}

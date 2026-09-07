@@ -45,7 +45,7 @@ export function TaskHoldDialog({
   description,
   preferredHoldReasonCodes = [],
   remarkLabel = "Hold note",
-  remarkPlaceholder = "Optional — what are you waiting on?",
+  remarkPlaceholder = "Optional - what are you waiting on?",
   handoff,
 }: TaskHoldDialogProps) {
   const orderedReasons = useMemo(() => {

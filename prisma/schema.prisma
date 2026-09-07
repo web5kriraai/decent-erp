@@ -102,6 +102,22 @@ enum ImageReviewStatus {
   REJECTED
 }
 
+/** Commercial sample outcome (R&D Pass/Hold/Reject) - distinct from quality RESAMPLE loop. */
+enum SampleDecision {
+  PASS
+  HOLD
+  REJECT
+}
+
+/** R&D cost sheet line categories layered on CostType buckets. */
+enum CostCategory {
+  FABRIC
+  EMBROIDERY
+  STITCHING
+  SALARY
+  OTHER
+}
+
 // --- Auth & RBAC ---
 
 model Employee {
@@ -139,6 +155,9 @@ model Employee {
   productionHandoffs   ProductionHandoff[]
   notifications        EmployeeNotification[]
   erpStagesCompleted   ErpStageRecord[] @relation("ErpStageCompletedBy")
+  conceptTargetsCreated ConceptTarget[] @relation("ConceptTargetCreatedBy")
+  materialLinesRequested DesignMaterialLine[] @relation("MaterialRequestedBy")
+  materialLinesIssued    DesignMaterialLine[] @relation("MaterialIssuedBy")
 
   @@map("employees")
 }
@@ -159,7 +178,7 @@ model Role {
   @@map("roles")
 }
 
-/** Spec §6.2 — skill master for RoleId/SkillId assignee resolution. */
+/** Spec §6.2 - skill master for RoleId/SkillId assignee resolution. */
 model Skill {
   id          Int      @id @default(autoincrement()) @map("skill_id")
   code        String   @unique
@@ -252,43 +271,35 @@ model VerificationToken {
 
 // --- Masters ---
 
-model ProductType {
-  id        Int     @id @default(autoincrement())
-  code      String  @unique
-  name      String
-  active    Boolean @default(true)
+/** Unified flat lookup catalog (prototype Master Setup). */
+model MasterCatalog {
+  id          Int      @id @default(autoincrement())
+  masterType  String   @map("master_type") @db.VarChar(50)
+  code        String   @db.VarChar(50)
+  name        String   @db.VarChar(150)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  designConcepts    DesignConcept[]
-  workflowPatterns  WorkflowPattern[]
-  processMappings   ProductProcessMapping[]
-  componentTypes    ComponentType[]
+  designsAsProductType   DesignConcept[]          @relation("DesignProductType")
+  designsAsSeason        DesignConcept[]          @relation("DesignSeason")
+  designsAsFabric        DesignConcept[]          @relation("DesignFabric")
+  designsAsMachine       DesignConcept[]          @relation("DesignMachine")
+  designsAsStitching     DesignConcept[]          @relation("DesignStitching")
+  designsAsGrade         DesignConcept[]          @relation("DesignGrade")
+  designComponents       DesignComponent[]        @relation("DesignComponentType")
+  processMappings        ProductProcessMapping[]
+  workflowPatterns       WorkflowPattern[]
+  conceptTargetsAsSeason ConceptTarget[]          @relation("TargetSeason")
+  conceptTargetsAsProduct ConceptTarget[]         @relation("TargetProductType")
+  materialLines          DesignMaterialLine[]     @relation("MaterialCatalogItem")
+  sampleMachineTasks     DesignTask[]             @relation("TaskSampleMachine")
 
-  @@map("product_types")
-}
-
-model Season {
-  id        Int     @id @default(autoincrement())
-  code      String  @unique
-  name      String
-  active    Boolean @default(true)
-
-  designConcepts DesignConcept[]
-
-  @@map("seasons")
-}
-
-model ComponentType {
-  id            Int     @id @default(autoincrement()) @map("component_type_id")
-  code          String  @unique
-  name          String
-  productTypeId Int?    @map("product_type_id")
-  sequence      Int     @default(0)
-  active        Boolean @default(true)
-
-  productType ProductType?    @relation(fields: [productTypeId], references: [id])
-  components  DesignComponent[]
-
-  @@map("component_types")
+  @@unique([masterType, code])
+  @@index([masterType, isActive, sortOrder])
+  @@map("master_catalog")
 }
 
 model DesignProcessMaster {
@@ -318,7 +329,7 @@ model DesignSubProcessMaster {
   isApproval          Boolean @default(false) @map("is_approval")
   isCorrectionAllowed Boolean @default(true) @map("is_correction_allowed")
   isFileRequired      Boolean @default(false) @map("is_file_required")
-  /** Structured StageCapabilities JSON — runtime behavior source of truth. */
+  /** Structured StageCapabilities JSON - runtime behavior source of truth. */
   capabilities        Json?
   active              Boolean @default(true)
 
@@ -340,7 +351,7 @@ model ProductProcessMapping {
   processId     Int @map("process_id")
   required      Boolean @default(true)
 
-  productType ProductType         @relation(fields: [productTypeId], references: [id])
+  productType MasterCatalog       @relation(fields: [productTypeId], references: [id])
   process     DesignProcessMaster @relation(fields: [processId], references: [id])
 
   @@unique([productTypeId, processId])
@@ -356,7 +367,7 @@ model WorkflowPattern {
   effectiveFrom DateTime? @map("effective_from")
   effectiveTo   DateTime? @map("effective_to")
 
-  productType ProductType?          @relation(fields: [productTypeId], references: [id])
+  productType MasterCatalog?        @relation(fields: [productTypeId], references: [id])
   tasks       WorkflowPatternTask[]
   designConcepts DesignConcept[]
 
@@ -434,8 +445,19 @@ model DesignConcept {
   celebrityReference   String?      @map("celebrity_reference")
   assignmentMode       AssignmentMode @default(AUTOMATIC) @map("assignment_mode")
   targetGrade          String?      @map("target_grade")
+  /** Normalized design grade master (preferred over free-text targetGrade). */
+  designGradeId        Int?         @map("design_grade_id")
+  fabricId             Int?         @map("fabric_id")
+  machineId            Int?         @map("machine_id")
+  stitchingTypeId      Int?         @map("stitching_type_id")
   estimatedCost        Decimal?     @map("estimated_cost") @db.Decimal(18, 2)
   standardCost         Decimal?     @map("standard_cost") @db.Decimal(18, 2)
+  /** Planned retail MRP for R&D cost sheet vs Expected MRP. */
+  expectedMrp          Decimal?     @map("expected_mrp") @db.Decimal(18, 2)
+  /** Commercial sample Pass/Hold/Reject (R&D Stage 8). */
+  sampleDecision       SampleDecision? @map("sample_decision")
+  sampleDecisionRemark String?      @map("sample_decision_remark") @db.Text
+  sampleDecisionAtUtc  DateTime?    @map("sample_decision_at_utc")
   currentStage         String?      @map("current_stage")
   status               DesignStatus @default(DRAFT)
   workflowPatternId    Int?         @map("workflow_pattern_id")
@@ -446,11 +468,15 @@ model DesignConcept {
   updatedAtUtc         DateTime     @updatedAt @map("updated_at_utc")
   version              Int          @default(1)
 
-  productType    ProductType      @relation(fields: [productTypeId], references: [id])
-  season         Season           @relation(fields: [seasonId], references: [id])
+  productType    MasterCatalog    @relation("DesignProductType", fields: [productTypeId], references: [id])
+  season         MasterCatalog    @relation("DesignSeason", fields: [seasonId], references: [id])
   designHead     Employee         @relation("DesignHead", fields: [designHeadEmployeeId], references: [id])
   createdBy      Employee         @relation("CreatedBy", fields: [createdById], references: [id])
   workflowPattern WorkflowPattern? @relation(fields: [workflowPatternId], references: [id])
+  designGrade    MasterCatalog?   @relation("DesignGrade", fields: [designGradeId], references: [id])
+  fabric         MasterCatalog?   @relation("DesignFabric", fields: [fabricId], references: [id])
+  machine        MasterCatalog?   @relation("DesignMachine", fields: [machineId], references: [id])
+  stitchingType  MasterCatalog?   @relation("DesignStitching", fields: [stitchingTypeId], references: [id])
 
   components       DesignComponent[]
   images           DesignImage[]
@@ -462,6 +488,7 @@ model DesignConcept {
   productionHandoffs ProductionHandoff[]
   successMetrics   DesignSuccessMetric[]
   erpStages        ErpStageRecord[]
+  materialLines    DesignMaterialLine[]
 
   @@index([status, priority])
   @@map("design_concepts")
@@ -476,7 +503,7 @@ model DesignComponent {
   active            Boolean @default(true)
 
   design        DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
-  componentType ComponentType @relation(fields: [componentTypeId], references: [id])
+  componentType MasterCatalog @relation("DesignComponentType", fields: [componentTypeId], references: [id])
   images        DesignImage[]
 
   @@index([designId, sequence])
@@ -487,6 +514,8 @@ model DesignImage {
   id                BigInt             @id @default(autoincrement()) @map("image_id")
   designId          BigInt             @map("design_id")
   designComponentId BigInt?            @map("design_component_id")
+  /** IMAGE | AUDIO | VIDEO | FILE — concept media kinds. */
+  mediaKind         String             @default("IMAGE") @map("media_kind") @db.VarChar(20)
   storageKey        String             @map("storage_key")
   fileName          String             @map("file_name")
   contentType       String             @map("content_type")
@@ -502,6 +531,7 @@ model DesignImage {
   uploadedBy Employee        @relation(fields: [uploadedById], references: [id])
 
   @@index([designId])
+  @@index([designId, mediaKind])
   @@map("design_images")
 }
 
@@ -564,6 +594,8 @@ model DesignTask {
   skippedAt           DateTime?  @map("skipped_at")
   skippedById         Int?       @map("skipped_by")
   skipReason          String?    @map("skip_reason") @db.Text
+  /** Machine from master_catalog (MACHINE) for sample issue jobs. */
+  sampleMachineId     Int?       @map("sample_machine_id")
 
   design           DesignConcept          @relation(fields: [designId], references: [id], onDelete: Cascade)
   skippedBy        Employee?              @relation("TaskSkippedBy", fields: [skippedById], references: [id])
@@ -571,6 +603,7 @@ model DesignTask {
   subProcess       DesignSubProcessMaster @relation(fields: [subProcessId], references: [id])
   assignedEmployee Employee?              @relation("AssignedEmployee", fields: [assignedEmployeeId], references: [id])
   requiredSkill    Skill?                 @relation(fields: [requiredSkillId], references: [id], onDelete: SetNull)
+  sampleMachine    MasterCatalog?         @relation("TaskSampleMachine", fields: [sampleMachineId], references: [id])
   timeEvents       TaskTimeEvent[]
   corrections      DesignCorrection[]
   approvals        DesignApproval[]
@@ -656,6 +689,8 @@ model DesignCost {
   id           BigInt   @id @default(autoincrement()) @map("design_cost_id")
   designId     BigInt   @map("design_id")
   costType     String   @map("cost_type")
+  /** Optional R&D BOM-style category (Fabric / Embroidery / Stitching / Salary). */
+  costCategory CostCategory? @map("cost_category")
   description  String?  @db.Text
   amount       Decimal  @db.Decimal(18, 2)
   enteredById  Int      @map("entered_by")
@@ -878,4 +913,67 @@ model ErpStageRecord {
   @@index([status, erpModule])
   @@index([designNumber])
   @@map("erp_stage_records")
+}
+
+// --- Material / fabric ops ---
+
+enum MaterialSource {
+  STOCK
+  PURCHASE_INDENT
+}
+
+enum MaterialLineStatus {
+  REQUESTED
+  INDENT
+  AVAILABLE
+  ISSUED
+  CANCELLED
+}
+
+model DesignMaterialLine {
+  id              BigInt             @id @default(autoincrement()) @map("material_line_id")
+  designId        BigInt             @map("design_id")
+  catalogItemId   Int                @map("catalog_item_id")
+  /** Optional unit label e.g. mtr, kg, pcs. */
+  unit            String             @default("pcs") @db.VarChar(20)
+  quantity        Decimal            @db.Decimal(18, 3)
+  source          MaterialSource     @default(STOCK)
+  status          MaterialLineStatus @default(REQUESTED)
+  wastageQty      Decimal?           @map("wastage_qty") @db.Decimal(18, 3)
+  remark          String?            @db.Text
+  requestedById   Int                @map("requested_by")
+  issuedById      Int?               @map("issued_by")
+  issuedAtUtc     DateTime?          @map("issued_at_utc")
+  createdAtUtc    DateTime           @default(now()) @map("created_at_utc")
+  updatedAtUtc    DateTime           @updatedAt @map("updated_at_utc")
+
+  design      DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+  catalogItem MasterCatalog @relation("MaterialCatalogItem", fields: [catalogItemId], references: [id])
+  requestedBy Employee      @relation("MaterialRequestedBy", fields: [requestedById], references: [id])
+  issuedBy    Employee?     @relation("MaterialIssuedBy", fields: [issuedById], references: [id])
+
+  @@index([designId, status])
+  @@map("design_material_lines")
+}
+
+/** Owner monthly concept volume target (R&D dashboard). */
+model ConceptTarget {
+  id            Int      @id @default(autoincrement()) @map("concept_target_id")
+  periodYear    Int      @map("period_year")
+  periodMonth   Int      @map("period_month")
+  targetCount   Int      @map("target_count")
+  seasonId      Int?     @map("season_id")
+  productTypeId Int?     @map("product_type_id")
+  note          String?  @db.Text
+  createdById   Int      @map("created_by")
+  createdAtUtc  DateTime @default(now()) @map("created_at_utc")
+  updatedAtUtc  DateTime @updatedAt @map("updated_at_utc")
+
+  season      MasterCatalog? @relation("TargetSeason", fields: [seasonId], references: [id])
+  productType MasterCatalog? @relation("TargetProductType", fields: [productTypeId], references: [id])
+  createdBy   Employee       @relation("ConceptTargetCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([periodYear, periodMonth, seasonId, productTypeId])
+  @@index([periodYear, periodMonth])
+  @@map("concept_targets")
 }

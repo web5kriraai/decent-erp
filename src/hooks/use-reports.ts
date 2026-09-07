@@ -40,6 +40,43 @@ export type DesignSuccessMetricRow = {
   } | null;
 };
 
+export type SampleStatusReport = {
+  year: number;
+  month: number;
+  total: number;
+  byDecision: Record<string, number>;
+  byStage: Record<string, number>;
+  designs: Array<{
+    id: string;
+    ideaRef: string;
+    collectionName: string;
+    sampleDecision: string | null;
+    currentStage: string | null;
+    status: string;
+    productType?: { name: string } | null;
+  }>;
+};
+
+export type ProductionStartReport = {
+  year: number;
+  month: number;
+  total: number;
+  byProductType: Array<{
+    productTypeId: number;
+    name: string;
+    code: string;
+    count: number;
+  }>;
+  designs: Array<{
+    id: string;
+    ideaRef: string;
+    designNumber?: string | null;
+    collectionName: string;
+    status: string;
+    productType?: { id: number; code: string; name: string } | null;
+  }>;
+};
+
 export function useCorrectionAnalysisReport(enabled = true) {
   return useQuery({
     queryKey: queryKeys.reports.corrections,
@@ -54,6 +91,26 @@ export function useDesignSuccessReport(year: number, month: number, enabled = tr
     queryFn: () =>
       apiGet<DesignSuccessMetricRow[]>(
         `/api/reports/design-success?year=${year}&month=${month}`,
+      ),
+    enabled,
+  });
+}
+
+export function useSampleStatusReport(year: number, month: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.reports.sampleStatus(year, month),
+    queryFn: () =>
+      apiGet<SampleStatusReport>(`/api/reports/sample-status?year=${year}&month=${month}`),
+    enabled,
+  });
+}
+
+export function useProductionStartReport(year: number, month: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.reports.productionStart(year, month),
+    queryFn: () =>
+      apiGet<ProductionStartReport>(
+        `/api/reports/production-start?year=${year}&month=${month}`,
       ),
     enabled,
   });

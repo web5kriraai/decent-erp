@@ -22,7 +22,7 @@ type ModalProps = {
 };
 
 const sizeClasses = {
-  // Fluid dialog widths — always leave margin on phone; grow on tablet/desktop
+  // Fluid dialog widths - always leave margin on phone; grow on tablet/desktop
   sm: "max-w-[calc(100%-1.5rem)] sm:max-w-lg",
   md: "max-w-[calc(100%-1.5rem)] sm:max-w-2xl",
   lg: "max-w-[calc(100%-1.5rem)] sm:max-w-3xl lg:max-w-4xl",
@@ -81,7 +81,7 @@ export function ModalForm({
   return <div className={cn("flex flex-col gap-4", className)}>{children}</div>;
 }
 
-/** Responsive form grid inside modals — 1 col phone, 2 col tablet+, never 3 by default. */
+/** Responsive form grid inside modals - 1 col phone, 2 col tablet+, never 3 by default. */
 export function ModalFormGrid({
   className,
   children,

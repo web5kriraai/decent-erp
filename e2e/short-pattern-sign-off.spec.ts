@@ -145,7 +145,7 @@ test.describe("Short pattern sign-off (no costing)", () => {
     expect(preReadiness.missing).not.toContain("Development costing");
     expect(preReadiness.missing).not.toContain("Production handoff from Design Head");
     expect(preReadiness.missing).not.toContain("Production instruction");
-    // Stage 9 — management decide still required before release
+    // Stage 9 - management decide still required before release
     expect(preReadiness.ok).toBe(false);
     expect(
       preReadiness.missing.some(
@@ -169,7 +169,7 @@ test.describe("Short pattern sign-off (no costing)", () => {
     const approved = await getDesign(page, design.id);
     expect(approved.status).toBe("APPROVED");
 
-    // After approve, ladder may be appended — costing still must not be required
+    // After approve, ladder may be appended - costing still must not be required
     const postReadiness = await apiGetJson<{ ok: boolean; missing: string[] }>(
       page,
       `/api/designs/${design.id}/production-readiness`,

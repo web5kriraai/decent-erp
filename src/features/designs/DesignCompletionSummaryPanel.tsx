@@ -330,7 +330,7 @@ function SummaryBody({ data }: { data: DesignCompletionSummary }) {
                     {entry.action.replace(/_/g, " ")}
                   </p>
                   <p className="completion-override-path">
-                    {entry.fromStage ?? "—"} → {entry.toStage ?? "—"}
+                    {entry.fromStage ?? "-"} → {entry.toStage ?? "-"}
                     <span> · {entry.actor}</span>
                   </p>
                 </div>
@@ -356,14 +356,13 @@ export function DesignCompletionSummaryPanel({
   const isComplete = isDesignWorkflowComplete(tasks);
   const doneCount = progress.completed + progress.skipped + progress.cancelled;
 
-  // Never fetch (or show a 403 card) without permission — omit the whole section.
+  // Never fetch (or show a 403 card) without permission - omit the whole section.
   const summaryQuery = useDesignCompletionSummary(designId, enabled && isComplete);
 
   if (!enabled) return null;
 
   return (
     <AppCard
-      className="stack-section"
       title="Completion summary"
       description={
         isComplete ? undefined : `${doneCount} of ${progress.total} phases finished`

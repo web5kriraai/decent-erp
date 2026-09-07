@@ -100,7 +100,7 @@ export function RbacMatrixGrid() {
     <div className="rbac-matrix-panel">
       <div className="rbac-matrix-intro">
         <p>
-          Toggle access for each role. Changes apply on save — people in that role should sign out
+          Toggle access for each role. Changes apply on save - people in that role should sign out
           and back in to pick them up.
         </p>
         <p className="form-hint">{sessionPermissionsStaleHint()}</p>

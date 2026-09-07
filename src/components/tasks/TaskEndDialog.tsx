@@ -54,8 +54,10 @@ type TaskEndDialogProps = {
   subProcessName?: string;
   canUpload?: boolean;
   isSampleCheck?: boolean;
-  sampleOutcome?: "APPROVE" | "REJECT" | "RESAMPLE";
-  onSampleOutcomeChange?: (outcome: "APPROVE" | "REJECT" | "RESAMPLE") => void;
+  sampleOutcome?: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE";
+  onSampleOutcomeChange?: (
+    outcome: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE",
+  ) => void;
   /** When true, server will force CHECKING. */
   gateForcesChecking?: boolean;
   dialogTitle?: string;
@@ -63,7 +65,7 @@ type TaskEndDialogProps = {
   remarkLabel?: string;
   remarkPlaceholder?: string;
   handoff?: HandoffContext | null;
-  /** Shown for PROD_RELEASE — readiness lines */
+  /** Shown for PROD_RELEASE - readiness lines */
   releaseReadinessItems?: string[];
   /** When false, hide Send for Checking / Mark Completed select (forced complete or checking). */
   showStatusSelect?: boolean;
@@ -218,7 +220,10 @@ export function TaskEndDialog({
   const notesOk = !notesRequired || !!checklistNote.trim();
   const sampleOk = !isSampleCheck || !!sampleOutcome;
   const sampleApproveBlocked =
-    !!isSampleCheck && sampleOutcome === "APPROVE" && !allChecklistPassed && checklistItems.length > 0;
+    !!isSampleCheck &&
+    (sampleOutcome === "APPROVE" || sampleOutcome === "PASS") &&
+    !allChecklistPassed &&
+    checklistItems.length > 0;
 
   const remarkOk = isCosting ? costingOk && !!endRemark.trim() : !!endRemark.trim();
   const costingLoading = isCosting && costsQuery.isLoading;
@@ -384,7 +389,7 @@ export function TaskEndDialog({
                 <p className="text-sm font-semibold tabular-nums">
                   {existingSummary?.estimatedCost != null
                     ? `₹${(existingSummary.estimatedCost - mergedTotal).toFixed(2)}`
-                    : "—"}
+                    : "-"}
                 </p>
               </div>
             </div>
@@ -502,18 +507,21 @@ export function TaskEndDialog({
         {isSampleCheck ? (
           <FormSelect
             id="sampleOutcome"
-            label="Sample Check Decision"
+            label="Sample decision (Pass / Hold / Reject)"
             required
             value={sampleOutcome ?? ""}
             onValueChange={(v) =>
-              onSampleOutcomeChange?.(v as "APPROVE" | "REJECT" | "RESAMPLE")
+              onSampleOutcomeChange?.(
+                v as "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE",
+              )
             }
             options={[
-              { value: "APPROVE", label: "Approve sample" },
-              { value: "REJECT", label: "Reject (correction required)" },
-              { value: "RESAMPLE", label: "Send for re-sample" },
+              { value: "PASS", label: "Pass - continue to costing" },
+              { value: "HOLD", label: "Hold - park design (reason required)" },
+              { value: "REJECT", label: "Reject - correction required" },
+              { value: "RESAMPLE", label: "Re-sample - quality loop" },
             ]}
-            placeholder="Select outcome…"
+            placeholder="Select commercial outcome…"
             disabled={isPending || isUploading}
           />
         ) : null}

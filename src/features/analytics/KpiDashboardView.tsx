@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,6 +17,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { DataTable } from "@/components/DataTable";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -35,27 +37,60 @@ type KpiRow = {
   employee: { id: number; name: string; employeeCode: string };
 };
 
+type KpiEmployeesResponse = {
+  items: KpiRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  summary: {
+    scoreRecordCount: number;
+    employeeCount: number;
+    chart: { employeeId: number; name: string; score: number }[];
+    metricCounts: Record<string, number>;
+  };
+};
+
+const DEFAULT_PAGE_SIZE = 25;
+
 export function KpiDashboardView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const enabled = permissions.includes(PERMISSIONS.KPI_ADMIN);
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
   const kpiQuery = useQuery({
-    queryKey: queryKeys.kpi.employees,
-    queryFn: () => apiGet<KpiRow[]>("/api/kpi/employees"),
+    queryKey: queryKeys.kpi.employees(page, pageSize),
+    queryFn: () => {
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String((page - 1) * pageSize),
+      });
+      return apiGet<KpiEmployeesResponse>(`/api/kpi/employees?${params}`);
+    },
     enabled,
+    placeholderData: (previous) => previous,
   });
   const queryClient = useQueryClient();
   const toast = useApiToast();
   const recompute = useMutation({
     mutationFn: () => apiPost<{ count: number }>("/api/kpi/recompute", {}),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.kpi.employees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.kpi.employeesRoot });
       queryClient.invalidateQueries({ queryKey: queryKeys.kpi.designHead });
+      setPage(1);
       toast.success("KPI recomputed", `${data.count} score records updated`);
     },
     onError: (error) => toast.errorFromApi(error, "Recompute failed"),
   });
+
+  const total = kpiQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   if (!enabled) {
     return (
@@ -65,19 +100,12 @@ export function KpiDashboardView() {
     );
   }
 
-  const data = kpiQuery.data ?? [];
-  const chartData = Object.values(
-    data.reduce<Record<string, { name: string; score: number }>>((acc, row) => {
-      const key = String(row.employee.id);
-      if (!acc[key]) acc[key] = { name: row.employee.name.split(" ")[0], score: 0 };
-      acc[key].score += Number(row.weightedScore);
-      return acc;
-    }, {}),
-  );
-
+  const items = kpiQuery.data?.items ?? [];
+  const summary = kpiQuery.data?.summary;
+  const chartData = summary?.chart ?? [];
   const metricCoverage = SPEC_KPI_METRICS.map((metric) => ({
     ...metric,
-    scored: data.filter((row) => row.metricCode === metric.code).length,
+    scored: summary?.metricCounts[metric.code] ?? 0,
   }));
 
   return (
@@ -116,11 +144,8 @@ export function KpiDashboardView() {
         skeletonVariant="stats"
       >
         <div className="stat-grid stack-section">
-          <StatCard label="Score records" value={data.length} />
-          <StatCard
-            label="Employees"
-            value={new Set(data.map((d) => d.employee.id)).size}
-          />
+          <StatCard label="Score records" value={summary?.scoreRecordCount ?? 0} />
+          <StatCard label="Employees" value={summary?.employeeCount ?? 0} />
           <StatCard label="Metrics" value={SPEC_KPI_METRICS.length} />
           <StatCard
             label="Period"
@@ -160,10 +185,20 @@ export function KpiDashboardView() {
               { key: "score", header: "Score", align: "right" },
               { key: "weightedScore", header: "Weighted", align: "right" },
             ]}
-            rows={data}
+            rows={items}
             getRowKey={(row) => row.id}
             emptyTitle="No KPI scores"
             emptyDescription="Click Recompute."
+          />
+          <PaginationBar
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
           />
         </AppCard>
 

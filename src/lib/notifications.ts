@@ -1,52 +1,57 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
-import { enqueueNotification } from "./queue";
-import { createEmployeeNotification } from "@/lib/services/employee-notification-service";
+import { enqueueNotification, isNotificationQueueDisabled } from "./queue";
+import { deliverNotification } from "@/lib/services/notification-delivery";
 
+/**
+ * Persist an outbox row, then deliver via the queue (or sync when queue is off).
+ * In-app / email / WhatsApp / push are created only in deliverNotification — not here —
+ * so workers do not double-create employee notifications.
+ */
 export async function enqueueOutboxAndNotify(
   eventType: string,
   payload: Record<string, unknown>,
   correlationId?: string,
 ) {
-  await prisma.notificationOutbox.create({
+  const outbox = await prisma.notificationOutbox.create({
     data: {
       eventType,
       payload: payload as Prisma.InputJsonValue,
     },
   });
 
-  const employeeId =
-    typeof payload.employeeId === "number"
-      ? payload.employeeId
-      : typeof payload.responsibleEmployeeId === "number"
-        ? payload.responsibleEmployeeId
-        : typeof payload.designHeadId === "number"
-          ? payload.designHeadId
-          : null;
+  const outboxId = outbox.id.toString();
 
-  if (employeeId != null) {
+  if (isNotificationQueueDisabled()) {
     try {
-      await createEmployeeNotification(employeeId, eventType, payload);
+      await deliverNotification(eventType, payload);
+      await prisma.notificationOutbox.update({
+        where: { id: outbox.id },
+        data: { processed: true, processedAtUtc: new Date() },
+      });
     } catch (error) {
       console.warn(
         JSON.stringify({
           level: "warn",
-          msg: "In-app notification persist failed",
+          msg: "Sync notification delivery failed; outbox row retained",
           eventType,
+          outboxId,
           error: String(error),
         }),
       );
     }
+    return;
   }
 
   try {
-    await enqueueNotification({ eventType, payload, correlationId });
+    await enqueueNotification({ eventType, payload, correlationId, outboxId });
   } catch (error) {
     console.warn(
       JSON.stringify({
         level: "warn",
         msg: "Notification queue unavailable; outbox row retained",
         eventType,
+        outboxId,
         error: String(error),
       }),
     );

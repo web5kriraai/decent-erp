@@ -21,7 +21,7 @@ function pushIfUsed(
   });
 }
 
-/** Usage counts for soft-deactivate warnings only — never blocks retirement. */
+/** Usage counts for soft-deactivate warnings only - never blocks retirement. */
 export async function getProcessUsage(processId: number): Promise<MasterUsageWarning[]> {
   const [designTasks, patternTasks, designProcesses, mappings, activeChildren] =
     await Promise.all([
@@ -65,7 +65,7 @@ export async function getProcessUsage(processId: number): Promise<MasterUsageWar
   return warnings;
 }
 
-/** Usage counts for soft-deactivate warnings only — never blocks retirement. */
+/** Usage counts for soft-deactivate warnings only - never blocks retirement. */
 export async function getSubProcessUsage(
   subProcessId: number,
 ): Promise<MasterUsageWarning[]> {

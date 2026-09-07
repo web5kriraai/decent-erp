@@ -198,7 +198,7 @@ export function resolveTaskContextActions(input: {
   const actions: ResolvedWorkflowAction[] = [];
   const { task } = input;
 
-  // Stage-approval stages finish via Approve/Reject — not timer End.
+  // Stage-approval stages finish via Approve/Reject - not timer End.
   // Hold/Resume/Start still apply so Design Head can track review time.
   const blocksTimerEnd = usesStageApprovalActionsNotTimerEnd(task.subProcess?.code, {
     isApproval: task.subProcess?.isApproval,
@@ -424,7 +424,7 @@ export function resolveProductionContextActions(input: {
 
   if (input.designStatus === "PRODUCTION_RELEASED") {
     const canMarkLive = canRoleMarkDesignLive(input.roleCode);
-    // Require explicit true — omit/undefined must not expose Mark Live early.
+    // Require explicit true - omit/undefined must not expose Mark Live early.
     const liveReviewOk = input.liveReviewCompleted === true;
     if (canMarkLive && liveReviewOk) {
       actions.push(

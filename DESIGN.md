@@ -39,7 +39,7 @@ logo:
   faviconDir: public/favicon
 ---
 
-# Decent Technologies — ERP Design System (Light)
+# Decent Technologies - ERP Design System (Light)
 
 **Read this file before any UI work.** Match these tokens, type scale, and component patterns. Theme is **light only**.
 
@@ -47,9 +47,9 @@ logo:
 
 Decent ERP uses a **standard enterprise** color model derived from the logo:
 
-- **Deep navy** `#172747` — **primary** (buttons, links, focus, headers, sidebar, body ink)
-- **Crimson** `#d91a22` — **accent only** (active-nav rail, charts, logo highlights — not page-wide CTAs)
-- Supporting reds `#c1222e` / `#a41a24` — accent hover / **destructive** only
+- **Deep navy** `#172747` - **primary** (buttons, links, focus, headers, sidebar, body ink)
+- **Crimson** `#d91a22` - **accent only** (active-nav rail, charts, logo highlights - not page-wide CTAs)
+- Supporting reds `#c1222e` / `#a41a24` - accent hover / **destructive** only
 
 Do **not** flood the UI with crimson primary buttons. Do **not** use SAP blue, purple gradients, or a dark app canvas.
 
@@ -63,7 +63,7 @@ Do **not** flood the UI with crimson primary buttons. Do **not** use SAP blue, p
 | Sidebar collapsed | Mark only |
 | Favicon | `/favicon/favicon.ico`, `favicon-16/32.png`, `icon.png`, `apple-touch-icon.png` (+ root `/favicon.ico`) |
 
-**Rule:** use `@/config/brand-assets` paths — never hardcode asset URLs in features.
+**Rule:** use `@/config/brand-assets` paths - never hardcode asset URLs in features.
 
 ## Color tokens (CSS variables)
 
@@ -94,7 +94,7 @@ ShadCN: `--primary` → navy; `--destructive` → `#a41a24`; `--sidebar-primary`
 | Destructive | `#a41a24` only |
 | Active nav | Light white wash on navy sidebar + **crimson** 3px rail |
 | Focus ring | Navy |
-| Kanban lanes | Cool navy-tint greys — not pink |
+| Kanban lanes | Cool navy-tint greys - not pink |
 | Login | Navy brand panel + light form; navy submit |
 
 ## Do / Don’t

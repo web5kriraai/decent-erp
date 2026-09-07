@@ -6,7 +6,6 @@ import {
   IconDesigns,
   IconKanban,
   IconTasks,
-  IconPipelineDeps,
   IconCorrections,
   IconApprovals,
   IconCosting,
@@ -39,7 +38,10 @@ export const ROUTES = {
     tasks: "/work/tasks",
     taskDetail: (taskId: string) => `/work/tasks/${taskId}`,
     myTime: "/work/time",
-    pipelineDependencies: "/work/pipeline-dependencies",
+    materials: "/work/materials",
+    sketch: "/work/sketch",
+    punching: "/work/punching",
+    samples: "/work/samples",
   },
   quality: {
     corrections: "/quality/corrections",
@@ -57,6 +59,8 @@ export const ROUTES = {
     timeReport: "/analytics/time",
     reportsCorrections: "/analytics/reports/corrections",
     reportsDesignSuccess: "/analytics/reports/design-success",
+    reportsSampleStatus: "/analytics/reports/sample-status",
+    reportsProductionStart: "/analytics/reports/production-start",
     reportsHub: "/analytics/reports",
   },
   admin: {
@@ -155,6 +159,34 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: IconClock,
         permission: PERMISSIONS.TASK_EXECUTE,
       },
+      {
+        id: "work-materials",
+        label: "Materials",
+        href: ROUTES.work.materials,
+        icon: IconDesigns,
+        anyPermission: [PERMISSIONS.DESIGN_CREATE, PERMISSIONS.TASK_EXECUTE, PERMISSIONS.PRODUCTION_RELEASE],
+      },
+      {
+        id: "work-sketch",
+        label: "Sketch Board",
+        href: ROUTES.work.sketch,
+        icon: IconDesigns,
+        permission: PERMISSIONS.TASK_EXECUTE,
+      },
+      {
+        id: "work-punching",
+        label: "Punching Board",
+        href: ROUTES.work.punching,
+        icon: IconTasks,
+        permission: PERMISSIONS.TASK_EXECUTE,
+      },
+      {
+        id: "work-samples",
+        label: "Sample Board",
+        href: ROUTES.work.samples,
+        icon: IconProduction,
+        permission: PERMISSIONS.TASK_EXECUTE,
+      },
     ],
   },
   {
@@ -194,18 +226,7 @@ export const NAV_SECTIONS: NavSection[] = [
     id: "team-reports",
     label: "Team & Reports",
     items: [
-      {
-        id: "pipeline-dependencies",
-        label: "Pipeline Dependencies",
-        href: ROUTES.work.pipelineDependencies,
-        icon: IconPipelineDeps,
-        anyPermission: [
-          PERMISSIONS.DESIGN_CREATE,
-          PERMISSIONS.KPI_ADMIN,
-          PERMISSIONS.MASTER_ADMIN,
-        ],
-      },
-      {
+        {
         id: "time-live",
         label: "Live Team Time",
         href: ROUTES.admin.timeLive,
@@ -329,10 +350,6 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "Overview", href: ROUTES.dashboard },
     { label: "My Time Today" },
   ],
-  [ROUTES.work.pipelineDependencies]: [
-    { label: "Overview", href: ROUTES.dashboard },
-    { label: "Pipeline Dependencies" },
-  ],
   [ROUTES.quality.corrections]: [
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Corrections" },
@@ -377,6 +394,16 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "Overview", href: ROUTES.dashboard },
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Design Success" },
+  ],
+  [ROUTES.analytics.reportsSampleStatus]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Sample Status" },
+  ],
+  [ROUTES.analytics.reportsProductionStart]: [
+    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Production Start" },
   ],
   [ROUTES.admin.masters]: [
     { label: "Overview", href: ROUTES.dashboard },

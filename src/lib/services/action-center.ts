@@ -179,7 +179,7 @@ export function buildBlockedContext(
       blockedBy: stageName,
       blockedOwner: owner,
       blockedMessage: owner
-        ? `${stageName} cannot start yet — waiting on ${owner} (${statusLabel}).`
+        ? `${stageName} cannot start yet - waiting on ${owner} (${statusLabel}).`
         : `${stageName} must be completed first (currently ${statusLabel}).`,
     };
   }

@@ -605,7 +605,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                             {sub.defaultRoleId
                                               ? (roleNameById.get(sub.defaultRoleId) ??
                                                 `Role #${sub.defaultRoleId}`)
-                                              : "—"}
+                                              : "-"}
                                           </td>
                                           <td>
                                             <StatusBadge

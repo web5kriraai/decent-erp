@@ -1,5 +1,5 @@
 /**
- * Dialog accessibility tests — Esc closes, outside click does not dismiss, Tab stays trapped.
+ * Dialog accessibility tests - Esc closes, outside click does not dismiss, Tab stays trapped.
  */
 import { execSync } from "node:child_process";
 import { expect, test } from "@playwright/test";

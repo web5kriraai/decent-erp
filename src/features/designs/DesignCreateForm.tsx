@@ -12,13 +12,25 @@ import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { PermissionDenied } from "@/components/PermissionDenied";
+import { ConceptMediaPanel } from "@/components/ConceptMediaPanel";
+import { useApiToast } from "@/components/ui/ToastProvider";
+import {
+  uploadPendingConceptMedia,
+  type ConceptMediaUploadProgress,
+  type PendingConceptMedia,
+} from "@/lib/concept-media-upload";
 import { useCreateDesign } from "@/hooks/use-designs";
 import {
   useComponentTypes,
+  useDesignGrades,
+  useFabrics,
+  useMachines,
+  useMasterCatalog,
   useMasterEmployees,
   useProcessMasters,
   useProductTypes,
   useSeasons,
+  useStitchingTypes,
   useWorkflowPatterns,
 } from "@/hooks/use-masters";
 import { getFieldErrors, ApiClientError } from "@/lib/api-client";
@@ -69,6 +81,7 @@ const ASSIGNMENT_MODE_OPTIONS: { value: AssignmentMode; label: string }[] = [
 
 export function DesignCreateForm() {
   const router = useRouter();
+  const toast = useApiToast();
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const canCreate = permissions.includes(PERMISSIONS.DESIGN_CREATE);
@@ -80,22 +93,41 @@ export function DesignCreateForm() {
   const [workType, setWorkType] = useState<WorkType | "">("");
   const [trendReference, setTrendReference] = useState("");
   const [celebrityReference, setCelebrityReference] = useState("");
+  const [themeName, setThemeName] = useState("");
   const [targetGrade, setTargetGrade] = useState("");
+  const [designGradeId, setDesignGradeId] = useState<number | "">("");
+  const [fabricId, setFabricId] = useState<number | "">("");
+  const [machineId, setMachineId] = useState<number | "">("");
+  const [stitchingTypeId, setStitchingTypeId] = useState<number | "">("");
   const [estimatedCost, setEstimatedCost] = useState("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [productTypeId, setProductTypeId] = useState<number | "">("");
   const [seasonId, setSeasonId] = useState<number | "">("");
   const [componentTypeIds, setComponentTypeIds] = useState<number[]>([]);
+  const [componentSpecs, setComponentSpecs] = useState<Record<number, string>>({});
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>("AUTOMATIC");
   const [workflowPatternId, setWorkflowPatternId] = useState<number | "">("");
   const [manualTasks, setManualTasks] = useState<ManualTaskDraft[]>(() => [emptyManualTask(0)]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [pendingMedia, setPendingMedia] = useState<PendingConceptMedia[]>([]);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaProgress, setMediaProgress] = useState<ConceptMediaUploadProgress | null>(
+    null,
+  );
 
   const productTypes = useProductTypes();
   const seasons = useSeasons();
   const patterns = useWorkflowPatterns();
   const componentTypes = useComponentTypes();
+  const fabrics = useFabrics();
+  const machines = useMachines();
+  const stitchingTypes = useStitchingTypes();
+  const designGrades = useDesignGrades();
+  const styles = useMasterCatalog("STYLE");
+  const celebrities = useMasterCatalog("CELEBRITY");
+  const themes = useMasterCatalog("THEME");
+  const workTypesCatalog = useMasterCatalog("WORK_TYPE");
   const processes = useProcessMasters(assignmentMode === "MANUAL");
   const employees = useMasterEmployees(assignmentMode === "MANUAL");
 
@@ -234,12 +266,24 @@ export function DesignCreateForm() {
         styleName: styleName.trim() || undefined,
         conceptNote: conceptNote.trim() || undefined,
         workType: workType || undefined,
-        trendReference: trendReference.trim() || undefined,
+        trendReference: themeName.trim() || trendReference.trim() || undefined,
         celebrityReference: celebrityReference.trim() || undefined,
         targetGrade: targetGrade.trim() || undefined,
+        designGradeId: designGradeId ? Number(designGradeId) : undefined,
+        fabricId: fabricId ? Number(fabricId) : undefined,
+        machineId: machineId ? Number(machineId) : undefined,
+        stitchingTypeId: stitchingTypeId ? Number(stitchingTypeId) : undefined,
         estimatedCost: estimatedCost ? Number(estimatedCost) : undefined,
         priority,
         componentTypeIds: componentTypeIds.length > 0 ? componentTypeIds : undefined,
+        componentSpecs:
+          componentTypeIds.length > 0
+            ? Object.fromEntries(
+                componentTypeIds
+                  .filter((id) => componentSpecs[id]?.trim())
+                  .map((id) => [String(id), componentSpecs[id].trim()]),
+              )
+            : undefined,
         assignmentMode,
         workflowPatternId:
           assignmentMode === "AUTOMATIC" ? Number(effectiveWorkflowPatternId) : undefined,
@@ -256,7 +300,44 @@ export function DesignCreateForm() {
               }))
             : undefined,
       });
-      router.push(`${ROUTES.designs.detail(design.id)}?setup=images`);
+
+      let hasPrimaryImage = false;
+      if (pendingMedia.length > 0) {
+        setMediaUploading(true);
+        setMediaProgress(null);
+        const queued = pendingMedia;
+        try {
+          const { uploaded, failed } = await uploadPendingConceptMedia({
+            designId: design.id,
+            items: queued,
+            onProgress: setMediaProgress,
+          });
+          for (const item of queued) {
+            if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+          }
+          setPendingMedia([]);
+          const failedIndexes = new Set(failed.map((f) => f.index));
+          hasPrimaryImage = queued.some(
+            (m, i) => m.mediaKind === "IMAGE" && !failedIndexes.has(i),
+          );
+          if (failed.length > 0) {
+            toast.error(
+              "Some media failed",
+              `${failed.length} of ${queued.length} uploads failed. You can retry on the design page.`,
+            );
+          } else if (uploaded > 0) {
+            toast.success(
+              uploaded === 1 ? "Media uploaded" : `${uploaded} files uploaded`,
+            );
+          }
+        } finally {
+          setMediaUploading(false);
+          setMediaProgress(null);
+        }
+      }
+
+      const setupQuery = hasPrimaryImage ? "" : "?setup=images";
+      router.push(`${ROUTES.designs.detail(design.id)}${setupQuery}`);
     } catch (error) {
       if (error instanceof ApiClientError && error.details) {
         setFieldErrors(getFieldErrors(error.details));
@@ -289,9 +370,15 @@ export function DesignCreateForm() {
               form="design-create-form"
               appVariant="primary"
               size="sm"
-              disabled={createDesign.isPending}
+              disabled={createDesign.isPending || mediaUploading}
             >
-              {createDesign.isPending ? "Creating…" : "Create & Generate Tasks"}
+              {mediaUploading
+                ? mediaProgress
+                  ? `Uploading media ${mediaProgress.index + 1}/${mediaProgress.total}…`
+                  : "Uploading media…"
+                : createDesign.isPending
+                  ? "Creating…"
+                  : "Create & Generate Tasks"}
             </AppButton>
           </>
         }
@@ -317,15 +404,13 @@ export function DesignCreateForm() {
           id="design-create-form"
           onSubmit={handleSubmit}
           noValidate
-          className="form-card space-y-4"
+          className="form-card vstack vstack--loose"
         >
           {createDesign.isError && createDesign.error instanceof ApiClientError && (
-            <div className="stack-section">
-              <ErrorBanner
-                message={createDesign.error.message}
-                correlationId={createDesign.error.correlationId}
-              />
-            </div>
+            <ErrorBanner
+              message={createDesign.error.message}
+              correlationId={createDesign.error.correlationId}
+            />
           )}
 
           <div className="form-layout form-layout--split">
@@ -345,19 +430,68 @@ export function DesignCreateForm() {
                 />
 
                 <div className="form-grid form-grid--2">
-                  <FormTextField
+                  <FormSelect
                     id="styleName"
-                    label="Style Name"
-                    value={styleName}
-                    onChange={(e) => setStyleName(e.target.value)}
+                    label="Style"
+                    value={styleName || null}
+                    onValueChange={(v) => setStyleName(v ?? "")}
+                    options={(styles.data ?? []).map((s) => ({ value: s.name, label: s.name }))}
+                    placeholder="Select style…"
                   />
-                  <FormTextField
-                    id="targetGrade"
-                    label="Target Grade"
-                    value={targetGrade}
-                    onChange={(e) => setTargetGrade(e.target.value)}
+                  <FormSelect
+                    id="designGradeId"
+                    label="Design Grade"
+                    value={designGradeId ? String(designGradeId) : null}
+                    onValueChange={(v) => {
+                      const id = v ? Number(v) : "";
+                      setDesignGradeId(id);
+                      const grade = (designGrades.data ?? []).find((g) => g.id === id);
+                      setTargetGrade(grade?.name ?? "");
+                    }}
+                    options={(designGrades.data ?? []).map((g) => ({
+                      value: String(g.id),
+                      label: g.name,
+                    }))}
+                    placeholder="Select grade…"
                   />
                 </div>
+
+                <div className="form-grid form-grid--2">
+                  <FormSelect
+                    id="fabricId"
+                    label="Fabric"
+                    value={fabricId ? String(fabricId) : null}
+                    onValueChange={(v) => setFabricId(v ? Number(v) : "")}
+                    options={(fabrics.data ?? []).map((f) => ({
+                      value: String(f.id),
+                      label: f.name,
+                    }))}
+                    placeholder="Select fabric…"
+                  />
+                  <FormSelect
+                    id="machineId"
+                    label="Machine"
+                    value={machineId ? String(machineId) : null}
+                    onValueChange={(v) => setMachineId(v ? Number(v) : "")}
+                    options={(machines.data ?? []).map((m) => ({
+                      value: String(m.id),
+                      label: m.name,
+                    }))}
+                    placeholder="Select machine…"
+                  />
+                </div>
+
+                <FormSelect
+                  id="stitchingTypeId"
+                  label="Stitching Type"
+                  value={stitchingTypeId ? String(stitchingTypeId) : null}
+                  onValueChange={(v) => setStitchingTypeId(v ? Number(v) : "")}
+                  options={(stitchingTypes.data ?? []).map((s) => ({
+                    value: String(s.id),
+                    label: s.name,
+                  }))}
+                  placeholder="Select stitching…"
+                />
 
                 <div className="form-grid form-grid--2">
                   <FormSelect
@@ -365,7 +499,14 @@ export function DesignCreateForm() {
                     label="Work Type"
                     value={workType || null}
                     onValueChange={(v) => setWorkType(v as WorkType)}
-                    options={WORK_TYPE_OPTIONS}
+                    options={
+                      (workTypesCatalog.data ?? []).length > 0
+                        ? (workTypesCatalog.data ?? []).map((w) => ({
+                            value: w.code as WorkType,
+                            label: w.name,
+                          }))
+                        : WORK_TYPE_OPTIONS
+                    }
                     placeholder="Select…"
                   />
                   <FormTextField
@@ -376,6 +517,34 @@ export function DesignCreateForm() {
                     step="0.01"
                     value={estimatedCost}
                     onChange={(e) => setEstimatedCost(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-grid form-grid--2">
+                  <FormSelect
+                    id="themeName"
+                    label="Theme"
+                    value={themeName || null}
+                    onValueChange={(v) => {
+                      setThemeName(v ?? "");
+                      setTrendReference(v ?? "");
+                    }}
+                    options={(themes.data ?? []).map((t) => ({
+                      value: t.name,
+                      label: t.name,
+                    }))}
+                    placeholder="Select theme…"
+                  />
+                  <FormSelect
+                    id="celebrityReference"
+                    label="Celebrity"
+                    value={celebrityReference || null}
+                    onValueChange={(v) => setCelebrityReference(v ?? "")}
+                    options={(celebrities.data ?? []).map((c) => ({
+                      value: c.name,
+                      label: c.name,
+                    }))}
+                    placeholder="Select celebrity…"
                   />
                 </div>
 
@@ -395,23 +564,16 @@ export function DesignCreateForm() {
                   }
                 />
 
-                <div className="form-grid form-grid--2">
-                  <FormTextField
-                    id="trendReference"
-                    label="Trend Reference"
-                    value={trendReference}
-                    onChange={(e) => setTrendReference(e.target.value)}
-                  />
-                  <FormTextField
-                    id="celebrityReference"
-                    label="Celebrity Reference"
-                    value={celebrityReference}
-                    onChange={(e) => setCelebrityReference(e.target.value)}
-                  />
-                </div>
+                <FormTextField
+                  id="trendReference"
+                  label="Trend Reference"
+                  value={trendReference}
+                  onChange={(e) => setTrendReference(e.target.value)}
+                />
               </div>
             </AppCard>
 
+            <div className="vstack vstack--loose min-w-0">
             <AppCard title="Product">
               <div className="form-grid">
                 <div className="form-grid form-grid--2">
@@ -469,10 +631,78 @@ export function DesignCreateForm() {
                         </label>
                       ))}
                     </div>
+                    {componentTypeIds.length > 0 ? (
+                      <div className="vstack vstack--tight mt-2">
+                        <span className="form-label text-sm font-medium">Component specs</span>
+                        {componentTypeIds.map((id) => {
+                          const ct = availableComponentTypes.find((c) => c.id === id);
+                          return (
+                            <FormTextField
+                              key={id}
+                              id={`comp-spec-${id}`}
+                              label={ct?.name ?? String(id)}
+                              value={componentSpecs[id] ?? ""}
+                              onChange={(e) =>
+                                setComponentSpecs((prev) => ({
+                                  ...prev,
+                                  [id]: e.target.value,
+                                }))
+                              }
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
             </AppCard>
+
+              <AppCard title="Media & references">
+                <ConceptMediaPanel
+                  queueMode
+                  pendingItems={pendingMedia}
+                  onPendingChange={setPendingMedia}
+                  canUpload
+                  compact
+                  showIntro
+                />
+                {mediaUploading && mediaProgress ? (
+                  <div className="vstack vstack--tight mt-2">
+                    <p className="m-0 text-sm text-[var(--color-neutral-600)]">
+                      Uploading {mediaProgress.fileName} ({mediaProgress.index + 1}/
+                      {mediaProgress.total})
+                    </p>
+                    <div
+                      role="progressbar"
+                      aria-valuenow={mediaProgress.index + 1}
+                      aria-valuemin={0}
+                      aria-valuemax={mediaProgress.total}
+                      style={{
+                        height: 6,
+                        borderRadius: 3,
+                        background: "var(--border)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.round(
+                            ((mediaProgress.index +
+                              (mediaProgress.status === "done" ? 1 : 0.5)) /
+                              mediaProgress.total) *
+                              100,
+                          )}%`,
+                          height: "100%",
+                          background: "var(--color-primary)",
+                          transition: "width 0.2s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </AppCard>
+            </div>
 
             <div className="form-layout-span">
               <AppCard title="Assignment">

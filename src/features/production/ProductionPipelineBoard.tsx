@@ -38,7 +38,7 @@ function stageBadgeStatus(status: string | null): string {
 }
 
 function shortStatus(status: string | null): string {
-  if (!status) return "—";
+  if (!status) return "-";
   if (status === "COMPLETED") return "Done";
   if (status === "ASSIGNED") return "Assigned";
   if (status === "PENDING") return "Queued";

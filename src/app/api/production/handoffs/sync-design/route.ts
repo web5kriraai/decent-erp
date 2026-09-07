@@ -10,7 +10,7 @@ const schema = z.object({
   designId: z.string().min(1),
 });
 
-/** Batch sync — same capability gate as handoff retry (ERP operate + PRODUCTION_RELEASE). */
+/** Batch sync - same capability gate as handoff retry (ERP operate + PRODUCTION_RELEASE). */
 export async function POST(request: Request) {
   return withApiHandler(PERMISSIONS.PRODUCTION_RELEASE, async (ctx) => {
     if (!canViewErpChain(ctx.permissions)) {

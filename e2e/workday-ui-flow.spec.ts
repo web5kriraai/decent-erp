@@ -1,5 +1,5 @@
 /**
- * UI happy-path workday flow — catches timer / hold-label / checklist / command-palette regressions.
+ * UI happy-path workday flow - catches timer / hold-label / checklist / command-palette regressions.
  * Run: npm run test:e2e -- e2e/workday-ui-flow.spec.ts
  */
 import { execSync } from "node:child_process";
@@ -48,7 +48,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
     });
     expect(design.id).toBeTruthy();
 
-    // Concept Review stays PENDING on create — Sketch is ready for sketch designer
+    // Concept Review stays PENDING on create - Sketch is ready for sketch designer
     const dhTasksBefore = await apiGetJson<
       Array<{
         status: string;

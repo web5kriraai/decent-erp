@@ -145,7 +145,7 @@ async function roleOwnsApprovalStages(roleCode: string): Promise<boolean> {
   return count > 0;
 }
 
-/** Workflow stage approvals — not the management chain. */
+/** Workflow stage approvals - not the management chain. */
 export async function listStageApprovalQueue(
   employeeId: number,
   roleCode?: string | null,

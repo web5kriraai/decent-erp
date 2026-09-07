@@ -11,7 +11,7 @@ Treat “task ended but no approval”, wrong CTA, missing Design Head / Managem
 ## Hard rules
 
 1. Server gate math wins over UI. Never fix only the dialog/CTA.
-2. Two systems — do not conflate:
+2. Two systems - do not conflate:
    - **Stage approvals** = `DesignTask` + `isApproval` (`CONCEPT_REVIEW`, `SKETCH_APPROVAL`, `PUNCH_CHECK`, `SAMPLE_CHECK`, `FINAL_APPROVAL`, `LIVE_REVIEW`)
    - **Management sign-off** = `DesignApproval` + `ApprovalLevel` (CHECKER → DESIGN_HEAD → MANAGEMENT)
 3. `LIVE_REVIEW` is **not** a checker gate for `PROD_RELEASE`. Ladder: `PROD_HANDOFF` → `PROD_INSTRUCTION` → `PROD_RELEASE` → `LIVE_REVIEW`.
@@ -34,7 +34,7 @@ Treat “task ended but no approval”, wrong CTA, missing Design Head / Managem
 0. Record design.status, each task `{code,status,assigneeId,dependencySequence}`, open ApprovalLevels, viewer role.
 1. Classify: checker gate vs production ladder; expected end via `resolveWorkTaskEndStatus`.
 2. Assert after `endTask`: status matches gate; next unlocked to ASSIGNED; gated work CHECKING; `PROD_RELEASE` COMPLETED → release attempted; after approve → promote CHECKING work.
-3. Visibility: same item on hub Stage tab, design surface, CTA, header, workbench — rule out PENDING-not-unlocked, wrong assignee orphan, Admin assignee-scope, dashboard≠hub, wrong CTA preference.
+3. Visibility: same item on hub Stage tab, design surface, CTA, header, workbench - rule out PENDING-not-unlocked, wrong assignee orphan, Admin assignee-scope, dashboard≠hub, wrong CTA preference.
 4. Heal stuck DB rows from `getDesignById`, approve preflight, ensure-ladder (idempotent + audited). Pattern: `healStuckProdReleaseChecking`.
 5. Fix gate/unlock/queue/RBAC/CTA together; extend `workflow-stage-gate.test.ts` (+ queue/RBAC tests).
 6. Accept: work end → status → next ASSIGNED → owner sees hub+design → approve → promote → design.status/side effects → CTA updates.

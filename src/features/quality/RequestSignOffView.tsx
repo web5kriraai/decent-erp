@@ -203,7 +203,7 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
               }
             />
 
-            <div className="stack-section">
+            <div className="vstack vstack--loose">
               <AppCard
                 title="Approve package"
                 contentClassName="space-y-4"

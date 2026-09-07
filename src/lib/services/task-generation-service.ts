@@ -165,6 +165,7 @@ export async function createDesignComponents(
   tx: Prisma.TransactionClient,
   designId: bigint,
   componentTypeIds: number[],
+  specs?: Record<number, string | undefined>,
 ) {
   if (!componentTypeIds.length) return;
   await tx.designComponent.createMany({
@@ -172,6 +173,7 @@ export async function createDesignComponents(
       designId,
       componentTypeId,
       sequence: index + 1,
+      specification: specs?.[componentTypeId]?.trim() || null,
     })),
   });
 }

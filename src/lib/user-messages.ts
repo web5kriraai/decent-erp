@@ -25,10 +25,10 @@ export function formatPermissionLabel(code: string): string {
 export function permissionDeniedMessage(required: string | string[]): string {
   const list = Array.isArray(required) ? required : [required];
   if (list.length === 1) {
-    return `You can't do this yet — your role doesn't include permission to ${formatPermissionLabel(list[0])}. Ask your system admin to turn this on under Admin → Roles & Access.`;
+    return `You can't do this yet - your role doesn't include permission to ${formatPermissionLabel(list[0])}. Ask your system admin to turn this on under Admin → Roles & Access.`;
   }
   const labels = list.map(formatPermissionLabel).join(", or ");
-  return `You can't do this yet — your role needs permission to ${labels}. Ask your system admin under Admin → Roles & Access.`;
+  return `You can't do this yet - your role needs permission to ${labels}. Ask your system admin under Admin → Roles & Access.`;
 }
 
 export function accessRestrictedMessage(permission?: string): string {

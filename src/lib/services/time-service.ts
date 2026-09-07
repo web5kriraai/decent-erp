@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { writeAuditLogDirect } from "@/lib/audit";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { createAppError, notFound, conflict } from "@/lib/errors/create-app-error";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -458,10 +459,34 @@ export async function persistWorkdayClose(employeeId: number, correlationId: str
   const now = new Date();
   const workDate = startOfUtcDay(now);
 
+  const existing = await prisma.workdaySession.findUnique({
+    where: { employeeId_workDate: { employeeId, workDate } },
+  });
+
   const session = await prisma.workdaySession.upsert({
     where: { employeeId_workDate: { employeeId, workDate } },
     update: { closedAtUtc: now, createdById: employeeId },
     create: { employeeId, workDate, closedAtUtc: now, createdById: employeeId },
+  });
+
+  await writeAuditLogDirect({
+    entityType: "WorkdaySession",
+    entityId: session.id.toString(),
+    action: "CLOSE",
+    userId: employeeId,
+    correlationId,
+    before: existing
+      ? {
+          employeeId: existing.employeeId,
+          workDate: existing.workDate.toISOString().slice(0, 10),
+          closedAtUtc: existing.closedAtUtc.toISOString(),
+        }
+      : null,
+    after: {
+      employeeId: session.employeeId,
+      workDate: session.workDate.toISOString().slice(0, 10),
+      closedAtUtc: session.closedAtUtc.toISOString(),
+    },
   });
 
   // Stamp OFFICE_CLOSE on any ON_HOLD task timeline for audit (append-only)

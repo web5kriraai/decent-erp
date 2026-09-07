@@ -31,7 +31,7 @@ export type ProductionReleaseReadiness = {
 /**
  * Server-authoritative checklist before production release.
  * Design-side stages and data gates are required only when present on the design.
- * Spec Stage 9 — full Management ApprovalLevel chain is always required before APPROVED.
+ * Spec Stage 9 - full Management ApprovalLevel chain is always required before APPROVED.
  */
 export async function validateProductionReleaseReadiness(
   designId: bigint,
@@ -79,7 +79,7 @@ export async function validateProductionReleaseReadiness(
     hasAnyDesignApproval: approvalRowCount > 0,
   });
 
-  // Spec Stage 9 — all active ApprovalLevels must pass before release.
+  // Spec Stage 9 - all active ApprovalLevels must pass before release.
   if (requireManagementLevels) {
     const levels = await db.approvalLevel.findMany({
       where: { active: true },

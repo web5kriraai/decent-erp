@@ -14,6 +14,7 @@ import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { ROUTES } from "@/config/routes";
+import { useConceptTargets } from "@/hooks/use-masters";
 
 type TeamScoreRow = {
   id: string;
@@ -46,13 +47,16 @@ export function DesignHeadKpiView() {
     queryFn: () => apiGet<DesignHeadKpiResponse>("/api/kpi/design-head"),
     enabled,
   });
+  const conceptTargetsQuery = useConceptTargets(enabled);
+  const conceptAttainment = conceptTargetsQuery.data?.attainment;
   const queryClient = useQueryClient();
   const toast = useApiToast();
   const recompute = useMutation({
     mutationFn: () => apiPost<{ count: number }>("/api/kpi/recompute", {}),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.kpi.employees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.kpi.employeesRoot });
       queryClient.invalidateQueries({ queryKey: queryKeys.kpi.designHead });
+      queryClient.invalidateQueries({ queryKey: ["masters", "concept-targets"] });
       toast.success("KPI recomputed", `${data.count} score records updated`);
     },
     onError: (error) => toast.errorFromApi(error, "Recompute failed"),
@@ -111,14 +115,21 @@ export function DesignHeadKpiView() {
               <StatCard label="Ideas" value={data.ideasCreated} />
               <StatCard label="Approved" value={data.approvedCount} />
               <StatCard label="Released" value={data.releasedCount} />
-              <StatCard label="Live" value={data.liveCount} />
-              <StatCard
-                label="Conversion"
-                value={`${data.conversionPercent}%`}
-                tone="accent"
-                trend={periodLabel}
-              />
-            </div>
+          <StatCard label="Live" value={data.liveCount} />
+          <StatCard
+            label="Conversion"
+            value={`${data.conversionPercent}%`}
+            tone="accent"
+            trend={periodLabel}
+          />
+          {conceptAttainment ? (
+            <StatCard
+              label="Concept target"
+              value={`${conceptAttainment.createdCount}/${conceptAttainment.targetCount || "-"}`}
+              trend={`${conceptAttainment.percent}% · ${periodLabel}`}
+            />
+          ) : null}
+        </div>
 
             <AppCard title="Score detail" className="stack-section" flush>
               <DataTable

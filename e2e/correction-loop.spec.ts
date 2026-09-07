@@ -1,5 +1,5 @@
 /**
- * Correction loops — sketch and punch send-back via stage approval reject API.
+ * Correction loops - sketch and punch send-back via stage approval reject API.
  */
 import { expect, test, type Page } from "@playwright/test";
 import { USERS, createDesignViaApi, login } from "./helpers/auth";
@@ -64,7 +64,7 @@ async function completeTaskForUser(
 }
 
 test.describe("Stage correction loops", () => {
-  test("sketch correction loop — reject, rework, re-approve", async ({ page }) => {
+  test("sketch correction loop - reject, rework, re-approve", async ({ page }) => {
     test.setTimeout(180_000);
 
     await login(page, USERS.designHead.email, DEMO);
@@ -82,7 +82,7 @@ test.describe("Stage correction loops", () => {
     await completeStageApproval(
       page,
       sketchApproval!.id,
-      "Sketch needs rework — proportions off",
+      "Sketch needs rework - proportions off",
       "CORRECTION_REQUIRED",
     );
 
@@ -106,7 +106,7 @@ test.describe("Stage correction loops", () => {
     expect(approvedSketchGate?.status).toBe("COMPLETED");
   });
 
-  test("punch correction loop — reject, rework, re-approve", async ({ page }) => {
+  test("punch correction loop - reject, rework, re-approve", async ({ page }) => {
     test.setTimeout(180_000);
 
     await login(page, USERS.designHead.email, DEMO);
@@ -131,7 +131,7 @@ test.describe("Stage correction loops", () => {
     await completeStageApproval(
       page,
       punchCheck!.id,
-      "Punch alignment issue — send back",
+      "Punch alignment issue - send back",
       "REJECT",
     );
 

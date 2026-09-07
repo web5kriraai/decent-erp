@@ -94,7 +94,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
   [ROLE_CODES.SAMPLE_CHECKER]: {
     code: ROLE_CODES.SAMPLE_CHECKER,
     displayName: "Sample Checker",
-    summary: "Quality gate for punching files and machine samples — checklist, approve, reject, or re-sample.",
+    summary: "Quality gate for punching files and machine samples - checklist, approve, reject, or re-sample.",
     responsibilities: [
       "Execute punching check and sample checking tasks on My Tasks",
       "Approve, reject, or request re-sample on machine output",
@@ -154,7 +154,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     code: ROLE_CODES.ADMIN,
     displayName: "System Admin",
     summary:
-      "System operator — masters, roles, and configuration. Does not own Design Head sign-off requests.",
+      "System operator - masters, roles, and configuration. Does not own Design Head sign-off requests.",
     responsibilities: [
       "Maintain process masters and workflow patterns",
       "Configure hold reasons and KPI definitions",
@@ -164,7 +164,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     ],
     restrictions: [
       "All admin actions are audited",
-      "Cannot approve for production — that is Design Head only",
+      "Cannot approve for production - that is Design Head only",
     ],
     permissions: Object.values(PERMISSIONS),
     navFocus: ["All modules"],
@@ -173,7 +173,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     code: ROLE_CODES.MANAGEMENT,
     displayName: "Management (Owner)",
     summary:
-      "Business owner / executive — live review stage, analytics, and release oversight.",
+      "Business owner / executive - live review stage, analytics, and release oversight.",
     responsibilities: [
       "Complete Live Design Review stage after production release",
       "View KPI, team time reports, and costing summaries",
@@ -181,7 +181,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Mark designs live after production release when required",
     ],
     restrictions: [
-      "Operational edits restricted — read and approve focus",
+      "Operational edits restricted - read and approve focus",
       "No process master configuration",
       "Does not create designs or approve for production (Design Head does)",
     ],

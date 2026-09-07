@@ -103,7 +103,7 @@ async function resolveLadderStages(
       APP_ERROR_CODES.VALIDATION_FAILED,
       422,
       undefined,
-      `Cannot create production stages — missing roles: ${missingRoles.join(", ")}.`,
+      `Cannot create production stages - missing roles: ${missingRoles.join(", ")}.`,
     );
   }
 

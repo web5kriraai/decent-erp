@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 type AppCardProps = HTMLAttributes<HTMLDivElement> & {
   /** Border only, no soft elevation. */
   flat?: boolean;
-  /** No outer padding — use for full-bleed tables inside the card. */
+  /** No outer padding - use for full-bleed tables inside the card. */
   flush?: boolean;
   title?: ReactNode;
   description?: ReactNode;

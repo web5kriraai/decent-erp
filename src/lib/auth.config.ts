@@ -2,7 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 import { ROUTES } from "@/config/routes";
 
 /**
- * Edge-safe Auth.js config — no Prisma/DB imports.
+ * Edge-safe Auth.js config - no Prisma/DB imports.
  * Used by middleware and merged into the full auth setup in auth.ts.
  */
 export const authConfig = {

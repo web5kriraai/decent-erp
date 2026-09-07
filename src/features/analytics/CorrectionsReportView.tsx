@@ -74,19 +74,19 @@ export function CorrectionsReportView() {
                   header: "Design",
                   render: (row) =>
                     row.design
-                      ? `${row.design.ideaRef} — ${row.design.collectionName}`
-                      : "—",
+                      ? `${row.design.ideaRef} - ${row.design.collectionName}`
+                      : "-",
                 },
                 { key: "correctionType", header: "Type" },
                 {
                   key: "stage",
                   header: "Stage",
-                  render: (row) => row.task?.subProcess?.name ?? "—",
+                  render: (row) => row.task?.subProcess?.name ?? "-",
                 },
                 {
                   key: "responsible",
                   header: "Responsible",
-                  render: (row) => row.responsibleEmployee?.name ?? "—",
+                  render: (row) => row.responsibleEmployee?.name ?? "-",
                 },
                 {
                   key: "status",

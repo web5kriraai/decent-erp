@@ -117,7 +117,7 @@ export function ActionHandoffBanner({
               <p className="handoff-metric-value">
                 {ctx.costingTotal != null
                   ? `₹${ctx.costingTotal.toFixed(2)}`
-                  : "—"}
+                  : "-"}
               </p>
               {ctx.costingEntryCount != null ? (
                 <p className="handoff-metric-sub">

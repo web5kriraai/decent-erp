@@ -109,7 +109,7 @@ export function getMarkLiveAvailability(
       reason: "Only production-released designs can be marked live.",
     };
   }
-  // Require explicit completion — omit/undefined must not unlock Mark Live.
+  // Require explicit completion - omit/undefined must not unlock Mark Live.
   if (options?.liveReviewCompleted !== true) {
     return {
       available: false,

@@ -30,6 +30,7 @@ export type CorrectionWorkflowStatus = (typeof CORRECTION_WORKFLOW_STATUSES)[num
 /**
  * Legacy DB values ASSIGNED/CHECKING were copied from TaskStatus.
  * Treat them as in-progress for queues and display.
+ * PATCH accepts them and persist normalizes to IN_PROGRESS.
  */
 export function normalizeCorrectionStatus(status: string): CorrectionWorkflowStatus | string {
   if (status === "ASSIGNED" || status === "CHECKING") return "IN_PROGRESS";
@@ -50,7 +51,7 @@ export function isOpenCorrectionStatus(status: string): boolean {
 
 /**
  * Status options for the corrections UI dropdown.
- * Unauthorized/terminal statuses are omitted — only valid next steps + current.
+ * Unauthorized/terminal statuses are omitted - only valid next steps + current.
  */
 export function getAllowedCorrectionStatusOptions(
   status: string,

@@ -60,7 +60,9 @@ export function DesignActiveTaskTimer({
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
   const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [checklistNote, setChecklistNote] = useState("");
-  const [sampleOutcome, setSampleOutcome] = useState<"APPROVE" | "REJECT" | "RESAMPLE" | "">(
+  const [sampleOutcome, setSampleOutcome] = useState<
+    "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE" | ""
+  >(
     "",
   );
   const [costEntries, setCostEntries] = useState<
@@ -173,7 +175,13 @@ export function DesignActiveTaskTimer({
     const failed = checklist.length - passed;
     if (checklist.length > 0 && passed === 0) return;
     if (failed > 0 && !checklistNote.trim()) return;
-    if (isSampleCheck && sampleOutcome === "APPROVE" && failed > 0) return;
+    if (
+      isSampleCheck &&
+      (sampleOutcome === "APPROVE" || sampleOutcome === "PASS") &&
+      failed > 0
+    ) {
+      return;
+    }
 
     const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
@@ -207,7 +215,7 @@ export function DesignActiveTaskTimer({
     activeTask.id;
 
   return (
-    <div className="mb-4">
+    <div>
       <TimerWidget
         status={timerFlags.isRunning ? "RUNNING" : "ON_HOLD"}
         elapsedSeconds={task.timeSummary.activeSeconds}
@@ -241,7 +249,7 @@ export function DesignActiveTaskTimer({
 
       {timerFlags.blocksTimerEnd ? (
         <p className="mt-2 text-sm text-muted-foreground">
-          Finish with stage approval actions — not the timer End dialog. Hold still works.{" "}
+          Finish with stage approval actions - not the timer End dialog. Hold still works.{" "}
           <AppButtonLink href={taskOpenHref} appVariant="ghost" size="sm">
             Open task approval
           </AppButtonLink>

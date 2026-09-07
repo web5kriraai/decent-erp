@@ -1,5 +1,5 @@
 /**
- * PROD_RELEASE Floor ERP gate — end without Floor fails; after Floor completes, end succeeds.
+ * PROD_RELEASE Floor ERP gate - end without Floor fails; after Floor completes, end succeeds.
  */
 import { expect, test } from "@playwright/test";
 import { USERS, apiGetJson, apiPostJson, login } from "./helpers/auth";

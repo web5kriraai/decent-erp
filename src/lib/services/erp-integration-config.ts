@@ -44,7 +44,28 @@ export function getHandoffDisplayStatus(input: {
 export function erpSyncOrderMessage(mode: ErpIntegrationMode): string {
   const chain = ERP_MODULE_SYNC_ORDER.join(" → ");
   if (mode === "simulated") {
-    return `ERP_API_BASE_URL is not set — all modules sync as LOCAL-* simulated references (${chain}).`;
+    return `ERP_API_BASE_URL is not set - all modules sync as LOCAL-* simulated references (${chain}).`;
   }
   return `Live ERP sync order: ${chain}.`;
+}
+
+/** Short badge label for Live vs Simulated/LOCAL. */
+export function erpModeDisplayLabel(mode: ErpIntegrationMode): string {
+  return mode === "live" ? "Live ERP" : "Simulated / LOCAL";
+}
+
+/** One-line desk hint under the mode badge. */
+export function erpModeShortHint(mode: ErpIntegrationMode): string {
+  return mode === "live"
+    ? "Partner ERP connected"
+    : "LOCAL mode - set ERP_API_BASE_URL to go live";
+}
+
+/** Go-live checklist when ERP_API_BASE_URL is unset (simulated). */
+export function erpGoLiveChecklistItems(): string[] {
+  return [
+    "Configure ERP_API_BASE_URL for live partner posts",
+    "Sync production handoffs after release",
+    "Manual design-success metric entry remains available while simulated",
+  ];
 }

@@ -332,7 +332,7 @@ export function getStageApprovalBlockedMessage(
       return "Waiting for sketch designer to submit work.";
     }
     if (workTask?.status === "ON_HOLD") {
-      return "Sketch work is on hold — approval unlocks after the designer resumes and submits.";
+      return "Sketch work is on hold - approval unlocks after the designer resumes and submits.";
     }
     return "Sketch must be submitted for checking before you can approve.";
   }
@@ -342,7 +342,7 @@ export function getStageApprovalBlockedMessage(
       return "Waiting for punch work to be submitted.";
     }
     if (workTask?.status === "ON_HOLD") {
-      return "Punch work is on hold — approval unlocks after the designer resumes and submits.";
+      return "Punch work is on hold - approval unlocks after the designer resumes and submits.";
     }
     return "Waiting for punch work to be submitted for checking.";
   }
@@ -530,7 +530,7 @@ const TERMINAL_DESIGN_STATUSES = new Set([
   "LIVE",
 ]);
 
-/** Badge token for the Workflow panel header — reflects live stage status, not design lifecycle. */
+/** Badge token for the Workflow panel header - reflects live stage status, not design lifecycle. */
 export function getWorkflowPanelHeaderStatus(input: {
   designStatus: string;
   steps: WorkflowStep[];
@@ -590,7 +590,7 @@ export function getDesignWorkflowContext(input: {
       siblings,
     );
     return {
-      summary: `${workStep?.label ?? "Work"} submitted — waiting for review.`,
+      summary: `${workStep?.label ?? "Work"} submitted - waiting for review.`,
       currentStage: gate?.subProcess?.name ?? workStep?.label ?? null,
       currentStatus: "ready",
       currentOwner: gate?.assignedEmployee?.name ?? null,
@@ -650,7 +650,7 @@ export function getDesignWorkflowContext(input: {
     if (handoff.status !== "COMPLETED") {
       return {
         ...empty,
-        summary: "Approved — Design Head must complete production handoff.",
+        summary: "Approved - Design Head must complete production handoff.",
         currentStage: handoff.subProcess?.name ?? "Production Handoff",
         currentStatus: handoff.status.replace(/_/g, " ").toLowerCase(),
         currentOwner: handoff.assignedEmployee?.name ?? "Design Head",
@@ -781,6 +781,77 @@ const KANBAN_ACTIVE_STATUSES = new Set([
   "CORRECTION_REQUIRED",
 ]);
 
+/** Sub-process code for the open workflow stage (stage-lane kanban). */
+export function resolveKanbanStageCode(input: {
+  status: string;
+  tasks?: DesignTask[];
+}): string | null {
+  const tasks = sortTasks(input.tasks);
+  const siblings = toStageGateSiblings(tasks);
+
+  const waitingForApproval = tasks.find((task) => {
+    if (task.status !== "CHECKING" || task.subProcess?.isApproval) return false;
+    const gate = findStageApprovalGate(
+      {
+        id: task.id,
+        dependencySequence: task.dependencySequence ?? null,
+        sequence: task.sequence,
+        subProcess: task.subProcess,
+      },
+      siblings,
+    );
+    return gate != null && ["ASSIGNED", "PENDING", "RUNNING", "ON_HOLD"].includes(gate.status);
+  });
+
+  if (waitingForApproval) {
+    const gate = findStageApprovalGate(
+      {
+        id: waitingForApproval.id,
+        dependencySequence: waitingForApproval.dependencySequence ?? null,
+        sequence: waitingForApproval.sequence,
+        subProcess: waitingForApproval.subProcess,
+      },
+      siblings,
+    );
+    return gate?.subProcess?.code ?? waitingForApproval.subProcess?.code ?? null;
+  }
+
+  if (input.status === "APPROVAL_PENDING") {
+    return "FINAL_APPROVAL";
+  }
+
+  if (input.status === "APPROVED") {
+    const handoff = tasks.find((t) => t.subProcess?.code === "PROD_HANDOFF");
+    const instruction = tasks.find((t) => t.subProcess?.code === "PROD_INSTRUCTION");
+    const release = tasks.find((t) => t.subProcess?.code === "PROD_RELEASE");
+    if (!handoff) return null;
+    if (handoff.status !== "COMPLETED") return "PROD_HANDOFF";
+    if (instruction && instruction.status !== "COMPLETED") return "PROD_INSTRUCTION";
+    if (release && release.status !== "COMPLETED") return "PROD_RELEASE";
+    return null;
+  }
+
+  if (input.status === "PRODUCTION_RELEASED" || input.status === "LIVE" || input.status === "PRODUCTION_ACCEPTED") {
+    return null;
+  }
+
+  const firstOpen = tasks.find((t) => {
+    const effective = resolveEffectiveTaskStatus(
+      {
+        id: t.id,
+        dependencySequence: t.dependencySequence ?? null,
+        sequence: t.sequence,
+        status: t.status,
+        subProcess: t.subProcess,
+      },
+      siblings,
+    );
+    return effective !== "COMPLETED" && effective !== "CANCELLED";
+  });
+
+  return firstOpen?.subProcess?.code ?? null;
+}
+
 export function buildKanbanWorkflowInfo(input: {
   status: string;
   tasks?: DesignTask[];
@@ -807,6 +878,7 @@ export function buildKanbanWorkflowInfo(input: {
 
   return {
     currentStage: ctx.currentStage,
+    currentStageCode: resolveKanbanStageCode(input),
     currentStatus: ctx.currentStatus,
     currentOwner: ctx.currentOwner,
     summary: ctx.summary,

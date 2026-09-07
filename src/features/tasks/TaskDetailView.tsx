@@ -83,7 +83,9 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
   const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [checklistNote, setChecklistNote] = useState("");
-  const [sampleOutcome, setSampleOutcome] = useState<"APPROVE" | "REJECT" | "RESAMPLE" | "">(
+  const [sampleOutcome, setSampleOutcome] = useState<
+    "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE" | ""
+  >(
     "",
   );
   const [costEntries, setCostEntries] = useState<
@@ -316,7 +318,13 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     const failed = checklist.length - passed;
     if (checklist.length > 0 && passed === 0) return;
     if (failed > 0 && !checklistNote.trim()) return;
-    if (isSampleCheck && sampleOutcome === "APPROVE" && failed > 0) return;
+    if (
+      isSampleCheck &&
+      (sampleOutcome === "APPROVE" || sampleOutcome === "PASS") &&
+      failed > 0
+    ) {
+      return;
+    }
 
     const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
@@ -480,7 +488,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   />
                   {timerFlags?.blocksTimerEnd && (isRunning || isOnHold) ? (
                     <p className="mt-2 text-sm text-muted-foreground" role="status">
-                      Finish this stage with Approve / Request correction / Reject above — not
+                      Finish this stage with Approve / Request correction / Reject above - not
                       the timer End dialog. Hold and Resume still work for time tracking.
                     </p>
                   ) : null}

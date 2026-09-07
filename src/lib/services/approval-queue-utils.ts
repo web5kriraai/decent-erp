@@ -191,7 +191,7 @@ export type BuiltPendingApprovalItem = {
   }>;
 };
 
-/** Pure builder — excludes stuck designs where every level is already APPROVED/SKIPPED. */
+/** Pure builder - excludes stuck designs where every level is already APPROVED/SKIPPED. */
 export function buildPendingApprovalItems(
   designs: PendingDesignRow[],
   levels: ApprovalLevelRow[],

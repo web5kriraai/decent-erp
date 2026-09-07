@@ -398,7 +398,7 @@ export function buildLiveApprovalPackagePreview(input: {
     snapshot: {
       ideaRef: design.ideaRef,
       collectionName: design.collectionName,
-      productType: design.productType?.name ?? "—",
+      productType: design.productType?.name ?? "-",
       priority: design.priority,
       statusBeforeRequest: design.status,
       completedStages: completedStageDetails.map((d) => d.name),
