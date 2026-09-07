@@ -89,6 +89,7 @@ export function useTaskMutations() {
     queryClient.invalidateQueries({ queryKey: queryKeys.time.mySummary });
     queryClient.invalidateQueries({ queryKey: queryKeys.time.live });
     queryClient.invalidateQueries({ queryKey: ["costs"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.production.erpStages() });
   };
 
   const start = useMutation({

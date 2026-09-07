@@ -249,7 +249,6 @@ export function ProductionPipelineBoard({
     <AppCard
       title="Production pipeline"
       className="production-desk-pipeline-card"
-      description="Designs in handoff → instruction → release."
       contentClassName="production-desk-card-content"
     >
       <div className="production-desk-board">

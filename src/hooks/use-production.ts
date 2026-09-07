@@ -242,6 +242,54 @@ export function useErpStageChains(enabled = true) {
   });
 }
 
+/** Single-design chain for PROD_RELEASE task detail (maps stage list → chain shape). */
+export function useErpStageChainForDesign(designId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.production.erpStages(designId),
+    queryFn: async (): Promise<ErpStageChain | null> => {
+      if (!designId) return null;
+      type StageWithDesign = ErpStageRow & {
+        designNumber?: string;
+        design?: {
+          id: string | number;
+          ideaRef: string;
+          collectionName: string;
+          status: string;
+          designNumber?: string;
+        };
+      };
+      const stages = await apiGet<StageWithDesign[]>(
+        `/api/erp/stages?designId=${encodeURIComponent(designId)}`,
+      );
+      if (!Array.isArray(stages) || stages.length === 0) return null;
+      const first = stages[0];
+      const design = first.design;
+      let completedCount = 0;
+      let currentModule: string | null = null;
+      for (const stage of stages) {
+        if (stage.status === "COMPLETED") completedCount += 1;
+        if (
+          !currentModule &&
+          (stage.status === "READY" || stage.status === "IN_PROGRESS")
+        ) {
+          currentModule = stage.erpModule;
+        }
+      }
+      return {
+        designId: String(design?.id ?? designId),
+        designNumber: first.designNumber ?? design?.designNumber ?? "",
+        ideaRef: design?.ideaRef ?? "",
+        collectionName: design?.collectionName ?? "",
+        designStatus: design?.status ?? "",
+        completedCount,
+        currentModule,
+        stages,
+      };
+    },
+    enabled: enabled && !!designId,
+  });
+}
+
 export function useBackfillErpStages() {
   const queryClient = useQueryClient();
   const toast = useApiToast();

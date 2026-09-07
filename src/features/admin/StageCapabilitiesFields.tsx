@@ -103,11 +103,11 @@ export function StageCapabilitiesFields({
 
   return (
     <div className="space-y-3 rounded-md border border-border p-3">
-      <p className="text-xs font-medium text-muted-foreground">Stage capabilities</p>
+      <p className="text-xs font-medium text-muted-foreground">Stage options</p>
       <div className="grid gap-2 sm:grid-cols-2">
         <CapToggle
           id={`${idPrefix}-approval`}
-          label="Is approval gate"
+          label="Approval gate"
           checked={value.isApproval}
           onChange={(v) =>
             onChange({
@@ -129,49 +129,49 @@ export function StageCapabilitiesFields({
         />
         <CapToggle
           id={`${idPrefix}-correction`}
-          label="Correction route allowed"
+          label="Allow corrections"
           checked={value.isCorrectionAllowed}
           onChange={(v) => set("isCorrectionAllowed", v)}
         />
         <CapToggle
           id={`${idPrefix}-checking`}
-          label="Forces checking"
+          label="Requires checking"
           checked={value.forcesChecking}
           onChange={(v) => set("forcesChecking", v)}
         />
         <CapToggle
           id={`${idPrefix}-machine`}
-          label="Machine output kit"
+          label="Machine output"
           checked={value.machineOutput}
           onChange={(v) => set("machineOutput", v)}
         />
         <CapToggle
           id={`${idPrefix}-sample`}
-          label="Sample decision outcomes"
+          label="Sample decisions"
           checked={value.sampleDecisionOutcomes}
           onChange={(v) => set("sampleDecisionOutcomes", v)}
         />
         <CapToggle
           id={`${idPrefix}-costing`}
-          label="Costing entry"
+          label="Costing"
           checked={value.costingEntry}
           onChange={(v) => set("costingEntry", v)}
         />
         <CapToggle
           id={`${idPrefix}-complete`}
-          label="Complete (not checking)"
+          label="Complete without checking"
           checked={value.completeNotChecking}
           onChange={(v) => set("completeNotChecking", v)}
         />
         <CapToggle
           id={`${idPrefix}-ladder`}
-          label="Unlock after design approved"
+          label="Steps after approval"
           checked={value.unlockAfterDesignApproved}
           onChange={(v) => set("unlockAfterDesignApproved", v)}
         />
         <CapToggle
           id={`${idPrefix}-auto`}
-          label="Auto-advance on create"
+          label="Start automatically"
           checked={value.autoAdvanceOnCreate}
           onChange={(v) => set("autoAdvanceOnCreate", v)}
         />
@@ -179,15 +179,15 @@ export function StageCapabilitiesFields({
       {value.isApproval ? (
         <FormSelect
           id={`${idPrefix}-surface`}
-          label="Approval surface"
+          label="Where to approve"
           value={value.approvalSurface === "none" ? "inline_card" : value.approvalSurface}
           onValueChange={(v) =>
             set("approvalSurface", (v as CapabilitiesFormState["approvalSurface"]) || "inline_card")
           }
           options={[
-            { value: "inline_card", label: "Inline card (design detail)" },
+            { value: "inline_card", label: "Design detail" },
             { value: "task_panel", label: "Task panel" },
-            { value: "task_end_dialog", label: "Task end dialog" },
+            { value: "task_end_dialog", label: "End of task" },
           ]}
         />
       ) : null}

@@ -197,7 +197,6 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
       <Modal
         open={sendQcOpen}
         title="Send to QC phase"
-        description="Skips open stages before the selected QC check and opens that phase."
         onClose={resetAndClose}
         footer={
           <ModalFooterActions>
@@ -250,7 +249,6 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
       <Modal
         open={bypassOpen}
         title="Bypass to phase"
-        description="Jumps to a chosen phase and skips any open stages before it."
         onClose={resetAndClose}
         footer={
           <ModalFooterActions>

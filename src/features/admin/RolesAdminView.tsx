@@ -28,7 +28,6 @@ export function RolesAdminView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Roles & Access"
-        subtitle="Grant or revoke what each role can do across the system"
       />
 
       <Tabs

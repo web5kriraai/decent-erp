@@ -59,7 +59,6 @@ export function EmployeeTimeReportView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Employee Time Report"
-        subtitle="Active vs hold time aggregated from TaskTimeEvent records"
       />
 
       <AppCard flat className="stack-section-sm">

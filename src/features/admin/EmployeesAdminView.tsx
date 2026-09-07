@@ -137,7 +137,6 @@ export function EmployeesAdminView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Employees"
-        subtitle="Create accounts, assign roles, reset passwords, and activate or deactivate users"
         actions={
           <AppButton type="button" appVariant="primary" onClick={openCreateModal}>
             Add Employee
@@ -293,11 +292,6 @@ function EmployeeFormModal({
     <Modal
       open={open}
       title={title}
-      description={
-        requirePassword
-          ? "Create a new employee account with login credentials."
-          : "Update employee details and access settings."
-      }
       onClose={onClose}
       size="lg"
       footer={

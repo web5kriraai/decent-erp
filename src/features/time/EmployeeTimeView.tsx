@@ -47,7 +47,6 @@ export function EmployeeTimeView() {
     <div className="page-shell">
       <PageHeader
         title="My Time Today"
-        subtitle="Server-authoritative active work, hold time, and workday status"
         actions={
           data && !data.workdayClosed ? (
             <AppButton

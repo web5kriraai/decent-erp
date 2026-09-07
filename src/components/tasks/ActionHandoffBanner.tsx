@@ -42,11 +42,6 @@ export function ActionHandoffBanner({
         {ctx.stageName ? (
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{ctx.stageName}</span>
-            {ctx.stageCode ? (
-              <span className="ml-1.5 font-mono text-[0.7rem] uppercase text-muted-foreground">
-                {ctx.stageCode}
-              </span>
-            ) : null}
           </p>
         ) : null}
       </div>

@@ -257,7 +257,6 @@ export function RaiseCorrectionModal({
     <Modal
       open={open}
       title="Raise Correction"
-      description="Send work back to a design stage with a clear reason and route."
       onClose={handleClose}
       size="lg"
       footer={

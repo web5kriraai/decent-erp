@@ -51,7 +51,6 @@ export function DesignHeadDashboard() {
   return (
     <WorkbenchShell
       firstName={firstName}
-      subtitle="Pipeline oversight, approvals, handoffs, and blocked work"
       actions={
         <AppButtonLink
           href={ROUTES.designs.new}

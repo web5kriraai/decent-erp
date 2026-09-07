@@ -289,7 +289,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
     setPendingConfirm({
       title: `Deactivate "${process.name}"?`,
       description:
-        "It will be hidden from new designs and workflows. Existing tasks keep their history.",
+        "Hidden from new work. Existing tasks keep their history.",
       warning:
         activeChildren > 0
           ? `${activeChildren} active sub-process${activeChildren === 1 ? "" : "es"} will also be deactivated.`
@@ -317,7 +317,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
   }) {
     setPendingConfirm({
       title: `Deactivate "${sub.name}"?`,
-      description: "It will be hidden from new work. Existing tasks keep their history.",
+      description: "Hidden from new work. Existing tasks keep their history.",
       confirmLabel: "Deactivate",
       onConfirm: () => {
         setSubProcessActive.mutate(
@@ -347,7 +347,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
     setPendingConfirm({
       title: `Deactivate "${edit.name}"?`,
       description:
-        "It will be hidden from new designs and workflows. Existing tasks keep their history.",
+        "Hidden from new work. Existing tasks keep their history.",
       warning:
         activeChildren > 0
           ? `${activeChildren} active sub-process${activeChildren === 1 ? "" : "es"} will also be deactivated.`
@@ -382,7 +382,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
   }) {
     setPendingConfirm({
       title: `Deactivate "${edit.name}"?`,
-      description: "It will be hidden from new work. Existing tasks keep their history.",
+      description: "Hidden from new work. Existing tasks keep their history.",
       confirmLabel: "Deactivate",
       onConfirm: () => {
         updateSubProcess.mutate(
@@ -431,7 +431,6 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         <div className="page-shell">
           <PageHeader
             title="Process Masters"
-            subtitle="Main processes and sub-processes. Deactivate to retire from new work (soft delete); inactive rows stay visible here for reactivation."
             actions={
               <AppButton
                 type="button"
@@ -477,10 +476,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         <AppCard>
           <div className="data-table-wrap">
             {processes.length === 0 ? (
-              <p className="text-muted-inline">
-                No process masters configured. Seed workflow patterns and process masters to enable
-                task generation.
-              </p>
+              <p className="text-muted-inline">No processes yet.</p>
             ) : (
               <div className="scroll-x-region">
                 <table className="data-table app-table">
@@ -690,7 +686,6 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
       <Modal
         open={processModalOpen}
         title="Add Process"
-        description="Create a new top-level process for workflow patterns and task routing."
         onClose={() => setProcessModalOpen(false)}
         footer={
           <ModalFooterActions>
@@ -801,7 +796,6 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
       <Modal
         open={subProcessModalOpen}
         title="Add Sub-process"
-        description="Add a step under the selected process with an optional default role."
         onClose={() => setSubProcessModalOpen(false)}
         footer={
           <ModalFooterActions>

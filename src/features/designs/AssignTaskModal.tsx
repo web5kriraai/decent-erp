@@ -78,7 +78,6 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
     <Modal
       open={open}
       title={task ? `Assign: ${task.subProcess.name}` : "Assign Task"}
-      description="Choose who owns this stage next."
       onClose={handleClose}
       size="sm"
       footer={

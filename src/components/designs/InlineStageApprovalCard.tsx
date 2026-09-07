@@ -38,20 +38,12 @@ type InlineStageApprovalCardProps = {
 
 function nextStepHintForApproval(code: string): string {
   switch (code) {
-    case "CONCEPT_REVIEW":
-      return "Sketch Designer starts sketching";
-    case "SKETCH_APPROVAL":
-      return "Punching Designer receives approved sketch";
-    case "FINAL_APPROVAL":
-      return "Approve for production when stages are done";
-    case "PUNCH_CHECK":
-      return "Material / fabric issue toward sample";
-    case "SAMPLE_CHECK":
-      return "Costing Team enters development costs";
     case "LIVE_REVIEW":
-      return "Design goes LIVE · ERP chain unlocks";
+      return "Design goes live";
+    case "FINAL_APPROVAL":
+      return "Ready to approve for production";
     default:
-      return "Advances the workflow to the next stage";
+      return "Opens the next stage";
   }
 }
 

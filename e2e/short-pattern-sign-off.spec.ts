@@ -132,7 +132,7 @@ test.describe("Short pattern sign-off (no costing)", () => {
 
     // Presence-driven: no Finance costing blocker for short patterns
     await expect(page.getByText(/Add at least one cost entry/i)).toHaveCount(0);
-    await expect(page.getByText(/Not required for this workflow/i)).toBeVisible();
+    await expect(page.getByText(/Not required/i)).toBeVisible();
 
     // Before approve: short pattern has no COSTING / PROD_* tasks → no phantom gaps
     const preReadiness = await apiGetJson<{ ok: boolean; missing: string[] }>(

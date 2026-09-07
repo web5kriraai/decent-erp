@@ -61,7 +61,6 @@ export function DesignHeadKpiView() {
     <div className="page-shell">
       <PageHeader
         title="Design Head KPI"
-        subtitle="Team leadership performance rollup"
       />
       <QueryState
         isLoading={kpiQuery.isLoading}

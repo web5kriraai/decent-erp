@@ -19,9 +19,9 @@ describe("task-dialog-config", () => {
       design: { ideaRef: "IDEA-1" },
     });
     expect(config.title).toBe("Hold Sketch Creation");
-    expect(config.description).toContain("IDEA-1");
+    expect(config.description).toBe("");
     expect(config.remarkLabel).toMatch(/Hold/i);
-    expect(config.nextStepHint).toMatch(/resumes/i);
+    expect(config.nextStepHint).toBe("");
   });
 
   it("uses sample-check specific end dialog", () => {
@@ -32,7 +32,7 @@ describe("task-dialog-config", () => {
     expect(config.mode).toBe("sample_check");
     expect(config.showSampleOutcomes).toBe(true);
     expect(config.title).toMatch(/Sample Check/i);
-    expect(config.nextStepHint).toMatch(/Costing/i);
+    expect(config.nextStepHint).toBe("");
   });
 
   it("marks costingEntry from capability (not only COSTING code)", () => {
@@ -62,10 +62,10 @@ describe("task-dialog-config", () => {
     expect(config.forceChecking).toBe(true);
     expect(config.showSampleOutcomes).toBe(false);
     expect(config.remarkLabel).toMatch(/Sketch/i);
-    expect(config.nextStepHint).toMatch(/Sketch Approval/i);
+    expect(config.nextStepHint).toBe("");
   });
 
-  it("forces checking and describes cost entry for COSTING end", () => {
+  it("forces checking for COSTING end", () => {
     const config = getTaskEndDialogConfig({
       status: "RUNNING",
       subProcess: { code: "COSTING", name: "Costing", isFileRequired: false },
@@ -74,8 +74,7 @@ describe("task-dialog-config", () => {
     expect(config.mode).toBe("execute_checking");
     expect(config.forceChecking).toBe(true);
     expect(config.showStatusSelect).toBe(false);
-    expect(config.description).toMatch(/development costs/i);
-    expect(config.description).toContain("IDEA-9");
+    expect(config.description).toBe("");
     expect(config.priorContextSlots).toContain("sample");
   });
 
@@ -111,7 +110,7 @@ describe("task-dialog-config", () => {
     );
     expect(hasHandoffFacts(ctx)).toBe(true);
     expect(ctx.ideaRef).toBe("IDEA-2");
-    expect(ctx.nextStepHint).toMatch(/Punching Checking/i);
+    expect(ctx.nextStepHint).toBe("");
   });
 });
 

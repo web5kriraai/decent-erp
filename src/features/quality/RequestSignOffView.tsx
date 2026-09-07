@@ -112,10 +112,10 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
     const imageCount = Array.isArray(images) ? images.length : undefined;
     const blockers: string[] = [];
     if (openCorrections > 0) {
-      blockers.push("Open corrections remain — resolve them before approving");
+      blockers.push("Open corrections remain");
     }
     if (costingBlocked) {
-      blockers.push("Add at least one cost entry under Finance → Costing");
+      blockers.push("Add at least one cost entry");
     }
 
     return {
@@ -126,10 +126,9 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
       stageName: "Approve for production",
       status: design.status,
       nextStepHint: costingBlocked
-        ? "Complete costing first, then approve for production"
-        : "Submit package to approve this design for production",
-      description:
-        "Confirm stage remarks and package contents below before approving for production.",
+        ? "Complete costing first"
+        : "Approve for production",
+      description: undefined,
       priorStage: completed
         ? {
             code: completed.subProcess?.code,
@@ -186,7 +185,7 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
           <>
             <PageHeader
               title={`Approve for production · ${design.ideaRef}`}
-              subtitle={`${design.collectionName} · Final Design Head approve`}
+              subtitle={design.collectionName}
               actions={
                 <>
                   <StatusBadge status={design.status} />
@@ -207,16 +206,15 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
             <div className="stack-section">
               <AppCard
                 title="Approve package"
-                description="Add your remark, review the live package, then approve for production."
                 contentClassName="space-y-4"
               >
                 <ActionHandoffBanner context={handoffContext} dense />
 
                 {costingBlocked ? (
                   <p className="form-hint" role="status">
-                    Costing is required before approve.{" "}
+                    Add costing before approve.{" "}
                     <AppButtonLink href={ROUTES.finance.costing} appVariant="ghost" size="sm">
-                      Open Finance → Costing
+                      Open Costing
                     </AppButtonLink>
                   </p>
                 ) : null}

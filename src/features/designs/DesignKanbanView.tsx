@@ -107,7 +107,6 @@ export function DesignKanbanView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Design Pipeline"
-        subtitle="Expand one lifecycle phase at a time — up to 15 designs shown per row"
         actions={
           <AppButtonLink href={ROUTES.designs.list} appVariant="secondary" size="sm">
             Table view

@@ -5,7 +5,9 @@ import {
   canOperateErpModule,
   canStartErpStage,
   canViewErpChain,
+  ERP_FLOOR_MODULES,
   fieldsForErpModule,
+  isErpFloorModule,
   permissionRequiredForErpModule,
   validateCompleteErpStageInput,
 } from "@/lib/erp-rbac";
@@ -18,6 +20,13 @@ describe("erp-rbac", () => {
     expect(permissionRequiredForErpModule("ACCOUNTS")).toBe(PERMISSIONS.ERP_ACCOUNTS_OPERATE);
     expect(permissionRequiredForErpModule("NOT_A_MODULE")).toBeNull();
     expect(canOperateErpModule([PERMISSIONS.ERP_FLOOR_OPERATE], "NOT_A_MODULE")).toBe(false);
+  });
+
+  it("exports Floor modules for release gate", () => {
+    expect(ERP_FLOOR_MODULES).toHaveLength(6);
+    expect(isErpFloorModule("GREY_MATERIAL")).toBe(true);
+    expect(isErpFloorModule("READY_STOCK")).toBe(true);
+    expect(isErpFloorModule("ACCOUNTS")).toBe(false);
   });
 
   it("enforces operate checks", () => {

@@ -8,7 +8,10 @@ import {
   validateCompleteErpStageInput,
   type CompleteErpStagePayload,
 } from "@/lib/erp-rbac";
-import { ERP_STAGE_LABELS } from "@/lib/services/erp-stage-constants";
+import {
+  computeFloorErpProgress,
+  type FloorErpProgress,
+} from "@/lib/services/erp-floor-progress";
 import type { Prisma } from "@prisma/client";
 
 export {
@@ -18,6 +21,9 @@ export {
   type ErpStageStatus,
 } from "@/lib/services/erp-stage-constants";
 
+export type { FloorErpProgress } from "@/lib/services/erp-floor-progress";
+export { computeFloorErpProgress } from "@/lib/services/erp-floor-progress";
+
 export type CompleteErpStageInput = CompleteErpStagePayload;
 
 type Tx = Prisma.TransactionClient;
@@ -26,13 +32,6 @@ function currentPeriod() {
   const now = new Date();
   return { periodYear: now.getUTCFullYear(), periodMonth: now.getUTCMonth() + 1 };
 }
-
-export type FloorErpProgress = {
-  ok: boolean;
-  completed: number;
-  total: number;
-  missing: string[];
-};
 
 /** Floor stage progress for PROD_RELEASE gate + UI chip. */
 export async function getFloorErpProgress(
@@ -47,32 +46,7 @@ export async function getFloorErpProgress(
     },
     select: { erpModule: true, status: true },
   });
-
-  const total = ERP_FLOOR_MODULES.length;
-  if (stages.length === 0) {
-    return {
-      ok: false,
-      completed: 0,
-      total,
-      missing: ["Floor ERP stages (start Production Release to seed the chain)"],
-    };
-  }
-
-  const byModule = new Map(stages.map((s) => [s.erpModule, s.status]));
-  const missing: string[] = [];
-  let completed = 0;
-  for (const module of ERP_FLOOR_MODULES) {
-    const status = byModule.get(module);
-    if (status === "COMPLETED") {
-      completed += 1;
-      continue;
-    }
-    const label =
-      ERP_STAGE_LABELS[module as keyof typeof ERP_STAGE_LABELS] ?? module.replaceAll("_", " ");
-    missing.push(status ? `${label} (${status.toLowerCase().replaceAll("_", " ")})` : label);
-  }
-
-  return { ok: missing.length === 0, completed, total, missing };
+  return computeFloorErpProgress(stages);
 }
 
 export async function assertFloorErpCompleteForRelease(
@@ -224,7 +198,13 @@ export async function getErpStagesForDesign(designId: bigint) {
     include: {
       completedBy: { select: { id: true, name: true } },
       design: {
-        select: { id: true, ideaRef: true, collectionName: true, status: true },
+        select: {
+          id: true,
+          ideaRef: true,
+          collectionName: true,
+          status: true,
+          designNumber: true,
+        },
       },
     },
   });

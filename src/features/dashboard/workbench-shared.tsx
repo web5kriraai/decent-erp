@@ -25,7 +25,7 @@ export function WorkbenchShell({
 }: {
   firstName: string;
   title?: string;
-  subtitle: string;
+  subtitle?: string;
   actions?: ReactNode;
   isLoading: boolean;
   isError: boolean;

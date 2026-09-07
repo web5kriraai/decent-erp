@@ -12,22 +12,22 @@ import { IconKpi } from "@/components/icons";
 const REPORT_CARDS = [
   {
     title: "Correction Analysis",
-    description: "Mistake vs improvement trends, extra time, and cost impact by stage.",
+    description: "Correction trends and impact.",
     href: ROUTES.analytics.reportsCorrections,
   },
   {
     title: "Design Success",
-    description: "Production quantity, sales value, and margin by design for the selected period.",
+    description: "Quantity, sales, and margin by design.",
     href: ROUTES.analytics.reportsDesignSuccess,
   },
   {
     title: "Performance KPI",
-    description: "Nine weighted employee metrics with monthly recompute.",
+    description: "Employee performance metrics.",
     href: ROUTES.analytics.kpi,
   },
   {
     title: "Time Report",
-    description: "Team time by employee, process, and hold reason.",
+    description: "Team time by employee and process.",
     href: ROUTES.analytics.timeReport,
   },
 ] as const;
@@ -49,7 +49,6 @@ export function ReportsHubView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Reports & Scorecards"
-        subtitle="Management analytics beyond the core KPI dashboard"
       />
 
       <div className="grid gap-4 sm:grid-cols-2 stack-section">

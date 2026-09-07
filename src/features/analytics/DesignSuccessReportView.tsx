@@ -112,7 +112,6 @@ export function DesignSuccessReportView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Design Success Report"
-        subtitle="Production quantity, sales, and margin by design (manual or ERP-fed)"
         actions={
           <>
             <AppButton

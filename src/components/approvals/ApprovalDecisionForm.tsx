@@ -100,11 +100,11 @@ export function ApprovalDecisionForm({
 
       {costingReady === false ? (
         <p className="approval-decision-alert" role="alert">
-          Final approval needs costing first. Approve is hidden until you add a cost entry on{" "}
+          Costing required before approve.{" "}
           <Link href={ROUTES.finance.costing} className="font-medium underline">
-            Finance → Costing
+            Open Costing
           </Link>
-          . Reject or Send for Correction still available.
+          . Reject or correction still available.
         </p>
       ) : null}
 
@@ -132,8 +132,8 @@ export function ApprovalDecisionForm({
                 <IconInfo aria-hidden />
                 <span>
                   {nextLevelName
-                    ? `Next after approve: ${nextLevelName}.`
-                    : "Final approve marks the design APPROVED for production handoff."}
+                    ? `Next: ${nextLevelName}.`
+                    : "Approves for production."}
                 </span>
               </p>
             </div>
@@ -144,7 +144,7 @@ export function ApprovalDecisionForm({
                 rows={3}
                 value={remark}
                 onChange={(e) => onChange({ ...state, remark: e.target.value })}
-                placeholder="Optional notes for the design team…"
+                placeholder="Optional notes…"
                 onEnterSubmit={enterSubmit}
               />
             </div>
@@ -175,11 +175,11 @@ export function ApprovalDecisionForm({
                   required
                   value={remark}
                   onChange={(e) => onChange({ ...state, remark: e.target.value })}
-                  placeholder="Required — explain why this design was rejected…"
+                  placeholder="Explain the rejection…"
                   onEnterSubmit={enterSubmit}
                 />
                 <p className="approval-decision-impact approval-decision-impact--danger">
-                  Design becomes REJECTED; requester is notified. History is kept.
+                  Design will be rejected.
                 </p>
               </>
             ) : null}
@@ -193,7 +193,7 @@ export function ApprovalDecisionForm({
                   required
                   value={remark}
                   onChange={(e) => onChange({ ...state, remark: e.target.value })}
-                  placeholder="Required — describe the correction clearly…"
+                  placeholder="Describe what must be fixed…"
                   onEnterSubmit={enterSubmit}
                 />
                 <div className="approval-decision-grid">
@@ -226,14 +226,13 @@ export function ApprovalDecisionForm({
                       label: e.name,
                     }))}
                     placeholder="Select employee…"
-                    hint="Optional — defaults to stage assignee when blank."
+                    hint="Defaults to stage assignee if blank."
                   />
                 ) : null}
                 <p className="approval-decision-impact approval-decision-impact--warn">
                   Assigns to{" "}
-                  <strong>{correctionAssigneePreview ?? "stage assignee (on submit)"}</strong> for{" "}
-                  <strong>{routeSubProcessCode}</strong>. Prior management approvals clear for
-                  re-approval after rework.
+                  <strong>{correctionAssigneePreview ?? "stage assignee"}</strong> for{" "}
+                  <strong>{routeSubProcessCode}</strong>.
                 </p>
               </>
             ) : null}

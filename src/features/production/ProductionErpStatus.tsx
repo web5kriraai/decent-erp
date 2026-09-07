@@ -54,7 +54,6 @@ export function ProductionErpHandoffsSection({
     <AppCard
       title="ERP handoffs"
       className="production-desk-secondary-card"
-      description="Grey → Accounts sync after production release."
       headerAction={
         handoffDesignIds.length > 0 ? (
           <AppButton

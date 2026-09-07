@@ -317,10 +317,6 @@ export function TaskEndDialog({
             ) : (
               <p className="text-sm text-emerald-800">All required release checks passed.</p>
             )}
-            <p className="text-xs text-muted-foreground">
-              Completing release unlocks Live Design Review and ERP handoff. Confirm floor readiness
-              before submitting.
-            </p>
           </ModalSection>
         ) : null}
 

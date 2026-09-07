@@ -96,7 +96,6 @@ export function ExecutorWorkbench() {
   return (
     <WorkbenchShell
       firstName={firstName}
-      subtitle="Your work for today"
       actions={
         canCreateDesign ? (
           <AppButtonLink

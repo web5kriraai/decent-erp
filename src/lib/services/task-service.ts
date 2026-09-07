@@ -408,9 +408,17 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
 
     if (stageBehavior.onComplete.includes("unlockErp")) {
       const { seedErpStagesForDesign } = await import("@/lib/services/erp-stage-service");
+      const designNumber = task.design.designNumber ?? "";
+      if (!designNumber) {
+        throw createAppError(
+          APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
+          422,
+          "Design number is required before starting Production Release.",
+        );
+      }
       await seedErpStagesForDesign(
         task.designId,
-        task.design.designNumber,
+        designNumber,
         employeeId,
         `${correlationId}-erp-seed`,
         tx,

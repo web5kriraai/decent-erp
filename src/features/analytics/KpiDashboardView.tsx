@@ -84,7 +84,6 @@ export function KpiDashboardView() {
     <div className="page-shell">
       <PageHeader
         title="Performance KPI"
-        subtitle="Nine weighted metrics (spec §9.1) across roles and period"
         actions={
           <>
             <AppButtonLink href={ROUTES.analytics.reportsHub} appVariant="secondary" size="sm">

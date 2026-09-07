@@ -114,7 +114,6 @@ export function ProductionHeadDashboard() {
     <WorkbenchShell
       firstName={firstName}
       title="Production desk"
-      subtitle="Handoff acceptance, production instruction, and release workflow"
       actions={
         <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
           My Action Center

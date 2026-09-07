@@ -31,7 +31,6 @@ export function ManagementDashboard() {
     <WorkbenchShell
       firstName={firstName}
       title="Executive overview"
-      subtitle="Production readiness, live review, and portfolio health"
       actions={
         <AppButtonLink href={ROUTES.analytics.kpi} appVariant="secondary" size="sm">
           KPI dashboard

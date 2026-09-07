@@ -166,8 +166,8 @@ export function CreateWorkflowPatternModal({
         behavior.forcesChecking ? "checking" : null,
         behavior.machineOutput ? "machine" : null,
         behavior.costingEntry ? "costing" : null,
-        behavior.unlockAfterDesignApproved ? "post-approve-ladder" : null,
-        behavior.autoAdvanceOnCreate ? "auto-advance" : null,
+        behavior.unlockAfterDesignApproved ? "after approval" : null,
+        behavior.autoAdvanceOnCreate ? "auto start" : null,
       ].filter(Boolean);
       lines.push(`Step ${index + 1} · ${sub.code}${tags.length ? ` (${tags.join(", ")})` : ""}`);
       if (behavior.isApproval && behavior.approvalSurface === "none") {
@@ -278,11 +278,6 @@ export function CreateWorkflowPatternModal({
     <Modal
       open={open}
       title={isEditMode ? "Edit workflow pattern" : "Create Workflow Pattern"}
-      description={
-        isEditMode
-          ? "Update the pattern name and task steps. In-flight designs keep their existing tasks. Costing / production gates apply only for stages you include."
-          : "Define a reusable sequence of process steps for new designs. Costing is required at production sign-off only if a costingEntry stage is in this pattern."
-      }
       onClose={handleClose}
       size="xl"
       footer={
@@ -312,13 +307,11 @@ export function CreateWorkflowPatternModal({
           <ModalAlert variant="error">{capabilitySummary.errors.join(" ")}</ModalAlert>
         ) : null}
         {capabilitySummary.lines.length > 0 ? (
-          <ModalAlert variant="warning">
-            Capability preview: {capabilitySummary.lines.join(" · ")}
-          </ModalAlert>
+          <ModalAlert variant="warning">{capabilitySummary.lines.join(" · ")}</ModalAlert>
         ) : null}
         {isEditMode ? (
           <ModalAlert variant="warning">
-            Changes apply to new designs only. Designs already in progress are not modified.
+            Applies to new designs only.
           </ModalAlert>
         ) : null}
 
@@ -367,7 +360,6 @@ export function CreateWorkflowPatternModal({
 
         <ModalSection
           title="Task Steps"
-          description="Add each process step in execution order."
           action={
             <Button type="button" variant="outline" size="sm" onClick={addTaskRow}>
               Add Step

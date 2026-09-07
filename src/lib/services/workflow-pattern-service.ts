@@ -133,17 +133,15 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
   const warnings: string[] = [];
   if (!hasCostingEntry) {
     warnings.push(
-      "Pattern has no costingEntry stage — cost data is not required at production sign-off (add a costing stage if Finance costing should gate approve).",
+      "No costing step — cost data is not required at production sign-off.",
     );
   }
   if (!resolvedSteps.some((s) => s.behavior.isApproval)) {
-    warnings.push(
-      "Pattern has no approval stage — ensure at least one stage-approval step if sign-off gates are needed.",
-    );
+    warnings.push("No approval step in this pattern.");
   }
   if (!hasUnlockLadder) {
     warnings.push(
-      "No unlockAfterDesignApproved stages — production ladder stays omitted unless appended after approve.",
+      "No steps after approval — production steps stay omitted unless added after approve.",
     );
   }
   return warnings;

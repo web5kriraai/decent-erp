@@ -30,7 +30,6 @@ export function MarkLiveConfirm({
     <Modal
       open={open}
       title={`Mark Live · ${design.ideaRef}`}
-      description="This sets the design status to LIVE. ERP chain continues independently."
       onClose={onClose}
       size="sm"
       footer={
@@ -52,16 +51,11 @@ export function MarkLiveConfirm({
             productType: design.productType?.name,
             stageName: "Live",
             status: design.status,
-            nextStepHint: "Design becomes LIVE for commercial / ERP visibility",
             description: design.liveReviewCompleted
-              ? "Live Design Review is complete."
-              : "Live review should be complete before marking live.",
+              ? "Live review complete."
+              : "Complete live review first.",
           }}
         />
-        <p className="text-sm text-muted-foreground">
-          Confirm floor release and Live Review are done. This action is recorded on the design
-          timeline.
-        </p>
       </ModalForm>
     </Modal>
   );

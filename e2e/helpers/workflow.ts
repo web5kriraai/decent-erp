@@ -306,13 +306,18 @@ export async function completeAssignedTask(
 ) {
   await clearStaleRunningTasks(page, taskId);
 
-  const current = await apiGetJson<{ status: string }>(page, `/api/tasks/${taskId}`);
+  const current = await apiGetJson<{ status: string; designId?: string; design?: { id: string } }>(
+    page,
+    `/api/tasks/${taskId}`,
+  );
   if (current.status === "ASSIGNED") {
     await apiPostJson(page, `/api/tasks/${taskId}/start`, {});
   }
 
   const detail = await apiGetJson<{
     version: number;
+    designId?: string;
+    design?: { id: string };
     subProcess: { id?: number; code?: string; isFileRequired?: boolean };
   }>(page, `/api/tasks/${taskId}`);
 
@@ -324,6 +329,13 @@ export async function completeAssignedTask(
           ? "PUNCHING_FILE"
           : "SAMPLE_OUTPUT";
     await addTaskArtifact(page, taskId, type);
+  }
+
+  if (detail.subProcess.code === "PROD_RELEASE") {
+    const designId = detail.design?.id ?? detail.designId ?? current.design?.id ?? current.designId;
+    if (designId) {
+      await completeFloorErpStagesForDesign(page, String(designId));
+    }
   }
 
   let checklist = extra?.checklist;
@@ -349,6 +361,52 @@ export async function completeAssignedTask(
     sampleOutcome: extra?.sampleOutcome,
     checklist,
   });
+}
+
+const FLOOR_ERP_MODULES = [
+  "GREY_MATERIAL",
+  "CUTTING",
+  "EMBROIDERY",
+  "GARMENTING",
+  "FINISHING",
+  "READY_STOCK",
+] as const;
+
+/** After PROD_RELEASE start, advance Floor ERP stages so endTask gate can pass. */
+export async function completeFloorErpStagesForDesign(page: Page, designId: string) {
+  for (const module of FLOOR_ERP_MODULES) {
+    const stages = await apiGetJson<
+      Array<{ id: string; erpModule: string; status: string }>
+    >(page, `/api/erp/stages?designId=${encodeURIComponent(designId)}`);
+
+    const stage = stages.find((s) => s.erpModule === module);
+    if (!stage || stage.status === "COMPLETED") continue;
+
+    let status = stage.status;
+    const stageId = stage.id;
+
+    if (status === "PENDING") {
+      throw new Error(`Floor ERP stage ${module} still PENDING for design ${designId}`);
+    }
+
+    if (status === "READY") {
+      await apiPostJson(page, `/api/erp/stages/${stageId}`, { action: "start" });
+      status = "IN_PROGRESS";
+    }
+
+    if (status === "IN_PROGRESS") {
+      await apiPostJson(page, `/api/erp/stages/${stageId}`, {
+        action: "complete",
+        qty: 100,
+        wastageQty: 0,
+        lotRef:
+          module === "GREY_MATERIAL" || module === "CUTTING" || module === "READY_STOCK"
+            ? `E2E-${module}`
+            : undefined,
+        remark: `E2E floor ${module}`,
+      });
+    }
+  }
 }
 
 export async function completeFirstAssignedTaskForDesign(

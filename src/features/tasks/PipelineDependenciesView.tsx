@@ -45,7 +45,6 @@ export function PipelineDependenciesView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Pipeline Dependencies"
-        subtitle="Tasks waiting on prior stages, approvals, or the next assignee across your team."
       />
 
       <QueryState

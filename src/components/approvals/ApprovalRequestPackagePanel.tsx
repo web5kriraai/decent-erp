@@ -80,8 +80,8 @@ export function ApprovalRequestPackagePanel({
       <div className={cn("approval-pkg approval-pkg--empty", className)}>
         <p>
           {preview
-            ? "Package preview will appear once design data loads."
-            : "No requester package was stored for this design (legacy request)."}{" "}
+            ? "Package preview loads with design data."
+            : "No package stored for this design."}{" "}
           {!preview ? (
             <>
               <Link
@@ -89,8 +89,8 @@ export function ApprovalRequestPackagePanel({
                 className="font-medium text-primary underline"
               >
                 Open design
-              </Link>{" "}
-              to review files, costing, and workflow.
+              </Link>
+              .
             </>
           ) : null}
         </p>
@@ -107,8 +107,8 @@ export function ApprovalRequestPackagePanel({
   const costingLabel = hasCosting
     ? `${snap.costingEntryCount} entries`
     : requiresCosting
-      ? "Required — no entries yet"
-      : "Not required for this workflow";
+      ? "Required"
+      : "Not required";
   const hasStageRemarks = stageDetails.some(
     (s) => (s.outputRemark && s.outputRemark.trim()) || s.assigneeName,
   );
@@ -121,7 +121,7 @@ export function ApprovalRequestPackagePanel({
       aria-label={preview ? "Package preview" : "Requester package"}
     >
       {preview ? (
-        <p className="approval-pkg-preview-badge">Live package preview</p>
+        <p className="approval-pkg-preview-badge">Preview</p>
       ) : null}
 
       <div className="approval-pkg-summary">

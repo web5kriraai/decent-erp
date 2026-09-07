@@ -28,7 +28,17 @@ import { ROUTES } from "@/config/routes";
 import { useTaskTimeDetail } from "@/hooks/use-time";
 import { useTaskMutations } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
+import {
+  useErpStageAction,
+  useErpStageChainForDesign,
+} from "@/hooks/use-production";
+import { canViewErpChain } from "@/lib/erp-rbac";
+import {
+  ErpStageOperator,
+  floorProgressFromChain,
+} from "@/features/production/ErpStageOperator";
 import { PERMISSIONS } from "@/lib/permissions";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import { formatDuration } from "@/lib/services/time-calculation";
 import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
@@ -42,6 +52,7 @@ import {
   buildHandoffContextFromTask,
 } from "@/lib/task-dialog-config";
 import { findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
+import { cn } from "@/lib/utils";
 
 type TaskDetailViewProps = {
   taskId: string;
@@ -56,6 +67,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   );
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canViewTeam = permissions.includes(PERMISSIONS.TIME_VIEW_TEAM);
+  const canViewErp = canViewErpChain(permissions);
   const enabled = sessionStatus === "authenticated" && (canExecute || canViewTeam);
 
   const detailQuery = useTaskTimeDetail(taskId, enabled);
@@ -79,6 +91,23 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   >([]);
 
   const task = detailQuery.data;
+  const isProdReleaseTask = !!task
+    ? resolveStageBehavior({
+        code: task.subProcess.code,
+        isApproval: task.subProcess.isApproval,
+        capabilities: task.subProcess.capabilities,
+      }).onComplete.includes("unlockErp")
+    : false;
+  const showErpOnTask =
+    isProdReleaseTask &&
+    canViewErp &&
+    (task?.status === "RUNNING" || task?.status === "ON_HOLD" || task?.status === "ASSIGNED");
+  const erpChainQuery = useErpStageChainForDesign(
+    task?.design?.id ?? task?.designId,
+    enabled && showErpOnTask,
+  );
+  const erpStageAction = useErpStageAction();
+  const floorProgress = floorProgressFromChain(erpChainQuery.data);
   useBreadcrumbReplacement(
     taskId,
     task ? `${task.design.ideaRef} · ${task.subProcess.name}` : undefined,
@@ -487,6 +516,44 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                 </dl>
               </AppCard>
             </div>
+
+            {showErpOnTask ? (
+              <AppCard
+                title="ERP Chain"
+                className="erp-chain-task-panel mt-6"
+                headerAction={
+                  <span
+                    className={cn(
+                      "erp-chain-floor-chip",
+                      floorProgress.ok && "erp-chain-floor-chip--ok",
+                    )}
+                  >
+                    Floor {floorProgress.completed}/{floorProgress.total}
+                  </span>
+                }
+              >
+                {erpChainQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground m-0">Loading ERP stages…</p>
+                ) : erpChainQuery.data ? (
+                  <ErpStageOperator
+                    chain={erpChainQuery.data}
+                    permissions={permissions}
+                    isPending={erpStageAction.isPending}
+                    showFloorChip={false}
+                    onStart={(stageId) =>
+                      erpStageAction.mutate({ stageId, action: "start" })
+                    }
+                    onComplete={(stageId, payload) =>
+                      erpStageAction.mutate({ stageId, action: "complete", ...payload })
+                    }
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground m-0">
+                    Start this task to seed Floor ERP stages.
+                  </p>
+                )}
+              </AppCard>
+            ) : null}
 
             <AppCard title="Time event timeline" className="mt-6">
               <TaskTimeTimeline events={task.timeline} summary={task.timeSummary} />

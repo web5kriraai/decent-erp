@@ -30,7 +30,6 @@ export function AcceptHandoffConfirm({
     <Modal
       open={open}
       title={`Accept handoff · ${item.ideaRef}`}
-      description="Confirm you are taking ownership for production instruction."
       onClose={() => {
         if (!isPending) onClose();
       }}
@@ -61,14 +60,9 @@ export function AcceptHandoffConfirm({
             productType: item.productType,
             stageName: item.stageLabel,
             status: item.status,
-            nextStepHint: "Unlocks Production Instruction on your My Tasks",
-            description: `Design Head: ${item.designHead}. Acceptance moves this design into the production ladder.`,
+            nextStepHint: "Production Instruction",
           }}
         />
-        <ul className="space-y-1 text-sm text-muted-foreground">
-          <li>Confirm product / collection match floor capacity.</li>
-          <li>You will complete Production Instruction next, then Release.</li>
-        </ul>
       </ModalForm>
     </Modal>
   );

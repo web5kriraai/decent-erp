@@ -100,7 +100,6 @@ export function CheckerWorkbench() {
     <WorkbenchShell
       firstName={firstName}
       title="Sample checker desk"
-      subtitle="Punch checks, sample checks, and completed reviews"
       actions={
         <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
           My Action Center

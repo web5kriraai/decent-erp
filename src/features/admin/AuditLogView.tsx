@@ -51,7 +51,6 @@ export function AuditLogView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Audit Log"
-        subtitle="Compliance trail of all system changes"
       />
 
       <div className="page-filters">

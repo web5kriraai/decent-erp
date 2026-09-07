@@ -279,7 +279,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
       open={open}
       onOpenChange={handleOpenChange}
       title="Search Decent ERP"
-      description="Jump to pages, search designs and tasks, or run actions"
+      description="Search pages, designs, and tasks"
       shouldFilter={false}
       className="sm:max-w-xl"
     >

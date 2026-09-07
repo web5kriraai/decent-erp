@@ -67,7 +67,6 @@ export function CostingTeamDashboard() {
   return (
     <WorkbenchShell
       firstName={firstName}
-      subtitle="Costing queue, margin review, and development cost capture"
       actions={
         <AppButtonLink
           href={ROUTES.finance.costing}

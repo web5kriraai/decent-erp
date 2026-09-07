@@ -65,7 +65,6 @@ export function MachineOperatorWorkbench() {
     <WorkbenchShell
       firstName={firstName}
       title="Machine operator desk"
-      subtitle="Sample runs, receive steps, and re-sample rework"
       actions={
         <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
           My Tasks

@@ -267,7 +267,6 @@ export function AdminTimeLiveView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Live Team Time"
-        subtitle="Who is working now — server-tracked timers across the team"
         actions={
           <div className="live-time-header-actions">
             <AppButton
@@ -326,7 +325,6 @@ export function AdminTimeLiveView() {
 
             <AppCard
               title="Team board"
-              description="Active people first. Idle teammates stay visible so coverage is clear."
               headerAction={
                 <p className="live-time-auto-hint">Auto-updates every 15s</p>
               }
@@ -396,7 +394,7 @@ export function AdminTimeLiveView() {
         title="Admin time adjustment"
         description={
           adjustTarget
-            ? `Record a manual adjustment for ${adjustTarget.ideaRef} (current active: ${formatDuration(adjustTarget.activeSeconds)})`
+            ? `${adjustTarget.ideaRef} · active ${formatDuration(adjustTarget.activeSeconds)}`
             : undefined
         }
         onClose={() => setAdjustTarget(null)}

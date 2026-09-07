@@ -19,7 +19,7 @@ export function TaskTimeTimeline({ events, summary }: TaskTimeTimelineProps) {
   if (events.length === 0) {
     return (
       <p className="m-0 text-sm text-[var(--color-neutral-500)]">
-        No time events recorded yet. Start the task to begin server-tracked timing.
+        No time events yet.
       </p>
     );
   }

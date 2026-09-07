@@ -50,22 +50,14 @@ export function isStageApprovalTask(
 }
 
 function nextStepHintForApproval(code: string): string {
-  if (!isStageApprovalCode(code)) return "Advances the workflow to the next stage";
+  if (!isStageApprovalCode(code)) return "Opens the next stage";
   switch (code as StageApprovalCode) {
-    case "PUNCH_CHECK":
-      return "Material / fabric issue toward sample";
     case "LIVE_REVIEW":
-      return "Design goes LIVE · ERP chain unlocks";
-    case "CONCEPT_REVIEW":
-      return "Sketch Designer starts sketching";
-    case "SKETCH_APPROVAL":
-      return "Punching Designer receives approved sketch";
+      return "Design goes live";
     case "FINAL_APPROVAL":
-      return "Approve for production when stages are done";
-    case "SAMPLE_CHECK":
-      return "Costing Team enters development costs";
+      return "Ready to approve for production";
     default:
-      return "Advances the workflow to the next stage";
+      return "Opens the next stage";
   }
 }
 

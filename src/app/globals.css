@@ -6458,3 +6458,370 @@ a.sidebar-link--active:hover {
   color: #78350f;
 }
 
+
+/* ERP Chain */
+.erp-chain-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.erp-chain-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.erp-chain-metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.75rem), 1fr));
+  gap: 0.55rem;
+}
+
+.erp-chain-metric {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 0.7rem 0.75rem;
+}
+
+.erp-chain-metric--info {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+}
+
+.erp-chain-metric--warn {
+  border-color: color-mix(in srgb, var(--color-warning, #d97706) 30%, var(--border));
+  background: color-mix(in srgb, var(--color-warning, #d97706) 6%, var(--card));
+}
+
+.erp-chain-metric--success {
+  border-color: color-mix(in srgb, var(--color-success, #16a34a) 28%, var(--border));
+  background: color-mix(in srgb, var(--color-success, #16a34a) 6%, var(--card));
+}
+
+.erp-chain-metric-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  color: var(--color-neutral-600);
+  flex-shrink: 0;
+}
+
+.erp-chain-metric--info .erp-chain-metric-icon {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
+.erp-chain-metric--warn .erp-chain-metric-icon {
+  background: color-mix(in srgb, var(--color-warning, #d97706) 14%, transparent);
+  color: var(--color-warning, #d97706);
+}
+
+.erp-chain-metric--success .erp-chain-metric-icon {
+  background: color-mix(in srgb, var(--color-success, #16a34a) 14%, transparent);
+  color: var(--color-success, #16a34a);
+}
+
+.erp-chain-metric-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-neutral-500);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.erp-chain-metric-value {
+  margin: 0.1rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.erp-chain-board {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .erp-chain-board {
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  }
+}
+
+.erp-chain-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 0.65rem;
+}
+
+.erp-chain-queue-empty {
+  margin: 0;
+  padding: 1rem 0.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-neutral-500);
+}
+
+.erp-chain-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--muted) 35%, var(--card));
+  padding: 0.65rem 0.75rem;
+  border-left-width: 3px;
+  border-left-color: var(--border);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.erp-chain-row:hover {
+  background: var(--muted);
+}
+
+.erp-chain-row--active {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+}
+
+.erp-chain-row--done {
+  border-left-color: var(--color-success, #16a34a);
+}
+
+.erp-chain-row-ref {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.erp-chain-row-meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-neutral-500);
+  line-height: 1.35;
+}
+
+.erp-chain-work-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 0.85rem 0.95rem;
+  min-width: 0;
+}
+
+.erp-chain-operator {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.erp-chain-operator-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.erp-chain-operator-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.erp-chain-operator-muted {
+  font-weight: 500;
+  color: var(--color-neutral-500);
+}
+
+.erp-chain-operator-meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-neutral-500);
+}
+
+.erp-chain-operator-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.erp-chain-floor-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-warning, #d97706) 35%, var(--border));
+  background: color-mix(in srgb, var(--color-warning, #d97706) 8%, var(--card));
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-warning, #b45309);
+}
+
+.erp-chain-floor-chip--ok {
+  border-color: color-mix(in srgb, var(--color-success, #16a34a) 35%, var(--border));
+  background: color-mix(in srgb, var(--color-success, #16a34a) 8%, var(--card));
+  color: var(--color-success, #15803d);
+}
+
+.erp-chain-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.35rem 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.erp-chain-rail-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.erp-chain-rail-connector {
+  width: 0.55rem;
+  height: 1px;
+  margin: 0 0.08rem;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.erp-chain-rail-connector--lit {
+  background: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+
+.erp-chain-rail-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 5.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--muted) 40%, var(--card));
+  padding: 0.3rem 0.4rem;
+}
+
+.erp-chain-rail-step--done {
+  border-color: color-mix(in srgb, var(--color-success, #16a34a) 30%, var(--border));
+  background: color-mix(in srgb, var(--color-success, #16a34a) 6%, var(--card));
+}
+
+.erp-chain-rail-step--active {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
+}
+
+.erp-chain-rail-step--locked {
+  opacity: 0.72;
+}
+
+.erp-chain-rail-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-neutral-600);
+  flex-shrink: 0;
+}
+
+.erp-chain-rail-step--done .erp-chain-rail-index {
+  background: color-mix(in srgb, var(--color-success, #16a34a) 18%, transparent);
+  color: var(--color-success, #15803d);
+}
+
+.erp-chain-rail-step--active .erp-chain-rail-index {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary);
+}
+
+.erp-chain-rail-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+.erp-chain-work {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.erp-chain-work-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.erp-chain-work-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.erp-chain-work-blocked,
+.erp-chain-work-done {
+  font-size: 0.82rem;
+  color: var(--color-neutral-500);
+}
+
+.erp-chain-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+
+@media (min-width: 640px) {
+  .erp-chain-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .erp-chain-form-span {
+    grid-column: 1 / -1;
+  }
+}
+
+.erp-chain-form-error {
+  font-size: 0.82rem;
+  color: var(--color-danger, #dc2626);
+}
+
+.erp-chain-task-panel {
+  margin-top: 0.25rem;
+}

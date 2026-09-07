@@ -13,6 +13,7 @@ import { TaskActionCard, TaskActionListItem } from "@/components/tasks/TaskActio
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
 import {
@@ -22,6 +23,15 @@ import {
 } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { useTaskTimeDetail } from "@/hooks/use-time";
+import {
+  useErpStageAction,
+  useErpStageChainForDesign,
+} from "@/hooks/use-production";
+import { canViewErpChain } from "@/lib/erp-rbac";
+import {
+  ErpStageOperator,
+  floorProgressFromChain,
+} from "@/features/production/ErpStageOperator";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
 import { computeElapsedSeconds } from "@/lib/types/api";
@@ -36,6 +46,8 @@ import { findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
 import { getTimerControlFlags } from "@/lib/task-control-capability";
 import { resolveWorkOpenHref } from "@/lib/resolve-work-open-href";
 import { usesStageApprovalActionsNotTimerEnd } from "@/lib/stage-approval-rbac";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+import { cn } from "@/lib/utils";
 
 const KANBAN_COLUMNS = [
   ["READY", "Ready to Start"],
@@ -118,6 +130,7 @@ export function TaskWorkspace() {
   const holdReasons = useHoldReasons(canExecute);
   const checklistQuery = useChecklistItems(canExecute);
   const { start, hold, resume, end, closeWorkday, isPending } = useTaskMutations();
+  const canViewErp = canViewErpChain(permissions);
 
   const [activeTab, setActiveTab] = useState<ActionTab>("actionRequired");
   const [expandedKanbanLanes, setExpandedKanbanLanes] = useState<Set<string>>(new Set());
@@ -146,6 +159,21 @@ export function TaskWorkspace() {
     !!activeTask && isTimerActive,
   );
   const activeDetail = activeDetailQuery.data;
+
+  const isProdReleaseActive =
+    !!activeTask &&
+    resolveStageBehavior({
+      code: activeTask.subProcess.code,
+      isApproval: activeTask.subProcess.isApproval,
+      capabilities: (activeTask.subProcess as { capabilities?: unknown }).capabilities,
+    }).onComplete.includes("unlockErp");
+  const showErpOnWorkspace = isProdReleaseActive && isTimerActive && canViewErp;
+  const erpChainQuery = useErpStageChainForDesign(
+    activeTask?.design?.id,
+    showErpOnWorkspace,
+  );
+  const erpStageAction = useErpStageAction();
+  const floorProgress = floorProgressFromChain(erpChainQuery.data);
 
   const timerActions = useMemo(() => {
     if (!activeTask || !isTimerActive) return [];
@@ -463,6 +491,49 @@ export function TaskWorkspace() {
                   This is a stage approval — finish with Approve / Reject on the task page. Hold
                   still works here.
                 </p>
+              ) : null}
+
+              {showErpOnWorkspace ? (
+                <AppCard
+                  title="ERP Chain"
+                  className="erp-chain-task-panel mb-4"
+                  headerAction={
+                    <span
+                      className={cn(
+                        "erp-chain-floor-chip",
+                        floorProgress.ok && "erp-chain-floor-chip--ok",
+                      )}
+                    >
+                      Floor {floorProgress.completed}/{floorProgress.total}
+                    </span>
+                  }
+                >
+                  {erpChainQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground m-0">Loading ERP stages…</p>
+                  ) : erpChainQuery.data ? (
+                    <ErpStageOperator
+                      chain={erpChainQuery.data}
+                      permissions={permissions}
+                      isPending={erpStageAction.isPending}
+                      showFloorChip={false}
+                      onStart={(stageId) =>
+                        erpStageAction.mutate({ stageId, action: "start" })
+                      }
+                      onComplete={(stageId, payload) =>
+                        erpStageAction.mutate({ stageId, action: "complete", ...payload })
+                      }
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground m-0">
+                      Start Production Release to seed Floor ERP stages.
+                    </p>
+                  )}
+                  {!floorProgress.ok ? (
+                    <p className="mt-2 mb-0 text-sm text-amber-800" role="status">
+                      Complete Floor stages before ending this task.
+                    </p>
+                  ) : null}
+                </AppCard>
               ) : null}
 
               {(center?.actionRequired ?? []).length === 0 ? (

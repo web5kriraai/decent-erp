@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const APP_NAME = "Decent ERP";
 export const APP_DEFAULT_DESCRIPTION =
-  "End-to-end product design lifecycle for textile and garment products";
+  "Product design lifecycle for textile and garment products";
 
 export type PageMeta = {
   title: string;
@@ -13,124 +13,123 @@ export type PageMeta = {
 export const PAGE_META = {
   login: {
     title: "Sign In",
-    description: "Sign in to the Decent ERP design management workspace",
+    description: "Sign in to Decent ERP",
   },
   dashboard: {
     title: "Overview",
-    description: "Design operations dashboard — tasks, designs, and time at a glance",
+    description: "Operations overview",
   },
   designs: {
     title: "All Designs",
-    description: "Browse and manage product design concepts across the pipeline",
+    description: "All designs",
   },
   designsKanban: {
     title: "Pipeline Board",
-    description: "Kanban board of designs by workflow stage",
+    description: "Designs by stage",
   },
   designsNew: {
     title: "New Concept",
-    description: "Create a new design concept with workflow assignment",
+    description: "New design concept",
   },
   designDetail: {
     title: "Design Detail",
-    description: "Design concept details, tasks, images, and status",
+    description: "Design details",
   },
   designTask: {
     title: "Design Task",
-    description: "Execute and track a design workflow task",
+    description: "Design task",
   },
   workTasks: {
     title: "My Tasks",
-    description: "Your assigned design tasks and active timer",
+    description: "Your tasks",
   },
   workTaskDetail: {
     title: "Task Detail",
-    description: "Task timer, artifacts, checklist, and completion",
+    description: "Task details",
   },
   workTime: {
     title: "My Time Today",
-    description: "Your active time, holds, and workday summary",
+    description: "Your time today",
   },
   pipelineDependencies: {
     title: "Pipeline Dependencies",
-    description: "Team tasks waiting on prior stages, approvals, or the next assignee",
+    description: "Waiting tasks",
   },
   corrections: {
     title: "Corrections",
-    description: "Corrections you raised, own on a task, or are responsible for fixing",
+    description: "Corrections",
   },
   approvals: {
     title: "Approvals",
-    description: "Review and approve designs pending quality sign-off",
+    description: "Pending approvals",
   },
   requestSignOff: {
     title: "Request Sign-off",
-    description: "Submit a design package to the management approval chain",
+    description: "Approve for production",
   },
   costing: {
     title: "Costing",
-    description: "Material and process cost entries for designs",
+    description: "Design costing",
   },
   kpi: {
     title: "Performance KPI",
-    description: "Team and process performance KPIs",
+    description: "Performance KPIs",
   },
   kpiEmployees: {
     title: "Employee KPI",
-    description: "Per-employee productivity and quality metrics",
+    description: "Employee KPIs",
   },
   kpiDesignHead: {
     title: "Design Head KPI",
-    description: "Design-head portfolio and success metrics",
+    description: "Design Head KPIs",
   },
   timeReport: {
     title: "Time Report",
-    description: "Team time reports by employee and process",
+    description: "Time report",
   },
   reportsCorrections: {
     title: "Correction Analysis",
-    description: "Mistake vs improvement trends, extra time, and cost impact",
+    description: "Correction analysis",
   },
   reportsDesignSuccess: {
     title: "Design Success Report",
-    description: "Production quantity, sales, and margin by design",
+    description: "Design success",
   },
   reportsHub: {
     title: "Reports Hub",
-    description: "Management reports and scorecards beyond core KPI",
+    description: "Reports",
   },
   productionRelease: {
     title: "Production Release",
-    description: "Release approved designs to ERP production modules",
+    description: "Production release",
   },
   productionErpChain: {
     title: "ERP Chain",
-    description:
-      "Operate Grey → Cutting → Embroidery → Garmenting → Finishing → Ready Stock → Sales → Sales Return → Accounts",
+    description: "Production ERP chain",
   },
   adminEmployees: {
     title: "Employees",
-    description: "Manage employees, roles, and account status",
+    description: "Employees",
   },
   adminRoles: {
     title: "Roles & Access",
-    description: "Configure role permissions and access matrix",
+    description: "Roles and access",
   },
   adminMasters: {
     title: "Process Masters",
-    description: "Design processes, sub-processes, and product mappings",
+    description: "Process masters",
   },
   adminWorkflowPatterns: {
     title: "Workflow Patterns",
-    description: "Reusable workflow templates for automatic task assignment",
+    description: "Workflow patterns",
   },
   adminTimeLive: {
     title: "Live Team Time",
-    description: "Real-time view of team task timers and status",
+    description: "Live team time",
   },
   adminAudit: {
     title: "Audit Log",
-    description: "System audit trail of sensitive actions",
+    description: "Audit log",
   },
 } as const satisfies Record<string, PageMeta>;
 

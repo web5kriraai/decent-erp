@@ -104,7 +104,6 @@ export function WorkflowPatternsView() {
     <div className="page-shell">
       <PageHeader
         title="Workflow Patterns"
-        subtitle="Create and maintain versioned task sequences used when generating design work"
         actions={
           <AppButton type="button" appVariant="primary" size="sm" onClick={() => setOpen(true)}>
             Add Pattern
@@ -167,7 +166,7 @@ export function WorkflowPatternsView() {
           rows={patternsQuery.data ?? []}
           getRowKey={(row) => String(row.id)}
           emptyTitle="No workflow patterns"
-          emptyDescription="Create a pattern or run database seed for a starter template."
+          emptyDescription="Create a pattern to get started."
         />
       </QueryState>
 
@@ -199,7 +198,7 @@ export function WorkflowPatternsView() {
       <Modal
         open={!!cloneTarget}
         title="Clone as new version"
-        description="Creates a new active version with the same steps. The current version will be deactivated. Designs already in progress keep their existing tasks."
+        description="Creates a new version and deactivates the current one."
         onClose={() => setCloneTarget(null)}
         size="sm"
         footer={

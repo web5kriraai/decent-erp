@@ -62,7 +62,6 @@ export function CostingView() {
     <div className="page-shell">
       <PageHeader
         title="Costing"
-        subtitle="Development cost, standard cost, and margin review per design"
       />
 
       <div className="page-filters">

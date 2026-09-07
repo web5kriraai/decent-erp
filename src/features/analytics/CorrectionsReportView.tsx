@@ -32,7 +32,6 @@ export function CorrectionsReportView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Correction Analysis"
-        subtitle="Mistake vs improvement trends, extra time, and cost impact"
       />
 
       <QueryState

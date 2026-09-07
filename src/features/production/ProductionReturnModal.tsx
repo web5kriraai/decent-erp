@@ -91,7 +91,6 @@ export function ProductionReturnModal({
       open={open}
       onClose={handleClose}
       title={ideaRef ? `Return · ${ideaRef}` : "Return for clarification"}
-      description="Send this design back from production to a design stage with a clear route."
       size="md"
       footer={
         <ModalFooterActions>

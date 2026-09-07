@@ -20,7 +20,6 @@ export function MasterDataAdminView() {
     <div className="page-shell">
       <PageHeader
         title="Master Data"
-        subtitle="Processes, product types, seasons, and product–process mappings"
       />
 
       <div className="toolbar mb-4">
