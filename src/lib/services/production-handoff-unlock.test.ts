@@ -44,6 +44,39 @@ const fullRoles = {
   MANAGEMENT: { id: 3 },
 };
 
+function ladderMasters() {
+  return [
+    {
+      id: 101,
+      code: "PROD_HANDOFF",
+      processId: 1,
+      capabilities: { unlockAfterDesignApproved: true },
+      defaultRole: { code: "DESIGN_HEAD" },
+    },
+    {
+      id: 102,
+      code: "PROD_INSTRUCTION",
+      processId: 1,
+      capabilities: { unlockAfterDesignApproved: true },
+      defaultRole: { code: "PRODUCTION_HEAD" },
+    },
+    {
+      id: 103,
+      code: "PROD_RELEASE",
+      processId: 1,
+      capabilities: { unlockAfterDesignApproved: true },
+      defaultRole: { code: "PRODUCTION_HEAD" },
+    },
+    {
+      id: 104,
+      code: "LIVE_REVIEW",
+      processId: 1,
+      capabilities: { unlockAfterDesignApproved: true },
+      defaultRole: { code: "MANAGEMENT" },
+    },
+  ];
+}
+
 function makeTx(overrides: Record<string, unknown> = {}) {
   return {
     designTask: {
@@ -57,12 +90,7 @@ function makeTx(overrides: Record<string, unknown> = {}) {
       findUnique: vi.fn().mockResolvedValue({ designHeadEmployeeId: 7 }),
     },
     designSubProcessMaster: {
-      findMany: vi.fn().mockResolvedValue([
-        { id: 101, code: "PROD_HANDOFF", processId: 1 },
-        { id: 102, code: "PROD_INSTRUCTION", processId: 1 },
-        { id: 103, code: "PROD_RELEASE", processId: 1 },
-        { id: 104, code: "LIVE_REVIEW", processId: 1 },
-      ]),
+      findMany: vi.fn().mockResolvedValue(ladderMasters()),
     },
     role: {
       findMany: vi.fn().mockResolvedValue([
@@ -105,11 +133,13 @@ describe("appendProductionStageTasks", () => {
     expect(tx.designTask.create).toHaveBeenCalledTimes(3);
   });
 
-  it("throws when masters are incomplete", async () => {
+  it("throws when required ladder roles are missing", async () => {
     const tx = makeTx();
     await expect(
-      appendProductionStageTasks(tx as never, 1n, { PROD_HANDOFF: fullSubs.PROD_HANDOFF }, fullRoles),
-    ).rejects.toThrow(/missing masters/i);
+      appendProductionStageTasks(tx as never, 1n, fullSubs, {
+        DESIGN_HEAD: fullRoles.DESIGN_HEAD,
+      }),
+    ).rejects.toThrow(/missing roles/i);
   });
 });
 
@@ -120,11 +150,18 @@ describe("ensureProductionLadderAndUnlock", () => {
 
   it("appends ladder then unlocks PENDING handoff (Spec 8-Step path)", async () => {
     const tx = makeTx();
-    tx.designTask.findFirst.mockResolvedValue({
-      id: 55n,
-      assignedEmployeeId: null,
-      assignedRoleId: 1,
-    });
+    // 1) existing ladder check during append → empty
+    // 2) PENDING candidates during unlock → handoff row
+    tx.designTask.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 55n,
+          assignedEmployeeId: null,
+          assignedRoleId: 1,
+          subProcess: { code: "PROD_HANDOFF", capabilities: { unlockAfterDesignApproved: true } },
+        },
+      ]);
 
     const result = await ensureProductionLadderAndUnlock(tx as never, 1n, "corr-e2e");
 
@@ -141,16 +178,20 @@ describe("ensureProductionLadderAndUnlock", () => {
 
   it("does not report appended when full ladder already existed", async () => {
     const tx = makeTx();
-    tx.designTask.findMany.mockResolvedValue(
-      ["PROD_HANDOFF", "PROD_INSTRUCTION", "PROD_RELEASE", "LIVE_REVIEW"].map((code) => ({
-        subProcess: { code },
-      })),
-    );
-    tx.designTask.findFirst.mockResolvedValue({
-      id: 10n,
-      assignedEmployeeId: 7,
-      assignedRoleId: 1,
-    });
+    tx.designTask.findMany
+      .mockResolvedValueOnce(
+        ["PROD_HANDOFF", "PROD_INSTRUCTION", "PROD_RELEASE", "LIVE_REVIEW"].map((code) => ({
+          subProcess: { code },
+        })),
+      )
+      .mockResolvedValueOnce([
+        {
+          id: 10n,
+          assignedEmployeeId: 7,
+          assignedRoleId: 1,
+          subProcess: { code: "PROD_HANDOFF", capabilities: { unlockAfterDesignApproved: true } },
+        },
+      ]);
 
     const result = await ensureProductionLadderAndUnlock(tx as never, 1n, "corr-existing");
 
@@ -163,7 +204,7 @@ describe("ensureProductionLadderAndUnlock", () => {
 describe("unlockProductionHandoffTask", () => {
   it("returns null when no PENDING handoff", async () => {
     const tx = makeTx();
-    tx.designTask.findFirst.mockResolvedValue(null);
+    tx.designTask.findMany.mockResolvedValue([]);
     const id = await unlockProductionHandoffTask(tx as never, 1n, "c");
     expect(id).toBeNull();
   });

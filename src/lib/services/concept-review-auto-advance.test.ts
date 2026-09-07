@@ -6,7 +6,7 @@ import {
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    designTask: { findMany: vi.fn(), findFirst: vi.fn() },
+    designTask: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
     designConcept: { update: vi.fn(), findMany: vi.fn() },
   },
 }));
@@ -18,6 +18,35 @@ vi.mock("@/lib/services/task-service", () => ({
 import { prisma } from "@/lib/db";
 import { autoAdvanceConceptReview } from "@/lib/services/concept-review-auto-advance";
 import { completeStageApproval } from "@/lib/services/task-service";
+
+function mockStuckConceptTasks() {
+  vi.mocked(prisma.designTask.findMany).mockResolvedValue([
+    {
+      id: BigInt(1),
+      version: 2,
+      status: "ASSIGNED",
+      dependencySequence: 1,
+      sequence: 1,
+      subProcess: { code: "CONCEPT_REVIEW", capabilities: null, defaultRole: { code: "DESIGN_HEAD" } },
+    },
+    {
+      id: BigInt(2),
+      version: 1,
+      status: "PENDING",
+      dependencySequence: 2,
+      sequence: 2,
+      subProcess: { code: "SKETCH", capabilities: null, defaultRole: null },
+    },
+  ] as never);
+  vi.mocked(prisma.designTask.findUnique).mockResolvedValue({
+    subProcess: { code: "CONCEPT_REVIEW", defaultRole: { code: "DESIGN_HEAD" } },
+  } as never);
+  vi.mocked(prisma.designTask.findFirst).mockResolvedValue({
+    subProcess: { code: "SKETCH" },
+  } as never);
+  vi.mocked(prisma.designConcept.update).mockResolvedValue({} as never);
+  vi.mocked(completeStageApproval).mockResolvedValue({} as never);
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -90,27 +119,8 @@ describe("findStuckConceptReviewTask", () => {
 });
 
 describe("autoAdvanceConceptReview", () => {
-  it("passes actor role code to completeStageApproval", async () => {
-    vi.mocked(prisma.designTask.findMany).mockResolvedValue([
-      {
-        id: BigInt(1),
-        version: 2,
-        status: "ASSIGNED",
-        dependencySequence: 1,
-        sequence: 1,
-        subProcess: { code: "CONCEPT_REVIEW" },
-      },
-      {
-        id: BigInt(2),
-        version: 1,
-        status: "PENDING",
-        dependencySequence: 2,
-        sequence: 2,
-        subProcess: { code: "SKETCH" },
-      },
-    ] as never);
-    vi.mocked(prisma.designConcept.update).mockResolvedValue({} as never);
-    vi.mocked(completeStageApproval).mockResolvedValue({} as never);
+  it("passes stage owner role to completeStageApproval", async () => {
+    mockStuckConceptTasks();
 
     await autoAdvanceConceptReview(BigInt(10), 5, "corr-1", { roleCode: "DESIGN_HEAD" });
 
@@ -123,27 +133,8 @@ describe("autoAdvanceConceptReview", () => {
     );
   });
 
-  it("falls back to DESIGN_HEAD when creator role cannot approve concept review", async () => {
-    vi.mocked(prisma.designTask.findMany).mockResolvedValue([
-      {
-        id: BigInt(1),
-        version: 2,
-        status: "ASSIGNED",
-        dependencySequence: 1,
-        sequence: 1,
-        subProcess: { code: "CONCEPT_REVIEW" },
-      },
-      {
-        id: BigInt(2),
-        version: 1,
-        status: "PENDING",
-        dependencySequence: 2,
-        sequence: 2,
-        subProcess: { code: "SKETCH" },
-      },
-    ] as never);
-    vi.mocked(prisma.designConcept.update).mockResolvedValue({} as never);
-    vi.mocked(completeStageApproval).mockResolvedValue({} as never);
+  it("uses DESIGN_HEAD owner role when creator role cannot approve concept review", async () => {
+    mockStuckConceptTasks();
 
     await autoAdvanceConceptReview(BigInt(10), 5, "corr-admin", { roleCode: "ADMIN" });
 
@@ -158,26 +149,7 @@ describe("autoAdvanceConceptReview", () => {
   });
 
   it("records DESIGN_HEAD even when Management creates the design", async () => {
-    vi.mocked(prisma.designTask.findMany).mockResolvedValue([
-      {
-        id: BigInt(1),
-        version: 2,
-        status: "ASSIGNED",
-        dependencySequence: 1,
-        sequence: 1,
-        subProcess: { code: "CONCEPT_REVIEW" },
-      },
-      {
-        id: BigInt(2),
-        version: 1,
-        status: "PENDING",
-        dependencySequence: 2,
-        sequence: 2,
-        subProcess: { code: "SKETCH" },
-      },
-    ] as never);
-    vi.mocked(prisma.designConcept.update).mockResolvedValue({} as never);
-    vi.mocked(completeStageApproval).mockResolvedValue({} as never);
+    mockStuckConceptTasks();
 
     await autoAdvanceConceptReview(BigInt(10), 9, "corr-mgmt", { roleCode: "MANAGEMENT" });
 

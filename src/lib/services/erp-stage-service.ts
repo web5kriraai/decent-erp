@@ -4,9 +4,12 @@ import { ApiError } from "@/lib/api-utils";
 import { ERP_HANDOFF_MODULES } from "@/lib/kpi-metrics";
 import { upsertDesignSuccessMetric } from "@/lib/services/production-service";
 import {
+  ERP_FLOOR_MODULES,
   validateCompleteErpStageInput,
   type CompleteErpStagePayload,
 } from "@/lib/erp-rbac";
+import { ERP_STAGE_LABELS } from "@/lib/services/erp-stage-constants";
+import type { Prisma } from "@prisma/client";
 
 export {
   ERP_STAGE_LABELS,
@@ -17,21 +20,80 @@ export {
 
 export type CompleteErpStageInput = CompleteErpStagePayload;
 
+type Tx = Prisma.TransactionClient;
+
 function currentPeriod() {
   const now = new Date();
   return { periodYear: now.getUTCFullYear(), periodMonth: now.getUTCMonth() + 1 };
 }
 
-/** Seed 9 in-app ERP stages after production release (idempotent). */
+export type FloorErpProgress = {
+  ok: boolean;
+  completed: number;
+  total: number;
+  missing: string[];
+};
+
+/** Floor stage progress for PROD_RELEASE gate + UI chip. */
+export async function getFloorErpProgress(
+  designId: bigint,
+  tx?: Tx,
+): Promise<FloorErpProgress> {
+  const db = tx ?? prisma;
+  const stages = await db.erpStageRecord.findMany({
+    where: {
+      designId,
+      erpModule: { in: [...ERP_FLOOR_MODULES] },
+    },
+    select: { erpModule: true, status: true },
+  });
+
+  const total = ERP_FLOOR_MODULES.length;
+  if (stages.length === 0) {
+    return {
+      ok: false,
+      completed: 0,
+      total,
+      missing: ["Floor ERP stages (start Production Release to seed the chain)"],
+    };
+  }
+
+  const byModule = new Map(stages.map((s) => [s.erpModule, s.status]));
+  const missing: string[] = [];
+  let completed = 0;
+  for (const module of ERP_FLOOR_MODULES) {
+    const status = byModule.get(module);
+    if (status === "COMPLETED") {
+      completed += 1;
+      continue;
+    }
+    const label =
+      ERP_STAGE_LABELS[module as keyof typeof ERP_STAGE_LABELS] ?? module.replaceAll("_", " ");
+    missing.push(status ? `${label} (${status.toLowerCase().replaceAll("_", " ")})` : label);
+  }
+
+  return { ok: missing.length === 0, completed, total, missing };
+}
+
+export async function assertFloorErpCompleteForRelease(
+  designId: bigint,
+  tx?: Tx,
+): Promise<FloorErpProgress> {
+  return getFloorErpProgress(designId, tx);
+}
+
+/** Seed 9 in-app ERP stages (idempotent). Called on PROD_RELEASE start and after release. */
 export async function seedErpStagesForDesign(
   designId: bigint,
   designNumber: string,
   actorId: number,
   correlationId: string,
+  tx?: Tx,
 ) {
-  const existing = await prisma.erpStageRecord.count({ where: { designId } });
+  const db = tx ?? prisma;
+  const existing = await db.erpStageRecord.count({ where: { designId } });
   if (existing > 0) {
-    return prisma.erpStageRecord.findMany({
+    return db.erpStageRecord.findMany({
       where: { designId },
       orderBy: { sequence: "asc" },
     });
@@ -45,21 +107,33 @@ export async function seedErpStagesForDesign(
     status: index === 0 ? "READY" : "PENDING",
   }));
 
-  await prisma.erpStageRecord.createMany({ data: rows });
+  await db.erpStageRecord.createMany({ data: rows });
 
-  const created = await prisma.erpStageRecord.findMany({
+  const created = await db.erpStageRecord.findMany({
     where: { designId },
     orderBy: { sequence: "asc" },
   });
 
-  await writeAuditLogDirect({
-    entityType: "ErpStageRecord",
-    entityId: designId.toString(),
-    action: "ERP_STAGES_SEEDED",
-    userId: actorId,
-    correlationId,
-    after: { designNumber, modules: created.map((r) => r.erpModule) },
-  });
+  if (tx) {
+    const { writeAuditLog } = await import("@/lib/audit");
+    await writeAuditLog(tx, {
+      entityType: "ErpStageRecord",
+      entityId: designId.toString(),
+      action: "ERP_STAGES_SEEDED",
+      userId: actorId,
+      correlationId,
+      after: { designNumber, modules: created.map((r) => r.erpModule) },
+    });
+  } else {
+    await writeAuditLogDirect({
+      entityType: "ErpStageRecord",
+      entityId: designId.toString(),
+      action: "ERP_STAGES_SEEDED",
+      userId: actorId,
+      correlationId,
+      after: { designNumber, modules: created.map((r) => r.erpModule) },
+    });
+  }
 
   return created;
 }

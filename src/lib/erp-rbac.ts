@@ -1,16 +1,25 @@
 import { hasPermission, PERMISSIONS, type PermissionCode } from "@/lib/permissions";
 import { ERP_HANDOFF_MODULES } from "@/lib/kpi-metrics";
 
-const FLOOR_MODULES = new Set([
+/** Floor modules Production Head must complete before ending PROD_RELEASE. */
+export const ERP_FLOOR_MODULES = [
   "GREY_MATERIAL",
   "CUTTING",
   "EMBROIDERY",
   "GARMENTING",
   "FINISHING",
   "READY_STOCK",
-]);
+] as const;
+
+export type ErpFloorModule = (typeof ERP_FLOOR_MODULES)[number];
+
+const FLOOR_MODULES = new Set<string>(ERP_FLOOR_MODULES);
 
 const SALES_MODULES = new Set(["SALES", "SALES_RETURN"]);
+
+export function isErpFloorModule(module: string): boolean {
+  return FLOOR_MODULES.has(module);
+}
 
 /** Permissions that can open /production/erp and list chains (SoD operate grants). */
 export const ERP_CHAIN_VIEW_PERMISSIONS: PermissionCode[] = [

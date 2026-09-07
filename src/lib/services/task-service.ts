@@ -275,7 +275,7 @@ export async function assertTaskAssignedToEmployee(taskId: bigint, employeeId: n
 }
 
 export async function startTask(taskId: bigint, employeeId: number, correlationId: string) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const { startOfUtcDay } = await import("@/lib/services/time-calculation");
     const workDate = startOfUtcDay(new Date());
     const closed = await tx.workdaySession.findUnique({
@@ -294,7 +294,13 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
       });
     }
 
-    const task = await tx.designTask.findUnique({ where: { id: taskId } });
+    const task = await tx.designTask.findUnique({
+      where: { id: taskId },
+      include: {
+        subProcess: { select: { code: true, capabilities: true, isApproval: true } },
+        design: { select: { designNumber: true } },
+      },
+    });
     if (!task) throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
     if (task.assignedEmployeeId !== employeeId) {
       throw createAppError(APP_ERROR_CODES.TASK_NOT_ASSIGNED, 403);
@@ -342,11 +348,19 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
       activeTask = await tx.designTask.update({
         where: { id: taskId },
         data: { status: "ASSIGNED", version: { increment: 1 } },
+        include: {
+          subProcess: { select: { code: true, capabilities: true, isApproval: true } },
+          design: { select: { designNumber: true } },
+        },
       });
     } else if (task.status === "CORRECTION_REQUIRED") {
       activeTask = await tx.designTask.update({
         where: { id: taskId },
         data: { status: "ASSIGNED", version: { increment: 1 } },
+        include: {
+          subProcess: { select: { code: true, capabilities: true, isApproval: true } },
+          design: { select: { designNumber: true } },
+        },
       });
     } else if (task.status !== "ASSIGNED") {
       throw conflict(
@@ -386,8 +400,27 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
       after: updated,
     });
 
+    const stageBehavior = resolveStageBehavior({
+      code: task.subProcess.code,
+      isApproval: task.subProcess.isApproval,
+      capabilities: task.subProcess.capabilities,
+    });
+
+    if (stageBehavior.onComplete.includes("unlockErp")) {
+      const { seedErpStagesForDesign } = await import("@/lib/services/erp-stage-service");
+      await seedErpStagesForDesign(
+        task.designId,
+        task.design.designNumber,
+        employeeId,
+        `${correlationId}-erp-seed`,
+        tx,
+      );
+    }
+
     return updated;
   });
+
+  return result;
 }
 
 export async function holdTask(
@@ -572,6 +605,17 @@ export async function endTask(
           APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
           readiness.missing,
           formatProductionReleaseMissing(readiness.missing),
+        );
+      }
+      const { assertFloorErpCompleteForRelease } = await import(
+        "@/lib/services/erp-stage-service"
+      );
+      const floor = await assertFloorErpCompleteForRelease(task.designId, tx);
+      if (!floor.ok) {
+        throw businessRule(
+          APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
+          floor.missing,
+          `Complete Floor ERP stages before ending Production Release (${floor.completed}/${floor.total}).`,
         );
       }
     }
