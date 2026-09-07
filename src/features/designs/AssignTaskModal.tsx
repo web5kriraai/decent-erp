@@ -31,9 +31,11 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
   const employeesQuery = useEmployeeOptions(open);
   const assignTask = useAssignTask();
   const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   const employees = employeesQuery.data ?? [];
   const selectedEmployee = employees.find((e) => String(e.id) === employeeId);
+  const employeeError = !employeeId ? "Employee is required" : undefined;
 
   const handoff = useMemo((): HandoffContext | null => {
     if (!task) return null;
@@ -63,14 +65,17 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
   }, [task, selectedEmployee]);
 
   async function handleSubmit() {
-    if (!task || !employeeId) return;
+    setAttemptedSubmit(true);
+    if (!task || employeeError) return;
     await assignTask.mutateAsync({ taskId: task.id, employeeId: Number(employeeId) });
+    setAttemptedSubmit(false);
     onClose();
     setEmployeeId(null);
   }
 
   function handleClose() {
     setEmployeeId(null);
+    setAttemptedSubmit(false);
     onClose();
   }
 
@@ -88,7 +93,7 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
           <AppButton
             type="button"
             appVariant="primary"
-            disabled={!employeeId || assignTask.isPending}
+            disabled={assignTask.isPending}
             onClick={handleSubmit}
           >
             {assignTask.isPending ? "Assigning…" : "Assign"}
@@ -103,12 +108,16 @@ export function AssignTaskModal({ open, task, onClose }: AssignTaskModalProps) {
           label="Employee"
           required
           value={employeeId}
-          onValueChange={setEmployeeId}
+          onValueChange={(v) => {
+            setEmployeeId(v);
+            setAttemptedSubmit(false);
+          }}
           placeholder="Select…"
           options={employees.map((e) => ({
             value: String(e.id),
             label: `${e.name} (${e.role.name})`,
           }))}
+          error={attemptedSubmit ? employeeError : undefined}
         />
       </ModalForm>
     </Modal>

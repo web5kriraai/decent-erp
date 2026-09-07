@@ -46,6 +46,8 @@ export function FormTextArea({
     >
       <Textarea
         id={id}
+        required={required}
+        aria-required={required || undefined}
         aria-invalid={error ? true : undefined}
         className={cn("resize-none", className)}
         disabled={disabled}

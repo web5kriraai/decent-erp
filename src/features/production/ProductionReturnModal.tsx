@@ -32,6 +32,7 @@ export function ProductionReturnModal({
   const [reasonCode, setReasonCode] = useState("");
   const [routeToSubProcessId, setRouteToSubProcessId] = useState("");
   const [remark, setRemark] = useState("");
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   const options = optionsQuery.data;
   const routeOptions = useMemo(() => options?.routeOptions ?? [], [options?.routeOptions]);
@@ -60,6 +61,7 @@ export function ProductionReturnModal({
     setReasonCode("");
     setRouteToSubProcessId("");
     setRemark("");
+    setAttemptedSubmit(false);
     onClose();
   }
 
@@ -70,13 +72,19 @@ export function ProductionReturnModal({
     setRouteToSubProcessId(match ? String(match.id) : "");
   }
 
+  const fieldErrors = {
+    reasonCode: !reasonCode ? "Reason is required" : undefined,
+    routeToSubProcessId: !routeToSubProcessId ? "Route is required" : undefined,
+  };
+
   const canSubmit = useMemo(
-    () => reasonCode && routeToSubProcessId && options?.canReturn,
+    () => !!reasonCode && !!routeToSubProcessId && !!options?.canReturn,
     [reasonCode, routeToSubProcessId, options?.canReturn],
   );
 
   async function handleSubmit() {
-    if (!canSubmit) return;
+    setAttemptedSubmit(true);
+    if (!canSubmit || fieldErrors.reasonCode || fieldErrors.routeToSubProcessId) return;
     await returnMutation.mutateAsync({
       designId,
       reasonCode,
@@ -100,7 +108,7 @@ export function ProductionReturnModal({
           <AppButton
             type="button"
             appVariant="danger"
-            disabled={!canSubmit || returnMutation.isPending}
+            disabled={returnMutation.isPending || !options?.canReturn}
             onClick={() => void handleSubmit()}
           >
             {returnMutation.isPending ? "Returning…" : "Return to design team"}
@@ -128,6 +136,7 @@ export function ProductionReturnModal({
                 label: reason.label,
               }))}
               placeholder="Select…"
+              error={attemptedSubmit ? fieldErrors.reasonCode : undefined}
             />
 
             <FormSelect
@@ -141,6 +150,7 @@ export function ProductionReturnModal({
                 label: route.name,
               }))}
               placeholder="Select…"
+              error={attemptedSubmit ? fieldErrors.routeToSubProcessId : undefined}
             />
 
             <FormTextArea

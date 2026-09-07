@@ -71,6 +71,7 @@ export function FormSelect({
       >
         <SelectTrigger
           id={id}
+          aria-required={required || undefined}
           aria-invalid={error ? true : undefined}
           className={cn("w-full", triggerClassName)}
         >

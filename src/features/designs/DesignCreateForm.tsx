@@ -149,6 +149,8 @@ export function DesignCreateForm() {
   if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
+  if (!priority) validationErrors.priority = "Priority is required";
+  if (!assignmentMode) validationErrors.assignmentMode = "Task assignment is required";
   if (assignmentMode === "AUTOMATIC" && !effectiveWorkflowPatternId) {
     validationErrors.workflowPatternId =
       availablePatterns.length === 0
@@ -156,15 +158,26 @@ export function DesignCreateForm() {
         : "Workflow pattern is required";
   }
   if (assignmentMode === "MANUAL") {
-    const incomplete = manualTasks.some(
-      (task) =>
-        !task.processId ||
-        !task.subProcessId ||
-        !Number(task.expectedMinutes) ||
-        Number(task.expectedMinutes) <= 0,
-    );
-    if (manualTasks.length === 0 || incomplete) {
-      validationErrors.manualTasks = "Complete at least one task";
+    if (manualTasks.length === 0) {
+      validationErrors.manualTasks = "Add at least one task";
+    }
+    manualTasks.forEach((task, index) => {
+      if (!task.processId) {
+        validationErrors[`manualTasks.${index}.processId`] = "Process is required";
+      }
+      if (!task.subProcessId) {
+        validationErrors[`manualTasks.${index}.subProcessId`] = "Sub-process is required";
+      }
+      if (!Number(task.expectedMinutes) || Number(task.expectedMinutes) <= 0) {
+        validationErrors[`manualTasks.${index}.expectedMinutes`] =
+          "Expected minutes must be greater than zero";
+      }
+    });
+    if (
+      Object.keys(validationErrors).some((key) => key.startsWith("manualTasks.")) &&
+      !validationErrors.manualTasks
+    ) {
+      validationErrors.manualTasks = "Complete all required task fields";
     }
   }
 
@@ -303,6 +316,7 @@ export function DesignCreateForm() {
         <form
           id="design-create-form"
           onSubmit={handleSubmit}
+          noValidate
           className="form-card space-y-4"
         >
           {createDesign.isError && createDesign.error instanceof ApiClientError && (
@@ -473,16 +487,20 @@ export function DesignCreateForm() {
                     <FormSelect
                       id="priority"
                       label="Priority"
+                      required
                       value={priority}
                       onValueChange={(v) => setPriority(v as Priority)}
                       options={PRIORITY_OPTIONS}
+                      error={showErrors ? validationErrors.priority : undefined}
                     />
                     <FormSelect
                       id="assignmentMode"
                       label="Task Assignment"
+                      required
                       value={assignmentMode}
                       onValueChange={(v) => setAssignmentMode(v as AssignmentMode)}
                       options={ASSIGNMENT_MODE_OPTIONS}
+                      error={showErrors ? validationErrors.assignmentMode : undefined}
                     />
                     {assignmentMode === "AUTOMATIC" && (
                       <FormSelect
@@ -518,7 +536,13 @@ export function DesignCreateForm() {
                   {assignmentMode === "MANUAL" && (
                     <div>
                       <div className="form-row-header">
-                        <span className="form-label text-sm font-medium">Manual Tasks *</span>
+                        <span className="form-label text-sm font-medium">
+                          Manual Tasks{" "}
+                          <span className="font-semibold text-[var(--color-danger)]" aria-hidden="true">
+                            *
+                          </span>
+                          <span className="sr-only">(required)</span>
+                        </span>
                         <AppButton
                           type="button"
                           appVariant="secondary"
@@ -585,6 +609,11 @@ export function DesignCreateForm() {
                                     label: p.name,
                                   }))}
                                   placeholder="Select…"
+                                  error={
+                                    showErrors
+                                      ? validationErrors[`manualTasks.${index}.processId`]
+                                      : undefined
+                                  }
                                 />
                                 <FormSelect
                                   id={`${task.id}-subprocess`}
@@ -602,6 +631,11 @@ export function DesignCreateForm() {
                                   }))}
                                   placeholder="Select…"
                                   disabled={!task.processId}
+                                  error={
+                                    showErrors
+                                      ? validationErrors[`manualTasks.${index}.subProcessId`]
+                                      : undefined
+                                  }
                                 />
                               </div>
 
@@ -617,6 +651,11 @@ export function DesignCreateForm() {
                                     updateManualTask(task.id, {
                                       expectedMinutes: e.target.value,
                                     })
+                                  }
+                                  error={
+                                    showErrors
+                                      ? validationErrors[`manualTasks.${index}.expectedMinutes`]
+                                      : undefined
                                   }
                                 />
                                 <FormSelect

@@ -26,9 +26,19 @@ export function FormField({
   return (
     <div className={cn("form-group space-y-2", className)}>
       {label ? (
-        <Label htmlFor={id}>
-          {label}
-          {required ? <span className="text-destructive"> *</span> : null}
+        <Label htmlFor={id} className="inline-flex items-center gap-1">
+          <span>{label}</span>
+          {required ? (
+            <>
+              <span
+                className="font-semibold text-[var(--color-danger)]"
+                aria-hidden="true"
+              >
+                *
+              </span>
+              <span className="sr-only">(required)</span>
+            </>
+          ) : null}
         </Label>
       ) : null}
       {children}

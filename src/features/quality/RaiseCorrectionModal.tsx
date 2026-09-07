@@ -217,8 +217,11 @@ export function RaiseCorrectionModal({
     routeTargetTask,
   ]);
 
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+
   function handleClose() {
     setLoadedKey("closed");
+    setAttemptedSubmit(false);
     onClose();
   }
 
@@ -229,9 +232,26 @@ export function RaiseCorrectionModal({
     }
   }
 
+  const fieldErrors = {
+    designId: !designId ? "Design is required" : undefined,
+    taskId: !taskId ? "Source task is required" : undefined,
+    routeToSubProcessId: !routeToSubProcessId ? "Rework route is required" : undefined,
+    responsibleEmployeeId:
+      isMistake && !responsibleEmployeeId ? "Responsible employee is required" : undefined,
+    rootCause: !rootCause.trim() ? "Reason / feedback is required" : undefined,
+  };
+
   async function handleSubmit() {
-    if (!designId || !taskId || !rootCause.trim() || !routeToSubProcessId) return;
-    if (isMistake && !responsibleEmployeeId) return;
+    setAttemptedSubmit(true);
+    if (
+      fieldErrors.designId ||
+      fieldErrors.taskId ||
+      fieldErrors.routeToSubProcessId ||
+      fieldErrors.responsibleEmployeeId ||
+      fieldErrors.rootCause
+    ) {
+      return;
+    }
     await raiseCorrection.mutateAsync({
       designId,
       taskId,
@@ -264,7 +284,7 @@ export function RaiseCorrectionModal({
           <AppButton type="button" appVariant="outline" onClick={handleClose}>
             Cancel
           </AppButton>
-          <AppButton type="button" disabled={!canSubmit} onClick={handleSubmit}>
+          <AppButton type="button" disabled={raiseCorrection.isPending} onClick={handleSubmit}>
             {raiseCorrection.isPending ? "Raising…" : "Raise Correction"}
           </AppButton>
         </ModalFooterActions>
@@ -291,6 +311,7 @@ export function RaiseCorrectionModal({
                 label: `${d.ideaRef} - ${d.collectionName}`,
               }))}
               placeholder="Select…"
+              error={attemptedSubmit ? fieldErrors.designId : undefined}
             />
 
             <FormSelect
@@ -308,6 +329,7 @@ export function RaiseCorrectionModal({
               }))}
               placeholder="Select…"
               disabled={!designId || designQuery.isLoading}
+              error={attemptedSubmit ? fieldErrors.taskId : undefined}
             />
           </>
         ) : null}
@@ -324,6 +346,7 @@ export function RaiseCorrectionModal({
           }))}
           placeholder="Select…"
           disabled={!designId || routeOptions.length === 0}
+          error={attemptedSubmit ? fieldErrors.routeToSubProcessId : undefined}
         />
 
         <ModalFormGrid>
@@ -348,6 +371,7 @@ export function RaiseCorrectionModal({
               label: e.name,
             }))}
             placeholder="Select…"
+            error={attemptedSubmit ? fieldErrors.responsibleEmployeeId : undefined}
           />
         </ModalFormGrid>
 
@@ -379,6 +403,7 @@ export function RaiseCorrectionModal({
           value={rootCause}
           onChange={(e) => setRootCause(e.target.value)}
           onEnterSubmit={canSubmit ? () => void handleSubmit() : undefined}
+          error={attemptedSubmit ? fieldErrors.rootCause : undefined}
         />
       </ModalForm>
     </Modal>

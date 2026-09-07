@@ -80,6 +80,7 @@ export function CreateWorkflowPatternModal({
   const [versionNo, setVersionNo] = useState("1");
   const [tasks, setTasks] = useState<TaskDraft[]>(() => [emptyTask(0)]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   const processes = processesQuery.data ?? [];
   const roles = rolesQuery.data ?? [];
@@ -90,6 +91,7 @@ export function CreateWorkflowPatternModal({
     setVersionNo("1");
     setTasks([emptyTask(0)]);
     setFormError(null);
+    setAttemptedSubmit(false);
   }
 
   const formMode = open ? (editPattern ? `edit-${editPattern.id}` : "create") : "closed";
@@ -224,9 +226,10 @@ export function CreateWorkflowPatternModal({
 
   function handleSubmit() {
     setFormError(null);
+    setAttemptedSubmit(true);
 
     if (!canSubmit) {
-      setFormError("Complete all task steps before saving.");
+      setFormError("Complete all required fields before saving.");
       return;
     }
 
@@ -287,7 +290,7 @@ export function CreateWorkflowPatternModal({
           </Button>
           <Button
             type="button"
-            disabled={!canSubmit || submitPending || capabilitySummary.errors.length > 0}
+            disabled={submitPending || capabilitySummary.errors.length > 0}
             onClick={handleSubmit}
           >
             {submitPending
@@ -322,6 +325,7 @@ export function CreateWorkflowPatternModal({
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
+            error={attemptedSubmit && !name.trim() ? "Pattern name is required" : undefined}
           />
         ) : (
           <>
@@ -332,6 +336,7 @@ export function CreateWorkflowPatternModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Standard Saree Development"
+              error={attemptedSubmit && !name.trim() ? "Pattern name is required" : undefined}
             />
 
             <ModalFormGrid>
@@ -405,6 +410,11 @@ export function CreateWorkflowPatternModal({
                         label: p.name,
                       }))}
                       placeholder="Select process"
+                      error={
+                        attemptedSubmit && !task.processId
+                          ? "Process is required"
+                          : undefined
+                      }
                     />
                     <FormSelect
                       id={`task-${task.id}-subprocess`}
@@ -420,6 +430,11 @@ export function CreateWorkflowPatternModal({
                       }))}
                       placeholder="Select sub-process"
                       disabled={!task.processId}
+                      error={
+                        attemptedSubmit && !task.subProcessId
+                          ? "Sub-process is required"
+                          : undefined
+                      }
                     />
                   </ModalFormGrid>
 
@@ -439,6 +454,11 @@ export function CreateWorkflowPatternModal({
                         label: role.displayName,
                       }))}
                       placeholder="Select role"
+                      error={
+                        attemptedSubmit && !task.defaultRoleId
+                          ? "Default role is required"
+                          : undefined
+                      }
                     />
                     <FormTextField
                       id={`task-${task.id}-minutes`}
@@ -449,6 +469,12 @@ export function CreateWorkflowPatternModal({
                       value={task.expectedMinutes}
                       onChange={(e) =>
                         updateTask(task.id, { expectedMinutes: e.target.value })
+                      }
+                      error={
+                        attemptedSubmit &&
+                        (!Number(task.expectedMinutes) || Number(task.expectedMinutes) <= 0)
+                          ? "Minutes must be greater than zero"
+                          : undefined
                       }
                     />
                   </ModalFormGrid>

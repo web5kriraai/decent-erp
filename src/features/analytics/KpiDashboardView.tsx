@@ -87,7 +87,10 @@ export function KpiDashboardView() {
         actions={
           <>
             <AppButtonLink href={ROUTES.analytics.reportsHub} appVariant="secondary" size="sm">
-              Reports Hub
+              Reports
+            </AppButtonLink>
+            <AppButtonLink href={ROUTES.analytics.kpi} appVariant="secondary" size="sm">
+              Employees
             </AppButtonLink>
             <AppButtonLink href={ROUTES.analytics.kpiDesignHead} appVariant="secondary" size="sm">
               Design Head
@@ -99,22 +102,11 @@ export function KpiDashboardView() {
               disabled={recompute.isPending}
               onClick={() => recompute.mutate()}
             >
-              Recompute KPI
+              Recompute
             </AppButton>
           </>
         }
       />
-
-      <AppCard className="stack-section" title="Metric definitions (weights = 100%)">
-        <ul className="m-0 columns-2 list-disc space-y-1 pl-5 text-sm leading-relaxed">
-          {metricCoverage.map((metric) => (
-            <li key={metric.code}>
-              <strong>{metric.label}</strong> — {metric.weight}%
-              {metric.scored > 0 ? ` (${metric.scored} scores)` : ""}
-            </li>
-          ))}
-        </ul>
-      </AppCard>
 
       <QueryState
         isLoading={kpiQuery.isLoading}
@@ -124,20 +116,20 @@ export function KpiDashboardView() {
         skeletonVariant="stats"
       >
         <div className="stat-grid stack-section">
-          <StatCard label="Score Records" value={data.length} />
+          <StatCard label="Score records" value={data.length} />
           <StatCard
-            label="Employees Tracked"
+            label="Employees"
             value={new Set(data.map((d) => d.employee.id)).size}
           />
           <StatCard label="Metrics" value={SPEC_KPI_METRICS.length} />
           <StatCard
-            label="Current Period"
+            label="Period"
             value={new Date().toLocaleString("en", { month: "short", year: "numeric" })}
           />
         </div>
 
-        {chartData.length > 0 && (
-          <AppCard className="stack-section kpi-chart-card" title="Weighted score by employee">
+        {chartData.length > 0 ? (
+          <AppCard className="stack-section kpi-chart-card" title="Weighted score">
             <ResponsiveContainer width="100%" height="85%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -148,30 +140,46 @@ export function KpiDashboardView() {
               </BarChart>
             </ResponsiveContainer>
           </AppCard>
-        )}
+        ) : null}
 
-        <DataTable<KpiRow & Record<string, unknown>>
-          columns={[
-            { key: "employee", header: "Employee", render: (r) => r.employee.name },
-            {
-              key: "metricCode",
-              header: "Metric",
-              render: (r) =>
-                SPEC_KPI_METRICS.find((m) => m.code === r.metricCode)?.label ?? r.metricCode,
-            },
-            {
-              key: "period",
-              header: "Period",
-              render: (r) => `${r.periodMonth}/${r.periodYear}`,
-            },
-            { key: "score", header: "Score", align: "right" },
-            { key: "weightedScore", header: "Weighted", align: "right" },
-          ]}
-          rows={data}
-          getRowKey={(row) => row.id}
-          emptyTitle="No KPI scores yet"
-          emptyDescription="Click Recompute KPI to calculate all nine weighted metrics from task and correction history."
-        />
+        <AppCard title="Score detail" className="stack-section" flush>
+          <DataTable<KpiRow & Record<string, unknown>>
+            columns={[
+              { key: "employee", header: "Employee", render: (r) => r.employee.name },
+              {
+                key: "metricCode",
+                header: "Metric",
+                render: (r) =>
+                  SPEC_KPI_METRICS.find((m) => m.code === r.metricCode)?.label ?? r.metricCode,
+              },
+              {
+                key: "period",
+                header: "Period",
+                render: (r) => `${r.periodMonth}/${r.periodYear}`,
+              },
+              { key: "score", header: "Score", align: "right" },
+              { key: "weightedScore", header: "Weighted", align: "right" },
+            ]}
+            rows={data}
+            getRowKey={(row) => row.id}
+            emptyTitle="No KPI scores"
+            emptyDescription="Click Recompute."
+          />
+        </AppCard>
+
+        <AppCard title="Metric weights" className="stack-section" flat>
+          <ul className="m-0 columns-2 list-none space-y-1 p-0 text-sm leading-relaxed">
+            {metricCoverage.map((metric) => (
+              <li key={metric.code} className="flex justify-between gap-2 border-b border-border/50 py-1">
+                <span>{metric.label}</span>
+                <span className="text-muted-foreground">
+                  {metric.weight}%
+                  {metric.scored > 0 ? ` · ${metric.scored}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </AppCard>
       </QueryState>
     </div>
   );

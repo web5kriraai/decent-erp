@@ -35,6 +35,8 @@ export function FormTextField({
     >
       <Input
         id={id}
+        required={required}
+        aria-required={required || undefined}
         aria-invalid={error ? true : undefined}
         className={cn(className)}
         {...props}

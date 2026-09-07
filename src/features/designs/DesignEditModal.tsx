@@ -35,9 +35,14 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
   const [workType, setWorkType] = useState<WorkType | "">(design.workType ?? "");
   const [trendReference, setTrendReference] = useState(design.trendReference ?? "");
   const [celebrityReference, setCelebrityReference] = useState(design.celebrityReference ?? "");
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+
+  const collectionError = !collectionName.trim() ? "Collection name is required" : undefined;
+  const canSave = !collectionError && !updateDesign.isPending;
 
   async function handleSave() {
-    if (!collectionName.trim() || updateDesign.isPending) return;
+    setAttemptedSubmit(true);
+    if (collectionError || updateDesign.isPending) return;
     await updateDesign.mutateAsync({
       designId: design.id,
       version: design.version ?? 1,
@@ -48,10 +53,9 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
       trendReference: trendReference.trim() || undefined,
       celebrityReference: celebrityReference.trim() || undefined,
     });
+    setAttemptedSubmit(false);
     onClose();
   }
-
-  const canSave = !!collectionName.trim() && !updateDesign.isPending;
 
   return (
     <Modal
@@ -67,7 +71,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
           <AppButton
             type="button"
             appVariant="primary"
-            disabled={!canSave}
+            disabled={updateDesign.isPending}
             onClick={() => void handleSave()}
           >
             {updateDesign.isPending ? "Saving…" : "Save"}
@@ -83,6 +87,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             required
             value={collectionName}
             onChange={(e) => setCollectionName(e.target.value)}
+            error={attemptedSubmit ? collectionError : undefined}
           />
           <FormTextField
             id="editStyleName"
