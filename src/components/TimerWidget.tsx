@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppButton } from "@/components/ui/AppButton";
 import { cn } from "@/lib/utils";
-import { PauseIcon, PlayIcon, SquareIcon } from "lucide-react";
+import { IconPause, IconPlay, IconSquare } from "@/components/icons";
 
 type TimerWidgetProps = {
   status: "RUNNING" | "ON_HOLD" | "IDLE";
@@ -96,19 +96,19 @@ export function TimerWidget({
             onClick={onHold}
             aria-label="Hold task"
           >
-            <PauseIcon aria-hidden />
+            <IconPause aria-hidden />
             Hold
           </AppButton>
         ) : null}
         {status === "ON_HOLD" && onResume ? (
           <AppButton type="button" size="sm" onClick={onResume}>
-            <PlayIcon />
+            <IconPlay />
             Resume
           </AppButton>
         ) : null}
         {isActive && onEnd ? (
           <AppButton type="button" appVariant="danger" size="sm" onClick={onEnd}>
-            <SquareIcon />
+            <IconSquare />
             End Task
           </AppButton>
         ) : null}

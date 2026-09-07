@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { ROLE_CODES } from "@/lib/permissions";
+import { TEXTILE_CAPABILITIES_BY_CODE } from "@/lib/workflow/stage-capabilities";
 
 type RoleLookup = Record<string, { id: number }>;
 
@@ -156,14 +157,25 @@ export async function seedProcessMasters(prisma: PrismaClient, roles: RoleLookup
 
     for (const sp of proc.subProcesses) {
       const role = roles[sp.role];
+      const capabilities = TEXTILE_CAPABILITIES_BY_CODE[sp.code] ?? null;
+      const isApproval =
+        "isApproval" in sp ? !!sp.isApproval : !!capabilities?.isApproval;
+      const isFileRequired =
+        "isFileRequired" in sp ? !!sp.isFileRequired : !!capabilities?.requiresFile;
+      const isCorrectionAllowed =
+        "isCorrectionAllowed" in sp
+          ? !!sp.isCorrectionAllowed
+          : capabilities?.isCorrectionAllowed ?? true;
       const sub = await prisma.designSubProcessMaster.upsert({
         where: { processId_code: { processId: process.id, code: sp.code } },
         update: {
           name: sp.name,
           sequence: sp.sequence,
           defaultRoleId: role?.id,
-          isApproval: "isApproval" in sp ? sp.isApproval : false,
-          isFileRequired: "isFileRequired" in sp ? sp.isFileRequired : false,
+          isApproval,
+          isFileRequired,
+          isCorrectionAllowed,
+          capabilities: capabilities ?? undefined,
           active: true,
         },
         create: {
@@ -172,8 +184,10 @@ export async function seedProcessMasters(prisma: PrismaClient, roles: RoleLookup
           name: sp.name,
           sequence: sp.sequence,
           defaultRoleId: role?.id,
-          isApproval: "isApproval" in sp ? sp.isApproval : false,
-          isFileRequired: "isFileRequired" in sp ? sp.isFileRequired : false,
+          isApproval,
+          isFileRequired,
+          isCorrectionAllowed,
+          capabilities: capabilities ?? undefined,
         },
       });
       subIndex[sp.code] = { id: sub.id, processId: process.id };

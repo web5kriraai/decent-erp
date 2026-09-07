@@ -1,4 +1,4 @@
-import { InfoIcon } from "lucide-react";
+import { IconInfo } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 type ActionUnavailableProps = {
@@ -17,7 +17,7 @@ export function ActionUnavailable({ reason, className, compact }: ActionUnavaila
       )}
       role="note"
     >
-      <InfoIcon className="action-unavailable-icon" aria-hidden />
+      <IconInfo className="action-unavailable-icon" aria-hidden />
       <p className="action-unavailable-text">{reason}</p>
     </div>
   );

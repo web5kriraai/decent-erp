@@ -219,6 +219,31 @@ describe("buildPendingApprovalItems", () => {
     expect(items[0]?.currentLevel.code).toBe("MANAGEMENT_APPROVAL");
     expect(items[0]?.costingReady).toBe(false);
   });
+
+  it("marks final level costing-ready when pattern does not require costing", () => {
+    const items = buildPendingApprovalItems(
+      [
+        {
+          id: 104,
+          ideaRef: "IDEA-SHORT",
+          collectionName: "Short",
+          status: "APPROVAL_PENDING",
+          approvals: [
+            { approvalLevelId: 1, decision: "APPROVED" },
+            { approvalLevelId: 2, decision: "APPROVED" },
+          ],
+          tasks: [],
+        },
+      ],
+      levels,
+      {
+        designIdsWithCosting: new Set(),
+        designIdsRequiringCosting: new Set(),
+      },
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.costingReady).toBe(true);
+  });
 });
 
 describe("pickRelatedApprovalTask", () => {
@@ -350,5 +375,21 @@ describe("isDesignReadyForSignOff", () => {
         work("RESAMPLE", "ASSIGNED"),
       ]),
     ).toBe(false);
+  });
+
+  it("excludes custom unlockAfterDesignApproved stages without textile codes", () => {
+    expect(
+      isDesignReadyForSignOff([
+        work("SKETCH_APPROVAL", "COMPLETED", true),
+        {
+          status: "PENDING",
+          subProcess: {
+            code: "CUSTOM_PROD_STEP",
+            isApproval: false,
+            capabilities: { unlockAfterDesignApproved: true },
+          },
+        },
+      ]),
+    ).toBe(true);
   });
 });

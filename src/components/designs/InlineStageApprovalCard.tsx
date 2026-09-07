@@ -7,6 +7,7 @@ import { AppCard } from "@/components/ui/AppCard";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { ImageGallery } from "@/components/ImageGallery";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
 import { queryKeys } from "@/lib/query-keys";
@@ -20,7 +21,8 @@ import {
 } from "@/lib/stage-approval-rbac";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
-import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
+import type { HandoffContext } from "@/lib/handoff-context";
+import { IconCheckCircle2, IconRotateCcw, IconXCircle } from "@/components/icons";
 
 type InlineStageApprovalCardProps = {
   designId: string;
@@ -29,14 +31,53 @@ type InlineStageApprovalCardProps = {
   workTask?: DesignTask;
   employeeId?: number;
   canAssign: boolean;
+  costingTotal?: number | null;
+  costingEntryCount?: number | null;
+  sampleOutcome?: string | null;
 };
+
+function nextStepHintForApproval(code: string): string {
+  switch (code) {
+    case "CONCEPT_REVIEW":
+      return "Sketch Designer starts sketching";
+    case "SKETCH_APPROVAL":
+      return "Punching Designer receives approved sketch";
+    case "FINAL_APPROVAL":
+      return "Approve for production when stages are done";
+    case "PUNCH_CHECK":
+      return "Material / fabric issue toward sample";
+    case "SAMPLE_CHECK":
+      return "Costing Team enters development costs";
+    case "LIVE_REVIEW":
+      return "Design goes LIVE · ERP chain unlocks";
+    default:
+      return "Advances the workflow to the next stage";
+  }
+}
+
+function approveLabelForCode(code: string): string {
+  switch (code) {
+    case "CONCEPT_REVIEW":
+      return "Approve concept";
+    case "SKETCH_APPROVAL":
+      return "Approve sketch";
+    case "FINAL_APPROVAL":
+      return "Approve for sign-off";
+    default:
+      return "Approve";
+  }
+}
 
 export function InlineStageApprovalCard({
   designId,
+  design,
   approvalTask,
   workTask,
   employeeId,
   canAssign,
+  costingTotal,
+  costingEntryCount,
+  sampleOutcome,
 }: InlineStageApprovalCardProps) {
   const queryClient = useQueryClient();
   const assignTask = useAssignTask();
@@ -47,17 +88,47 @@ export function InlineStageApprovalCard({
 
   const stageName = approvalTask.subProcess?.name ?? "Stage";
   const approvalCode = approvalTask.subProcess?.code ?? "";
+  const capabilities = approvalTask.subProcess?.capabilities;
+  const isApproval = approvalTask.subProcess?.isApproval;
 
   if (!isStageApprovalCode(approvalCode)) return null;
 
-  const uiConfig = getStageApprovalUiConfig(approvalCode);
+  const uiConfig = getStageApprovalUiConfig(approvalCode, capabilities, { isApproval });
   if (!uiConfig || uiConfig.surface !== "inline_card") return null;
 
-  const canApprove = isStageApprovalActionable(approvalCode, workTask);
-  const approvalBlockedMessage = getStageApprovalBlockedMessage(approvalCode, workTask);
+  const canApprove = isStageApprovalActionable(approvalCode, workTask, capabilities);
+  const approvalBlockedMessage = getStageApprovalBlockedMessage(
+    approvalCode,
+    workTask,
+    capabilities,
+  );
   const showApprove = uiConfig.actions.includes("approve");
   const showCorrection = uiConfig.actions.includes("correction");
   const showReject = uiConfig.actions.includes("reject");
+
+  const handoff: HandoffContext = {
+    ideaRef: design.ideaRef,
+    collectionName: design.collectionName,
+    productType: design.productType?.name ?? null,
+    priority: design.priority,
+    stageCode: approvalCode,
+    stageName,
+    status: approvalTask.status,
+    nextStepHint: nextStepHintForApproval(approvalCode),
+    priorStage: workTask
+      ? {
+          code: workTask.subProcess?.code,
+          name: workTask.subProcess?.name ?? "Prior stage",
+          status: workTask.status,
+          outputRemark: workTask.outputRemark,
+          assigneeName: workTask.assignedEmployee?.name,
+        }
+      : null,
+    costingTotal: costingTotal ?? null,
+    costingEntryCount: costingEntryCount ?? null,
+    sampleOutcome: sampleOutcome ?? null,
+    blockers: !canApprove && approvalBlockedMessage ? [approvalBlockedMessage] : undefined,
+  };
 
   async function refreshDesign() {
     await queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
@@ -165,6 +236,8 @@ export function InlineStageApprovalCard({
       }
     >
       <div className="space-y-4">
+        <ActionHandoffBanner context={handoff} dense />
+
         {uiConfig.showCompare ? <TaskCompareVersionsPanel designId={designId} /> : null}
 
         {uiConfig.showGallery ? (
@@ -173,10 +246,14 @@ export function InlineStageApprovalCard({
 
         <FormTextArea
           id="stage-approval-remark"
-          label="Notes"
+          label="Notes for the next worker (required for reject / correction)"
           value={remark}
           onChange={(e) => setRemark(e.target.value)}
           rows={2}
+          disabled={busy || !canApprove}
+          onEnterSubmit={
+            canApprove && !busy && showApprove ? () => void handleApprove() : undefined
+          }
         />
 
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
@@ -188,7 +265,7 @@ export function InlineStageApprovalCard({
               disabled={busy || !canApprove || !remark.trim()}
               onClick={handleReject}
             >
-              <XCircleIcon className="size-4" aria-hidden />
+              <IconXCircle className="size-4" aria-hidden />
               Reject
             </AppButton>
           ) : null}
@@ -200,7 +277,7 @@ export function InlineStageApprovalCard({
               disabled={busy || !canApprove || !remark.trim()}
               onClick={handleSendBack}
             >
-              <RotateCcwIcon className="size-4" aria-hidden />
+              <IconRotateCcw className="size-4" aria-hidden />
               Request correction
             </AppButton>
           ) : null}
@@ -213,8 +290,8 @@ export function InlineStageApprovalCard({
               title={!canApprove ? approvalBlockedMessage : undefined}
               onClick={handleApprove}
             >
-              <CheckCircle2Icon className="size-4" aria-hidden />
-              Approve
+              <IconCheckCircle2 className="size-4" aria-hidden />
+              {approveLabelForCode(approvalCode)}
             </AppButton>
           ) : null}
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { InfoIcon } from "lucide-react";
+import { IconInfo } from "@/components/icons";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { ROUTES } from "@/config/routes";
@@ -53,6 +53,8 @@ type ApprovalDecisionFormProps = {
   stageAssignees?: ApprovalRequestStageAssignee[] | null;
   employeeOptions?: EmployeeOption[];
   nextLevelName?: string | null;
+  /** Enter in remark fields submits the primary decision when valid. */
+  onEnterSubmit?: () => void;
 };
 
 export function ApprovalDecisionForm({
@@ -65,8 +67,12 @@ export function ApprovalDecisionForm({
   stageAssignees,
   employeeOptions = [],
   nextLevelName,
+  onEnterSubmit,
 }: ApprovalDecisionFormProps) {
   const { decision, remark, correctionType, routeSubProcessCode, responsibleEmployeeId } = state;
+
+  const enterSubmit =
+    onEnterSubmit && isApprovalDecisionFormValid(state, costingReady) ? onEnterSubmit : undefined;
 
   useEffect(() => {
     if (decisionOptions.length === 0) return;
@@ -123,7 +129,7 @@ export function ApprovalDecisionForm({
                 options={decisionOptions}
               />
               <p className="approval-decision-info">
-                <InfoIcon aria-hidden />
+                <IconInfo aria-hidden />
                 <span>
                   {nextLevelName
                     ? `Next after approve: ${nextLevelName}.`
@@ -139,6 +145,7 @@ export function ApprovalDecisionForm({
                 value={remark}
                 onChange={(e) => onChange({ ...state, remark: e.target.value })}
                 placeholder="Optional notes for the design team…"
+                onEnterSubmit={enterSubmit}
               />
             </div>
           </div>
@@ -169,6 +176,7 @@ export function ApprovalDecisionForm({
                   value={remark}
                   onChange={(e) => onChange({ ...state, remark: e.target.value })}
                   placeholder="Required — explain why this design was rejected…"
+                  onEnterSubmit={enterSubmit}
                 />
                 <p className="approval-decision-impact approval-decision-impact--danger">
                   Design becomes REJECTED; requester is notified. History is kept.
@@ -186,6 +194,7 @@ export function ApprovalDecisionForm({
                   value={remark}
                   onChange={(e) => onChange({ ...state, remark: e.target.value })}
                   placeholder="Required — describe the correction clearly…"
+                  onEnterSubmit={enterSubmit}
                 />
                 <div className="approval-decision-grid">
                   <FormSelect
@@ -261,4 +270,4 @@ export function isApprovalDecisionFormValid(
     !!state.routeSubProcessCode
   );
 }
-
+

@@ -32,6 +32,15 @@ describe("app-errors", () => {
     });
     expect(title).toBe(APP_ERROR_MESSAGES.VALIDATION_FAILED);
   });
+
+  it("prefers specific server messages over catalog defaults", () => {
+    const { title } = humanizeClientError({
+      message: "Only Design Head (or Admin) can decide this stage.",
+      status: 422,
+      code: APP_ERROR_CODES.APPROVAL_NOT_ALLOWED,
+    });
+    expect(title).toBe("Only Design Head (or Admin) can decide this stage.");
+  });
 });
 
 describe("action-availability", () => {

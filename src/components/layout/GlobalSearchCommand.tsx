@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { Loader2Icon } from "lucide-react";
+import { IconLoader2, IconLogout, IconPlus, IconTasks } from "@/components/icons";
 import {
   CommandDialog,
   CommandEmpty,
@@ -13,7 +13,6 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { getVisibleNavSections, ROUTES, type NavLink } from "@/config/routes";
-import { IconLogout, IconPlus, IconTasks } from "@/components/icons";
 import { PERMISSIONS } from "@/lib/permissions";
 import { apiGet } from "@/lib/api-client";
 import type { DesignListResponse, DesignSummary, DesignTask } from "@/lib/types/api";
@@ -294,7 +293,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
 
         {isLoading ? (
           <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-            <Loader2Icon className="size-4 animate-spin" aria-hidden />
+            <IconLoader2 className="size-4 animate-spin" aria-hidden />
             Searching…
           </div>
         ) : null}
@@ -390,7 +389,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
 
         {showDesignResults && designsLoading && designs.length === 0 ? (
           <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-            <Loader2Icon className="size-4 animate-spin" aria-hidden />
+            <IconLoader2 className="size-4 animate-spin" aria-hidden />
             Searching designs…
           </div>
         ) : null}

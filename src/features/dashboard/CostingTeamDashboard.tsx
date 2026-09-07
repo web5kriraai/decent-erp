@@ -19,6 +19,7 @@ import {
 } from "@/features/dashboard/workbench-shared";
 import { isDashboardOpenTask } from "@/lib/task-list-filters";
 import { formatDuration } from "@/lib/services/time-calculation";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
 const ACTIVE_DESIGN = new Set([
   "DRAFT",
@@ -28,6 +29,16 @@ const ACTIVE_DESIGN = new Set([
   "PRODUCTION_HANDOFF",
   "PRODUCTION_ACCEPTED",
 ]);
+
+function isCostingStage(task: {
+  subProcess?: { code?: string; capabilities?: unknown };
+}) {
+  if (!task.subProcess?.code) return false;
+  return resolveStageBehavior({
+    code: task.subProcess.code,
+    capabilities: task.subProcess.capabilities,
+  }).costingEntry;
+}
 
 export function CostingTeamDashboard() {
   const { data: session } = useSession();
@@ -39,13 +50,11 @@ export function CostingTeamDashboard() {
 
   const tasks = tasksQuery.data ?? [];
   const costingTasks = tasks.filter(
-    (task) =>
-      isDashboardOpenTask(task) &&
-      (task.subProcess?.code === "COSTING" || task.process?.code === "COSTING"),
+    (task) => isDashboardOpenTask(task) && isCostingStage(task),
   );
   const checkingTasks = tasks.filter(
     (task) =>
-      task.subProcess?.code === "COSTING" && resolveListItemDisplayStatus(task) === "CHECKING",
+      isCostingStage(task) && resolveListItemDisplayStatus(task) === "CHECKING",
   );
 
   const designsForCosting = useMemo(() => {

@@ -14,14 +14,18 @@ import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-que
 import { PERMISSIONS } from "@/lib/permissions";
 import {
   canRoleActOnStageApproval,
-  isInlineStageApprovalSurface,
 } from "@/lib/stage-approval-rbac";
+import {
+  isStageApprovalActionableFromBehavior,
+  resolveStageBehavior,
+} from "@/lib/workflow/stage-behavior";
 import {
   resolveDesignContextActions,
   WORKFLOW_ACTION_CODES,
   type ResolvedWorkflowAction,
 } from "@/lib/workflow-actions";
 import type { DesignSummary, DesignTask, KanbanWorkflowInfo } from "@/lib/types/api";
+import { ROUTES } from "@/config/routes";
 
 const ACTIONABLE_STATUSES = new Set([
   "ASSIGNED",
@@ -38,14 +42,11 @@ function canAccessStageApproval(
   approvalCode: string,
   _isMine: boolean,
   _isUnassigned: boolean,
+  options?: { ownerRoleCode?: string | null; capabilities?: unknown },
 ): boolean {
   if (!roleCode) return false;
   // Owner / Admin oversee: visibility is role-based, not assignee-scoped.
-  return canRoleActOnStageApproval(roleCode, approvalCode);
-}
-
-function isInlinePendingStageApproval(code: string): boolean {
-  return isInlineStageApprovalSurface(code);
+  return canRoleActOnStageApproval(roleCode, approvalCode, options);
 }
 
 export type WorkflowStep = {
@@ -310,35 +311,23 @@ export type PendingStageApproval = {
 export function isStageApprovalActionable(
   approvalCode: string,
   workTask?: { status?: string },
+  capabilities?: unknown,
 ): boolean {
-  switch (approvalCode) {
-    case "SKETCH_APPROVAL":
-    case "PUNCH_CHECK":
-    case "SAMPLE_CHECK":
-      return workTask?.status === "CHECKING";
-    case "FINAL_APPROVAL":
-      return (
-        workTask?.status != null && ["CHECKING", "COMPLETED"].includes(workTask.status)
-      );
-    case "LIVE_REVIEW":
-      // Production release must be finished (or stuck CHECKING from the old gate bug).
-      return (
-        workTask?.status != null && ["CHECKING", "COMPLETED"].includes(workTask.status)
-      );
-    case "CONCEPT_REVIEW":
-      return true;
-    default:
-      return workTask == null || workTask.status === "CHECKING";
-  }
+  const behavior = resolveStageBehavior({ code: approvalCode, capabilities });
+  return isStageApprovalActionableFromBehavior(behavior, workTask);
 }
 
 export function getStageApprovalBlockedMessage(
   approvalCode: string,
   workTask?: { status?: string },
+  capabilities?: unknown,
 ): string | undefined {
-  if (isStageApprovalActionable(approvalCode, workTask)) return undefined;
+  if (isStageApprovalActionable(approvalCode, workTask, capabilities)) return undefined;
 
-  if (approvalCode === "SKETCH_APPROVAL") {
+  const behavior = resolveStageBehavior({ code: approvalCode, capabilities });
+  const precursor = behavior.workPrecursorCode;
+
+  if (approvalCode === "SKETCH_APPROVAL" || precursor === "SKETCH") {
     if (workTask?.status === "ASSIGNED" || workTask?.status === "RUNNING") {
       return "Waiting for sketch designer to submit work.";
     }
@@ -348,23 +337,31 @@ export function getStageApprovalBlockedMessage(
     return "Sketch must be submitted for checking before you can approve.";
   }
 
-  if (approvalCode === "PUNCH_CHECK") {
+  if (approvalCode === "PUNCH_CHECK" || precursor === "PUNCH") {
+    if (workTask?.status === "ASSIGNED" || workTask?.status === "RUNNING") {
+      return "Waiting for punch work to be submitted.";
+    }
+    if (workTask?.status === "ON_HOLD") {
+      return "Punch work is on hold — approval unlocks after the designer resumes and submits.";
+    }
     return "Waiting for punch work to be submitted for checking.";
   }
 
-  if (approvalCode === "SAMPLE_CHECK") {
+  if (approvalCode === "SAMPLE_CHECK" || precursor === "MACHINE_SAMPLE") {
     return "Waiting for machine sample to be submitted for checking.";
   }
 
-  if (approvalCode === "FINAL_APPROVAL") {
+  if (approvalCode === "FINAL_APPROVAL" || precursor === "COSTING") {
     return "Waiting for costing to be completed before final approval.";
   }
 
-  if (approvalCode === "LIVE_REVIEW") {
+  if (approvalCode === "LIVE_REVIEW" || precursor === "PROD_RELEASE") {
     return "Production Release must be completed before Live Design Review.";
   }
 
-  return "Waiting for prior work to be submitted for checking.";
+  return precursor
+    ? `Waiting for ${precursor} to be submitted for checking.`
+    : "Waiting for prior work to be submitted for checking.";
 }
 
 export function getPendingStageApproval(input: {
@@ -379,115 +376,22 @@ export function getPendingStageApproval(input: {
   const tasks = sortTasks(design.tasks);
   const siblings = toDepSeqTasks(tasks);
 
-  const tryReturn = (
-    approvalTask: DesignTask,
-    workTask: DesignTask | undefined,
-    approvalCode: string,
-  ): PendingStageApproval | null => {
-    if (!isInlinePendingStageApproval(approvalCode)) return null;
-    const isMine = employeeId != null && approvalTask.assignedEmployeeId === employeeId;
-    const isUnassigned = approvalTask.assignedEmployeeId == null;
-    if (!canAccessStageApproval(roleCode, approvalCode, isMine, isUnassigned)) return null;
-    if (!isStageApprovalActionable(approvalCode, workTask)) return null;
-    return { approvalTask, workTask };
-  };
-
-  const sketch = tasks.find((t) => t.subProcess?.code === "SKETCH");
-  const sketchApproval = tasks.find((t) => t.subProcess?.code === "SKETCH_APPROVAL");
-  if (
-    sketch?.status === "CHECKING" &&
-    sketchApproval &&
-    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"].includes(sketchApproval.status)
-  ) {
-    const ready = isTaskReady(
-      {
-        id: sketchApproval.id,
-        dependencySequence: sketchApproval.dependencySequence ?? null,
-        sequence: sketchApproval.sequence,
-        status: sketchApproval.status,
-      },
-      siblings,
-    );
-    if (ready) {
-      const result = tryReturn(sketchApproval, sketch, "SKETCH_APPROVAL");
-      if (result) return result;
-    }
-  }
-
-  const punch = tasks.find((t) => t.subProcess?.code === "PUNCH");
-  const punchCheck = tasks.find((t) => t.subProcess?.code === "PUNCH_CHECK");
-  if (
-    punch?.status === "CHECKING" &&
-    punchCheck &&
-    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"].includes(punchCheck.status)
-  ) {
-    const ready = isTaskReady(
-      {
-        id: punchCheck.id,
-        dependencySequence: punchCheck.dependencySequence ?? null,
-        sequence: punchCheck.sequence,
-        status: punchCheck.status,
-      },
-      siblings,
-    );
-    if (ready) {
-      const result = tryReturn(punchCheck, punch, "PUNCH_CHECK");
-      if (result) return result;
-    }
-  }
-
-  const machineSample = tasks.find((t) => t.subProcess?.code === "MACHINE_SAMPLE");
-  const sampleCheck = tasks.find((t) => t.subProcess?.code === "SAMPLE_CHECK");
-  if (
-    machineSample?.status === "CHECKING" &&
-    sampleCheck &&
-    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"].includes(sampleCheck.status)
-  ) {
-    const ready = isTaskReady(
-      {
-        id: sampleCheck.id,
-        dependencySequence: sampleCheck.dependencySequence ?? null,
-        sequence: sampleCheck.sequence,
-        status: sampleCheck.status,
-      },
-      siblings,
-    );
-    if (ready) {
-      const result = tryReturn(sampleCheck, machineSample, "SAMPLE_CHECK");
-      if (result) return result;
-    }
-  }
-
-  const costing = tasks.find((t) => t.subProcess?.code === "COSTING");
-  const finalApproval = tasks.find((t) => t.subProcess?.code === "FINAL_APPROVAL");
-  if (
-    costing &&
-    ["CHECKING", "COMPLETED"].includes(costing.status) &&
-    finalApproval &&
-    ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"].includes(finalApproval.status)
-  ) {
-    const ready = isTaskReady(
-      {
-        id: finalApproval.id,
-        dependencySequence: finalApproval.dependencySequence ?? null,
-        sequence: finalApproval.sequence,
-        status: finalApproval.status,
-      },
-      siblings,
-    );
-    if (ready) {
-      const result = tryReturn(
-        finalApproval,
-        costing.status === "CHECKING" ? costing : undefined,
-        "FINAL_APPROVAL",
-      );
-      if (result) return result;
-    }
-  }
+  let pending: PendingStageApproval | null = null;
 
   for (const task of tasks) {
-    if (!task.subProcess?.isApproval) continue;
-    if (!["PENDING", "ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"].includes(task.status)) continue;
+    const code = task.subProcess?.code;
+    if (!code) continue;
+    const ownerRoleCode = task.subProcess?.defaultRole?.code ?? null;
+    const behavior = resolveStageBehavior({
+      code,
+      isApproval: task.subProcess?.isApproval,
+      capabilities: task.subProcess?.capabilities,
+      defaultRoleCode: ownerRoleCode,
+    });
+    if (!behavior.isApproval || behavior.approvalSurface !== "inline_card") continue;
+    if (!["PENDING", "ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"].includes(task.status)) {
+      continue;
+    }
 
     const ready = isTaskReady(
       {
@@ -500,36 +404,37 @@ export function getPendingStageApproval(input: {
     );
     if (!ready) continue;
 
-    const code = task.subProcess.code;
-    if (!isInlinePendingStageApproval(code)) continue;
-
     const isMine = employeeId != null && task.assignedEmployeeId === employeeId;
     const isUnassigned = task.assignedEmployeeId == null;
-    if (!canAccessStageApproval(roleCode, code, isMine, isUnassigned)) continue;
+    if (
+      !canAccessStageApproval(roleCode, code, isMine, isUnassigned, {
+        ownerRoleCode,
+        capabilities: task.subProcess?.capabilities,
+      })
+    ) {
+      continue;
+    }
 
-    const workTask =
-      code === "SKETCH_APPROVAL"
-        ? tasks.find((t) => t.subProcess?.code === "SKETCH" && t.status === "CHECKING")
-        : code === "PUNCH_CHECK"
-          ? tasks.find((t) => t.subProcess?.code === "PUNCH" && t.status === "CHECKING")
-          : code === "SAMPLE_CHECK"
-            ? tasks.find(
-                (t) => t.subProcess?.code === "MACHINE_SAMPLE" && t.status === "CHECKING",
-              )
-            : code === "FINAL_APPROVAL"
-              ? tasks.find(
-                  (t) =>
-                    t.subProcess?.code === "COSTING" &&
-                    ["CHECKING", "COMPLETED"].includes(t.status),
-                )
-              : undefined;
+    const workCode =
+      behavior.workPrecursorCode ?? workSubProcessCodeForApproval(code) ?? null;
+    const workTask = workCode
+      ? tasks.find((t) => t.subProcess?.code === workCode)
+      : undefined;
 
-    if (!isStageApprovalActionable(code, workTask)) continue;
+    if (!isStageApprovalActionableFromBehavior(behavior, workTask)) continue;
 
-    return { approvalTask: task, workTask };
+    // FINAL_APPROVAL historically omitted COMPLETED costing from the card's workTask.
+    const displayWork =
+      behavior.workGateMode === "checking_or_completed" &&
+      workTask?.status === "COMPLETED"
+        ? undefined
+        : workTask;
+
+    // Prefer the furthest-along (highest sequence) actionable inline approval.
+    pending = { approvalTask: task, workTask: displayWork };
   }
 
-  return null;
+  return pending;
 }
 
 function mapResolvedToLegacyAction(
@@ -550,6 +455,7 @@ function mapResolvedToLegacyAction(
     return {
       id: "request-approval",
       kind: "request_approval",
+      href: action.href ?? (action.designId ? ROUTES.quality.requestSignOff(action.designId) : undefined),
       label: action.label,
       description: action.description ?? "",
       emphasis,
@@ -713,12 +619,13 @@ export function getDesignWorkflowContext(input: {
   if (input.status === "APPROVAL_PENDING") {
     return {
       ...empty,
-      summary: "Waiting in the management sign-off queue.",
-      currentStage: "Management sign-off",
+      summary:
+        "Legacy status — management decide chain was removed. Design Head should re-approve for production from Approvals → Ready to approve (or ask admin to heal).",
+      currentStage: "Legacy approval pending",
       currentStatus: "approval pending",
-      // UI renders a dedicated chain + CTA — avoid repeating the same guidance three times.
-      nextAction: null,
-      waitingMessage: null,
+      nextAction: "Approve for production",
+      waitingMessage:
+        "Contact Design Head to complete Approve for production, or run the APPROVAL_PENDING heal.",
       nextActionHint: null,
     };
   }

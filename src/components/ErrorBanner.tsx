@@ -12,8 +12,8 @@ export function ErrorBanner({ message, correlationId, onRetry }: ErrorBannerProp
       <div className="min-w-0 flex-1">
         <p className="m-0 text-sm font-medium">{message}</p>
         {correlationId ? (
-          <p className="mt-1 text-xs opacity-85">
-            Reference: <code>{correlationId}</code>
+          <p className="mt-1 text-xs opacity-75">
+            Support ref · <code>{correlationId.slice(0, 8)}</code>
           </p>
         ) : null}
       </div>

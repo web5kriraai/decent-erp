@@ -1,17 +1,13 @@
-import { z } from "zod";
-import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
+import { jsonOk, parseBody, serializeBigInt, withApiHandler, ApiError } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
-
-const schema = z.object({
-  code: z.string().min(1),
-  name: z.string().min(1),
-  sequence: z.number().int().positive(),
-  defaultRoleId: z.number().int().positive().optional(),
-  isApproval: z.boolean().optional(),
-  isFileRequired: z.boolean().optional(),
-});
+import {
+  buildCapabilitiesForWrite,
+  subProcessCreateSchema,
+  syncColumnFlagsFromCapabilities,
+  type SubProcessCreateBody,
+} from "@/lib/workflow/stage-capabilities-api";
 
 export async function POST(
   request: Request,
@@ -20,7 +16,23 @@ export async function POST(
   return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
     const { id } = await params;
     const processId = Number(id);
-    const body = await parseBody(request, schema);
+    const body = await parseBody<SubProcessCreateBody>(request, subProcessCreateSchema);
+
+    const capabilities = buildCapabilitiesForWrite({
+      code: body.code.toUpperCase(),
+      isApproval: body.isApproval,
+      isFileRequired: body.isFileRequired,
+      isCorrectionAllowed: body.isCorrectionAllowed,
+      capabilities: body.capabilities,
+    });
+    const flags = syncColumnFlagsFromCapabilities(capabilities);
+
+    if (capabilities.isApproval && capabilities.approvalSurface === "none") {
+      throw new ApiError(
+        "Approval stages require an approvalSurface other than none.",
+        422,
+      );
+    }
 
     const sub = await prisma.designSubProcessMaster.create({
       data: {
@@ -29,8 +41,8 @@ export async function POST(
         name: body.name,
         sequence: body.sequence,
         defaultRoleId: body.defaultRoleId,
-        isApproval: body.isApproval ?? false,
-        isFileRequired: body.isFileRequired ?? false,
+        ...flags,
+        capabilities,
       },
     });
 

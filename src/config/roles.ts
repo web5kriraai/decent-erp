@@ -108,7 +108,6 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     permissions: [
       PERMISSIONS.TASK_EXECUTE,
       PERMISSIONS.CORRECTION_RAISE,
-      PERMISSIONS.DESIGN_APPROVE,
     ],
     navFocus: ["My Work", "Quality"],
   },
@@ -142,8 +141,14 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Cannot alter prior design history or time events",
       "No admin master configuration",
     ],
-    permissions: [PERMISSIONS.PRODUCTION_RELEASE, PERMISSIONS.COST_VIEW],
-    navFocus: ["Finance", "Production"],
+    permissions: [
+      PERMISSIONS.PRODUCTION_RELEASE,
+      PERMISSIONS.COST_VIEW,
+      PERMISSIONS.TASK_EXECUTE,
+      PERMISSIONS.ERP_FLOOR_OPERATE,
+      PERMISSIONS.ERP_SALES_OPERATE,
+    ],
+    navFocus: ["My Work", "Finance", "Production"],
   },
   [ROLE_CODES.ADMIN]: {
     code: ROLE_CODES.ADMIN,
@@ -155,11 +160,11 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Configure hold reasons and KPI definitions",
       "Manage role permissions and audit all admin actions",
       "Monitor live team time and full analytics",
-      "Oversee Approvals hub (stage + management) without requesting management sign-off",
+      "Oversee Approvals hub (stage gates) without Design Head final approve",
     ],
     restrictions: [
       "All admin actions are audited",
-      "Cannot request management sign-off — that is Design Head only",
+      "Cannot approve for production — that is Design Head only",
     ],
     permissions: Object.values(PERMISSIONS),
     navFocus: ["All modules"],
@@ -168,9 +173,9 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     code: ROLE_CODES.MANAGEMENT,
     displayName: "Management (Owner)",
     summary:
-      "Business owner / executive sign-off — final management approval, analytics, and release oversight.",
+      "Business owner / executive — live review stage, analytics, and release oversight.",
     responsibilities: [
-      "Act on MANAGEMENT_APPROVAL level in the management chain",
+      "Complete Live Design Review stage after production release",
       "View KPI, team time reports, and costing summaries",
       "Authorize production release visibility at management level",
       "Mark designs live after production release when required",
@@ -178,10 +183,10 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     restrictions: [
       "Operational edits restricted — read and approve focus",
       "No process master configuration",
-      "Does not create designs or request management sign-off (Design Head does)",
+      "Does not create designs or approve for production (Design Head does)",
     ],
     permissions: [
-      PERMISSIONS.DESIGN_APPROVE,
+      PERMISSIONS.TASK_EXECUTE,
       PERMISSIONS.COST_VIEW,
       PERMISSIONS.KPI_ADMIN,
       PERMISSIONS.TIME_VIEW_TEAM,

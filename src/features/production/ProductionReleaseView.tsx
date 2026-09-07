@@ -158,7 +158,7 @@ export function ProductionReleaseView() {
             roleCode={roleCode}
             permissions={permissions}
             markLivePending={markLive.isPending}
-            onMarkLive={(id) => markLive.mutate(id)}
+            onMarkLive={(id) => markLive.mutateAsync(id)}
           />
         </QueryState>
       ) : canMarkLive ? (

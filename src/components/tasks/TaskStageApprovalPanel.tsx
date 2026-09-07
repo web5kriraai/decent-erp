@@ -4,9 +4,11 @@ import { useState } from "react";
 import { AppButton } from "@/components/ui/AppButton";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ImageGallery } from "@/components/ImageGallery";
+import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
-import { CheckCircle2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
+import { IconCheckCircle2, IconRotateCcw, IconXCircle } from "@/components/icons";
 import { AppCard } from "@/components/ui/AppCard";
 import {
   getStageApprovalBlockedMessage,
@@ -16,7 +18,10 @@ import {
   canRoleActOnStageApproval,
   getStageApprovalUiConfig,
   isStageApprovalCode,
+  usesStageApprovalActionsNotTimerEnd,
+  type StageApprovalCode,
 } from "@/lib/stage-approval-rbac";
+import type { HandoffContext } from "@/lib/handoff-context";
 
 type TaskStageApprovalPanelProps = {
   taskId: string;
@@ -28,15 +33,51 @@ type TaskStageApprovalPanelProps = {
   assignedEmployeeId?: number | null;
   employeeId?: number;
   roleCode?: string;
+  ownerRoleCode?: string | null;
+  capabilities?: unknown;
+  isApproval?: boolean;
   canAssign: boolean;
   showCompare?: boolean;
   workTaskStatus?: string;
+  handoff?: HandoffContext | null;
 };
 
-export function isStageApprovalTask(code?: string) {
-  if (!code || !isStageApprovalCode(code)) return false;
-  const config = getStageApprovalUiConfig(code);
-  return config?.surface === "task_panel";
+export function isStageApprovalTask(
+  code?: string,
+  options?: { capabilities?: unknown; isApproval?: boolean },
+) {
+  return usesStageApprovalActionsNotTimerEnd(code, options);
+}
+
+function nextStepHintForApproval(code: string): string {
+  if (!isStageApprovalCode(code)) return "Advances the workflow to the next stage";
+  switch (code as StageApprovalCode) {
+    case "PUNCH_CHECK":
+      return "Material / fabric issue toward sample";
+    case "LIVE_REVIEW":
+      return "Design goes LIVE · ERP chain unlocks";
+    case "CONCEPT_REVIEW":
+      return "Sketch Designer starts sketching";
+    case "SKETCH_APPROVAL":
+      return "Punching Designer receives approved sketch";
+    case "FINAL_APPROVAL":
+      return "Approve for production when stages are done";
+    case "SAMPLE_CHECK":
+      return "Costing Team enters development costs";
+    default:
+      return "Advances the workflow to the next stage";
+  }
+}
+
+function approveLabelForCode(code: string, stageName: string): string {
+  switch (code) {
+    case "PUNCH_CHECK":
+      return "Approve punch";
+    case "LIVE_REVIEW":
+      return "Approve go-live";
+    default:
+      return `Approve ${stageName.toLowerCase()}`;
+  }
 }
 
 export function TaskStageApprovalPanel({
@@ -49,37 +90,47 @@ export function TaskStageApprovalPanel({
   assignedEmployeeId,
   employeeId,
   roleCode,
+  ownerRoleCode,
+  capabilities,
+  isApproval,
   canAssign,
   showCompare = true,
   workTaskStatus,
+  handoff,
 }: TaskStageApprovalPanelProps) {
   const assignTask = useAssignTask();
   const completeStageApproval = useCompleteStageApproval();
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const uiConfig = getStageApprovalUiConfig(stageCode);
-  const roleAllowed = canRoleActOnStageApproval(roleCode, stageCode);
+  const uiConfig = getStageApprovalUiConfig(stageCode, capabilities, { isApproval });
+  const roleAllowed = canRoleActOnStageApproval(roleCode, stageCode, {
+    ownerRoleCode,
+    capabilities,
+  });
   const isOpen = !["COMPLETED", "CANCELLED", "CORRECTION_REQUIRED"].includes(status);
 
-  if (!isOpen || !uiConfig || uiConfig.surface !== "task_panel" || !roleAllowed) return null;
+  // task_end_dialog stages (e.g. SAMPLE_CHECK) complete via End dialog — not this panel.
+  if (
+    !isOpen ||
+    !uiConfig ||
+    uiConfig.surface === "task_end_dialog" ||
+    !roleAllowed
+  ) {
+    return null;
+  }
 
   const showApprove = uiConfig.actions.includes("approve");
   const showCorrection = uiConfig.actions.includes("correction");
   const showReject = uiConfig.actions.includes("reject");
 
-  // Owner / Admin can take over via completeStageApproval even without DESIGN_ASSIGN.
+  // Only DESIGN_ASSIGN may reassign via /assign; owner roles without it rely on
+  // completeStageApproval server takeover (same as InlineStageApprovalCard).
   const needsAssign =
     employeeId != null &&
-    (canAssign || roleAllowed) &&
+    canAssign &&
     assignedEmployeeId != null &&
     assignedEmployeeId !== employeeId;
-  const blockedOtherAssignee =
-    assignedEmployeeId != null &&
-    employeeId != null &&
-    assignedEmployeeId !== employeeId &&
-    !canAssign &&
-    !roleAllowed;
 
   async function resolveTaskVersion(): Promise<number> {
     let currentVersion = version;
@@ -116,9 +167,21 @@ export function TaskStageApprovalPanel({
   const busy = isSubmitting || assignTask.isPending || completeStageApproval.isPending;
   const workTask =
     workTaskStatus != null ? ({ status: workTaskStatus } as { status: string }) : undefined;
-  const canApprove = isStageApprovalActionable(stageCode, workTask);
-  const approvalBlockedMessage = getStageApprovalBlockedMessage(stageCode, workTask);
+  const canApprove = isStageApprovalActionable(stageCode, workTask, capabilities);
+  const approvalBlockedMessage = getStageApprovalBlockedMessage(
+    stageCode,
+    workTask,
+    capabilities,
+  );
   const panelTitle = uiConfig.title ?? `${stageName} — review decision`;
+
+  const bannerContext: HandoffContext = handoff ?? {
+    stageCode,
+    stageName,
+    status,
+    nextStepHint: nextStepHintForApproval(stageCode),
+    blockers: !canApprove && approvalBlockedMessage ? [approvalBlockedMessage] : undefined,
+  };
 
   return (
     <>
@@ -132,65 +195,68 @@ export function TaskStageApprovalPanel({
         headerAction={<StatusBadge status={status} />}
         contentClassName="space-y-4"
       >
-        {blockedOtherAssignee ? (
-          <p className="text-sm text-muted-foreground">
-            This approval is assigned to another checker.
+        <ActionHandoffBanner context={bannerContext} dense />
+
+        {uiConfig.showGallery ? (
+          <ImageGallery designId={designId} canUpload={false} />
+        ) : null}
+
+        {!canApprove && approvalBlockedMessage ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            {approvalBlockedMessage}
           </p>
-        ) : (
-          <>
-            {!canApprove && approvalBlockedMessage ? (
-              <p className="text-sm text-muted-foreground" role="status">
-                {approvalBlockedMessage}
-              </p>
-            ) : null}
-            {canApprove ? (
-              <>
-                <FormTextArea
-                  id={`stage-decision-${taskId}`}
-                  label="Review notes"
-                  value={remark}
-                  onChange={(e) => setRemark(e.target.value)}
-                  placeholder="Required for reject or correction request…"
-                  rows={3}
-                />
-                <div className="flex flex-wrap gap-2">
-                  {showApprove ? (
-                    <AppButton
-                      type="button"
-                      disabled={busy}
-                      onClick={() => submitDecision("APPROVED")}
-                    >
-                      <CheckCircle2Icon className="size-4" aria-hidden />
-                      Approve {stageName.toLowerCase()}
-                    </AppButton>
-                  ) : null}
-                  {showCorrection ? (
-                    <AppButton
-                      type="button"
-                      appVariant="outline"
-                      disabled={busy || !remark.trim()}
-                      onClick={() => submitDecision("CORRECTION_REQUIRED")}
-                    >
-                      <RotateCcwIcon className="size-4" aria-hidden />
-                      Request correction
-                    </AppButton>
-                  ) : null}
-                  {showReject ? (
-                    <AppButton
-                      type="button"
-                      appVariant="danger"
-                      disabled={busy || !remark.trim()}
-                      onClick={() => submitDecision("REJECT")}
-                    >
-                      <XCircleIcon className="size-4" aria-hidden />
-                      Reject
-                    </AppButton>
-                  ) : null}
-                </div>
-              </>
-            ) : null}
-          </>
-        )}
+        ) : null}
+        <FormTextArea
+          id={`stage-decision-${taskId}`}
+          label="Notes for the next worker (required for reject / correction)"
+          value={remark}
+          onChange={(e) => setRemark(e.target.value)}
+          placeholder="Required for reject or correction request…"
+          rows={3}
+          disabled={!canApprove || busy}
+          onEnterSubmit={
+            canApprove && !busy && showApprove
+              ? () => void submitDecision("APPROVED")
+              : undefined
+          }
+        />
+        <div className="flex flex-wrap gap-2">
+          {showApprove ? (
+            <AppButton
+              type="button"
+              disabled={busy || !canApprove}
+              title={!canApprove ? approvalBlockedMessage : undefined}
+              onClick={() => submitDecision("APPROVED")}
+            >
+              <IconCheckCircle2 className="size-4" aria-hidden />
+              {approveLabelForCode(stageCode, stageName)}
+            </AppButton>
+          ) : null}
+          {showCorrection ? (
+            <AppButton
+              type="button"
+              appVariant="outline"
+              disabled={busy || !canApprove || !remark.trim()}
+              title={!canApprove ? approvalBlockedMessage : undefined}
+              onClick={() => submitDecision("CORRECTION_REQUIRED")}
+            >
+              <IconRotateCcw className="size-4" aria-hidden />
+              Request correction
+            </AppButton>
+          ) : null}
+          {showReject ? (
+            <AppButton
+              type="button"
+              appVariant="danger"
+              disabled={busy || !canApprove || !remark.trim()}
+              title={!canApprove ? approvalBlockedMessage : undefined}
+              onClick={() => submitDecision("REJECT")}
+            >
+              <IconXCircle className="size-4" aria-hidden />
+              Reject
+            </AppButton>
+          ) : null}
+        </div>
       </AppCard>
     </>
   );

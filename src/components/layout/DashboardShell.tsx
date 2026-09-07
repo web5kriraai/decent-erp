@@ -24,7 +24,6 @@ import {
   IconMenu,
   IconClose,
   IconChevronLeft,
-  IconChevronRight,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { cn } from "@/lib/utils";
@@ -121,27 +120,16 @@ export function Sidebar() {
       >
         <div className="sidebar-brand">
           {showCollapsed ? (
-            <div className="sidebar-brand-collapsed">
-              <Link
-                href={ROUTES.dashboard}
-                className="sidebar-brand-mark"
-                onClick={closeMobile}
-                title="Decent ERP"
-                aria-label="Decent ERP home"
-              >
-                <BrandLogo variant="mark" size="sm" alt="" />
-              </Link>
-              <button
-                type="button"
-                className="sidebar-collapse-btn sidebar-collapse-btn--expand"
-                onClick={toggleCollapsed}
-                aria-label="Expand sidebar"
-                aria-expanded={false}
-                title="Expand sidebar"
-              >
-                <IconChevronRight size={16} />
-              </button>
-            </div>
+            <button
+              type="button"
+              className="sidebar-brand-mark"
+              onClick={toggleCollapsed}
+              aria-label="Expand sidebar"
+              aria-expanded={false}
+              title="Expand sidebar"
+            >
+              <BrandLogo variant="mark" size="sm" alt="Decent Technologies" />
+            </button>
           ) : (
             <>
               <Link

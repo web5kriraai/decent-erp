@@ -263,12 +263,15 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
       designHead: { select: { id: true, name: true } },
       components: { include: { componentType: true } },
       images: true,
+      costs: { select: { id: true, amount: true, costType: true }, take: 100 },
       tasks: {
         orderBy: { sequence: "asc" },
         include: {
           assignedEmployee: { select: { id: true, name: true } },
           process: true,
-          subProcess: true,
+          subProcess: {
+            include: { defaultRole: { select: { id: true, code: true, name: true } } },
+          },
           timeEvents: {
             orderBy: { eventTimeUtc: "desc" },
             take: 30,
@@ -496,7 +499,15 @@ export async function listDesignsForKanban() {
           assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
           process: { select: { id: true, name: true, code: true } },
           subProcess: {
-            select: { id: true, name: true, code: true, isApproval: true, isFileRequired: true },
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              isApproval: true,
+              isFileRequired: true,
+              capabilities: true,
+              defaultRole: { select: { id: true, code: true, name: true } },
+            },
           },
         },
       },

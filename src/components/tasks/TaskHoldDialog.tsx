@@ -9,7 +9,9 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { AppButton } from "@/components/ui/AppButton";
+import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import type { HoldReason } from "@/lib/types/api";
+import type { HandoffContext } from "@/lib/handoff-context";
 
 type TaskHoldDialogProps = {
   open: boolean;
@@ -24,6 +26,9 @@ type TaskHoldDialogProps = {
   title?: string;
   description?: string;
   preferredHoldReasonCodes?: string[];
+  remarkLabel?: string;
+  remarkPlaceholder?: string;
+  handoff?: HandoffContext | null;
 };
 
 export function TaskHoldDialog({
@@ -37,7 +42,11 @@ export function TaskHoldDialog({
   onSubmit,
   isPending,
   title = "Hold Task",
+  description,
   preferredHoldReasonCodes = [],
+  remarkLabel = "Hold note",
+  remarkPlaceholder = "Optional — what are you waiting on?",
+  handoff,
 }: TaskHoldDialogProps) {
   const orderedReasons = useMemo(() => {
     if (preferredHoldReasonCodes.length === 0) return holdReasons;
@@ -54,23 +63,27 @@ export function TaskHoldDialog({
     label: r.name,
   }));
 
+  const canSubmit = !!holdReasonId && !isPending;
+
   return (
     <Modal
       open={open}
       title={title}
+      description={description}
       onClose={onClose}
       footer={
         <ModalFooterActions>
           <AppButton type="button" appVariant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </AppButton>
-          <AppButton type="button" disabled={!holdReasonId || isPending} onClick={onSubmit}>
+          <AppButton type="button" disabled={!canSubmit} onClick={onSubmit}>
             {isPending ? "Holding…" : "Confirm Hold"}
           </AppButton>
         </ModalFooterActions>
       }
     >
       <ModalForm>
+        <ActionHandoffBanner context={handoff} />
         <FormSelect
           id="holdReason"
           label="Hold Reason"
@@ -78,18 +91,20 @@ export function TaskHoldDialog({
           value={holdReasonId === "" ? null : String(holdReasonId)}
           onValueChange={(v) => onHoldReasonChange(v ? Number(v) : "")}
           options={options}
-          placeholder="Select…"
+          placeholder="Select why you are pausing…"
           disabled={isPending || options.length === 0}
           error={options.length === 0 ? "No hold reasons configured" : undefined}
         />
 
         <FormTextArea
           id="holdRemark"
-          label="Remark"
+          label={remarkLabel}
           rows={3}
           value={holdRemark}
           onChange={(e) => onHoldRemarkChange(e.target.value)}
+          placeholder={remarkPlaceholder}
           disabled={isPending}
+          onEnterSubmit={canSubmit ? onSubmit : undefined}
         />
       </ModalForm>
     </Modal>

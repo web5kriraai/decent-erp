@@ -3,36 +3,111 @@ import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { createAppError, notFound, businessRule } from "@/lib/errors/create-app-error";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { resolveEmployeeForRole } from "@/lib/services/assignment-service";
-import { PRODUCTION_POST_APPROVAL_CODES } from "@/lib/services/production-workflow";
+import {
+  isProductionPostApprovalCode,
+  PRODUCTION_POST_APPROVAL_CODES,
+} from "@/lib/services/production-workflow";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+import { TEXTILE_APPROVAL_OWNER_ROLE } from "@/lib/workflow/stage-capabilities";
 
 type Tx = Prisma.TransactionClient;
 
-const LADDER_STAGES = [
-  { code: "PROD_HANDOFF", role: "DESIGN_HEAD", minutes: 60 },
-  { code: "PROD_INSTRUCTION", role: "PRODUCTION_HEAD", minutes: 120 },
-  { code: "PROD_RELEASE", role: "PRODUCTION_HEAD", minutes: 60 },
-  { code: "LIVE_REVIEW", role: "MANAGEMENT", minutes: 60 },
-] as const;
+/** Default minutes for textile ladder stages. */
+const LADDER_MINUTES: Record<string, number> = {
+  PROD_HANDOFF: 60,
+  PROD_INSTRUCTION: 120,
+  PROD_RELEASE: 60,
+  LIVE_REVIEW: 60,
+};
 
-function assertLadderMasters(
+const LADDER_ROLE_FALLBACK: Record<string, string> = {
+  PROD_HANDOFF: "DESIGN_HEAD",
+  PROD_INSTRUCTION: "PRODUCTION_HEAD",
+  PROD_RELEASE: "PRODUCTION_HEAD",
+  LIVE_REVIEW: "MANAGEMENT",
+};
+
+type LadderStage = { code: string; role: string; minutes: number; subProcessId: number; processId: number };
+
+async function resolveLadderStages(
+  tx: Tx,
   subs: Record<string, { id: number; processId: number }>,
   roles: Record<string, { id: number }>,
-): void {
-  const missingSubs = LADDER_STAGES.map((s) => s.code).filter((code) => !subs[code]);
-  const missingRoles = [...new Set(LADDER_STAGES.map((s) => s.role))].filter(
-    (code) => !roles[code],
-  );
-  if (missingSubs.length || missingRoles.length) {
-    const parts: string[] = [];
-    if (missingSubs.length) parts.push(`sub-processes: ${missingSubs.join(", ")}`);
-    if (missingRoles.length) parts.push(`roles: ${missingRoles.join(", ")}`);
+): Promise<LadderStage[]> {
+  const masters = await tx.designSubProcessMaster.findMany({
+    where: { active: true },
+    select: {
+      id: true,
+      code: true,
+      processId: true,
+      capabilities: true,
+      defaultRole: { select: { code: true } },
+    },
+  });
+
+  const fromCaps = masters
+    .filter((m) =>
+      resolveStageBehavior({
+        code: m.code,
+        capabilities: m.capabilities,
+        defaultRoleCode: m.defaultRole?.code,
+      }).unlockAfterDesignApproved,
+    )
+    .map((m) => {
+      const roleCode =
+        m.defaultRole?.code ??
+        LADDER_ROLE_FALLBACK[m.code] ??
+        TEXTILE_APPROVAL_OWNER_ROLE[m.code] ??
+        "PRODUCTION_HEAD";
+      return {
+        code: m.code,
+        role: roleCode,
+        minutes: LADDER_MINUTES[m.code] ?? 60,
+        subProcessId: m.id,
+        processId: m.processId,
+      };
+    });
+
+  // Prefer capability-tagged stages; fall back to textile ladder codes if none tagged yet.
+  let stages: LadderStage[] =
+    fromCaps.length > 0
+      ? fromCaps
+      : PRODUCTION_POST_APPROVAL_CODES.flatMap((code) => {
+          const sub = subs[code];
+          if (!sub) return [];
+          return [
+            {
+              code,
+              role: LADDER_ROLE_FALLBACK[code] ?? "PRODUCTION_HEAD",
+              minutes: LADDER_MINUTES[code] ?? 60,
+              subProcessId: sub.id,
+              processId: sub.processId,
+            } satisfies LadderStage,
+          ];
+        });
+
+  // Stable order: textile order first, then any custom unlock stages.
+  const textileOrder = [...PRODUCTION_POST_APPROVAL_CODES] as string[];
+  stages = [...stages].sort((a, b) => {
+    const ai = textileOrder.indexOf(a.code);
+    const bi = textileOrder.indexOf(b.code);
+    if (ai === -1 && bi === -1) return a.code.localeCompare(b.code);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+
+  const missingRoles = [...new Set(stages.map((s) => s.role))].filter((code) => !roles[code]);
+  if (missingRoles.length) {
     throw createAppError(
       APP_ERROR_CODES.VALIDATION_FAILED,
       422,
       undefined,
-      `Cannot create production stages — missing masters (${parts.join("; ")}). Seed masters first.`,
+      `Cannot create production stages — missing roles: ${missingRoles.join(", ")}.`,
     );
   }
+
+  return stages;
 }
 
 /**
@@ -43,18 +118,27 @@ export async function unlockProductionHandoffTask(
   designId: bigint,
   correlationId: string,
 ): Promise<bigint | null> {
-  const handoffTask = await tx.designTask.findFirst({
+  // Prefer PROD_HANDOFF; otherwise first unlockAfterDesignApproved PENDING task.
+  const candidates = await tx.designTask.findMany({
     where: {
       designId,
-      subProcess: { code: "PROD_HANDOFF" },
       status: "PENDING",
     },
+    orderBy: { sequence: "asc" },
     select: {
       id: true,
       assignedEmployeeId: true,
       assignedRoleId: true,
+      subProcess: { select: { code: true, capabilities: true } },
     },
   });
+
+  const handoffTask =
+    candidates.find((t) => t.subProcess.code === "PROD_HANDOFF") ??
+    candidates.find((t) =>
+      isProductionPostApprovalCode(t.subProcess.code, t.subProcess.capabilities),
+    ) ??
+    null;
   if (!handoffTask) return null;
 
   const design = await tx.designConcept.findUnique({
@@ -97,17 +181,19 @@ export async function appendProductionStageTasks(
   subs: Record<string, { id: number; processId: number }>,
   roles: Record<string, { id: number }>,
 ): Promise<{ created: number }> {
-  assertLadderMasters(subs, roles);
+  const ladderStages = await resolveLadderStages(tx, subs, roles);
+  if (ladderStages.length === 0) return { created: 0 };
 
+  const ladderCodes = ladderStages.map((s) => s.code);
   const existingRows = await tx.designTask.findMany({
     where: {
       designId,
-      subProcess: { code: { in: [...PRODUCTION_POST_APPROVAL_CODES] } },
+      subProcess: { code: { in: ladderCodes } },
     },
     select: { subProcess: { select: { code: true } } },
   });
   const existingCodes = new Set(existingRows.map((r) => r.subProcess.code));
-  const missing = LADDER_STAGES.filter((s) => !existingCodes.has(s.code));
+  const missing = ladderStages.filter((s) => !existingCodes.has(s.code));
   if (missing.length === 0) return { created: 0 };
 
   const maxSeq = await tx.designTask.aggregate({
@@ -119,15 +205,14 @@ export async function appendProductionStageTasks(
 
   let created = 0;
   for (const stage of missing) {
-    const sub = subs[stage.code];
     const role = roles[stage.role];
     const assignee = await resolveEmployeeForRole(role.id);
 
     await tx.designTask.create({
       data: {
         designId,
-        processId: sub.processId,
-        subProcessId: sub.id,
+        processId: stage.processId,
+        subProcessId: stage.subProcessId,
         assignedRoleId: role.id,
         assignedEmployeeId: assignee,
         status: "PENDING",

@@ -78,6 +78,8 @@ export type DesignTask = {
     code: string;
     isFileRequired?: boolean;
     isApproval?: boolean;
+    capabilities?: unknown;
+    defaultRole?: { id?: number; code: string; name?: string } | null;
   };
   timeEvents?: TaskTimeEvent[];
   dueAt?: string | null;
@@ -163,9 +165,22 @@ export type TaskTimeDetail = {
   version: number;
   outputRemark?: string | null;
   assignedEmployeeId?: number | null;
-  design: { id: string; ideaRef: string; collectionName: string };
+  design: {
+    id: string;
+    ideaRef: string;
+    collectionName: string;
+    productType?: string | null;
+  };
   process: { id: number; name: string; code: string };
-  subProcess: { id: number; name: string; code: string; isFileRequired?: boolean };
+  subProcess: {
+    id: number;
+    name: string;
+    code: string;
+    isFileRequired?: boolean;
+    isApproval?: boolean;
+    capabilities?: unknown;
+    defaultRole?: { id?: number; code: string; name?: string } | null;
+  };
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
   timeSummary: TimeSummary;
   timeline: TaskTimeEvent[];
@@ -175,6 +190,7 @@ export type TaskTimeDetail = {
     dependencySequence: number | null;
     status: string;
     assignedEmployeeId: number | null;
+    outputRemark?: string | null;
     subProcess: { name: string; code: string; isApproval?: boolean };
     assignedEmployee?: { name: string } | null;
   }>;

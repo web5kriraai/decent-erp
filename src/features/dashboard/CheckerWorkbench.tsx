@@ -9,17 +9,16 @@ import { StatCard } from "@/components/ui/StatCard";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useCorrections } from "@/hooks/use-corrections";
-import { usePendingApprovals } from "@/hooks/use-approvals";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
 const DONE = new Set(["COMPLETED", "CANCELLED"]);
 const OPEN_CORRECTION = new Set(["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"]);
-const QUALITY_CHECK_CODES = new Set(["PUNCH_CHECK", "SAMPLE_CHECK"]);
 
 type CheckerTask = {
   id: string;
@@ -27,19 +26,43 @@ type CheckerTask = {
   effectiveStatus?: string;
   isWaitingOnOthers?: boolean;
   design: { id: string; ideaRef: string };
-  subProcess: { code?: string; name: string };
+  subProcess: { code?: string; name: string; isApproval?: boolean; capabilities?: unknown };
 };
 
 function isQualityCheck(task: CheckerTask) {
-  return !!task.subProcess.code && QUALITY_CHECK_CODES.has(task.subProcess.code);
+  if (!task.subProcess.code) return false;
+  const behavior = resolveStageBehavior({
+    code: task.subProcess.code,
+    isApproval: task.subProcess.isApproval,
+    capabilities: task.subProcess.capabilities,
+  });
+  return (
+    behavior.isApproval &&
+    (behavior.approvalSurface === "task_panel" ||
+      behavior.approvalSurface === "task_end_dialog" ||
+      behavior.sampleDecisionOutcomes)
+  );
 }
 
 function isPunchCheck(task: CheckerTask) {
-  return task.subProcess.code === "PUNCH_CHECK";
+  if (!task.subProcess.code) return false;
+  const behavior = resolveStageBehavior({
+    code: task.subProcess.code,
+    capabilities: task.subProcess.capabilities,
+  });
+  return (
+    behavior.isApproval &&
+    behavior.approvalSurface === "task_panel" &&
+    !behavior.sampleDecisionOutcomes
+  );
 }
 
 function isSampleCheck(task: CheckerTask) {
-  return task.subProcess.code === "SAMPLE_CHECK";
+  if (!task.subProcess.code) return false;
+  return resolveStageBehavior({
+    code: task.subProcess.code,
+    capabilities: task.subProcess.capabilities,
+  }).sampleDecisionOutcomes;
 }
 
 export function CheckerWorkbench() {
@@ -47,10 +70,8 @@ export function CheckerWorkbench() {
   const firstName = session?.user?.name?.split(" ")[0] ?? "there";
   const tasksQuery = useMyTasks(true);
   const correctionsQuery = useCorrections(undefined, true);
-  const approvalsQuery = usePendingApprovals(true);
 
   const corrections = (correctionsQuery.data ?? []).filter((c) => OPEN_CORRECTION.has(c.status));
-  const managementApprovals = approvalsQuery.data ?? [];
 
   const queues = useMemo(() => {
     const tasks = (tasksQuery.data ?? []) as CheckerTask[];
@@ -79,19 +100,18 @@ export function CheckerWorkbench() {
     <WorkbenchShell
       firstName={firstName}
       title="Sample checker desk"
-      subtitle="Punch checks, sample checks, management sign-off, and completed reviews"
+      subtitle="Punch checks, sample checks, and completed reviews"
       actions={
         <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
           My Action Center
         </AppButtonLink>
       }
-      isLoading={tasksQuery.isLoading || correctionsQuery.isLoading || approvalsQuery.isLoading}
-      isError={tasksQuery.isError || correctionsQuery.isError || approvalsQuery.isError}
-      error={tasksQuery.error ?? correctionsQuery.error ?? approvalsQuery.error}
+      isLoading={tasksQuery.isLoading || correctionsQuery.isLoading}
+      isError={tasksQuery.isError || correctionsQuery.isError}
+      error={tasksQuery.error ?? correctionsQuery.error}
       onRetry={() => {
         tasksQuery.refetch();
         correctionsQuery.refetch();
-        approvalsQuery.refetch();
       }}
     >
       <div className="workbench-overview">
@@ -100,36 +120,12 @@ export function CheckerWorkbench() {
           <StatCard label="Punch checks waiting" value={queues.pendingPunch.length} />
           <StatCard label="Sample checks waiting" value={queues.pendingSample.length} />
           <StatCard label="Returned / correction" value={queues.returned.length + corrections.length} />
-          <StatCard label="Management sign-off" value={managementApprovals.length} />
         </div>
       </div>
 
       <section className="workbench-queues" aria-label="Checker queues">
         <h2 className="workbench-section-title">Quality queues</h2>
         <div className="workbench-queue-grid">
-          <WorkbenchQueueCard
-            title="Management sign-off"
-            href={`${ROUTES.quality.approvals}?tab=management`}
-            linkLabel="Open approvals"
-            emptyMessage="No designs waiting for checker sign-off."
-          >
-            {managementApprovals.length === 0 ? (
-              <WorkbenchEmpty message="When a design is submitted for final approval, your level appears here first." />
-            ) : (
-              <ul className="detail-task-list">
-                {managementApprovals.slice(0, 6).map((item) => (
-                  <WorkbenchListItem
-                    key={`${item.designId}-${item.currentLevel.id}`}
-                    primaryHref={`${ROUTES.quality.approvals}?tab=management`}
-                    primaryLabel={item.design.ideaRef}
-                    meta={`${item.currentLevel.name} · ${item.design.collectionName}`}
-                    trailing={<StatusBadge status={item.design.status} />}
-                  />
-                ))}
-              </ul>
-            )}
-          </WorkbenchQueueCard>
-
           <WorkbenchQueueCard
             title="Pending punch checks"
             href={ROUTES.work.tasks}

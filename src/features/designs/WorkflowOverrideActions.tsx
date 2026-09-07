@@ -9,14 +9,17 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { AppButton } from "@/components/ui/AppButton";
+import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import {
   isDesignClosedForOverride,
+  isOpenTaskStatus,
   isQcCheckTask,
 } from "@/lib/services/workflow-override-utils";
 import {
   useBypassDesignPhase,
   useSendDesignToQc,
 } from "@/hooks/use-designs";
+import type { HandoffContext } from "@/lib/handoff-context";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 
 type WorkflowOverrideActionsProps = {
@@ -28,6 +31,63 @@ function taskLabel(task: DesignTask) {
   return `#${task.sequence} ${task.subProcess.name} (${task.status.replace(/_/g, " ")})`;
 }
 
+function stagesSkippedBeforeTarget(
+  tasks: DesignTask[],
+  targetTaskId: string | null,
+): DesignTask[] {
+  if (!targetTaskId) return [];
+  const target = tasks.find((t) => t.id === targetTaskId);
+  if (!target) return [];
+  return tasks.filter(
+    (t) =>
+      t.id !== target.id &&
+      t.sequence < target.sequence &&
+      isOpenTaskStatus(t.status),
+  );
+}
+
+function buildOverrideHandoff(
+  design: DesignSummary,
+  target: DesignTask | undefined,
+  skipped: DesignTask[],
+  kind: "qc" | "bypass",
+): HandoffContext {
+  const targetLabel = target
+    ? `${target.subProcess.name}${
+        target.assignedEmployee?.name ? ` → ${target.assignedEmployee.name}` : ""
+      }`
+    : null;
+
+  const skipNames = skipped.map((t) => t.subProcess.name);
+  const blockers =
+    skipNames.length > 0
+      ? [
+          `Will skip ${skipNames.length} open stage${skipNames.length === 1 ? "" : "s"}: ${skipNames.join(", ")}`,
+        ]
+      : undefined;
+
+  return {
+    ideaRef: design.ideaRef,
+    collectionName: design.collectionName,
+    productType: design.productType?.name ?? null,
+    priority: design.priority,
+    stageCode: target?.subProcess.code ?? null,
+    stageName: target?.subProcess.name ?? null,
+    assigneeName: target?.assignedEmployee?.name ?? null,
+    status: target?.status ?? design.status,
+    description:
+      kind === "qc"
+        ? "Jumps ahead to a QC / check phase. Open stages before the target will be skipped."
+        : "Bypasses to a chosen phase. Open stages before the target will be skipped.",
+    nextStepHint: targetLabel
+      ? kind === "qc"
+        ? `Send to QC phase: ${targetLabel}`
+        : `Bypass to phase: ${targetLabel}`
+      : "Select a target phase",
+    blockers,
+  };
+}
+
 export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideActionsProps) {
   const [sendQcOpen, setSendQcOpen] = useState(false);
   const [bypassOpen, setBypassOpen] = useState(false);
@@ -37,8 +97,9 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
   const sendQc = useSendDesignToQc(designId);
   const bypass = useBypassDesignPhase(designId);
 
+  const tasks = design.tasks ?? [];
+
   const qcTasks = useMemo(() => {
-    const tasks = design.tasks ?? [];
     return tasks.filter(
       (t) =>
         isQcCheckTask({
@@ -46,16 +107,30 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
           isApproval: t.subProcess.isApproval,
         }) && t.status !== "COMPLETED",
     );
-  }, [design.tasks]);
+  }, [tasks]);
 
   const bypassTasks = useMemo(() => {
-    const tasks = design.tasks ?? [];
     return tasks.filter((t) => t.status !== "COMPLETED");
-  }, [design.tasks]);
+  }, [tasks]);
 
   const reasonOk = reason.trim().length >= 10;
   const isPending = sendQc.isPending || bypass.isPending;
   const designClosed = isDesignClosedForOverride(design.status);
+
+  const skippedForTarget = useMemo(
+    () => stagesSkippedBeforeTarget(tasks, targetTaskId),
+    [tasks, targetTaskId],
+  );
+  const targetTask = tasks.find((t) => t.id === targetTaskId);
+
+  const sendQcHandoff = useMemo(
+    () => buildOverrideHandoff(design, targetTask, skippedForTarget, "qc"),
+    [design, targetTask, skippedForTarget],
+  );
+  const bypassHandoff = useMemo(
+    () => buildOverrideHandoff(design, targetTask, skippedForTarget, "bypass"),
+    [design, targetTask, skippedForTarget],
+  );
 
   if (designClosed) {
     return null;
@@ -122,6 +197,7 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
       <Modal
         open={sendQcOpen}
         title="Send to QC phase"
+        description="Skips open stages before the selected QC check and opens that phase."
         onClose={resetAndClose}
         footer={
           <ModalFooterActions>
@@ -140,6 +216,7 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
         }
       >
         <ModalForm>
+          <ActionHandoffBanner context={sendQcHandoff} />
           <FormSelect
             id="qcTarget"
             label="QC phase"
@@ -158,6 +235,9 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             disabled={isPending}
+            onEnterSubmit={
+              targetTaskId && reasonOk && !isPending ? () => void submitSendQc() : undefined
+            }
             error={
               reason.length > 0 && !reasonOk
                 ? "Minimum 10 characters"
@@ -170,6 +250,7 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
       <Modal
         open={bypassOpen}
         title="Bypass to phase"
+        description="Jumps to a chosen phase and skips any open stages before it."
         onClose={resetAndClose}
         footer={
           <ModalFooterActions>
@@ -188,6 +269,7 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
         }
       >
         <ModalForm>
+          <ActionHandoffBanner context={bypassHandoff} />
           <FormSelect
             id="bypassTarget"
             label="Target phase"
@@ -206,6 +288,9 @@ export function WorkflowOverrideActions({ designId, design }: WorkflowOverrideAc
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             disabled={isPending}
+            onEnterSubmit={
+              targetTaskId && reasonOk && !isPending ? () => void submitBypass() : undefined
+            }
             error={
               reason.length > 0 && !reasonOk
                 ? "Minimum 10 characters"

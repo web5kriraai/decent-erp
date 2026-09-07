@@ -7,9 +7,13 @@ import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { ROUTES } from "@/config/routes";
+import { resolveWorkOpenHref } from "@/lib/resolve-work-open-href";
+import {
+  approvalsHubHrefForRole,
+  getApprovalHubTabsForRole,
+} from "@/lib/stage-approval-rbac";
 import { useDesignHeadWorkbench } from "@/hooks/use-workbench";
 import { useMyTasks } from "@/hooks/use-tasks";
-import { usePendingApprovals } from "@/hooks/use-approvals";
 import { useCorrections } from "@/hooks/use-corrections";
 import { useDesignsList } from "@/hooks/use-designs";
 import {
@@ -25,17 +29,17 @@ const CLOSED_DESIGN = new Set(["CLOSED", "REJECTED", "PRODUCTION_RELEASED", "LIV
 
 export function DesignHeadDashboard() {
   const { data: session } = useSession();
+  const roleCode = session?.user?.roleCode;
+  const hubTabs = getApprovalHubTabsForRole(roleCode);
   const summaryQuery = useDesignHeadWorkbench(true);
   const tasksQuery = useMyTasks(true);
-  const approvalsQuery = usePendingApprovals(true);
   const correctionsQuery = useCorrections(undefined, true);
   const designsQuery = useDesignsList(true);
 
   const summary = summaryQuery.data;
   const tasks = tasksQuery.data ?? [];
   const openTasks = tasks.filter(isDashboardOpenTask);
-  const approvals = approvalsQuery.data ?? [];
-  const corrections = (correctionsQuery.data ?? []).filter((c) =>
+    const corrections = (correctionsQuery.data ?? []).filter((c) =>
     ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"].includes(c.status),
   );
   const activeDesigns = (designsQuery.data?.items ?? []).filter(
@@ -61,28 +65,24 @@ export function DesignHeadDashboard() {
       isLoading={
         summaryQuery.isLoading ||
         tasksQuery.isLoading ||
-        approvalsQuery.isLoading ||
         correctionsQuery.isLoading ||
         designsQuery.isLoading
       }
       isError={
         summaryQuery.isError ||
         tasksQuery.isError ||
-        approvalsQuery.isError ||
         correctionsQuery.isError ||
         designsQuery.isError
       }
       error={
         summaryQuery.error ??
         tasksQuery.error ??
-        approvalsQuery.error ??
         correctionsQuery.error ??
         designsQuery.error
       }
       onRetry={() => {
         summaryQuery.refetch();
         tasksQuery.refetch();
-        approvalsQuery.refetch();
         correctionsQuery.refetch();
         designsQuery.refetch();
       }}
@@ -91,8 +91,7 @@ export function DesignHeadDashboard() {
         <div className="stat-grid workbench-pulse">
           <StatCard label="My open tasks" value={summary?.myOpenTasks ?? openTasks.length} />
           <StatCard label="Stage approvals" value={summary?.stageApprovals?.length ?? 0} />
-          <StatCard label="Ready for sign-off" value={summary?.readyForSignOff ?? 0} />
-          <StatCard label="Management approvals" value={approvals.length} />
+          <StatCard label="Ready to approve" value={summary?.readyForSignOff ?? 0} />
           <StatCard label="My open corrections" value={summary?.openCorrections ?? corrections.length} />
           <StatCard label="Handoff pending" value={summary?.handoffPending ?? 0} />
           <StatCard
@@ -138,77 +137,64 @@ export function DesignHeadDashboard() {
             )}
           </WorkbenchQueueCard>
 
-          <WorkbenchQueueCard
-            title="Stage approvals"
-            href={`${ROUTES.quality.approvals}?tab=stage`}
-            linkLabel="Open approvals"
-            emptyMessage="No workflow stage approvals waiting on you."
-          >
-            {!summary?.stageApprovals?.length ? (
-              <WorkbenchEmpty message="When costing or sample work is submitted, the approval card appears here and on the design page." />
-            ) : (
-              <ul className="detail-task-list">
-                {summary.stageApprovals.slice(0, 6).map((item) => (
-                  <WorkbenchListItem
-                    key={item.taskId}
-                    primaryHref={ROUTES.designs.detail(item.designId)}
-                    primaryLabel={`${item.ideaRef} · ${item.stageName}`}
-                    meta={
-                      item.workStageName
-                        ? `Review ${item.workStageName} · ${item.collectionName}`
-                        : item.collectionName
-                    }
-                    trailing={<StatusBadge status={item.status} />}
-                  />
-                ))}
-              </ul>
-            )}
-          </WorkbenchQueueCard>
+          {hubTabs.stage ? (
+            <WorkbenchQueueCard
+              title="Stage approvals"
+              href={approvalsHubHrefForRole(roleCode, "stage")}
+              linkLabel="Open approvals"
+              emptyMessage="No workflow stage approvals waiting on you."
+            >
+              {!summary?.stageApprovals?.length ? (
+                <WorkbenchEmpty message="When costing or sample work is submitted, the approval card appears here and on the design page." />
+              ) : (
+                <ul className="detail-task-list">
+                  {summary.stageApprovals.slice(0, 6).map((item) => (
+                    <WorkbenchListItem
+                      key={item.taskId}
+                      primaryHref={
+                        resolveWorkOpenHref({
+                          taskId: item.taskId,
+                          designId: item.designId,
+                          intent: "task",
+                        }) ?? ROUTES.designs.detail(item.designId)
+                      }
+                      primaryLabel={`${item.ideaRef} · ${item.stageName}`}
+                      meta={
+                        item.workStageName
+                          ? `Review ${item.workStageName} · ${item.collectionName}`
+                          : item.collectionName
+                      }
+                      trailing={<StatusBadge status={item.status} />}
+                    />
+                  ))}
+                </ul>
+              )}
+            </WorkbenchQueueCard>
+          ) : null}
 
-          <WorkbenchQueueCard
-            title="Ready for sign-off"
-            href={`${ROUTES.quality.approvals}?tab=ready`}
-            linkLabel="Submit for approval"
-            emptyMessage="No designs ready for management sign-off."
-          >
-            {!summary?.readyForSignOffDesigns?.length ? (
-              <WorkbenchEmpty message="When all workflow stages finish, designs appear here for one-click submission to the management chain." />
-            ) : (
-              <ul className="detail-task-list">
-                {summary.readyForSignOffDesigns.map((item) => (
-                  <WorkbenchListItem
-                    key={item.designId}
-                    primaryHref={`${ROUTES.quality.approvals}?tab=ready`}
-                    primaryLabel={item.ideaRef}
-                    meta={item.collectionName}
-                  />
-                ))}
-              </ul>
-            )}
-          </WorkbenchQueueCard>
-
-          <WorkbenchQueueCard
-            title="Management approvals"
-            href={`${ROUTES.quality.approvals}?tab=management`}
-            linkLabel="Review all"
-            emptyMessage="Nothing waiting on management approval."
-          >
-            {approvals.length === 0 ? (
-              <WorkbenchEmpty message="Nothing waiting on your approval." />
-            ) : (
-              <ul className="detail-task-list">
-                {approvals.slice(0, 6).map((item) => (
-                  <WorkbenchListItem
-                    key={`${item.designId}-${item.currentLevel.id}`}
-                    primaryHref={`${ROUTES.quality.approvals}?tab=management`}
-                    primaryLabel={item.design.ideaRef}
-                    meta={`${item.currentLevel.name} · ${item.design.collectionName}`}
-                    trailing={<StatusBadge status={item.design.status} />}
-                  />
-                ))}
-              </ul>
-            )}
-          </WorkbenchQueueCard>
+          {hubTabs.ready ? (
+            <WorkbenchQueueCard
+              title="Ready to approve"
+              href={approvalsHubHrefForRole(roleCode, "ready")}
+              linkLabel="Approve for production"
+              emptyMessage="No designs ready to approve for production."
+            >
+              {!summary?.readyForSignOffDesigns?.length ? (
+                <WorkbenchEmpty message="When all workflow stages finish, designs appear here for Design Head final approve." />
+              ) : (
+                <ul className="detail-task-list">
+                  {summary.readyForSignOffDesigns.map((item) => (
+                    <WorkbenchListItem
+                      key={item.designId}
+                      primaryHref={ROUTES.quality.requestSignOff(item.designId)}
+                      primaryLabel={item.ideaRef}
+                      meta={item.collectionName}
+                    />
+                  ))}
+                </ul>
+              )}
+            </WorkbenchQueueCard>
+          ) : null}
 
           <WorkbenchQueueCard
             title="Production handoff"
@@ -217,7 +203,7 @@ export function DesignHeadDashboard() {
             emptyMessage="No handoffs waiting on you."
           >
             {!summary?.handoffTasks?.length ? (
-              <WorkbenchEmpty message="Complete management approval first — handoff unlocks after Approved status." />
+              <WorkbenchEmpty message="Approve for production first — handoff unlocks after Approved status." />
             ) : (
               <ul className="detail-task-list">
                 {summary.handoffTasks.map((task) => (

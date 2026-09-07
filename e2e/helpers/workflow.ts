@@ -463,14 +463,16 @@ export async function requestDesignApproval(
   return apiPostJson(page, `/api/designs/${designId}/request-approval`, {
     requesterRemark:
       options?.requesterRemark ??
-      "E2E request for management sign-off with full package context.",
+      "E2E Design Head approve for production with full package context.",
     summaryNote: options?.summaryNote,
   });
 }
 
 export async function requestDesignApprovalIfNeeded(page: Page, designId: string) {
   const design = await getDesign(page, designId);
-  if (design.status === "APPROVAL_PENDING") return design;
+  if (design.status === "APPROVED" || design.status === "PRODUCTION_RELEASED" || design.status === "LIVE") {
+    return design;
+  }
   await login(page, USERS.designHead.email, USERS.designHead.password);
   return requestDesignApproval(page, designId);
 }
@@ -496,13 +498,8 @@ export async function submitApprovalAtLevel(
 }
 
 export async function submitManagementApprovals(page: Page, designId: string) {
+  // Option A: Design Head Request Sign-off is the final approve (no level chain).
   await requestDesignApprovalIfNeeded(page, designId);
-
-  const levels = await apiGetJson<ApprovalLevelRow[]>(page, "/api/approvals?view=levels");
-
-  for (const level of levels.sort((a, b) => a.sequence - b.sequence)) {
-    await submitApprovalAtLevel(page, designId, level, "APPROVED");
-  }
 }
 
 export async function bypassDesignToPhase(

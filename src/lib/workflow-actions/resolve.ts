@@ -6,11 +6,11 @@ import {
 } from "@/lib/design-workflow";
 import { canRoleSeeReadyForSignOff } from "@/lib/approval-hub-rbac";
 import { PERMISSIONS } from "@/lib/permissions";
-import { isSignOffScopeExcluded } from "@/lib/services/approval-queue-utils";
+import { isSignOffScopeExcludedTask } from "@/lib/services/approval-queue-utils";
 import {
   canRoleAccessApprovalsHub,
   canRoleActOnStageApproval,
-  getStageApprovalUiConfig,
+  usesStageApprovalActionsNotTimerEnd,
 } from "@/lib/stage-approval-rbac";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 import { actionMeta } from "@/lib/workflow-actions/definitions";
@@ -42,11 +42,18 @@ function buildAction(
 
 function incompleteStageLabels(tasks: DesignTask[] | undefined): string[] {
   return (tasks ?? [])
-    .filter(
-      (t) =>
-        !SATISFIED.has(t.status) &&
-        !isSignOffScopeExcluded(t.subProcess?.code),
-    )
+    .filter((t) => {
+      if (SATISFIED.has(t.status)) return false;
+      if (!t.subProcess?.code) return true;
+      return !isSignOffScopeExcludedTask({
+        subProcess: {
+          code: t.subProcess.code,
+          isApproval: t.subProcess.isApproval,
+          isFileRequired: t.subProcess.isFileRequired,
+          capabilities: t.subProcess.capabilities,
+        },
+      });
+    })
     .map((t) => t.subProcess?.name ?? "Stage");
 }
 
@@ -58,11 +65,11 @@ export function resolveDesignContextActions(input: {
   approvalsQueueHref?: string;
 }): ResolvedWorkflowAction[] {
   const { design, employeeId, permissions, roleCode } = input;
-  const approvalsQueueHref = input.approvalsQueueHref ?? ROUTES.quality.approvals;
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const canRequestApproval = canRoleSeeReadyForSignOff(roleCode);
   const canOpenApprovalsHub = canRoleAccessApprovalsHub(roleCode);
+  void canOpenApprovalsHub;
   const tasks = design.tasks ?? [];
   const actions: ResolvedWorkflowAction[] = [];
 
@@ -71,7 +78,11 @@ export function resolveDesignContextActions(input: {
     const isApproval = !!nextTask.subProcess?.isApproval;
     const approvalCode = nextTask.subProcess?.code ?? "";
     const canActOnApproval =
-      !isApproval || canRoleActOnStageApproval(roleCode, approvalCode);
+      !isApproval ||
+      canRoleActOnStageApproval(roleCode, approvalCode, {
+        ownerRoleCode: nextTask.subProcess?.defaultRole?.code,
+        capabilities: nextTask.subProcess?.capabilities,
+      });
     if (!isApproval || canActOnApproval) {
       actions.push(
         buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
@@ -93,8 +104,15 @@ export function resolveDesignContextActions(input: {
   const liveReviewOpen =
     liveReview != null &&
     liveReviewStatuses.has(liveReview.status) &&
-    canRoleActOnStageApproval(roleCode, "LIVE_REVIEW") &&
-    isStageApprovalActionable("LIVE_REVIEW", prodRelease);
+    canRoleActOnStageApproval(roleCode, "LIVE_REVIEW", {
+      ownerRoleCode: liveReview.subProcess?.defaultRole?.code,
+      capabilities: liveReview.subProcess?.capabilities,
+    }) &&
+    isStageApprovalActionable(
+      "LIVE_REVIEW",
+      prodRelease,
+      liveReview.subProcess?.capabilities,
+    );
 
   const openApprovals = tasks.some(
     (t) =>
@@ -118,16 +136,6 @@ export function resolveDesignContextActions(input: {
         }),
       );
     }
-  } else if (canOpenApprovalsHub && design.status === "APPROVAL_PENDING") {
-    actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE, {
-        enabled: true,
-        href: `${approvalsQueueHref}?tab=management`,
-        label: "Open Management Sign-off",
-        description: "Review and submit your management approval decision.",
-        designId: design.id,
-      }),
-    );
   } else if (canRequestApproval && ["DRAFT", "ACTIVE"].includes(design.status)) {
     const incomplete = incompleteStageLabels(tasks);
     const readyForRequest = incomplete.length === 0 && !openApprovals;
@@ -135,7 +143,10 @@ export function resolveDesignContextActions(input: {
       actions.push(
         buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL, {
           enabled: true,
+          label: "Approve for production",
+          description: "Submit the package to approve this design and unlock production handoff.",
           designId: design.id,
+          href: ROUTES.quality.requestSignOff(design.id),
         }),
       );
     }
@@ -186,13 +197,12 @@ export function resolveTaskContextActions(input: {
   const actions: ResolvedWorkflowAction[] = [];
   const { task } = input;
 
-  // Stage-approval panels (inline / task_panel) use approve-stage — hide execute Start/End.
-  const stageUi = task.subProcess?.code
-    ? getStageApprovalUiConfig(task.subProcess.code)
-    : null;
-  if (stageUi && stageUi.surface !== "task_end_dialog") {
-    return [];
-  }
+  // Stage-approval stages finish via Approve/Reject — not timer End.
+  // Hold/Resume/Start still apply so Design Head can track review time.
+  const blocksTimerEnd = usesStageApprovalActionsNotTimerEnd(task.subProcess?.code, {
+    isApproval: task.subProcess?.isApproval,
+    capabilities: (task.subProcess as { capabilities?: unknown } | undefined)?.capabilities,
+  });
 
   if (task.status === "ASSIGNED" || task.status === "PENDING") {
     const availability = getTaskStartAvailability(
@@ -224,15 +234,23 @@ export function resolveTaskContextActions(input: {
   if (task.status === "RUNNING") {
     actions.push(
       buildAction(WORKFLOW_ACTION_CODES.HOLD_TASK, { enabled: true, taskId: task.id }),
-      buildAction(WORKFLOW_ACTION_CODES.END_TASK, { enabled: true, taskId: task.id }),
     );
+    if (!blocksTimerEnd) {
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.END_TASK, { enabled: true, taskId: task.id }),
+      );
+    }
   }
 
   if (task.status === "ON_HOLD") {
     actions.push(
       buildAction(WORKFLOW_ACTION_CODES.RESUME_TASK, { enabled: true, taskId: task.id }),
-      buildAction(WORKFLOW_ACTION_CODES.END_TASK, { enabled: true, taskId: task.id }),
     );
+    if (!blocksTimerEnd) {
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.END_TASK, { enabled: true, taskId: task.id }),
+      );
+    }
   }
 
   return actions;
@@ -302,33 +320,9 @@ export function resolveApprovalContextActions(input: {
     );
   }
 
-  if (!input.approval || !canApprove) {
-    return actions;
-  }
-
-  const costingBlocksApprove = input.approval.costingReady === false;
-
-  // Hide Approve when costing blocks final level — Reject / Correction remain available.
-  if (!costingBlocksApprove) {
-    actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.APPROVE_LEVEL, {
-        enabled: true,
-        designId: input.approval.designId,
-      }),
-    );
-  }
-
-  actions.push(
-    buildAction(WORKFLOW_ACTION_CODES.REJECT_LEVEL, {
-      enabled: true,
-      designId: input.approval.designId,
-    }),
-    buildAction(WORKFLOW_ACTION_CODES.REQUEST_APPROVAL_CORRECTION, {
-      enabled: true,
-      designId: input.approval.designId,
-    }),
-  );
-
+  // Option A: level decide actions removed — Design Head uses Request Sign-off → APPROVED.
+  void input.approval;
+  void canApprove;
   return actions;
 }
 

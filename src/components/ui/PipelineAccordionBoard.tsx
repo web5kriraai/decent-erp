@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { IconChevronDown, IconChevronUp } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 export type PipelineAccordionSection<T> = {
@@ -92,9 +92,9 @@ export function PipelineAccordionBoard<T>({
               <span className="pipeline-accordion-meta">
                 <span className="pipeline-accordion-count">{section.items.length}</span>
                 {isOpen ? (
-                  <ChevronUp className="pipeline-accordion-chevron" aria-hidden />
+                  <IconChevronUp className="pipeline-accordion-chevron" aria-hidden />
                 ) : (
-                  <ChevronDown className="pipeline-accordion-chevron" aria-hidden />
+                  <IconChevronDown className="pipeline-accordion-chevron" aria-hidden />
                 )}
               </span>
             </button>

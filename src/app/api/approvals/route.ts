@@ -4,7 +4,6 @@ import { PERMISSIONS } from "@/lib/permissions";
 import {
   getApprovalLevels,
   listDesignsReadyForSignOff,
-  listPendingApprovalsForEmployee,
   submitApproval,
 } from "@/lib/services/approval-service";
 import { listStageApprovalQueue } from "@/lib/services/stage-approval-queue";
@@ -69,12 +68,9 @@ export async function GET(request: Request) {
       }
 
       const tabs = getApprovalHubTabsForRole(ctx.roleCode);
-      const [stageApprovals, managementApprovals, readyForSignOff] = await Promise.all([
+      const [stageApprovals, readyForSignOff] = await Promise.all([
         tabs.stage
           ? listStageApprovalQueue(ctx.employeeId, ctx.roleCode)
-          : Promise.resolve([]),
-        tabs.management
-          ? listPendingApprovalsForEmployee(ctx.employeeId)
           : Promise.resolve([]),
         tabs.ready
           ? listDesignsReadyForSignOff(ctx.employeeId, ctx.roleCode)
@@ -84,7 +80,7 @@ export async function GET(request: Request) {
       return jsonOk(
         serializeBigInt({
           stageApprovals: filterStageApprovalsForRole(ctx.roleCode, stageApprovals),
-          managementApprovals,
+          managementApprovals: [],
           readyForSignOff,
           tabs,
         }),
@@ -94,8 +90,9 @@ export async function GET(request: Request) {
   }
 
   return withApiHandler(PERMISSIONS.DESIGN_APPROVE, async (ctx) => {
-    const pending = await listPendingApprovalsForEmployee(ctx.employeeId);
-    return jsonOk(serializeBigInt(pending), ctx.correlationId);
+    // Option A: decide queue removed — empty list for any legacy clients.
+    void ctx;
+    return jsonOk([], ctx.correlationId);
   });
 }
 

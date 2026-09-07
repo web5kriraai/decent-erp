@@ -10,11 +10,9 @@ import { WorkbenchShell } from "@/features/dashboard/workbench-shared";
 import { IconPlus } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS, hasPermission } from "@/lib/permissions";
-import { canRoleSeeManagementSignOff } from "@/lib/approval-hub-rbac";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useMyTimeSummary } from "@/hooks/use-time";
-import { usePendingApprovals } from "@/hooks/use-approvals";
 import { useCorrections } from "@/hooks/use-corrections";
 import { useApprovedDesigns } from "@/hooks/use-production";
 import { useAdminDashboardStats } from "@/hooks/use-admin-dashboard";
@@ -36,12 +34,10 @@ function QueueEmpty({ message }: { message: string }) {
 export function ExecutorWorkbench() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
-  const roleCode = session?.user?.roleCode;
 
   const canCreateDesign = hasPermission(permissions, PERMISSIONS.DESIGN_CREATE);
   const canAssign = hasPermission(permissions, PERMISSIONS.DESIGN_ASSIGN);
   const canExecute = hasPermission(permissions, PERMISSIONS.TASK_EXECUTE);
-  const showManagementApprovals = canRoleSeeManagementSignOff(roleCode);
   const canCorrections = hasPermission(permissions, PERMISSIONS.CORRECTION_RAISE);
   const canCost = hasPermission(permissions, PERMISSIONS.COST_VIEW);
   const canRelease = hasPermission(permissions, PERMISSIONS.PRODUCTION_RELEASE);
@@ -51,14 +47,12 @@ export function ExecutorWorkbench() {
   const designsQuery = useDesignsList(canViewPipeline || canCost);
   const tasksQuery = useMyTasks(canExecute);
   const timeQuery = useMyTimeSummary(canExecute);
-  const approvalsQuery = usePendingApprovals(showManagementApprovals);
   const correctionsQuery = useCorrections(undefined, canCorrections);
   const releaseQuery = useApprovedDesigns(canRelease);
   const adminQuery = useAdminDashboardStats(isMasterAdmin);
 
   const designs = designsQuery.data?.items ?? [];
   const tasks = tasksQuery.data ?? [];
-  const approvals = approvalsQuery.data ?? [];
   const corrections = (correctionsQuery.data ?? []).filter((c) =>
     OPEN_CORRECTION.has(c.status),
   );
@@ -74,7 +68,6 @@ export function ExecutorWorkbench() {
     (canViewPipeline && designsQuery.isLoading) ||
     (canCost && !canViewPipeline && designsQuery.isLoading) ||
     (canExecute && (tasksQuery.isLoading || timeQuery.isLoading)) ||
-    (showManagementApprovals && approvalsQuery.isLoading) ||
     (canCorrections && correctionsQuery.isLoading) ||
     (canRelease && releaseQuery.isLoading) ||
     (isMasterAdmin && adminQuery.isLoading);
@@ -83,7 +76,6 @@ export function ExecutorWorkbench() {
     designsQuery.isError ||
     tasksQuery.isError ||
     (canExecute && timeQuery.isError) ||
-    approvalsQuery.isError ||
     correctionsQuery.isError ||
     releaseQuery.isError ||
     (isMasterAdmin && adminQuery.isError);
@@ -94,7 +86,6 @@ export function ExecutorWorkbench() {
       tasksQuery.refetch();
       timeQuery.refetch();
     }
-    if (showManagementApprovals) approvalsQuery.refetch();
     if (canCorrections) correctionsQuery.refetch();
     if (canRelease) releaseQuery.refetch();
     if (isMasterAdmin) adminQuery.refetch();
@@ -124,7 +115,6 @@ export function ExecutorWorkbench() {
         designsQuery.error ??
         tasksQuery.error ??
         (canExecute ? timeQuery.error : undefined) ??
-        approvalsQuery.error ??
         correctionsQuery.error ??
         releaseQuery.error ??
         adminQuery.error
@@ -145,9 +135,6 @@ export function ExecutorWorkbench() {
                   />
                 )}
               </>
-            )}
-            {showManagementApprovals && (
-              <StatCard label="Pending Approvals" value={approvals.length} />
             )}
             {canCorrections && (
               <StatCard label="My open corrections" value={corrections.length} />
@@ -235,44 +222,6 @@ export function ExecutorWorkbench() {
                             <StatusBadge status={resolveListItemDisplayStatus(task)} />
                           </li>
                         ))}
-                    </ul>
-                  )}
-              </AppCard>
-            )}
-
-            {showManagementApprovals && (
-              <AppCard
-                title="Management approvals"
-                headerAction={
-                  <AppButtonLink
-                    href={`${ROUTES.quality.approvals}?tab=management`}
-                    appVariant="ghost"
-                    size="sm"
-                  >
-                    Review all
-                  </AppButtonLink>
-                }
-              >
-                  {approvals.length === 0 ? (
-                    <QueueEmpty message="Nothing waiting on your approval." />
-                  ) : (
-                    <ul className="detail-task-list">
-                      {approvals.slice(0, 6).map((item) => (
-                        <li key={`${item.designId}-${item.currentLevel.id}`}>
-                          <div>
-                            <Link
-                              href={`${ROUTES.quality.approvals}?tab=management`}
-                              className="data-table-link"
-                            >
-                              {item.design.ideaRef}
-                            </Link>
-                            <p className="workbench-row-meta">
-                              {item.currentLevel.name} · {item.design.collectionName}
-                            </p>
-                          </div>
-                          <StatusBadge status={item.design.status} />
-                        </li>
-                      ))}
                     </ul>
                   )}
               </AppCard>

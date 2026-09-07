@@ -371,6 +371,14 @@ export function DesignCreateForm() {
                   rows={3}
                   value={conceptNote}
                   onChange={(e) => setConceptNote(e.target.value)}
+                  onEnterSubmit={
+                    createDesign.isPending
+                      ? undefined
+                      : () => {
+                          const form = document.getElementById("design-create-form");
+                          if (form instanceof HTMLFormElement) form.requestSubmit();
+                        }
+                  }
                 />
 
                 <div className="form-grid form-grid--2">
@@ -644,15 +652,6 @@ export function DesignCreateForm() {
                 </div>
               </AppCard>
             </div>
-          </div>
-
-          <div className="form-actions form-actions--end">
-            <AppButtonLink href={ROUTES.designs.list} appVariant="ghost">
-              Cancel
-            </AppButtonLink>
-            <AppButton type="submit" appVariant="primary" disabled={createDesign.isPending}>
-              {createDesign.isPending ? "Creating…" : "Create & Generate Tasks"}
-            </AppButton>
           </div>
         </form>
       </QueryState>

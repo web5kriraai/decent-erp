@@ -32,11 +32,16 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
 import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
-import { canRoleActOnStageApproval } from "@/lib/stage-approval-rbac";
+import {
+  canControlTask,
+  getTimerControlFlags,
+} from "@/lib/task-control-capability";
 import {
   getTaskEndDialogConfig,
   getTaskHoldDialogConfig,
+  buildHandoffContextFromTask,
 } from "@/lib/task-dialog-config";
+import { findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
 
 type TaskDetailViewProps = {
   taskId: string;
@@ -81,22 +86,21 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const isAssignee = task?.assignedEmployeeId === session?.user?.employeeId;
   const roleCode = session?.user?.roleCode;
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
-  const isStageApproval = isStageApprovalTask(task?.subProcess?.code);
-  const roleCanActOnStage =
-    !!roleCode &&
-    !!task?.subProcess?.code &&
-    canRoleActOnStageApproval(roleCode, task.subProcess.code);
-  const canActOnStageApproval =
-    isStageApproval &&
-    roleCanActOnStage &&
-    (isAssignee ||
-      task?.assignedEmployeeId == null ||
-      (canAssign && task?.assignedEmployeeId != null));
-  const canControl = canExecute && (isAssignee || (isStageApproval && canActOnStageApproval));
+  const isStageApproval = isStageApprovalTask(task?.subProcess?.code, {
+    isApproval: task?.subProcess?.isApproval,
+    capabilities: task?.subProcess?.capabilities,
+  });
+  const ownerRoleCode = task?.subProcess?.defaultRole?.code ?? null;
+  const canControl = task
+    ? canControlTask({
+        permissions,
+        employeeId: session?.user?.employeeId,
+        roleCode,
+        task,
+      })
+    : false;
   const showComparePanel =
     task?.subProcess?.code === "PUNCH_CHECK";
-  const isRunning = task?.status === "RUNNING";
-  const isOnHold = task?.status === "ON_HOLD";
   const designMismatch =
     !!task && !!designId && task.designId !== designId && task.design.id !== designId;
 
@@ -111,7 +115,10 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   const linkedWorkTaskStatus = useMemo(() => {
     if (!task?.workflowPeers) return undefined;
-    const peerCode = workSubProcessCodeForApproval(task.subProcess.code);
+    const peerCode = workSubProcessCodeForApproval(
+      task.subProcess.code,
+      task.subProcess.capabilities,
+    );
     if (!peerCode) return undefined;
     return task.workflowPeers.find((peer) => peer.subProcess.code === peerCode)?.status;
   }, [task]);
@@ -152,6 +159,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         status: task.status,
         subProcess: task.subProcess,
         design: task.design,
+        assignedEmployee: task.assignedEmployee,
       })
     : null;
   const endDialogConfig = task
@@ -160,15 +168,117 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
           status: task.status,
           subProcess: task.subProcess,
           design: task.design,
+          assignedEmployee: task.assignedEmployee,
         },
         roleCode,
       )
     : null;
 
+  const timerFlags = task
+    ? getTimerControlFlags(task, { endDialogMode: endDialogConfig?.mode })
+    : null;
+  const isRunning = timerFlags?.isRunning ?? false;
+  const isOnHold = timerFlags?.isOnHold ?? false;
+
+  const priorPeer = task
+    ? findPriorPeerForHandoff(task.subProcess.code, task.workflowPeers)
+    : null;
+
+  const holdHandoff = task && holdDialogConfig
+    ? buildHandoffContextFromTask(
+        {
+          status: task.status,
+          subProcess: task.subProcess,
+            design: {
+              ideaRef: task.design.ideaRef,
+              collectionName: task.design.collectionName,
+              productType: task.design.productType ?? undefined,
+            },
+            assignedEmployee: task.assignedEmployee,
+          },
+          {
+            description: holdDialogConfig.description,
+            nextStepHint: holdDialogConfig.nextStepHint,
+            priorStage: priorPeer
+              ? {
+                  code: priorPeer.subProcess.code,
+                  name: priorPeer.subProcess.name,
+                  status: priorPeer.status,
+                  outputRemark: priorPeer.outputRemark,
+                  assigneeName: priorPeer.assignedEmployee?.name,
+                }
+              : null,
+          },
+        )
+    : null;
+
+  const endHandoff = task && endDialogConfig
+    ? buildHandoffContextFromTask(
+        {
+          status: task.status,
+          subProcess: task.subProcess,
+          design: {
+            ideaRef: task.design.ideaRef,
+            collectionName: task.design.collectionName,
+            productType: task.design.productType ?? undefined,
+          },
+          assignedEmployee: task.assignedEmployee,
+        },
+        {
+          description: endDialogConfig.description,
+          nextStepHint: endDialogConfig.nextStepHint,
+          priorStage: priorPeer
+            ? {
+                code: priorPeer.subProcess.code,
+                name: priorPeer.subProcess.name,
+                status: priorPeer.status,
+                outputRemark: priorPeer.outputRemark,
+                assigneeName: priorPeer.assignedEmployee?.name,
+              }
+            : null,
+          blockers: task.blockedMessage ? [task.blockedMessage] : undefined,
+        },
+      )
+    : null;
+
+  const stageApprovalHandoff =
+    task && isStageApproval
+      ? buildHandoffContextFromTask(
+          {
+            status: task.status,
+            subProcess: task.subProcess,
+            design: {
+              ideaRef: task.design.ideaRef,
+              collectionName: task.design.collectionName,
+              productType: task.design.productType ?? undefined,
+              priority: task.priority,
+            },
+            assignedEmployee: task.assignedEmployee,
+          },
+          {
+            nextStepHint:
+              task.subProcess.code === "PUNCH_CHECK"
+                ? "Material / fabric issue toward sample"
+                : task.subProcess.code === "LIVE_REVIEW"
+                  ? "Design goes LIVE · ERP chain unlocks"
+                  : "Advances the workflow to the next stage",
+            priorStage: priorPeer
+              ? {
+                  code: priorPeer.subProcess.code,
+                  name: priorPeer.subProcess.name,
+                  status: priorPeer.status,
+                  outputRemark: priorPeer.outputRemark,
+                  assigneeName: priorPeer.assignedEmployee?.name,
+                }
+              : null,
+          },
+        )
+      : null;
+
   async function handleEndSubmit() {
     if (!task || !endRemark.trim()) return;
     if (isSampleCheck && !sampleOutcome) return;
-    const isCosting = task.subProcess?.code === "COSTING";
+    const isCosting = endDialogConfig?.costingEntry === true;
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -289,9 +399,13 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                 assignedEmployeeId={task.assignedEmployeeId}
                 employeeId={session?.user?.employeeId}
                 roleCode={roleCode}
+                ownerRoleCode={ownerRoleCode}
+                capabilities={task.subProcess.capabilities}
+                isApproval={task.subProcess.isApproval}
                 canAssign={canAssign}
                 showCompare={false}
                 workTaskStatus={linkedWorkTaskStatus}
+                handoff={stageApprovalHandoff}
               />
             ) : null}
 
@@ -304,36 +418,44 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
             <div className="task-detail-layout">
               {canControl ? (
-                <TimerWidget
-                  status={isRunning ? "RUNNING" : isOnHold ? "ON_HOLD" : "IDLE"}
-                  elapsedSeconds={activeSeconds}
-                  taskLabel={`${task.process.name} → ${task.subProcess.name}`}
-                  onHold={
-                    !isStageApproval && isRunning
-                      ? () => {
-                          setHoldModalOpen(true);
-                          setHoldReasonId("");
-                        }
-                      : undefined
-                  }
-                  onResume={
-                    !isStageApproval && isOnHold
-                      ? () => resume.mutate({ taskId: task.id, version: task.version })
-                      : undefined
-                  }
-                  onEnd={
-                    !isStageApproval && (isRunning || isOnHold)
-                      ? () => {
-                          setEndModalOpen(true);
-                          setEndRemark("");
-                          setChecklistNote("");
-                          setSampleOutcome("");
-                          setChecklistResults({});
-                          setEndStatus("CHECKING");
-                        }
-                      : undefined
-                  }
-                />
+                <div className="stack-section">
+                  <TimerWidget
+                    status={isRunning ? "RUNNING" : isOnHold ? "ON_HOLD" : "IDLE"}
+                    elapsedSeconds={activeSeconds}
+                    taskLabel={`${task.process.name} → ${task.subProcess.name}`}
+                    onHold={
+                      timerFlags?.showHold
+                        ? () => {
+                            setHoldModalOpen(true);
+                            setHoldReasonId("");
+                          }
+                        : undefined
+                    }
+                    onResume={
+                      timerFlags?.showResume
+                        ? () => resume.mutate({ taskId: task.id, version: task.version })
+                        : undefined
+                    }
+                    onEnd={
+                      timerFlags?.showEnd
+                        ? () => {
+                            setEndModalOpen(true);
+                            setEndRemark("");
+                            setChecklistNote("");
+                            setSampleOutcome("");
+                            setChecklistResults({});
+                            setEndStatus("CHECKING");
+                          }
+                        : undefined
+                    }
+                  />
+                  {timerFlags?.blocksTimerEnd && (isRunning || isOnHold) ? (
+                    <p className="mt-2 text-sm text-muted-foreground" role="status">
+                      Finish this stage with Approve / Request correction / Reject above — not
+                      the timer End dialog. Hold and Resume still work for time tracking.
+                    </p>
+                  ) : null}
+                </div>
               ) : (
                 <AppCard title="Time summary">
                   {!isAssignee && canViewTeam && (
@@ -388,10 +510,15 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             title={holdDialogConfig?.title}
             description={holdDialogConfig?.description}
             preferredHoldReasonCodes={holdDialogConfig?.preferredHoldReasonCodes}
+            remarkLabel={holdDialogConfig?.remarkLabel}
+            remarkPlaceholder={holdDialogConfig?.remarkPlaceholder}
+            handoff={holdHandoff}
           />
 
           <TaskEndDialog
-            open={endModalOpen}
+            open={
+              endModalOpen && !!timerFlags?.showEnd
+            }
             onClose={() => {
               setEndModalOpen(false);
               setCostEntries([]);
@@ -419,6 +546,10 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             gateForcesChecking={endDialogConfig?.forceChecking}
             dialogTitle={endDialogConfig?.title}
             dialogDescription={endDialogConfig?.description}
+            remarkLabel={endDialogConfig?.remarkLabel}
+            remarkPlaceholder={endDialogConfig?.remarkPlaceholder}
+            handoff={endHandoff}
+            showStatusSelect={endDialogConfig?.showStatusSelect}
             costEntries={costEntries}
             onCostEntriesChange={setCostEntries}
             onSubmit={handleEndSubmit}

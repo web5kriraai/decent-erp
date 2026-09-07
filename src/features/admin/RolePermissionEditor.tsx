@@ -108,6 +108,16 @@ export function RolePermissionEditor({ roleId, roleCode, roleName }: Props) {
             System Admin must retain MASTER_ADMIN permission.
           </p>
         )}
+        <p className="form-hint mt-3">
+          <strong>DESIGN APPROVE</strong> is Design Head{" "}
+          <em>Approve for production</em> (Request Sign-off after all stages). It does{" "}
+          <strong>not</strong> unlock Stage approval gates.
+        </p>
+        <p className="form-hint mt-2">
+          Approvals hub tabs are role-based: <strong>Stage</strong> follows each sub-process
+          default role (Admin → Masters); <strong>Ready to approve</strong> is Design Head
+          only. The old Checker → Design Head → Management decide chain was removed.
+        </p>
       </QueryState>
     </div>
   );

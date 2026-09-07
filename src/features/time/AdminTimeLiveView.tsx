@@ -5,12 +5,12 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import {
-  Clock3Icon,
-  PauseCircleIcon,
-  PlayCircleIcon,
-  RefreshCwIcon,
-  UserRoundIcon,
-} from "lucide-react";
+  IconClock3,
+  IconPauseCircle,
+  IconPlayCircle,
+  IconRefreshCw,
+  IconUserRound,
+} from "@/components/icons";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -151,7 +151,7 @@ function PersonRow({
           </>
         ) : (
           <div className="live-time-idle-note">
-            <UserRoundIcon className="size-4" aria-hidden />
+            <IconUserRound className="size-4" aria-hidden />
             <span>No active task</span>
           </div>
         )}
@@ -278,7 +278,7 @@ export function AdminTimeLiveView() {
               onClick={() => liveQuery.refetch()}
               disabled={liveQuery.isFetching}
             >
-              <RefreshCwIcon
+              <IconRefreshCw
                 className={cn("size-3.5", liveQuery.isFetching && "animate-spin")}
                 aria-hidden
               />
@@ -303,22 +303,22 @@ export function AdminTimeLiveView() {
             <div className="live-time-metric-row">
               <MetricChip
                 accent
-                icon={<PlayCircleIcon className="size-4" />}
+                icon={<IconPlayCircle className="size-4" />}
                 label="Running now"
                 value={String(data.runningCount)}
               />
               <MetricChip
-                icon={<PauseCircleIcon className="size-4" />}
+                icon={<IconPauseCircle className="size-4" />}
                 label="On hold"
                 value={String(data.onHoldCount)}
               />
               <MetricChip
-                icon={<UserRoundIcon className="size-4" />}
+                icon={<IconUserRound className="size-4" />}
                 label="Idle"
                 value={String(idleCount)}
               />
               <MetricChip
-                icon={<Clock3Icon className="size-4" />}
+                icon={<IconClock3 className="size-4" />}
                 label="Last refresh"
                 value={new Date(data.asOfUtc).toLocaleTimeString()}
               />

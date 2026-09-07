@@ -13,14 +13,14 @@ export const WORKFLOW_ACTION_META: Record<
     variant: "primary",
   },
   [WORKFLOW_ACTION_CODES.REQUEST_APPROVAL]: {
-    label: "Request Management Sign-off",
+    label: "Approve for production",
     variant: "primary",
-    description: "Send the design into the management approval chain (Design Head only).",
+    description: "Design Head submits the package to approve the design and unlock production handoff.",
   },
   [WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE]: {
-    label: "Open Approvals Queue",
+    label: "Open Approvals",
     variant: "primary",
-    description: "Review and record your approval decision.",
+    description: "Open stage approvals or ready-to-approve queues.",
   },
   [WORKFLOW_ACTION_CODES.ASSIGN_TASK]: {
     label: "Assign task",

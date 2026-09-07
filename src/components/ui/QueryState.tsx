@@ -52,8 +52,7 @@ export function QueryState({
 
   if (isError) {
     const humanized = humanizeApiError(error, "Failed to load data");
-    const correlationId =
-      error instanceof ApiClientError ? error.correlationId : humanized.correlationId;
+    const correlationId = humanized.correlationId;
 
     if (error instanceof ApiClientError && error.isForbidden) {
       if (hideOnForbidden) return null;

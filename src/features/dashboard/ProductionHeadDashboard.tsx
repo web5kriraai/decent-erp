@@ -7,6 +7,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import { ProductionReturnModal } from "@/features/production/ProductionReturnModal";
+import { AcceptHandoffConfirm } from "@/features/production/AcceptHandoffConfirm";
 import { useAcceptProductionHandoff } from "@/hooks/use-production";
 import { useProductionInbox } from "@/hooks/use-workbench";
 import {
@@ -90,6 +91,7 @@ export function ProductionHeadDashboard() {
   const inboxQuery = useProductionInbox(true);
   const acceptHandoff = useAcceptProductionHandoff();
   const [returnDesign, setReturnDesign] = useState<ProductionInboxDesign | null>(null);
+  const [acceptDesign, setAcceptDesign] = useState<ProductionInboxDesign | null>(null);
   const [acceptingDesignId, setAcceptingDesignId] = useState<string | null>(null);
 
   const inbox = inboxQuery.data;
@@ -97,10 +99,12 @@ export function ProductionHeadDashboard() {
 
   const counts = inbox?.counts;
 
-  async function handleAccept(item: ProductionInboxDesign) {
-    setAcceptingDesignId(item.designId);
+  async function handleAcceptConfirm() {
+    if (!acceptDesign) return;
+    setAcceptingDesignId(acceptDesign.designId);
     try {
-      await acceptHandoff.mutateAsync(item.designId);
+      await acceptHandoff.mutateAsync(acceptDesign.designId);
+      setAcceptDesign(null);
     } finally {
       setAcceptingDesignId(null);
     }
@@ -154,7 +158,7 @@ export function ProductionHeadDashboard() {
                   ? ROUTES.work.taskDetail(item.instructionTaskId)
                   : undefined
               }
-              onAccept={handleAccept}
+              onAccept={(item) => setAcceptDesign(item)}
               acceptingDesignId={acceptingDesignId}
               onReturn={(item) => setReturnDesign(item)}
             />
@@ -238,6 +242,14 @@ export function ProductionHeadDashboard() {
           onClose={() => setReturnDesign(null)}
         />
       ) : null}
+
+      <AcceptHandoffConfirm
+        open={!!acceptDesign}
+        item={acceptDesign}
+        onClose={() => setAcceptDesign(null)}
+        onConfirm={() => void handleAcceptConfirm()}
+        isPending={acceptHandoff.isPending || acceptingDesignId != null}
+      />
     </WorkbenchShell>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Unified approvals hub — stage, ready-for-sign-off, and management tabs.
+ * Unified approvals hub — stage + ready-to-approve (Option A: no management decide chain).
  */
 import { expect, test } from "@playwright/test";
 import {
@@ -13,16 +13,14 @@ import {
   completeStageApproval,
   completeTaskForUser,
   finalizeDevelopmentForSignOff,
+  getDesign,
   getDesignTaskByCode,
-  requestDesignApproval,
   runWorkOrderThroughSampleReceive,
-  submitApprovalAtLevel,
 } from "./helpers/workflow";
 
 const DEMO = "Demo@123";
 
-type ApprovalLevelRow = { id: number; code: string; sequence: number; name: string };
-type QueueItem = { designId: string; ideaRef?: string; currentLevel?: { code: string } };
+type QueueItem = { designId: string; ideaRef?: string };
 
 async function employeeIdFor(page: import("@playwright/test").Page, email: string) {
   await login(page, USERS.admin.email, USERS.admin.password);
@@ -51,7 +49,7 @@ const ROLE_MAP: Record<string, string> = {
 };
 
 test.describe("Approvals hub", () => {
-  test("stage, ready, and management tabs reflect role-scoped queues", async ({ page }) => {
+  test("stage and ready tabs; Design Head approve for production", async ({ page }) => {
     test.setTimeout(240_000);
 
     await login(page, USERS.designHead.email, DEMO);
@@ -98,66 +96,36 @@ test.describe("Approvals hub", () => {
     expect(readyQueue.some((row) => row.designId === design.id)).toBe(true);
 
     await page.goto("/quality/approvals?tab=ready");
-    await expect(page.getByRole("tab", { name: /Ready for sign-off/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Ready to approve/i })).toBeVisible();
     const designRow = page.getByRole("row", { name: new RegExp(design.ideaRef) });
     await expect(designRow).toBeVisible();
-    await expect(designRow.getByRole("button", { name: /Request Management Sign-off/i })).toBeVisible();
+    const requestLink = designRow.getByRole("link", { name: /Approve for production/i });
+    await expect(requestLink).toBeVisible();
+    await expect(requestLink).toHaveAttribute(
+      "href",
+      `/quality/approvals/request-sign-off/${design.id}`,
+    );
 
-    await requestDesignApproval(page, design.id);
+    await requestLink.click();
+    await expect(page).toHaveURL(new RegExp(`/quality/approvals/request-sign-off/${design.id}`));
+    await expect(
+      page.getByRole("heading", { name: new RegExp(`Approve for production · ${design.ideaRef}`) }),
+    ).toBeVisible();
+    await page.locator("#requesterRemark").fill(
+      "E2E Design Head approve for production with full package context.",
+    );
+    await page.getByRole("button", { name: /Approve for production/i }).click();
+    await expect(page).toHaveURL(new RegExp(`/designs/${design.id}`), { timeout: 20_000 });
+
+    const approved = await getDesign(page, design.id);
+    expect(approved.status).toBe("APPROVED");
 
     await login(page, USERS.checker.email, DEMO);
-    const checkerQueue = await apiGetJson<
-      Array<{
-        designId: string;
-        approvalRequestPackage?: {
-          requesterRemark?: string;
-          snapshot?: { ideaRef?: string };
-        } | null;
-      }>
-    >(page, "/api/approvals");
-    const checkerItem = checkerQueue.find((row) => row.designId === design.id);
-    expect(checkerItem).toBeTruthy();
-    expect(checkerItem?.approvalRequestPackage?.requesterRemark).toMatch(/E2E request/i);
-    expect(checkerItem?.approvalRequestPackage?.snapshot?.ideaRef).toBe(design.ideaRef);
-
-    await login(page, USERS.designHead.email, DEMO);
-    const designHeadQueueBefore = await apiGetJson<QueueItem[]>(page, "/api/approvals");
-    expect(designHeadQueueBefore.some((row) => row.designId === design.id)).toBe(false);
+    const checkerPending = await apiGetJson<unknown[]>(page, "/api/approvals");
+    expect(checkerPending).toEqual([]);
 
     await page.goto("/quality/approvals?tab=management");
-    await expect(page.getByRole("tab", { name: /Management sign-off/i })).toBeVisible();
-
-    const levels = await apiGetJson<ApprovalLevelRow[]>(page, "/api/approvals?view=levels");
-    const checkerLevel = levels.find((l) => l.code === "CHECKER_APPROVAL");
-    expect(checkerLevel).toBeTruthy();
-    await submitApprovalAtLevel(page, design.id, checkerLevel!, "APPROVED");
-
-    await login(page, USERS.designHead.email, DEMO);
-    const designHeadQueue = await apiGetJson<QueueItem[]>(page, "/api/approvals");
-    expect(designHeadQueue.some((row) => row.designId === design.id)).toBe(true);
-
-    await page.goto("/quality/approvals?tab=management");
-    await expect(page.getByText(design.ideaRef)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Review" })).toBeVisible();
-
-    await page.getByRole("button", { name: "Review" }).click();
-    const decideDialog = page.getByRole("dialog", { name: new RegExp(`Decide ${design.ideaRef}`) });
-    await expect(decideDialog).toBeVisible();
-    await expect(decideDialog.getByText(/Requester remark/i)).toBeVisible();
-    await expect(decideDialog.getByText(/E2E request for management sign-off/i)).toBeVisible();
-
-    await decideDialog.locator("#approvalDecision").click();
-    await page.getByRole("option", { name: /Send for Correction/i }).click();
-    await decideDialog.locator("#approvalCorrectionRemark").fill("E2E correction — fix punch density");
-    await expect(decideDialog.getByText(/Correction will assign to/i)).toBeVisible();
-    await decideDialog.getByRole("button", { name: /Submit Decision/i }).click();
-    await expect(decideDialog).not.toBeVisible({ timeout: 20_000 });
-  });
-
-  test("Admin does not see Ready for sign-off tab", async ({ page }) => {
-    await login(page, USERS.admin.email, DEMO);
-    await page.goto("/quality/approvals");
-    await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: /Ready for sign-off/i })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/quality\/approvals\?tab=stage/, { timeout: 10_000 });
+    await expect(page.getByRole("tab", { name: /Management sign-off/i })).toHaveCount(0);
   });
 });

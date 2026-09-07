@@ -63,6 +63,10 @@ export const PAGE_META = {
     title: "Approvals",
     description: "Review and approve designs pending quality sign-off",
   },
+  requestSignOff: {
+    title: "Request Sign-off",
+    description: "Submit a design package to the management approval chain",
+  },
   costing: {
     title: "Costing",
     description: "Material and process cost entries for designs",
@@ -161,5 +165,12 @@ export function workTaskMetadata(taskId: string): Metadata {
   return {
     title: `Task ${taskId}`,
     description: PAGE_META.workTaskDetail.description,
+  };
+}
+
+export function requestSignOffMetadata(designId: string): Metadata {
+  return {
+    title: `Request Sign-off · ${designId}`,
+    description: PAGE_META.requestSignOff.description,
   };
 }

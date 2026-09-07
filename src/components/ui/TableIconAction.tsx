@@ -2,21 +2,21 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import {
-  Ban,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  ClipboardCheck,
-  Clock,
-  Copy,
-  ListTree,
-  Pencil,
-  Plus,
-  Power,
-  Send,
-  Trash2,
-  X,
-} from "lucide-react";
+  IconBan,
+  IconCheckCircle2,
+  IconChevronDown,
+  IconChevronUp,
+  IconClipboardCheck,
+  IconClock,
+  IconCopy,
+  IconListTree,
+  IconPencil,
+  IconPlus,
+  IconPower,
+  IconSend,
+  IconTrash2,
+  IconClose,
+} from "@/components/icons";
 import { AppButton, type AppButtonVariant } from "@/components/ui/AppButton";
 import { cn } from "@/lib/utils";
 
@@ -40,36 +40,36 @@ const ACTION_META: Record<
   TableIconActionKind,
   { label: string; icon: ReactNode; appVariant?: AppButtonVariant }
 > = {
-  edit: { label: "Edit", icon: <Pencil aria-hidden />, appVariant: "ghost" },
-  editSteps: { label: "Edit steps", icon: <ListTree aria-hidden />, appVariant: "ghost" },
-  clone: { label: "Clone as new version", icon: <Copy aria-hidden />, appVariant: "ghost" },
+  edit: { label: "Edit", icon: <IconPencil aria-hidden />, appVariant: "ghost" },
+  editSteps: { label: "Edit steps", icon: <IconListTree aria-hidden />, appVariant: "ghost" },
+  clone: { label: "Clone as new version", icon: <IconCopy aria-hidden />, appVariant: "ghost" },
   activate: {
     label: "Activate",
-    icon: <CheckCircle2 aria-hidden />,
+    icon: <IconCheckCircle2 aria-hidden />,
     appVariant: "secondary",
   },
   deactivate: {
     label: "Deactivate",
-    icon: <Ban aria-hidden />,
+    icon: <IconBan aria-hidden />,
     appVariant: "outline",
   },
   reactivate: {
     label: "Reactivate",
-    icon: <Power aria-hidden />,
+    icon: <IconPower aria-hidden />,
     appVariant: "secondary",
   },
-  add: { label: "Add", icon: <Plus aria-hidden />, appVariant: "secondary" },
-  remove: { label: "Remove", icon: <Trash2 aria-hidden />, appVariant: "ghost" },
-  close: { label: "Close", icon: <X aria-hidden />, appVariant: "ghost" },
-  moveUp: { label: "Move up", icon: <ChevronUp aria-hidden />, appVariant: "ghost" },
-  moveDown: { label: "Move down", icon: <ChevronDown aria-hidden />, appVariant: "ghost" },
-  review: { label: "Review", icon: <ClipboardCheck aria-hidden />, appVariant: "primary" },
+  add: { label: "Add", icon: <IconPlus aria-hidden />, appVariant: "secondary" },
+  remove: { label: "Remove", icon: <IconTrash2 aria-hidden />, appVariant: "ghost" },
+  close: { label: "Close", icon: <IconClose aria-hidden />, appVariant: "ghost" },
+  moveUp: { label: "Move up", icon: <IconChevronUp aria-hidden />, appVariant: "ghost" },
+  moveDown: { label: "Move down", icon: <IconChevronDown aria-hidden />, appVariant: "ghost" },
+  review: { label: "Review", icon: <IconClipboardCheck aria-hidden />, appVariant: "primary" },
   requestApproval: {
     label: "Request approval",
-    icon: <Send aria-hidden />,
+    icon: <IconSend aria-hidden />,
     appVariant: "primary",
   },
-  adjustTime: { label: "Adjust time", icon: <Clock aria-hidden />, appVariant: "ghost" },
+  adjustTime: { label: "Adjust time", icon: <IconClock aria-hidden />, appVariant: "ghost" },
 };
 
 type TableIconActionProps = Omit<ComponentProps<typeof AppButton>, "children" | "size"> & {

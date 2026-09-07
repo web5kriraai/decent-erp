@@ -4,18 +4,23 @@ import { canRoleAccessApprovalsHub } from "@/lib/stage-approval-rbac";
 import {
   IconDashboard,
   IconDesigns,
+  IconKanban,
   IconTasks,
+  IconPipelineDeps,
   IconCorrections,
   IconApprovals,
   IconCosting,
   IconKpi,
   IconMasters,
   IconClock,
+  IconTeamTime,
+  IconTimeReport,
   IconUsers,
   IconRoles,
   IconWorkflow,
-  IconLock,
+  IconAudit,
   IconProduction,
+  IconErpChain,
   IconReports,
 } from "@/components/icons";
 import { getRoleDefinition } from "@/config/roles";
@@ -39,6 +44,8 @@ export const ROUTES = {
   quality: {
     corrections: "/quality/corrections",
     approvals: "/quality/approvals",
+    requestSignOff: (designId: string) =>
+      `/quality/approvals/request-sign-off/${designId}`,
   },
   finance: {
     costing: "/finance/costing",
@@ -125,7 +132,7 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "designs-kanban",
         label: "Pipeline Board",
         href: ROUTES.designs.kanban,
-        icon: IconDesigns,
+        icon: IconKanban,
         permission: PERMISSIONS.DESIGN_CREATE,
       },
     ],
@@ -166,7 +173,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Approvals",
         href: ROUTES.quality.approvals,
         icon: IconApprovals,
-        permission: PERMISSIONS.DESIGN_APPROVE,
+        // Visibility gated by canRoleAccessApprovalsHub in getVisibleNavSections
       },
     ],
   },
@@ -191,7 +198,7 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "pipeline-dependencies",
         label: "Pipeline Dependencies",
         href: ROUTES.work.pipelineDependencies,
-        icon: IconTasks,
+        icon: IconPipelineDeps,
         anyPermission: [
           PERMISSIONS.DESIGN_CREATE,
           PERMISSIONS.KPI_ADMIN,
@@ -202,14 +209,14 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "time-live",
         label: "Live Team Time",
         href: ROUTES.admin.timeLive,
-        icon: IconClock,
+        icon: IconTeamTime,
         permission: PERMISSIONS.TIME_VIEW_TEAM,
       },
       {
         id: "time-report",
         label: "Time Report",
         href: ROUTES.analytics.timeReport,
-        icon: IconClock,
+        icon: IconTimeReport,
         permission: PERMISSIONS.TIME_VIEW_TEAM,
       },
       {
@@ -244,7 +251,7 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "production-erp",
         label: "ERP Chain",
         href: ROUTES.production.erpChain,
-        icon: IconProduction,
+        icon: IconErpChain,
         anyPermission: [
           PERMISSIONS.ERP_FLOOR_OPERATE,
           PERMISSIONS.ERP_SALES_OPERATE,
@@ -289,7 +296,7 @@ export const NAV_SECTIONS: NavSection[] = [
         id: "audit",
         label: "Audit Log",
         href: ROUTES.admin.audit,
-        icon: IconLock,
+        icon: IconAudit,
         permission: PERMISSIONS.MASTER_ADMIN,
       },
     ],
@@ -497,6 +504,18 @@ export function getBreadcrumbsForPath(pathname: string): BreadcrumbItem[] {
       { label: "Overview", href: ROUTES.dashboard },
       { label: "My Tasks", href: ROUTES.work.tasks },
       { label: workTask[1] },
+    ];
+  }
+
+  const requestSignOff = pathname.match(
+    /^\/quality\/approvals\/request-sign-off\/([^/]+)$/,
+  );
+  if (requestSignOff) {
+    return [
+      { label: "Overview", href: ROUTES.dashboard },
+      { label: "Approvals", href: `${ROUTES.quality.approvals}?tab=ready` },
+      { label: requestSignOff[1] },
+      { label: "Request Sign-off" },
     ];
   }
 

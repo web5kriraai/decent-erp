@@ -1,34 +1,46 @@
 ---
 description: Process, sub-process and workflow pattern master data engine.
-globs: **/features/masters/**,**/api/masters/**,**/api/workflow-patterns/**,**/WorkflowPattern*,**/DesignProcess*,**/DesignSubProcess*
+globs: **/features/masters/**,**/api/masters/**,**/api/workflow-patterns/**,**/WorkflowPattern*,**/DesignProcess*,**/DesignSubProcess*,**/workflow/**
 alwaysApply: false
 ---
 
 # Feature: Workflow & process engine
 
-Every design moves through configurable Main Processes and Sub-processes -
-never a fixed hardcoded path.
+Every design moves through configurable Main Processes and Sub-processes.
+**Runtime behavior is driven by `StageCapabilities` on `DesignSubProcessMaster`
+(JSON) via `resolveStageBehavior` — codes are stable IDs only, never behavior switches.**
 
 ## Master data
-- `DesignProcessMaster`: ProcessId, Code, Name, Sequence, Active, AppliesToProductType.
+- `DesignProcessMaster`: ProcessId, Code, Name, Sequence, Active.
 - `DesignSubProcessMaster`: SubProcessId, ProcessId, Code, Name, Sequence,
-  DefaultRole, IsApproval, IsCorrectionAllowed, IsFileRequired, Active.
-- `ProductProcessMapping`: ties product type to required process/sub-process.
-- `WorkflowPattern` / `WorkflowPatternTask`: reusable templates, versioned
-  (`VersionNo`, `Active`, `EffectiveFrom/To`), referencing `ProcessId` /
-  `SubProcessId` - never storing display text only.
+  DefaultRole, IsApproval, IsCorrectionAllowed, IsFileRequired, **Capabilities (JSON)**, Active.
+- `WorkflowPattern` / `WorkflowPatternTask`: reusable templates; optional
+  `capabilitiesOverride` per step for rare pattern-specific tweaks.
 
-## Default process model
-| Main Process | Default Sub-processes |
-|---|---|
-| Design Development | Concept Review; Sketch Creation; Sketch Approval; Punching/Wilcom; Punching Checking; Correction |
-| Sample Development | Material Requirement; Fabric Issue; Machine Sample; Sample Receive; Sample Checking; Re-Sample |
-| Production Release | Costing; Final Approval; Production Instruction; Production Release; Live Design Review |
+## Capabilities (source of truth)
+See `src/lib/workflow/stage-capabilities.ts` and `resolveStageBehavior`.
+Key flags: `isApproval`, `requiresFile`, `forcesChecking`, `machineOutput`,
+`sampleDecisionOutcomes`, `costingEntry`, `completeNotChecking`,
+`approvalSurface` / `approvalActions`, `workPrecursor`,
+`unlockAfterDesignApproved`, `autoAdvanceOnCreate`, `onComplete` hooks.
+
+## Transition data gates
+Cross-stage requirements (e.g. cost entries before approve-for-production) live in
+`src/lib/workflow/transition-policies.ts` — presence-driven from capabilities on
+instantiated tasks. Do not hardcode module checks in approval/UI callers.
+
+## Authoring a custom workflow
+1. Create sub-processes in Admin → Masters with capabilities (not only isApproval/file).
+2. Compose a Workflow Pattern from those steps (owner role + minutes + deps).
+3. Validation blocks approvals without surface/owner/precursor when required.
+4. Post-approval ladder stages are those with `unlockAfterDesignApproved`
+   (textile PROD_* remain the seeded default).
+5. No new `if (code === "…")` should be required in app logic for a new stage.
 
 ## Rule
-Do not hardcode employee names in workflow patterns. Store `RoleId`/`SkillId`;
+Do not hardcode employee names in workflow patterns. Store `RoleId`;
 resolve to an eligible employee only at task-generation time.
 
 ## API
-- `GET /api/masters/processes` - process/sub-process master.
+- `GET /api/masters/processes` - process/sub-process master (includes capabilities).
 - `GET /api/workflow-patterns` - workflow pattern definitions.

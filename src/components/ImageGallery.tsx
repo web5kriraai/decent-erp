@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircleIcon } from "lucide-react";
+import { IconAlertCircle } from "@/components/icons";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignImageRecord } from "@/lib/types/api";
@@ -77,7 +77,7 @@ export function ImageGallery({
             >
               {isRejected ? (
                 <div className="image-gallery-rejected">
-                  <AlertCircleIcon className="image-gallery-rejected-icon" aria-hidden />
+                  <IconAlertCircle className="image-gallery-rejected-icon" aria-hidden />
                   <p className="image-gallery-rejected-name">{image.fileName}</p>
                   <p className="image-gallery-rejected-label">Image not approved</p>
                   <p className="image-gallery-rejected-hint">

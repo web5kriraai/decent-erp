@@ -22,7 +22,8 @@ export function humanizeApiError(error: unknown, fallback = "Something went wron
     return {
       title: fieldSummary ?? title ?? fallback,
       hint: hint ?? (error.isConflict ? "Refresh the page and try again." : undefined),
-      correlationId: error.correlationId,
+      // Support refs stay in logs — only surface on server failures.
+      correlationId: error.status >= 500 ? error.correlationId : undefined,
     };
   }
 

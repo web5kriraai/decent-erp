@@ -5,10 +5,12 @@ import { Modal, ModalFooterActions, ModalForm } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { AppButton } from "@/components/ui/AppButton";
+import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import {
   useProductionReturn,
   useProductionReturnOptions,
 } from "@/hooks/use-production";
+import type { HandoffContext } from "@/lib/handoff-context";
 import { suggestedRouteCodeForReason } from "@/lib/production-return-reasons";
 
 type ProductionReturnModalProps = {
@@ -33,6 +35,26 @@ export function ProductionReturnModal({
 
   const options = optionsQuery.data;
   const routeOptions = useMemo(() => options?.routeOptions ?? [], [options?.routeOptions]);
+  const selectedRoute = routeOptions.find((r) => String(r.id) === routeToSubProcessId);
+  const selectedReason = options?.reasons.find((r) => r.code === reasonCode);
+
+  const handoff = useMemo((): HandoffContext => {
+    const displayIdeaRef = options?.ideaRef ?? ideaRef ?? null;
+    const reasonBit = selectedReason ? ` · ${selectedReason.label}` : "";
+    const nextStepHint = selectedRoute
+      ? `Production → ${selectedRoute.name} (design rework)${reasonBit}`
+      : "Select a design stage to route this return";
+
+    return {
+      ideaRef: displayIdeaRef,
+      stageName: "Production",
+      stageCode: "PRODUCTION",
+      status: options?.instructionStatus ?? null,
+      description:
+        "Returns an accepted production handoff back into the design workflow for clarification.",
+      nextStepHint,
+    };
+  }, [options, ideaRef, selectedRoute, selectedReason]);
 
   function handleClose() {
     setReasonCode("");
@@ -69,6 +91,7 @@ export function ProductionReturnModal({
       open={open}
       onClose={handleClose}
       title={ideaRef ? `Return · ${ideaRef}` : "Return for clarification"}
+      description="Send this design back from production to a design stage with a clear route."
       size="md"
       footer={
         <ModalFooterActions>
@@ -87,6 +110,8 @@ export function ProductionReturnModal({
       }
     >
       <ModalForm>
+        <ActionHandoffBanner context={handoff} />
+
         {optionsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : !options?.canReturn ? (
@@ -125,6 +150,11 @@ export function ProductionReturnModal({
               value={remark}
               onChange={(e) => setRemark(e.target.value)}
               rows={3}
+              onEnterSubmit={
+                canSubmit && !returnMutation.isPending
+                  ? () => void handleSubmit()
+                  : undefined
+              }
             />
           </>
         )}

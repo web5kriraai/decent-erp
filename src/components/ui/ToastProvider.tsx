@@ -4,12 +4,12 @@ import { ApiClientError } from "@/lib/api-client";
 import { humanizeApiError } from "@/lib/humanize-api-error";
 import { cn } from "@/lib/utils";
 import {
-  AlertTriangleIcon,
-  CheckCircle2Icon,
-  InfoIcon,
-  XCircleIcon,
-  XIcon,
-} from "lucide-react";
+  IconAlertTriangle,
+  IconCheckCircle2,
+  IconInfo,
+  IconXCircle,
+  IconClose,
+} from "@/components/icons";
 import {
   createContext,
   useCallback,
@@ -26,6 +26,7 @@ export type Toast = {
   type: ToastType;
   title: string;
   message?: string;
+  /** Only for unexpected server failures (5xx). */
   correlationId?: string;
 };
 
@@ -37,11 +38,11 @@ type ToastContextValue = {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const TOAST_ICONS: Record<ToastType, typeof CheckCircle2Icon> = {
-  success: CheckCircle2Icon,
-  error: XCircleIcon,
-  warning: AlertTriangleIcon,
-  info: InfoIcon,
+const TOAST_ICONS: Record<ToastType, typeof IconCheckCircle2> = {
+  success: IconCheckCircle2,
+  error: IconXCircle,
+  warning: IconAlertTriangle,
+  info: IconInfo,
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -54,8 +55,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback(
     (toast: Omit<Toast, "id">) => {
       const id = crypto.randomUUID();
-      setToasts((prev) => [...prev.slice(-4), { ...toast, id }]);
-      setTimeout(() => dismissToast(id), 7000);
+      setToasts((prev) => [...prev.slice(-3), { ...toast, id }]);
+      const ms = toast.type === "error" ? 6000 : toast.type === "warning" ? 5500 : 4000;
+      setTimeout(() => dismissToast(id), ms);
     },
     [dismissToast],
   );
@@ -75,16 +77,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={toast.id}
               className={cn("toast", `toast--${toast.type}`)}
-              role="alert"
+              role={toast.type === "error" ? "alert" : "status"}
             >
-              <span className="toast-icon" aria-hidden>
-                <Icon className="size-5" />
+              <span className={cn("toast-icon", `toast-icon--${toast.type}`)} aria-hidden>
+                <Icon className="size-4" />
               </span>
               <div className="toast-content">
                 <p className="toast-title">{toast.title}</p>
                 {toast.message ? <p className="toast-message">{toast.message}</p> : null}
                 {toast.correlationId ? (
-                  <p className="toast-correlation">Reference: {toast.correlationId}</p>
+                  <p className="toast-correlation">Support ref · {toast.correlationId.slice(0, 8)}</p>
                 ) : null}
               </div>
               <button
@@ -93,7 +95,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 onClick={() => dismissToast(toast.id)}
                 aria-label="Dismiss notification"
               >
-                <XIcon className="size-4" />
+                <IconClose className="size-3.5" />
               </button>
             </div>
           );
@@ -123,10 +125,17 @@ export function useApiToast() {
       showToast({ type: "info", title, message }),
     errorFromApi: (error: unknown, fallback = "Something went wrong") => {
       const humanized = humanizeApiError(error, fallback);
-      const isConflict =
-        error instanceof ApiClientError && error.isConflict;
+      const status = error instanceof ApiClientError ? error.status : 500;
+      const isConflict = error instanceof ApiClientError && error.isConflict;
+      // Expected business validation → calm warning, not a red error banner.
+      const type: ToastType =
+        status >= 500 ? "error" : status === 409 || status === 422 || status === 400
+          ? "warning"
+          : status >= 400
+            ? "warning"
+            : "error";
       showToast({
-        type: "error",
+        type,
         title: humanized.title,
         message:
           humanized.hint ??

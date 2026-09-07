@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { ArrowRight, UserRound } from "lucide-react";
+import { IconArrowRight, IconUserRound } from "@/components/icons";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
@@ -103,7 +103,7 @@ export function PipelineDependenciesView() {
                         title="Next task"
                         aria-label="Next task"
                       >
-                        <ArrowRight aria-hidden />
+                        <IconArrowRight aria-hidden />
                       </AppButtonLink>
                     ) : null}
                     <AppButtonLink
@@ -114,7 +114,7 @@ export function PipelineDependenciesView() {
                       title="Owner task"
                       aria-label="Owner task"
                     >
-                      <UserRound aria-hidden />
+                      <IconUserRound aria-hidden />
                     </AppButtonLink>
                   </div>
                 ),

@@ -65,6 +65,34 @@ describe("workflow-actions resolve", () => {
     expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL)).toBeUndefined();
   });
 
+  it("links request approval to the dedicated sign-off page", () => {
+    const design: DesignSummary = {
+      id: "42",
+      ideaRef: "IDEA-42",
+      collectionName: "Test",
+      status: "ACTIVE",
+      priority: "MEDIUM",
+      tasks: [
+        task({
+          id: "t1",
+          sequence: 1,
+          status: "COMPLETED",
+          subProcess: { id: 1, name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        }),
+      ],
+    };
+
+    const actions = resolveDesignContextActions({
+      design,
+      permissions: [PERMISSIONS.DESIGN_APPROVE],
+      roleCode: "DESIGN_HEAD",
+    });
+
+    const request = actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL);
+    expect(request?.enabled).toBe(true);
+    expect(request?.href).toBe("/quality/approvals/request-sign-off/42");
+  });
+
   it("hides start task when dependency blocks", () => {
     const actions = resolveTaskContextActions({
       task: {
@@ -289,8 +317,8 @@ describe("workflow-actions resolve", () => {
     expect(actions.find((a) => a.label === "Open Management Sign-off")).toBeUndefined();
   });
 
-  it("hides execute Start/End for Live Design Review stage panel tasks", () => {
-    const actions = resolveTaskContextActions({
+  it("allows Start/Hold for stage approval tasks but hides End", () => {
+    const assigned = resolveTaskContextActions({
       task: {
         id: "lr",
         designId: "1",
@@ -304,7 +332,42 @@ describe("workflow-actions resolve", () => {
       isAssignee: true,
       permissions: [PERMISSIONS.TASK_EXECUTE],
     });
-    expect(actions).toHaveLength(0);
+    expect(assigned.find((a) => a.code === WORKFLOW_ACTION_CODES.START_TASK)?.enabled).toBe(true);
+    expect(assigned.find((a) => a.code === WORKFLOW_ACTION_CODES.END_TASK)).toBeUndefined();
+
+    const running = resolveTaskContextActions({
+      task: {
+        id: "sa",
+        designId: "1",
+        status: "RUNNING",
+        sequence: 3,
+        dependencySequence: 3,
+        assignedEmployeeId: 1,
+        subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        workflowPeers: [],
+      },
+      isAssignee: true,
+      permissions: [PERMISSIONS.TASK_EXECUTE],
+    });
+    expect(running.find((a) => a.code === WORKFLOW_ACTION_CODES.HOLD_TASK)?.enabled).toBe(true);
+    expect(running.find((a) => a.code === WORKFLOW_ACTION_CODES.END_TASK)).toBeUndefined();
+
+    const onHold = resolveTaskContextActions({
+      task: {
+        id: "sa",
+        designId: "1",
+        status: "ON_HOLD",
+        sequence: 3,
+        dependencySequence: 3,
+        assignedEmployeeId: 1,
+        subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        workflowPeers: [],
+      },
+      isAssignee: true,
+      permissions: [PERMISSIONS.TASK_EXECUTE],
+    });
+    expect(onHold.find((a) => a.code === WORKFLOW_ACTION_CODES.RESUME_TASK)?.enabled).toBe(true);
+    expect(onHold.find((a) => a.code === WORKFLOW_ACTION_CODES.END_TASK)).toBeUndefined();
   });
 
   it("omits raise correction when permission missing", () => {
@@ -334,7 +397,7 @@ describe("workflow-actions resolve", () => {
     ).toBeUndefined();
   });
 
-  it("hides approve when costing is not ready", () => {
+  it("does not expose management decide actions (Option A)", () => {
     const actions = resolveApprovalContextActions({
       permissions: [PERMISSIONS.DESIGN_APPROVE],
       roleCode: "MANAGEMENT",
@@ -342,7 +405,10 @@ describe("workflow-actions resolve", () => {
       approval: { designId: "1", costingReady: false },
     });
     expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.APPROVE_LEVEL)).toBeUndefined();
-    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL)?.enabled).toBe(true);
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REJECT_LEVEL)).toBeUndefined();
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE)?.enabled).toBe(
+      true,
+    );
   });
 
   it("hides costing actions without COST_VIEW", () => {

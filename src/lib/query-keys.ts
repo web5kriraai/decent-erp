@@ -6,6 +6,7 @@ export const queryKeys = {
       ["designs", "list", filters] as const,
     detail: (id: string) => ["designs", "detail", id] as const,
     completionSummary: (id: string) => ["designs", "completion-summary", id] as const,
+    productionReadiness: (id: string) => ["designs", "production-readiness", id] as const,
     images: (id: string) => ["designs", "images", id] as const,
   },
   tasks: {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Eye } from "lucide-react";
+import { IconEye } from "@/components/icons";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { TimerWidget } from "@/components/TimerWidget";
@@ -21,6 +21,7 @@ import {
   type ActionCenterBlockedItem,
 } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
+import { useTaskTimeDetail } from "@/hooks/use-time";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
 import { computeElapsedSeconds } from "@/lib/types/api";
@@ -29,7 +30,12 @@ import { resolveTaskContextActions, WORKFLOW_ACTION_CODES } from "@/lib/workflow
 import {
   getTaskEndDialogConfig,
   getTaskHoldDialogConfig,
+  buildHandoffContextFromTask,
 } from "@/lib/task-dialog-config";
+import { findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
+import { getTimerControlFlags } from "@/lib/task-control-capability";
+import { resolveWorkOpenHref } from "@/lib/resolve-work-open-href";
+import { usesStageApprovalActionsNotTimerEnd } from "@/lib/stage-approval-rbac";
 
 const KANBAN_COLUMNS = [
   ["READY", "Ready to Start"],
@@ -73,7 +79,7 @@ function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
             title="View task"
             aria-label="View task"
           >
-            <Eye aria-hidden />
+            <IconEye aria-hidden />
           </AppButtonLink>
         </li>
       ))}
@@ -135,6 +141,11 @@ export function TaskWorkspace() {
   const onHoldTask = (center?.actionRequired ?? []).find((t) => t.status === "ON_HOLD");
   const activeTask = runningTask ?? onHoldTask ?? selectedTask;
   const isTimerActive = !!(runningTask || onHoldTask);
+  const activeDetailQuery = useTaskTimeDetail(
+    activeTask?.id ?? "",
+    !!activeTask && isTimerActive,
+  );
+  const activeDetail = activeDetailQuery.data;
 
   const timerActions = useMemo(() => {
     if (!activeTask || !isTimerActive) return [];
@@ -157,7 +168,6 @@ export function TaskWorkspace() {
   const canResume = timerActions.some(
     (a) => a.code === WORKFLOW_ACTION_CODES.RESUME_TASK && a.enabled,
   );
-  const canEnd = timerActions.some((a) => a.code === WORKFLOW_ACTION_CODES.END_TASK && a.enabled);
 
   const fileRequired = !!activeTask?.subProcess?.isFileRequired;
   const isSampleCheck = activeTask?.subProcess?.code === "SAMPLE_CHECK";
@@ -166,6 +176,7 @@ export function TaskWorkspace() {
         status: activeTask.status,
         subProcess: activeTask.subProcess,
         design: activeTask.design,
+        assignedEmployee: activeTask.assignedEmployee,
       })
     : null;
   const endDialogConfig = activeTask
@@ -174,10 +185,78 @@ export function TaskWorkspace() {
           status: activeTask.status,
           subProcess: activeTask.subProcess,
           design: activeTask.design,
+          assignedEmployee: activeTask.assignedEmployee,
         },
         session?.user?.roleCode,
       )
     : null;
+
+  const blocksTimerEnd = usesStageApprovalActionsNotTimerEnd(activeTask?.subProcess?.code, {
+    isApproval: activeTask?.subProcess?.isApproval,
+    capabilities: (activeTask?.subProcess as { capabilities?: unknown } | undefined)?.capabilities,
+  });
+  const timerFlags = activeTask
+    ? getTimerControlFlags(activeTask, { endDialogMode: endDialogConfig?.mode })
+    : null;
+  const canEnd =
+    !!timerFlags?.showEnd &&
+    timerActions.some((a) => a.code === WORKFLOW_ACTION_CODES.END_TASK && a.enabled);
+
+  const priorPeer =
+    activeTask && activeDetail?.workflowPeers
+      ? findPriorPeerForHandoff(activeTask.subProcess.code, activeDetail.workflowPeers)
+      : null;
+  const priorStage = priorPeer
+    ? {
+        code: priorPeer.subProcess.code,
+        name: priorPeer.subProcess.name,
+        status: priorPeer.status,
+        outputRemark: priorPeer.outputRemark,
+        assigneeName: priorPeer.assignedEmployee?.name,
+      }
+    : null;
+
+  const holdHandoff =
+    activeTask && holdDialogConfig
+      ? buildHandoffContextFromTask(
+          {
+            status: activeTask.status,
+            subProcess: activeTask.subProcess,
+            design: {
+              ideaRef: activeTask.design?.ideaRef,
+              collectionName: activeTask.design?.collectionName,
+              productType: activeDetail?.design.productType ?? undefined,
+            },
+            assignedEmployee: activeTask.assignedEmployee,
+          },
+          {
+            description: holdDialogConfig.description,
+            nextStepHint: holdDialogConfig.nextStepHint,
+            priorStage,
+          },
+        )
+      : null;
+
+  const endHandoff =
+    activeTask && endDialogConfig
+      ? buildHandoffContextFromTask(
+          {
+            status: activeTask.status,
+            subProcess: activeTask.subProcess,
+            design: {
+              ideaRef: activeTask.design?.ideaRef,
+              collectionName: activeTask.design?.collectionName,
+              productType: activeDetail?.design.productType ?? undefined,
+            },
+            assignedEmployee: activeTask.assignedEmployee,
+          },
+          {
+            description: endDialogConfig.description,
+            nextStepHint: endDialogConfig.nextStepHint,
+            priorStage,
+          },
+        )
+      : null;
 
   const elapsedSeconds = activeTask?.timeEvents
     ? computeElapsedSeconds(activeTask.timeEvents)
@@ -222,10 +301,12 @@ export function TaskWorkspace() {
     if (!task.canStart) return;
     setSelectedTaskId(task.id);
     await start.mutateAsync(task.id);
-    const designId = task.design?.id ?? task.designId;
-    if (designId) {
-      router.push(ROUTES.designs.detail(designId));
-    }
+    const href = resolveWorkOpenHref({
+      taskId: task.id,
+      designId: task.design?.id ?? task.designId,
+      intent: "task",
+    });
+    if (href) router.push(href);
   }
 
   async function handleHoldSubmit() {
@@ -243,7 +324,7 @@ export function TaskWorkspace() {
   async function handleEndSubmit() {
     if (!activeTask || !endRemark.trim()) return;
     if (isSampleCheck && !sampleOutcome) return;
-    const isCosting = activeTask.subProcess?.code === "COSTING";
+    const isCosting = endDialogConfig?.costingEntry === true;
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -377,6 +458,12 @@ export function TaskWorkspace() {
                     : undefined
                 }
               />
+              {blocksTimerEnd && isTimerActive ? (
+                <p className="mb-3 text-sm text-muted-foreground" role="status">
+                  This is a stage approval — finish with Approve / Reject on the task page. Hold
+                  still works here.
+                </p>
+              ) : null}
 
               {(center?.actionRequired ?? []).length === 0 ? (
                 <p className="action-center-empty action-center-empty--inline">
@@ -495,10 +582,13 @@ export function TaskWorkspace() {
         title={holdDialogConfig?.title}
         description={holdDialogConfig?.description}
         preferredHoldReasonCodes={holdDialogConfig?.preferredHoldReasonCodes}
+        remarkLabel={holdDialogConfig?.remarkLabel}
+        remarkPlaceholder={holdDialogConfig?.remarkPlaceholder}
+        handoff={holdHandoff}
       />
 
       <TaskEndDialog
-        open={endModalOpen}
+        open={endModalOpen && canEnd}
         onClose={() => {
           setEndModalOpen(false);
           setCostEntries([]);
@@ -525,6 +615,10 @@ export function TaskWorkspace() {
         gateForcesChecking={endDialogConfig?.forceChecking}
         dialogTitle={endDialogConfig?.title}
         dialogDescription={endDialogConfig?.description}
+        remarkLabel={endDialogConfig?.remarkLabel}
+        remarkPlaceholder={endDialogConfig?.remarkPlaceholder}
+        handoff={endHandoff}
+        showStatusSelect={endDialogConfig?.showStatusSelect}
         costEntries={costEntries}
         onCostEntriesChange={setCostEntries}
         onSubmit={handleEndSubmit}

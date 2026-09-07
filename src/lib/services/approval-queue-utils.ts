@@ -1,11 +1,13 @@
 import { canRoleActOnManagementLevel } from "@/lib/approval-hub-rbac";
 import { ROLE_CODES } from "@/lib/permissions";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+import { isCostingReadyForTransition } from "@/lib/workflow/transition-policies";
 
 const SATISFIED_TASK = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
 
 /**
- * Tasks outside development sign-off scope — do not block ready-for-sign-off.
- * RESAMPLE is intentionally NOT excluded: checker must re-approve after re-sample.
+ * Legacy code allowlist for sign-off exclusions (CORRECTION + historical PROD_*).
+ * Prefer capability `unlockAfterDesignApproved` via {@link isSignOffScopeExcludedTask}.
  */
 export const SIGNOFF_SCOPE_EXCLUDED_CODES = new Set([
   "CORRECTION",
@@ -17,6 +19,25 @@ export const SIGNOFF_SCOPE_EXCLUDED_CODES = new Set([
 
 export function isSignOffScopeExcluded(code: string | null | undefined): boolean {
   return !!code && SIGNOFF_SCOPE_EXCLUDED_CODES.has(code);
+}
+
+/** Capability-first: post-approve ladder stages are out of sign-off scope; CORRECTION via shim. */
+export function isSignOffScopeExcludedTask(task: {
+  subProcess: {
+    code: string;
+    isApproval?: boolean;
+    isFileRequired?: boolean;
+    capabilities?: unknown;
+  };
+}): boolean {
+  const behavior = resolveStageBehavior({
+    code: task.subProcess.code,
+    isApproval: task.subProcess.isApproval,
+    isFileRequired: task.subProcess.isFileRequired,
+    capabilities: task.subProcess.capabilities,
+  });
+  if (behavior.unlockAfterDesignApproved) return true;
+  return isSignOffScopeExcluded(task.subProcess.code);
 }
 
 export function readyForSignOffScopeFilter(
@@ -43,21 +64,30 @@ export function canEmployeeActOnApprovalLevel(
 }
 
 export function isDesignReadyForSignOff(
-  tasks: Array<{ status: string; subProcess: { code: string; isApproval: boolean } }>,
+  tasks: Array<{
+    status: string;
+    subProcess: {
+      code: string;
+      isApproval: boolean;
+      isFileRequired?: boolean;
+      capabilities?: unknown;
+    };
+  }>,
 ): boolean {
-  const inSignOffScope = (code: string) => !isSignOffScopeExcluded(code);
+  const inSignOffScope = (task: (typeof tasks)[number]) =>
+    !isSignOffScopeExcludedTask(task);
 
   const openApprovals = tasks.some(
     (t) =>
       t.subProcess.isApproval &&
-      inSignOffScope(t.subProcess.code) &&
+      inSignOffScope(t) &&
       !SATISFIED_TASK.has(t.status) &&
       t.status !== "CANCELLED",
   );
   if (openApprovals) return false;
 
   const incomplete = tasks.filter(
-    (t) => inSignOffScope(t.subProcess.code) && !SATISFIED_TASK.has(t.status),
+    (t) => inSignOffScope(t) && !SATISFIED_TASK.has(t.status),
   );
   return incomplete.length === 0;
 }
@@ -76,7 +106,13 @@ type PendingDesignTaskRow = {
   sequence: number;
   assignedEmployeeId?: number | null;
   process: { name: string };
-  subProcess: { name: string; code: string; isApproval?: boolean };
+  subProcess: {
+    name: string;
+    code: string;
+    isApproval?: boolean;
+    isFileRequired?: boolean;
+    capabilities?: unknown;
+  };
   assignedEmployee?: { id: number; name: string } | null;
 };
 
@@ -112,7 +148,15 @@ export function pickRelatedApprovalTask(
   if (completedWork) return completedWork;
 
   if (currentLevelCode === "MANAGEMENT_APPROVAL") {
-    const costing = sorted.find((t) => t.subProcess.code === "COSTING");
+    const costing = sorted.find((t) => {
+      const behavior = resolveStageBehavior({
+        code: t.subProcess.code,
+        isApproval: t.subProcess.isApproval,
+        isFileRequired: t.subProcess.isFileRequired,
+        capabilities: t.subProcess.capabilities,
+      });
+      return behavior.costingEntry;
+    });
     if (costing) return costing;
   }
 
@@ -151,9 +195,14 @@ export type BuiltPendingApprovalItem = {
 export function buildPendingApprovalItems(
   designs: PendingDesignRow[],
   levels: ApprovalLevelRow[],
-  options?: { designIdsWithCosting?: Set<string> },
+  options?: {
+    designIdsWithCosting?: Set<string>;
+    /** When set, final-level costingReady uses presence-driven requiresCosting. */
+    designIdsRequiringCosting?: Set<string>;
+  },
 ): BuiltPendingApprovalItem[] {
   const withCosting = options?.designIdsWithCosting;
+  const requiringCosting = options?.designIdsRequiringCosting;
   const lastLevel = levels.length > 0 ? levels[levels.length - 1] : null;
 
   return designs.flatMap((design) => {
@@ -171,7 +220,10 @@ export function buildPendingApprovalItems(
 
     const designId = design.id.toString();
     const isFinalLevel = lastLevel != null && nextLevel.id === lastLevel.id;
-    const costingReady = !isFinalLevel || (withCosting?.has(designId) ?? true);
+    const requiresCosting = requiringCosting?.has(designId) ?? true;
+    const hasCosting = withCosting?.has(designId) ?? true;
+    const costingReady =
+      !isFinalLevel || isCostingReadyForTransition(requiresCosting, hasCosting);
     const followingLevel = levels.find(
       (l) => (l.sequence ?? 0) > (nextLevel.sequence ?? 0),
     );

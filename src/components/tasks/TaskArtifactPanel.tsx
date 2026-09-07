@@ -12,7 +12,7 @@ import {
 } from "@/lib/file-upload-policy";
 import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { cn } from "@/lib/utils";
-import { FileIcon, Loader2Icon, UploadCloudIcon } from "lucide-react";
+import { IconFile, IconLoader2, IconUploadCloud } from "@/components/icons";
 
 type MachineMetricsPayload = {
   stitchCount?: number;
@@ -222,12 +222,12 @@ export function TaskArtifactPanel({
           />
           {uploading ? (
             <>
-              <Loader2Icon
+              <IconLoader2
                 className={cn("animate-spin text-primary", compact ? "size-5" : "size-8")}
                 aria-hidden
               />
               <div className="flex max-w-md items-center gap-2 text-sm">
-                <FileIcon className="size-4 shrink-0 text-primary" aria-hidden />
+                <IconFile className="size-4 shrink-0 text-primary" aria-hidden />
                 <span className="truncate font-medium">
                   Uploading {activeFileName ?? "file"}…
                 </span>
@@ -240,7 +240,7 @@ export function TaskArtifactPanel({
             </>
           ) : compact ? (
             <>
-              <UploadCloudIcon
+              <IconUploadCloud
                 className={cn("size-5 text-muted-foreground", dragOver && "text-primary")}
                 aria-hidden
               />
@@ -252,7 +252,7 @@ export function TaskArtifactPanel({
             </>
           ) : (
             <>
-              <UploadCloudIcon
+              <IconUploadCloud
                 className={cn("size-8 text-muted-foreground", dragOver && "text-primary")}
                 aria-hidden
               />

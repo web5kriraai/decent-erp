@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Modal,
   ModalFooterActions,
 } from "@/components/ui/Modal";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
-import { ROUTES } from "@/config/routes";
 import { usePendingApprovals, useSubmitApproval } from "@/hooks/use-approvals";
 import { useEmployeeOptions } from "@/hooks/use-corrections";
 import { parseApprovalRequestPackage } from "@/lib/approval-request-package";
+import { approvalsHubHrefForRole } from "@/lib/stage-approval-rbac";
 import {
   ApprovalDecisionForm,
   defaultApprovalDecisionFormState,
@@ -23,6 +24,8 @@ type ManagementApprovalCardProps = {
 };
 
 export function ManagementApprovalCard({ designId, ideaRef }: ManagementApprovalCardProps) {
+  const { data: session } = useSession();
+  const managementHref = approvalsHubHrefForRole(session?.user?.roleCode, "management");
   const pendingQuery = usePendingApprovals(true);
   const submitApproval = useSubmitApproval();
   const [formState, setFormState] = useState<ApprovalDecisionFormState>(
@@ -72,7 +75,7 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
         </div>
         <div className="compact-design-actions-row">
           <AppButtonLink
-            href={`${ROUTES.quality.approvals}?tab=management`}
+            href={managementHref}
             appVariant="ghost"
             size="sm"
           >
@@ -126,6 +129,7 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
             name: e.name,
           }))}
           nextLevelName={pendingItem.nextLevelName}
+          onEnterSubmit={() => void handleSubmit()}
         />
       </Modal>
     </>

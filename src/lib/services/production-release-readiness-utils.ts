@@ -1,58 +1,75 @@
 /** Pure pattern-aware production release stage gaps (no DB). */
 
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+
 const SATISFIED = new Set(["COMPLETED", "CHECKING", "CANCELLED", "SKIPPED"]);
+
+/** Textile-friendly labels for parity with historical readiness messages. */
+const TEXTILE_LABELS: Record<string, { label: string; fileLabel?: string }> = {
+  SKETCH: { label: "Sketch work", fileLabel: "Sketch file" },
+  SKETCH_APPROVAL: { label: "Sketch approval" },
+  PUNCH: { label: "Punching / Wilcom work", fileLabel: "Punching file" },
+  PUNCH_CHECK: { label: "Punching checking approval" },
+  MAT_REQ: { label: "Material requirement" },
+  FABRIC_ISSUE: { label: "Fabric / component issue" },
+  MACHINE_SAMPLE: { label: "Machine sample" },
+  SAMPLE_CHECK: { label: "Sample approval" },
+  FINAL_APPROVAL: { label: "Design Head final approval stage" },
+  PROD_HANDOFF: { label: "Production handoff from Design Head" },
+  PROD_INSTRUCTION: { label: "Production instruction" },
+};
 
 export type ReadinessTaskSnapshot = {
   status: string;
   isFileRequired?: boolean;
   hasFile?: boolean;
+  isApproval?: boolean;
+  capabilities?: unknown;
+  code?: string;
+  name?: string;
 };
 
 /**
- * Design-side stages required only when present; PROD ladder required when present
- * (or reported missing if absent — caller ensures ladder was appended).
+ * Design-side and production-ladder stages required only when present on the design.
+ * Absent PROD_HANDOFF / PROD_INSTRUCTION are not gaps (flexible / short patterns).
  */
 export function collectPresentStageGaps(
   tasksByCode: Record<string, ReadinessTaskSnapshot | undefined>,
 ): string[] {
   const missing: string[] = [];
 
-  function check(
-    code: string,
-    label: string,
-    options?: { mustBeCompleted?: boolean; fileLabel?: string },
-  ) {
-    const task = tasksByCode[code];
-    if (!task) return;
-    const ok = options?.mustBeCompleted
-      ? task.status === "COMPLETED"
-      : SATISFIED.has(task.status);
+  for (const [code, task] of Object.entries(tasksByCode)) {
+    if (!task) continue;
+    if (code === "PROD_RELEASE" || code === "LIVE_REVIEW") continue;
+
+    const behavior = resolveStageBehavior({
+      code,
+      isApproval: task.isApproval,
+      isFileRequired: task.isFileRequired,
+      capabilities: task.capabilities,
+    });
+
+    const textile = TEXTILE_LABELS[code];
+    const label = textile?.label ?? task.name ?? code;
+
+    if (code === "PROD_HANDOFF" || code === "PROD_INSTRUCTION") {
+      if (task.status !== "COMPLETED") {
+        missing.push(textile?.label ?? label);
+      }
+      continue;
+    }
+
+    const mustBeCompleted = behavior.isApproval;
+    const ok = mustBeCompleted ? task.status === "COMPLETED" : SATISFIED.has(task.status);
     if (!ok) {
       missing.push(label);
-      return;
+      continue;
     }
-    if (task.isFileRequired && !task.hasFile) {
-      missing.push(options?.fileLabel ?? `${label} file`);
+
+    const requiresFile = task.isFileRequired === true;
+    if (requiresFile && !task.hasFile) {
+      missing.push(textile?.fileLabel ?? `${label} file`);
     }
-  }
-
-  check("SKETCH", "Sketch work", { fileLabel: "Sketch file" });
-  check("SKETCH_APPROVAL", "Sketch approval", { mustBeCompleted: true });
-  check("PUNCH", "Punching / Wilcom work", { fileLabel: "Punching file" });
-  check("PUNCH_CHECK", "Punching checking approval", { mustBeCompleted: true });
-  check("MAT_REQ", "Material requirement");
-  check("FABRIC_ISSUE", "Fabric / component issue");
-  check("MACHINE_SAMPLE", "Machine sample");
-  check("SAMPLE_CHECK", "Sample approval", { mustBeCompleted: true });
-  check("FINAL_APPROVAL", "Design Head final approval stage", { mustBeCompleted: true });
-
-  const handoff = tasksByCode.PROD_HANDOFF;
-  if (!handoff || handoff.status !== "COMPLETED") {
-    missing.push("Production handoff from Design Head");
-  }
-  const instruction = tasksByCode.PROD_INSTRUCTION;
-  if (!instruction || instruction.status !== "COMPLETED") {
-    missing.push("Production instruction");
   }
 
   return missing;

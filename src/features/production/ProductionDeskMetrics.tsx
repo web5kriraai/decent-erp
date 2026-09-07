@@ -2,12 +2,12 @@
 
 import type { ReactNode } from "react";
 import {
-  AlertCircleIcon,
-  CheckCircle2Icon,
-  ClipboardListIcon,
-  Clock3Icon,
-  HandshakeIcon,
-} from "lucide-react";
+  IconAlertCircle,
+  IconCheckCircle2,
+  IconClipboardList,
+  IconClock3,
+  IconHandshake,
+} from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 type MetricTone = "neutral" | "danger" | "warn" | "info" | "success";
@@ -63,32 +63,32 @@ export function ProductionDeskMetrics({
         label="Blocked"
         value={blocked}
         tone="danger"
-        icon={<AlertCircleIcon className="size-4" />}
+        icon={<IconAlertCircle className="size-4" />}
       />
       <ProductionDeskMetric
         label="Handoff"
         value={handoff}
         tone="warn"
-        icon={<HandshakeIcon className="size-4" />}
+        icon={<IconHandshake className="size-4" />}
       />
       <ProductionDeskMetric
         label="Instruction"
         value={instruction}
         tone="info"
-        icon={<ClipboardListIcon className="size-4" />}
+        icon={<IconClipboardList className="size-4" />}
       />
       <ProductionDeskMetric
         label="Ready to release"
         value={ready}
         tone="success"
-        icon={<CheckCircle2Icon className="size-4" />}
+        icon={<IconCheckCircle2 className="size-4" />}
       />
       {showAwaitingLive ? (
         <ProductionDeskMetric
           label="Awaiting go-live"
           value={awaitingLive}
           tone="info"
-          icon={<Clock3Icon className="size-4" />}
+          icon={<IconClock3 className="size-4" />}
         />
       ) : null}
     </div>

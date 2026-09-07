@@ -14,9 +14,9 @@ import {
   WorkbenchQueueCard,
   WorkbenchShell,
 } from "@/features/dashboard/workbench-shared";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
 const DONE = new Set(["COMPLETED", "CANCELLED"]);
-const MACHINE_CODES = new Set(["MACHINE_SAMPLE", "SAMPLE_RECEIVE", "RESAMPLE"]);
 
 type MachineTask = {
   id: string;
@@ -24,11 +24,15 @@ type MachineTask = {
   effectiveStatus?: string;
   isWaitingOnOthers?: boolean;
   design: { id: string; ideaRef: string };
-  subProcess: { code?: string; name: string };
+  subProcess: { code?: string; name: string; capabilities?: unknown };
 };
 
 function isMachineTask(task: MachineTask) {
-  return !!task.subProcess.code && MACHINE_CODES.has(task.subProcess.code);
+  if (!task.subProcess.code) return false;
+  return resolveStageBehavior({
+    code: task.subProcess.code,
+    capabilities: task.subProcess.capabilities,
+  }).machineOutput;
 }
 
 export function MachineOperatorWorkbench() {

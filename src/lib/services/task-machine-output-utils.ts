@@ -1,11 +1,12 @@
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+
 /** Machine sample / receive / resample tasks record stitch, format, and qty metrics. */
-export function isMachineOutputTask(subProcessCode?: string | null): boolean {
-  const code = subProcessCode?.toUpperCase() ?? "";
-  return (
-    code === "MACHINE_SAMPLE" ||
-    code === "SAMPLE_RECEIVE" ||
-    code.includes("RESAMPLE")
-  );
+export function isMachineOutputTask(
+  subProcessCode?: string | null,
+  capabilities?: unknown,
+): boolean {
+  if (!subProcessCode) return false;
+  return resolveStageBehavior({ code: subProcessCode, capabilities }).machineOutput;
 }
 
 export function hasMachineMetricsInPayload(body: {
@@ -30,9 +31,10 @@ export function canRecordMachineMetrics(
     sampleQty?: number | null;
     wastageQty?: number | null;
   },
+  capabilities?: unknown,
 ): boolean {
   if (!hasMachineMetricsInPayload(body)) return true;
-  return isMachineOutputTask(subProcessCode);
+  return isMachineOutputTask(subProcessCode, capabilities);
 }
 
 export const MACHINE_FORMAT_OPTIONS = [

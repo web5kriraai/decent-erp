@@ -18,9 +18,16 @@ import {
 } from "@/lib/services/workflow-stage-gate";
 
 const taskTimeInclude = {
-  design: { select: { id: true, ideaRef: true, collectionName: true } },
+  design: {
+    select: {
+      id: true,
+      ideaRef: true,
+      collectionName: true,
+      productType: { select: { name: true } },
+    },
+  },
   process: { select: { id: true, name: true, code: true } },
-  subProcess: { select: { id: true, name: true, code: true, isFileRequired: true, isApproval: true } },
+  subProcess: { select: { id: true, name: true, code: true, isFileRequired: true, isApproval: true, capabilities: true, defaultRole: { select: { id: true, code: true, name: true } } } },
   assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
   timeEvents: {
     orderBy: { eventTimeUtc: "asc" as const },
@@ -331,6 +338,7 @@ export async function getTaskTimeDetail(
       dependencySequence: true,
       status: true,
       assignedEmployeeId: true,
+      outputRemark: true,
       subProcess: { select: { name: true, code: true, isApproval: true } },
       assignedEmployee: { select: { name: true } },
     },
@@ -374,6 +382,7 @@ export async function getTaskTimeDetail(
     dependencySequence: peer.dependencySequence,
     status: peer.status,
     assignedEmployeeId: peer.assignedEmployeeId,
+    outputRemark: peer.outputRemark,
     subProcess: peer.subProcess,
     assignedEmployee: peer.assignedEmployee,
   }));
@@ -413,6 +422,7 @@ export async function getTaskTimeDetail(
       id: task.design.id.toString(),
       ideaRef: task.design.ideaRef,
       collectionName: task.design.collectionName,
+      productType: task.design.productType?.name ?? null,
     },
     process: task.process,
     subProcess: task.subProcess,

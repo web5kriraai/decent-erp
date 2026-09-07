@@ -1,20 +1,22 @@
 import { prisma } from "@/lib/db";
 import { buildNotificationMessage } from "@/lib/notifications/messages";
 import { ROUTES } from "@/config/routes";
+import { approvalsHubHrefForRole } from "@/lib/stage-approval-rbac";
 
 function resolveNotificationHref(
   eventType: string,
   payload: Record<string, unknown>,
+  roleCode?: string | null,
 ): string | null {
   if (typeof payload.taskId === "string") {
     if (payload.isStageApproval === true) {
-      return `${ROUTES.quality.approvals}?tab=stage`;
+      return approvalsHubHrefForRole(roleCode, "stage");
     }
     return ROUTES.work.taskDetail(payload.taskId);
   }
   if (typeof payload.designId === "string") {
-    if (eventType === "APPROVAL_PENDING") {
-      return `${ROUTES.quality.approvals}?tab=management`;
+    if (eventType === "APPROVAL_PENDING" || eventType === "DESIGN_APPROVED") {
+      return ROUTES.designs.detail(payload.designId);
     }
     return ROUTES.designs.detail(payload.designId);
   }
@@ -28,7 +30,12 @@ export async function createEmployeeNotification(
   payload: Record<string, unknown>,
 ) {
   const { subject, text } = buildNotificationMessage(eventType, payload);
-  const href = resolveNotificationHref(eventType, payload);
+
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { role: { select: { code: true } } },
+  });
+  const href = resolveNotificationHref(eventType, payload, employee?.role?.code);
 
   return prisma.employeeNotification.create({
     data: {

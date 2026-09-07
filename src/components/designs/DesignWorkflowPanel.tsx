@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
-import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
@@ -14,35 +14,27 @@ import {
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
 import {
-  ArrowRightIcon,
-  CheckCircle2Icon,
-  CircleDashedIcon,
-  Clock3Icon,
-  LockIcon,
-} from "lucide-react";
+  IconCheckCircle2,
+  IconCircleDashed,
+  IconClock3,
+  IconLock,
+} from "@/components/icons";
 
 type DesignWorkflowPanelProps = {
   design: DesignSummary;
   designId: string;
   canAssign: boolean;
   onAssignTask?: (task: DesignTask) => void;
-  /** When false, omit sign-off CTA (already shown elsewhere on the page). */
+  /** @deprecated Option A removed management sign-off CTA */
   showSignOffCta?: boolean;
   /** Secondary workflow tools (e.g. override) — sits in the card header. */
   headerActions?: ReactNode;
 };
 
-const SIGN_OFF_LEVELS = [
-  { level: 1, label: "Sample Checker" },
-  { level: 2, label: "Design Head" },
-  { level: 3, label: "Management" },
-] as const;
-
 export function DesignWorkflowPanel({
   design,
   canAssign,
   onAssignTask,
-  showSignOffCta = true,
   headerActions,
 }: DesignWorkflowPanelProps) {
   const steps = useMemo(() => buildWorkflowSteps(design.tasks), [design.tasks]);
@@ -60,30 +52,26 @@ export function DesignWorkflowPanel({
     [design.status, steps, workflowContext],
   );
 
-  const isSignOff = design.status === "APPROVAL_PENDING";
   // Page header already shows design.status — only show a different stage badge here.
   const showHeaderBadge =
-    !isSignOff &&
     workflowHeaderStatus.replace(/\s+/g, "_").toUpperCase() !==
-      design.status.replace(/\s+/g, "_").toUpperCase();
+    design.status.replace(/\s+/g, "_").toUpperCase();
 
-  const statusLine = isSignOff
-    ? null
-    : workflowContext.waitingMessage ??
-      (workflowContext.nextAction
-        ? [
-            workflowContext.nextAction,
-            workflowContext.nextOwner ? `· ${workflowContext.nextOwner}` : null,
-          ]
-            .filter(Boolean)
-            .join(" ")
-        : null);
+  const statusLine =
+    workflowContext.waitingMessage ??
+    (workflowContext.nextAction
+      ? [
+          workflowContext.nextAction,
+          workflowContext.nextOwner ? `· ${workflowContext.nextOwner}` : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : null);
 
   const showNowStrip =
     Boolean(workflowContext.currentStage) ||
     Boolean(statusLine) ||
-    Boolean(workflowContext.currentOwner) ||
-    (isSignOff && showSignOffCta);
+    Boolean(workflowContext.currentOwner);
 
   const headerAction =
     showHeaderBadge || headerActions ? (
@@ -112,35 +100,6 @@ export function DesignWorkflowPanel({
             ) : null}
             {statusLine ? <p className="workflow-now-meta">{statusLine}</p> : null}
           </div>
-          {isSignOff && showSignOffCta ? (
-            <AppButtonLink
-              href={`${ROUTES.quality.approvals}?tab=management`}
-              appVariant="primary"
-              size="sm"
-              className="workflow-now-cta"
-            >
-              Open Management Sign-off
-              <ArrowRightIcon className="size-3.5" aria-hidden />
-            </AppButtonLink>
-          ) : null}
-        </div>
-      ) : null}
-
-      {isSignOff ? (
-        <div className="workflow-signoff" aria-label="Management sign-off chain">
-          <ol className="workflow-signoff-track">
-            {SIGN_OFF_LEVELS.map((item, index) => (
-              <li key={item.level} className="workflow-signoff-item">
-                {index > 0 ? (
-                  <span className="workflow-signoff-connector" aria-hidden />
-                ) : null}
-                <div className="workflow-signoff-node">
-                  <span className="workflow-signoff-level">L{item.level}</span>
-                  <span className="workflow-signoff-role">{item.label}</span>
-                </div>
-              </li>
-            ))}
-          </ol>
         </div>
       ) : null}
 
@@ -225,16 +184,16 @@ function StepStatusIcon({
   };
 }) {
   if (step.isUpcoming) {
-    return <LockIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
+    return <IconLock className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
   }
   if (step.status === "SKIPPED" || step.displayStatus === "SKIPPED") {
-    return <CircleDashedIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
+    return <IconCircleDashed className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
   }
   if (step.isDone || step.displayStatus === "COMPLETED") {
-    return <CheckCircle2Icon className="size-4 shrink-0 text-emerald-600" aria-hidden />;
+    return <IconCheckCircle2 className="size-4 shrink-0 text-emerald-600" aria-hidden />;
   }
   if (step.isCurrent || step.status === "RUNNING" || step.status === "ON_HOLD") {
-    return <Clock3Icon className="size-4 shrink-0 text-primary" aria-hidden />;
+    return <IconClock3 className="size-4 shrink-0 text-primary" aria-hidden />;
   }
-  return <CircleDashedIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
+  return <IconCircleDashed className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
 }

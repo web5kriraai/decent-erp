@@ -25,6 +25,42 @@ import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { apiPost, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
+import {
+  StageCapabilitiesFields,
+  DEFAULT_CAPABILITIES_FORM,
+  capabilitiesFormToPayload,
+  type CapabilitiesFormState,
+} from "@/features/admin/StageCapabilitiesFields";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+
+function capabilitiesFromSub(sub: {
+  code: string;
+  isApproval?: boolean;
+  isFileRequired?: boolean;
+  isCorrectionAllowed?: boolean;
+  capabilities?: unknown;
+}): CapabilitiesFormState {
+  const behavior = resolveStageBehavior({
+    code: sub.code,
+    isApproval: sub.isApproval,
+    isFileRequired: sub.isFileRequired,
+    isCorrectionAllowed: sub.isCorrectionAllowed,
+    capabilities: sub.capabilities,
+  });
+  return {
+    isApproval: behavior.isApproval,
+    requiresFile: behavior.requiresFile,
+    isCorrectionAllowed: behavior.isCorrectionAllowed,
+    forcesChecking: behavior.forcesChecking,
+    machineOutput: behavior.machineOutput,
+    sampleDecisionOutcomes: behavior.sampleDecisionOutcomes,
+    costingEntry: behavior.costingEntry,
+    completeNotChecking: behavior.completeNotChecking,
+    unlockAfterDesignApproved: behavior.unlockAfterDesignApproved,
+    autoAdvanceOnCreate: behavior.autoAdvanceOnCreate,
+    approvalSurface: behavior.approvalSurface,
+  };
+}
 
 export function MastersView({ embedded = false }: { embedded?: boolean }) {
   const { data: session } = useSession();
@@ -48,6 +84,8 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
   const [subName, setSubName] = useState("");
   const [subSequence, setSubSequence] = useState("1");
   const [defaultRoleId, setDefaultRoleId] = useState<number | "">("");
+  const [subCapabilities, setSubCapabilities] =
+    useState<CapabilitiesFormState>(DEFAULT_CAPABILITIES_FORM);
 
   const [editProcess, setEditProcess] = useState<{
     id: number;
@@ -62,6 +100,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
     sequence: string;
     defaultRoleId: number | "";
     active: boolean;
+    capabilities: CapabilitiesFormState;
   } | null>(null);
 
   const [pendingConfirm, setPendingConfirm] = useState<{
@@ -93,13 +132,16 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
   });
 
   const createSubProcess = useMutation({
-    mutationFn: () =>
-      apiPost(`/api/masters/processes/${selectedProcessId}/sub-processes`, {
+    mutationFn: () => {
+      const capPayload = capabilitiesFormToPayload(subCapabilities);
+      return apiPost(`/api/masters/processes/${selectedProcessId}/sub-processes`, {
         code: subCode.toUpperCase(),
         name: subName,
         sequence: Number(subSequence),
         defaultRoleId: defaultRoleId || undefined,
-      }),
+        ...capPayload,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.processes });
       toast.success("Sub-process created");
@@ -108,6 +150,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
       setSubName("");
       setSubSequence("1");
       setDefaultRoleId("");
+      setSubCapabilities(DEFAULT_CAPABILITIES_FORM);
     },
     onError: (error) => toast.errorFromApi(error, "Could not create sub-process"),
   });
@@ -145,8 +188,10 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
       sequence: number;
       defaultRoleId: number | null;
       active: boolean;
-    }) =>
-      apiPatch<{
+      capabilities: CapabilitiesFormState;
+    }) => {
+      const capPayload = capabilitiesFormToPayload(payload.capabilities);
+      return apiPatch<{
         id: number;
         warnings?: Array<{ code: string; message: string; count: number }>;
       }>(`/api/masters/sub-processes/${payload.id}`, {
@@ -154,7 +199,9 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         sequence: payload.sequence,
         defaultRoleId: payload.defaultRoleId,
         active: payload.active,
-      }),
+        ...capPayload,
+      });
+    },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.processes });
       const warnings = data.warnings ?? [];
@@ -331,6 +378,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
     sequence: string;
     defaultRoleId: number | "";
     active: boolean;
+    capabilities: CapabilitiesFormState;
   }) {
     setPendingConfirm({
       title: `Deactivate "${edit.name}"?`,
@@ -344,6 +392,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
             sequence: Number(edit.sequence) || 1,
             defaultRoleId: edit.defaultRoleId === "" ? null : edit.defaultRoleId,
             active: false,
+            capabilities: edit.capabilities,
           },
           {
             onSuccess: () => {
@@ -579,6 +628,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                                                     sequence: String(sub.sequence),
                                                     defaultRoleId: sub.defaultRoleId ?? "",
                                                     active: subActive,
+                                                    capabilities: capabilitiesFromSub(sub),
                                                   })
                                                 }
                                               />
@@ -809,6 +859,11 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
               placeholder="Select role (optional)"
             />
           </ModalFormGrid>
+          <StageCapabilitiesFields
+            idPrefix="create-sub"
+            value={subCapabilities}
+            onChange={setSubCapabilities}
+          />
         </ModalForm>
       </Modal>
 
@@ -848,6 +903,7 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
                         ? null
                         : editSubProcess.defaultRoleId,
                     active: editSubProcess.active,
+                    capabilities: editSubProcess.capabilities,
                   },
                   { onSuccess: () => setEditSubProcess(null) },
                 );
@@ -908,6 +964,13 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
               />
               Active
             </label>
+            <StageCapabilitiesFields
+              idPrefix="edit-sub"
+              value={editSubProcess.capabilities}
+              onChange={(capabilities) =>
+                setEditSubProcess({ ...editSubProcess, capabilities })
+              }
+            />
           </ModalForm>
         ) : null}
       </Modal>

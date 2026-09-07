@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
 import { ApiError } from "@/lib/api-utils";
 import type { Priority } from "@prisma/client";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
 export type WorkflowPatternTaskInput = {
   processId: number;
@@ -49,7 +50,13 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
     throw new ApiError("Task sequence values must be unique", 422);
   }
 
-  const codes = new Set<string>();
+  const resolvedSteps: Array<{
+    sequence: number;
+    code: string;
+    behavior: ReturnType<typeof resolveStageBehavior>;
+  }> = [];
+  let hasCostingEntry = false;
+  let hasUnlockLadder = false;
 
   for (const task of tasks) {
     const subProcess = await prisma.designSubProcessMaster.findFirst({
@@ -58,7 +65,15 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
         processId: task.processId,
         active: true,
       },
-      select: { id: true, code: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        isApproval: true,
+        isFileRequired: true,
+        capabilities: true,
+        defaultRole: { select: { code: true } },
+      },
     });
     if (!subProcess) {
       throw new ApiError(
@@ -66,7 +81,6 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
         422,
       );
     }
-    codes.add(subProcess.code);
 
     const role = await prisma.role.findUnique({ where: { id: task.defaultRoleId } });
     if (!role) {
@@ -76,17 +90,60 @@ export async function validatePatternTasks(tasks: WorkflowPatternTaskInput[]) {
     if (task.expectedMinutes <= 0) {
       throw new ApiError("Expected minutes must be greater than zero", 422);
     }
+
+    const behavior = resolveStageBehavior({
+      code: subProcess.code,
+      name: subProcess.name,
+      isApproval: subProcess.isApproval,
+      isFileRequired: subProcess.isFileRequired,
+      capabilities: subProcess.capabilities,
+      defaultRoleCode: role.code,
+    });
+    resolvedSteps.push({ sequence: task.sequence, code: subProcess.code, behavior });
+
+    if (behavior.isApproval) {
+      if (behavior.approvalSurface === "none") {
+        throw new ApiError(
+          `Approval step “${subProcess.code}” is missing approvalSurface in capabilities.`,
+          422,
+        );
+      }
+      if (!role.code) {
+        throw new ApiError(
+          `Approval step “${subProcess.code}” requires an owner role.`,
+          422,
+        );
+      }
+      if (
+        behavior.workGateMode !== "always" &&
+        !behavior.workPrecursorCode &&
+        task.dependencySequence == null
+      ) {
+        throw new ApiError(
+          `Approval step “${subProcess.code}” needs a workPrecursor or dependencySequence.`,
+          422,
+        );
+      }
+    }
+
+    if (behavior.costingEntry) hasCostingEntry = true;
+    if (behavior.unlockAfterDesignApproved) hasUnlockLadder = true;
   }
 
   const warnings: string[] = [];
-  if (!codes.has("COSTING") || !codes.has("FINAL_APPROVAL")) {
+  if (!hasCostingEntry) {
     warnings.push(
-      "Pattern is missing COSTING and/or FINAL_APPROVAL — management sign-off and release gates may block later.",
+      "Pattern has no costingEntry stage — cost data is not required at production sign-off (add a costing stage if Finance costing should gate approve).",
     );
   }
-  if (!codes.has("PROD_HANDOFF")) {
+  if (!resolvedSteps.some((s) => s.behavior.isApproval)) {
     warnings.push(
-      "PROD_* stages omitted — they will be auto-appended after management approval (Spec 8-Step style).",
+      "Pattern has no approval stage — ensure at least one stage-approval step if sign-off gates are needed.",
+    );
+  }
+  if (!hasUnlockLadder) {
+    warnings.push(
+      "No unlockAfterDesignApproved stages — production ladder stays omitted unless appended after approve.",
     );
   }
   return warnings;

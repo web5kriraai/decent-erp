@@ -151,6 +151,7 @@ model Role {
   permissions RolePermission[]
   kpiDefinitions EmployeeKpiDefinition[]
   workflowPatternTasks WorkflowPatternTask[]
+  designSubProcessMasters DesignSubProcessMaster[]
   approvalLevels ApprovalLevel[]
 
   @@map("roles")
@@ -285,9 +286,12 @@ model DesignSubProcessMaster {
   isApproval          Boolean @default(false) @map("is_approval")
   isCorrectionAllowed Boolean @default(true) @map("is_correction_allowed")
   isFileRequired      Boolean @default(false) @map("is_file_required")
+  /** Structured StageCapabilities JSON — runtime behavior source of truth. */
+  capabilities        Json?
   active              Boolean @default(true)
 
   process             DesignProcessMaster @relation(fields: [processId], references: [id])
+  defaultRole         Role?               @relation(fields: [defaultRoleId], references: [id])
   designSubProcesses  DesignSubProcess[]
   workflowPatternTasks WorkflowPatternTask[]
   designTasks         DesignTask[]
@@ -338,6 +342,8 @@ model WorkflowPatternTask {
   priority            Priority @default(MEDIUM)
   sequence            Int
   dependencySequence  Int? @map("dependency_sequence")
+  /** Optional per-pattern override of DesignSubProcessMaster.capabilities. */
+  capabilitiesOverride Json? @map("capabilities_override")
 
   workflowPattern WorkflowPattern        @relation(fields: [workflowPatternId], references: [id], onDelete: Cascade)
   process         DesignProcessMaster    @relation(fields: [processId], references: [id])

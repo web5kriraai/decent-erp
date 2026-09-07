@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, X } from "lucide-react";
+import { IconPencil, IconClose } from "@/components/icons";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { QueryState } from "@/components/ui/QueryState";
@@ -39,7 +39,7 @@ export function RoleCatalogList() {
                   title={isEditing ? "Close editor" : "Edit permissions"}
                   aria-label={isEditing ? "Close editor" : "Edit permissions"}
                 >
-                  {isEditing ? <X aria-hidden /> : <Pencil aria-hidden />}
+                  {isEditing ? <IconClose aria-hidden /> : <IconPencil aria-hidden />}
                 </AppButton>
               </header>
 

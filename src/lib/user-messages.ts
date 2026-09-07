@@ -7,7 +7,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   TASK_EXECUTE: "run tasks on My Tasks",
   TIME_VIEW_TEAM: "view team time reports",
   CORRECTION_RAISE: "raise corrections",
-  DESIGN_APPROVE: "record design approvals",
+  DESIGN_APPROVE: "Design Head final approve for production (not stage gates)",
   COST_VIEW: "view costing",
   KPI_ADMIN: "manage KPI settings",
   MASTER_ADMIN: "manage system settings and roles",

@@ -14,13 +14,13 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import type { DesignCompletionSummary, DesignSummary } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
 import {
-  CheckCircle2Icon,
-  CircleDashedIcon,
-  Clock3Icon,
-  PauseCircleIcon,
-  SkipForwardIcon,
-  UsersIcon,
-} from "lucide-react";
+  IconCheckCircle2,
+  IconCircleDashed,
+  IconClock3,
+  IconPauseCircle,
+  IconSkipForward,
+  IconUsers,
+} from "@/components/icons";
 
 /** Matches GET /api/designs/[id]/completion-summary */
 export const COMPLETION_SUMMARY_PERMISSIONS = [
@@ -154,27 +154,27 @@ function SummaryBody({ data }: { data: DesignCompletionSummary }) {
       <div className="completion-metric-row">
         <MetricChip
           accent
-          icon={<Clock3Icon className="size-4" />}
+          icon={<IconClock3 className="size-4" />}
           label="Active work"
           value={formatDuration(data.totals.totalActiveSeconds)}
         />
         <MetricChip
-          icon={<PauseCircleIcon className="size-4" />}
+          icon={<IconPauseCircle className="size-4" />}
           label="Hold time"
           value={formatDuration(data.totals.totalHoldSeconds)}
         />
         <MetricChip
-          icon={<CircleDashedIcon className="size-4" />}
+          icon={<IconCircleDashed className="size-4" />}
           label="Total elapsed"
           value={formatDuration(data.totals.totalElapsedSeconds)}
         />
         <MetricChip
-          icon={<UsersIcon className="size-4" />}
+          icon={<IconUsers className="size-4" />}
           label="People"
           value={String(data.totals.peopleCount)}
         />
         <MetricChip
-          icon={<SkipForwardIcon className="size-4" />}
+          icon={<IconSkipForward className="size-4" />}
           label="Skipped"
           value={String(data.totals.skippedPhaseCount)}
         />
@@ -254,11 +254,11 @@ function SummaryBody({ data }: { data: DesignCompletionSummary }) {
                   <li key={phase.taskId} className="completion-phase">
                     <div className="completion-phase-rail" aria-hidden>
                       {phase.status === "COMPLETED" ? (
-                        <CheckCircle2Icon className="size-4 text-emerald-600" />
+                        <IconCheckCircle2 className="size-4 text-emerald-600" />
                       ) : phase.status === "SKIPPED" ? (
-                        <SkipForwardIcon className="size-4 text-muted-foreground" />
+                        <IconSkipForward className="size-4 text-muted-foreground" />
                       ) : (
-                        <CircleDashedIcon className="size-4 text-muted-foreground" />
+                        <IconCircleDashed className="size-4 text-muted-foreground" />
                       )}
                     </div>
                     <div className="completion-phase-body">

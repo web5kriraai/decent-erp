@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Modal,
   ModalFooterActions,
@@ -11,13 +12,16 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { AppButton } from "@/components/ui/AppButton";
+import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { cn } from "@/lib/utils";
-import { CheckIcon, Trash2Icon } from "lucide-react";
+import { IconCheck, IconTrash2, IconClose } from "@/components/icons";
 import type { ChecklistItemMaster } from "@/hooks/use-masters";
 import { TaskArtifactPanel, useTaskHasFiles } from "@/components/tasks/TaskArtifactPanel";
 import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
 import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { useDesignCosts } from "@/hooks/use-costing";
+import { apiGet } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-keys";
 import type { CostType } from "@/lib/services/costing-end-utils";
 import type { CostEntryInput } from "@/lib/services/costing-end-utils";
 import {
@@ -26,6 +30,8 @@ import {
   mergeCostAmountsByType,
   totalFromByType,
 } from "@/lib/services/costing-end-utils";
+import type { HandoffContext } from "@/lib/handoff-context";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
 export type { CostEntryInput };
 
@@ -53,8 +59,14 @@ type TaskEndDialogProps = {
   /** When true, server will force CHECKING. */
   gateForcesChecking?: boolean;
   dialogTitle?: string;
-  /** @deprecated Unused — kept for call-site compatibility. */
   dialogDescription?: string;
+  remarkLabel?: string;
+  remarkPlaceholder?: string;
+  handoff?: HandoffContext | null;
+  /** Shown for PROD_RELEASE — readiness lines */
+  releaseReadinessItems?: string[];
+  /** When false, hide Send for Checking / Mark Completed select (forced complete or checking). */
+  showStatusSelect?: boolean;
   costEntries?: CostEntryInput[];
   onCostEntriesChange?: (entries: CostEntryInput[]) => void;
   onSubmit: () => void;
@@ -91,7 +103,12 @@ export function TaskEndDialog({
   onSampleOutcomeChange,
   gateForcesChecking,
   dialogTitle,
-  dialogDescription: _dialogDescription,
+  dialogDescription,
+  remarkLabel = "Output Remark",
+  remarkPlaceholder = "Describe work completed…",
+  handoff,
+  releaseReadinessItems,
+  showStatusSelect,
   costEntries = [],
   onCostEntriesChange,
   onSubmit,
@@ -103,10 +120,35 @@ export function TaskEndDialog({
   const [draftDescription, setDraftDescription] = useState("");
   const [costingNote, setCostingNote] = useState("");
 
-  const isCosting = subProcessCode === "COSTING";
+  const stageBehavior = resolveStageBehavior({
+    code: subProcessCode ?? "",
+  });
+  const isCosting = stageBehavior.costingEntry;
+  const isProdRelease = stageBehavior.onComplete.includes("unlockErp");
   const costsQuery = useDesignCosts(designId ?? "", open && isCosting && !!designId);
+  const readinessQuery = useQuery({
+    queryKey: queryKeys.designs.productionReadiness(designId ?? ""),
+    queryFn: () =>
+      apiGet<{ ok: boolean; missing: string[] }>(
+        `/api/designs/${designId}/production-readiness`,
+      ),
+    enabled: open && isProdRelease && !!designId,
+  });
   const existingSummary = costsQuery.data?.summary;
   const existingCosts = costsQuery.data?.costs ?? [];
+  const liveReadinessMissing = readinessQuery.data?.missing ?? [];
+  const liveReadinessOk = readinessQuery.data?.ok === true;
+  const readinessItems =
+    releaseReadinessItems && releaseReadinessItems.length > 0
+      ? releaseReadinessItems
+      : liveReadinessOk
+        ? ["All required production-release checks passed"]
+        : [];
+  const readinessBlocking =
+    isProdRelease &&
+    (readinessQuery.isLoading ||
+      readinessQuery.isError ||
+      (readinessQuery.isSuccess && !liveReadinessOk));
 
   function handleClose() {
     setIsUploading(false);
@@ -127,11 +169,16 @@ export function TaskEndDialog({
   const showMachineOutput = isMachineOutputTask(subProcessCode) && !!taskId;
   const filesBlocking = showFileUpload && (filesLoading || isUploading || !hasFiles);
   const denseDeliverables = showFileUpload && showMachineOutput;
-  const forcesChecking =
-    gateForcesChecking ??
-    ["SKETCH", "PUNCH", "MACHINE_SAMPLE", "SAMPLE_RECEIVE", "COSTING"].includes(
-      subProcessCode ?? "",
-    );
+  const resolvedForcesChecking = subProcessCode
+    ? (() => {
+        const behavior = resolveStageBehavior({ code: subProcessCode });
+        return behavior.forcesChecking || behavior.costingEntry;
+      })()
+    : false;
+  const forcesChecking = gateForcesChecking ?? resolvedForcesChecking;
+  // Prefer explicit kit flag; fall back to capability-resolved forcesChecking
+  const allowStatusSelect =
+    showStatusSelect ?? (!isSampleCheck && !isCosting && !forcesChecking);
 
   const mergedByType = useMemo(
     () => mergeCostAmountsByType(existingSummary?.byType ?? {}, costEntries),
@@ -183,7 +230,7 @@ export function TaskEndDialog({
     (!isCosting || costingOk) &&
     !costingLoading;
 
-  const canSubmit = formComplete && !filesBlocking && !isPending;
+  const canSubmit = formComplete && !filesBlocking && !isPending && !readinessBlocking;
 
   function markAllPassed() {
     for (const item of checklistItems) {
@@ -222,8 +269,9 @@ export function TaskEndDialog({
     <Modal
       open={open}
       title={dialogTitle ?? (isSampleCheck ? "Complete Sample Check" : "Complete Task")}
+      description={dialogDescription}
       onClose={handleClose}
-      size={denseDeliverables || isCosting ? "lg" : "md"}
+      size={denseDeliverables || isCosting || isProdRelease ? "lg" : "md"}
       footer={
         <ModalFooterActions>
           <AppButton type="button" appVariant="outline" onClick={handleClose} disabled={isPending || isUploading}>
@@ -236,6 +284,46 @@ export function TaskEndDialog({
       }
     >
       <ModalForm className="gap-3 pb-1">
+        <ActionHandoffBanner context={handoff} />
+
+        {isProdRelease ? (
+          <ModalSection title="Release readiness">
+            {readinessQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Checking release readiness…</p>
+            ) : readinessQuery.isError ? (
+              <p className="text-sm text-destructive" role="alert">
+                Could not verify release readiness. Retry or contact an admin.
+              </p>
+            ) : liveReadinessMissing.length > 0 ? (
+              <ul className="space-y-1 text-sm text-foreground">
+                {liveReadinessMissing.map((item) => (
+                  <li key={item} className="flex gap-2 text-destructive">
+                    <IconClose className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : readinessItems.length > 0 ? (
+              <ul className="space-y-1 text-sm text-foreground">
+                {readinessItems.map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span className="text-emerald-700" aria-hidden>
+                      ✓
+                    </span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-emerald-800">All required release checks passed.</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Completing release unlocks Live Design Review and ERP handoff. Confirm floor readiness
+              before submitting.
+            </p>
+          </ModalSection>
+        ) : null}
+
         {(showMachineOutput || showFileUpload) && (
           <ModalSection title="Deliverables">
             <div
@@ -339,7 +427,7 @@ export function TaskEndDialog({
                       disabled={isPending}
                       aria-label="Remove draft cost line"
                     >
-                      <Trash2Icon className="size-3.5" />
+                      <IconTrash2 className="size-3.5" />
                     </AppButton>
                   </li>
                 ))}
@@ -409,6 +497,7 @@ export function TaskEndDialog({
               onChange={(e) => setCostingNote(e.target.value)}
               placeholder="Optional note for checkers…"
               disabled={isPending}
+              onEnterSubmit={canSubmit ? onSubmit : undefined}
             />
           </ModalSection>
         ) : null}
@@ -432,7 +521,7 @@ export function TaskEndDialog({
           />
         ) : null}
 
-        {!isSampleCheck && !isCosting && !forcesChecking ? (
+        {!isSampleCheck && !isCosting && allowStatusSelect ? (
           <ModalFormGrid className="gap-3">
             <FormSelect
               id="endStatus"
@@ -448,25 +537,27 @@ export function TaskEndDialog({
             />
             <FormTextArea
               id="endRemark"
-              label="Output Remark"
+              label={remarkLabel}
               required
               rows={2}
               value={endRemark}
               onChange={(e) => onEndRemarkChange(e.target.value)}
-              placeholder="Describe work completed…"
+              placeholder={remarkPlaceholder}
               disabled={isPending || isUploading}
+              onEnterSubmit={canSubmit ? onSubmit : undefined}
             />
           </ModalFormGrid>
         ) : !isCosting ? (
           <FormTextArea
             id="endRemark"
-            label="Output Remark"
+            label={remarkLabel}
             required
             rows={2}
             value={endRemark}
             onChange={(e) => onEndRemarkChange(e.target.value)}
-            placeholder={isSampleCheck ? "Add review notes…" : "Describe work completed…"}
+            placeholder={remarkPlaceholder}
             disabled={isPending || isUploading}
+            onEnterSubmit={canSubmit ? onSubmit : undefined}
           />
         ) : null}
 
@@ -509,7 +600,7 @@ export function TaskEndDialog({
                       )}
                       aria-hidden
                     >
-                      {passed ? <CheckIcon className="size-3" /> : null}
+                      {passed ? <IconCheck className="size-3" /> : null}
                     </span>
                     <input
                       type="checkbox"
@@ -540,6 +631,7 @@ export function TaskEndDialog({
                 onChange={(e) => onChecklistNoteChange(e.target.value)}
                 placeholder="Message for your checker or team…"
                 disabled={isPending || isUploading}
+                onEnterSubmit={canSubmit ? onSubmit : undefined}
                 error={
                   !checklistNote.trim()
                     ? "Required"

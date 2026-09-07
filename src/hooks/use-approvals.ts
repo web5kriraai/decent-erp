@@ -30,6 +30,7 @@ export type ApprovalsHubData = {
   stageApprovals: StageApprovalQueueItem[];
   managementApprovals: PendingApprovalItem[];
   readyForSignOff: ReadyForSignOffItem[];
+  tabs?: { stage: boolean; ready: boolean };
 };
 
 export type RequestSignOffPayload = {
@@ -106,10 +107,10 @@ export function useRequestDesignApproval() {
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.designHead });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.management });
       toast.success(
-        "Management sign-off requested",
-        "Approvers will see your remark and design snapshot.",
+        "Design approved for production",
+        "Production handoff is unlocked. Continue from the design or production desk.",
       );
     },
-    onError: (error) => toast.errorFromApi(error, "Could not request approval"),
+    // Form shows the message inline — avoid a second floating error box.
   });
 }

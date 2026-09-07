@@ -4,9 +4,14 @@ import {
   canRoleActOnStageApproval,
   canRoleSeeStageApproval,
   filterStageApprovalsForRole,
-  STAGE_APPROVAL_CODES,
 } from "@/lib/stage-approval-rbac";
-import { isStageApprovalActionable } from "@/lib/design-workflow";
+import {
+  isStageApprovalActionableFromBehavior,
+  resolveStageBehavior,
+  workPrecursorCodeForApproval,
+} from "@/lib/workflow/stage-behavior";
+import { ROLE_CODES } from "@/lib/permissions";
+import { TEXTILE_APPROVAL_OWNER_ROLE } from "@/lib/workflow/stage-capabilities";
 
 import type { StageApprovalQueueItem } from "@/lib/types/api";
 
@@ -21,7 +26,10 @@ const OPEN_APPROVAL_STATUSES = [
   "CHECKING",
 ] as const;
 
-/** Maps workflow approval sub-process codes to the work task they gate. */
+/**
+ * @deprecated Prefer workPrecursorCodeForApproval / resolveStageBehavior.
+ * Kept for parity tests and legacy call sites.
+ */
 export const WORK_CODE_BY_APPROVAL: Record<string, string> = {
   SKETCH_APPROVAL: "SKETCH",
   PUNCH_CHECK: "PUNCH",
@@ -31,25 +39,72 @@ export const WORK_CODE_BY_APPROVAL: Record<string, string> = {
   LIVE_REVIEW: "PROD_RELEASE",
 };
 
-export function workSubProcessCodeForApproval(approvalCode: string): string | null {
+export function workSubProcessCodeForApproval(
+  approvalCode: string,
+  capabilities?: unknown,
+): string | null {
+  const fromCaps = workPrecursorCodeForApproval(approvalCode, capabilities);
+  if (fromCaps) return fromCaps;
+  // Legacy CONCEPT_REVIEW mapped to SKETCH for related-work display only.
+  if (approvalCode === "CONCEPT_REVIEW") return WORK_CODE_BY_APPROVAL.CONCEPT_REVIEW;
   return WORK_CODE_BY_APPROVAL[approvalCode] ?? null;
+}
+
+/** Prior execute stage typically feeding this stage (for handoff banners). */
+export const PRIOR_CODE_BY_STAGE: Record<string, string> = {
+  SKETCH: "CONCEPT_REVIEW",
+  SKETCH_APPROVAL: "SKETCH",
+  PUNCH: "SKETCH_APPROVAL",
+  PUNCH_CHECK: "PUNCH",
+  MAT_REQ: "PUNCH_CHECK",
+  FABRIC_ISSUE: "MAT_REQ",
+  MACHINE_SAMPLE: "FABRIC_ISSUE",
+  SAMPLE_RECEIVE: "MACHINE_SAMPLE",
+  SAMPLE_CHECK: "MACHINE_SAMPLE",
+  COSTING: "SAMPLE_CHECK",
+  FINAL_APPROVAL: "COSTING",
+  PROD_HANDOFF: "FINAL_APPROVAL",
+  PROD_INSTRUCTION: "PROD_HANDOFF",
+  PROD_RELEASE: "PROD_INSTRUCTION",
+  LIVE_REVIEW: "PROD_RELEASE",
+};
+
+export function priorSubProcessCodeForStage(stageCode: string): string | null {
+  const behavior = resolveStageBehavior({ code: stageCode });
+  if (behavior.autoAdvanceOnCreate) return null;
+  if (PRIOR_CODE_BY_STAGE[stageCode]) return PRIOR_CODE_BY_STAGE[stageCode];
+  return behavior.workPrecursorCode;
+}
+
+export type PeerTaskForHandoff = {
+  status: string;
+  outputRemark?: string | null;
+  assignedEmployee?: { name?: string | null } | null;
+  subProcess: { code: string; name: string };
+  fileCount?: number | null;
+};
+
+export function findPriorPeerForHandoff(
+  stageCode: string,
+  peers?: PeerTaskForHandoff[] | null,
+): PeerTaskForHandoff | null {
+  if (!peers?.length) return null;
+  const priorCode = priorSubProcessCodeForStage(stageCode);
+  if (!priorCode) return null;
+  return peers.find((p) => p.subProcess.code === priorCode) ?? null;
 }
 
 function relatedWorkTaskName(
   approvalCode: string,
   tasks: Array<{ subProcess: { code: string; name: string }; status: string }>,
+  capabilities?: unknown,
 ): string | null {
-  const workCode = workSubProcessCodeForApproval(approvalCode);
+  const behavior = resolveStageBehavior({ code: approvalCode, capabilities });
+  const workCode = behavior.workPrecursorCode ?? workSubProcessCodeForApproval(approvalCode, capabilities);
   if (!workCode) return null;
   const work = tasks.find((t) => t.subProcess.code === workCode);
   if (!work) return null;
-  if (work.status === "CHECKING") return work.subProcess.name;
-  if (
-    (approvalCode === "FINAL_APPROVAL" || approvalCode === "LIVE_REVIEW") &&
-    ["CHECKING", "COMPLETED"].includes(work.status)
-  ) {
-    return work.subProcess.name;
-  }
+  if (isStageApprovalActionableFromBehavior(behavior, work)) return work.subProcess.name;
   return null;
 }
 
@@ -58,23 +113,44 @@ export function isStageApprovalVisibleToViewer(input: {
   approvalCode: string;
   assignedEmployeeId: number | null;
   viewerEmployeeId: number;
+  ownerRoleCode?: string | null;
+  capabilities?: unknown;
 }): boolean {
-  const { roleCode, approvalCode, assignedEmployeeId, viewerEmployeeId } = input;
+  const {
+    roleCode,
+    approvalCode,
+    assignedEmployeeId,
+    viewerEmployeeId,
+    ownerRoleCode,
+    capabilities,
+  } = input;
   return canRoleSeeStageApproval(roleCode, approvalCode, {
     isAssignee: assignedEmployeeId === viewerEmployeeId,
     isUnassigned: assignedEmployeeId == null,
+    ownerRoleCode,
+    capabilities,
   });
 }
 
-/** Workflow stage approvals (Final Approval, Sketch Approval, etc.) — not the management chain. */
+async function roleOwnsApprovalStages(roleCode: string): Promise<boolean> {
+  if (roleCode === ROLE_CODES.ADMIN) return true;
+  if (Object.values(TEXTILE_APPROVAL_OWNER_ROLE).includes(roleCode)) return true;
+  const count = await prisma.designSubProcessMaster.count({
+    where: {
+      isApproval: true,
+      active: true,
+      defaultRole: { code: roleCode },
+    },
+  });
+  return count > 0;
+}
+
+/** Workflow stage approvals — not the management chain. */
 export async function listStageApprovalQueue(
   employeeId: number,
   roleCode?: string | null,
 ): Promise<StageApprovalQueueItem[]> {
-  // Design Head / Checker / Management / Admin: org-wide candidates, then filter by owned codes.
-  const ownerOversee =
-    roleCode != null &&
-    STAGE_APPROVAL_CODES.some((code) => canRoleActOnStageApproval(roleCode, code));
+  const ownerOversee = roleCode != null && (await roleOwnsApprovalStages(roleCode));
 
   const candidates = await prisma.designTask.findMany({
     where: {
@@ -89,7 +165,15 @@ export async function listStageApprovalQueue(
     orderBy: [{ dueAt: "asc" }, { sequence: "asc" }],
     include: {
       design: { select: { id: true, ideaRef: true, collectionName: true } },
-      subProcess: { select: { name: true, code: true, isApproval: true } },
+      subProcess: {
+        select: {
+          name: true,
+          code: true,
+          isApproval: true,
+          capabilities: true,
+          defaultRole: { select: { code: true } },
+        },
+      },
       assignedEmployee: { select: { name: true } },
     },
   });
@@ -106,7 +190,7 @@ export async function listStageApprovalQueue(
       sequence: true,
       dependencySequence: true,
       status: true,
-      subProcess: { select: { code: true, name: true } },
+      subProcess: { select: { code: true, name: true, capabilities: true } },
     },
   });
 
@@ -118,7 +202,7 @@ export async function listStageApprovalQueue(
     tasksByDesign.set(key, list);
   }
 
-  const queue: StageApprovalQueueItem[] = [];
+  const queue: Array<StageApprovalQueueItem & { ownerRoleCode?: string | null }> = [];
 
   for (const task of candidates) {
     const designKey = task.designId.toString();
@@ -134,11 +218,18 @@ export async function listStageApprovalQueue(
     );
     if (!ready) continue;
 
-    const workCode = workSubProcessCodeForApproval(task.subProcess.code);
+    const ownerRoleCode = task.subProcess.defaultRole?.code ?? null;
+    const behavior = resolveStageBehavior({
+      code: task.subProcess.code,
+      capabilities: task.subProcess.capabilities,
+      defaultRoleCode: ownerRoleCode,
+    });
+
+    const workCode = behavior.workPrecursorCode;
     const linkedWork = workCode
       ? siblings.find((s) => s.subProcess.code === workCode)
       : undefined;
-    if (!isStageApprovalActionable(task.subProcess.code, linkedWork)) continue;
+    if (!isStageApprovalActionableFromBehavior(behavior, linkedWork)) continue;
 
     if (
       !isStageApprovalVisibleToViewer({
@@ -146,9 +237,23 @@ export async function listStageApprovalQueue(
         approvalCode: task.subProcess.code,
         assignedEmployeeId: task.assignedEmployeeId,
         viewerEmployeeId: employeeId,
+        ownerRoleCode,
+        capabilities: task.subProcess.capabilities,
       })
     ) {
       continue;
+    }
+
+    if (
+      roleCode &&
+      !canRoleActOnStageApproval(roleCode, task.subProcess.code, {
+        ownerRoleCode,
+        capabilities: task.subProcess.capabilities,
+      }) &&
+      task.assignedEmployeeId !== employeeId &&
+      task.assignedEmployeeId != null
+    ) {
+      // Non-owners only see their own / unassigned (already filtered by visibility).
     }
 
     queue.push({
@@ -160,7 +265,12 @@ export async function listStageApprovalQueue(
       stageCode: task.subProcess.code,
       status: task.status,
       assigneeName: task.assignedEmployee?.name ?? null,
-      workStageName: relatedWorkTaskName(task.subProcess.code, siblings),
+      workStageName: relatedWorkTaskName(
+        task.subProcess.code,
+        siblings,
+        task.subProcess.capabilities,
+      ),
+      ownerRoleCode,
     });
   }
 

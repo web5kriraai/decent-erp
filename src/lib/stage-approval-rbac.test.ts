@@ -7,12 +7,14 @@ import {
 } from "@/lib/approval-hub-rbac";
 import { ROLE_CODES } from "@/lib/permissions";
 import {
+  approvalsHubHrefForRole,
   canRoleAccessApprovalsHub,
   canRoleActOnStageApproval,
   canRoleSeeStageApproval,
   filterStageApprovalsForRole,
   getApprovalHubTabsForRole,
   getStageApprovalOwnerRole,
+  isApprovalHubTabAllowed,
   isInlineStageApprovalSurface,
 } from "@/lib/stage-approval-rbac";
 
@@ -36,6 +38,19 @@ describe("stage-approval-rbac", () => {
     expect(canRoleActOnStageApproval(ROLE_CODES.SAMPLE_CHECKER, "SKETCH_APPROVAL")).toBe(false);
     expect(canRoleActOnStageApproval(ROLE_CODES.SAMPLE_CHECKER, "PUNCH_CHECK")).toBe(true);
     expect(canRoleActOnStageApproval(ROLE_CODES.DESIGN_HEAD, "PUNCH_CHECK")).toBe(false);
+  });
+
+  it("prefers DB defaultRole owner over textile map", () => {
+    expect(
+      canRoleActOnStageApproval(ROLE_CODES.SAMPLE_CHECKER, "SKETCH_APPROVAL", {
+        ownerRoleCode: ROLE_CODES.SAMPLE_CHECKER,
+      }),
+    ).toBe(true);
+    expect(
+      canRoleActOnStageApproval(ROLE_CODES.DESIGN_HEAD, "SKETCH_APPROVAL", {
+        ownerRoleCode: ROLE_CODES.SAMPLE_CHECKER,
+      }),
+    ).toBe(false);
   });
 
   it("uses inline card only for design-head stage approvals", () => {
@@ -81,30 +96,41 @@ describe("stage-approval-rbac", () => {
     ).toBe(false);
   });
 
-  it("exposes hub tabs per role", () => {
+  it("exposes hub tabs per role from capability helpers", () => {
     expect(getApprovalHubTabsForRole(ROLE_CODES.DESIGN_HEAD)).toEqual({
       stage: true,
       ready: true,
-      management: true,
     });
     expect(getApprovalHubTabsForRole(ROLE_CODES.SAMPLE_CHECKER)).toEqual({
       stage: true,
       ready: false,
-      management: true,
+    });
+    expect(getApprovalHubTabsForRole(ROLE_CODES.MANAGEMENT)).toEqual({
+      stage: true,
+      ready: false,
     });
     expect(getApprovalHubTabsForRole(ROLE_CODES.PUNCHING_DESIGNER)).toEqual({
       stage: false,
       ready: false,
-      management: false,
     });
     expect(canRoleAccessApprovalsHub(ROLE_CODES.PUNCHING_DESIGNER)).toBe(false);
     expect(getApprovalHubTabsForRole(ROLE_CODES.ADMIN)).toEqual({
       stage: true,
       ready: false,
-      management: true,
     });
     expect(canRoleAccessApprovalsHub(ROLE_CODES.ADMIN)).toBe(true);
     expect(canRoleSeeReadyForSignOff(ROLE_CODES.ADMIN)).toBe(false);
+    expect(isApprovalHubTabAllowed(ROLE_CODES.ADMIN, "ready")).toBe(false);
+    expect(isApprovalHubTabAllowed(ROLE_CODES.DESIGN_HEAD, "ready")).toBe(true);
+    expect(approvalsHubHrefForRole(ROLE_CODES.ADMIN, "ready")).toBe(
+      "/quality/approvals?tab=stage",
+    );
+    expect(approvalsHubHrefForRole(ROLE_CODES.DESIGN_HEAD, "ready")).toBe(
+      "/quality/approvals?tab=ready",
+    );
+    expect(approvalsHubHrefForRole(ROLE_CODES.SAMPLE_CHECKER, "management")).toBe(
+      "/quality/approvals?tab=stage",
+    );
   });
 });
 
@@ -122,6 +148,6 @@ describe("approval-hub-rbac", () => {
     expect(canRoleActOnManagementLevel(ROLE_CODES.ADMIN, "MANAGEMENT_APPROVAL")).toBe(true);
     expect(canRoleSeeReadyForSignOff(ROLE_CODES.DESIGN_HEAD)).toBe(true);
     expect(canRoleSeeReadyForSignOff(ROLE_CODES.MANAGEMENT)).toBe(false);
-    expect(canRoleSeeManagementSignOff(ROLE_CODES.ADMIN)).toBe(true);
+    expect(canRoleSeeManagementSignOff(ROLE_CODES.ADMIN)).toBe(false);
   });
 });

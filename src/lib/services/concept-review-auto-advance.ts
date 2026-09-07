@@ -3,8 +3,15 @@ import { ROLE_CODES } from "@/lib/permissions";
 import { isTaskReady } from "@/lib/services/task-dependency";
 import { getStageApprovalOwnerRole } from "@/lib/stage-approval-rbac";
 import { completeStageApproval } from "@/lib/services/task-service";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
-const OPEN_CONCEPT_STATUSES = ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "PENDING"] as const;
+const OPEN_AUTO_ADVANCE_STATUSES = [
+  "ASSIGNED",
+  "RUNNING",
+  "ON_HOLD",
+  "CHECKING",
+  "PENDING",
+] as const;
 
 export type StuckConceptReview = {
   taskId: bigint;
@@ -24,29 +31,50 @@ export async function findStuckConceptReviewTask(
       status: true,
       dependencySequence: true,
       sequence: true,
-      subProcess: { select: { code: true } },
+      subProcess: {
+        select: {
+          code: true,
+          capabilities: true,
+          defaultRole: { select: { code: true } },
+        },
+      },
     },
   });
 
-  const concept = tasks.find((t) => t.subProcess.code === "CONCEPT_REVIEW");
-  if (!concept) return null;
-  if (concept.status === "COMPLETED" || concept.status === "CANCELLED") return null;
-  if (!OPEN_CONCEPT_STATUSES.includes(concept.status as (typeof OPEN_CONCEPT_STATUSES)[number])) {
+  const autoAdvance = tasks.find((t) =>
+    resolveStageBehavior({
+      code: t.subProcess.code,
+      capabilities: t.subProcess.capabilities,
+      defaultRoleCode: t.subProcess.defaultRole?.code,
+    }).autoAdvanceOnCreate,
+  );
+  if (!autoAdvance) return null;
+  if (autoAdvance.status === "COMPLETED" || autoAdvance.status === "CANCELLED") return null;
+  if (
+    !OPEN_AUTO_ADVANCE_STATUSES.includes(
+      autoAdvance.status as (typeof OPEN_AUTO_ADVANCE_STATUSES)[number],
+    )
+  ) {
     return null;
   }
 
-  const sketch = tasks.find((t) => t.subProcess.code === "SKETCH");
-  if (sketch && !["PENDING", "ASSIGNED"].includes(sketch.status)) {
+  // If a dependency-next execute stage has already progressed past PENDING/ASSIGNED, skip.
+  const nextOpen = tasks.find(
+    (t) =>
+      t.sequence > autoAdvance.sequence &&
+      !["COMPLETED", "CANCELLED", "SKIPPED"].includes(t.status),
+  );
+  if (nextOpen && !["PENDING", "ASSIGNED"].includes(nextOpen.status)) {
     return null;
   }
 
-  if (concept.status === "PENDING") {
+  if (autoAdvance.status === "PENDING") {
     const ready = isTaskReady(
       {
-        id: concept.id.toString(),
-        dependencySequence: concept.dependencySequence,
-        sequence: concept.sequence,
-        status: concept.status,
+        id: autoAdvance.id.toString(),
+        dependencySequence: autoAdvance.dependencySequence,
+        sequence: autoAdvance.sequence,
+        status: autoAdvance.status,
       },
       tasks.map((t) => ({
         id: t.id.toString(),
@@ -58,7 +86,11 @@ export async function findStuckConceptReviewTask(
     if (!ready) return null;
   }
 
-  return { taskId: concept.id, version: concept.version, status: concept.status };
+  return {
+    taskId: autoAdvance.id,
+    version: autoAdvance.version,
+    status: autoAdvance.status,
+  };
 }
 
 async function syncDesignCurrentStageToNextOpen(designId: bigint) {
@@ -91,20 +123,37 @@ export async function autoAdvanceConceptReview(
 ): Promise<AutoAdvanceConceptReviewResult> {
   const stuck = await findStuckConceptReviewTask(designId);
   if (!stuck) {
-    const concept = await prisma.designTask.findFirst({
-      where: { designId, subProcess: { code: "CONCEPT_REVIEW" } },
-      select: { status: true },
+    const anyAuto = await prisma.designTask.findFirst({
+      where: {
+        designId,
+        OR: [
+          { subProcess: { code: "CONCEPT_REVIEW" } },
+          { subProcess: { capabilities: { path: ["autoAdvanceOnCreate"], equals: true } } },
+        ],
+      },
+      select: {
+        status: true,
+        subProcess: { select: { code: true, capabilities: true, defaultRole: { select: { code: true } } } },
+      },
     });
-    if (!concept) return { advanced: false, reason: "not_found" };
-    if (concept.status === "COMPLETED") return { advanced: false, reason: "already_done" };
+    if (!anyAuto) return { advanced: false, reason: "not_found" };
+    if (anyAuto.status === "COMPLETED") return { advanced: false, reason: "already_done" };
     return { advanced: false, reason: "not_found" };
   }
 
-  // System bootstrap: always complete CONCEPT_REVIEW as the stage owner
-  // (Design Head). Admin/Management creators can act on approvals in the UI,
-  // but auto-advance must not record them as the stage owner role.
+  const taskMeta = await prisma.designTask.findUnique({
+    where: { id: stuck.taskId },
+    select: {
+      subProcess: {
+        select: { code: true, defaultRole: { select: { code: true } } },
+      },
+    },
+  });
+  const stageCode = taskMeta?.subProcess.code ?? "CONCEPT_REVIEW";
   const effectiveRoleCode =
-    getStageApprovalOwnerRole("CONCEPT_REVIEW") ?? ROLE_CODES.DESIGN_HEAD;
+    taskMeta?.subProcess.defaultRole?.code ??
+    getStageApprovalOwnerRole(stageCode) ??
+    ROLE_CODES.DESIGN_HEAD;
 
   await completeStageApproval(
     stuck.taskId,
@@ -132,8 +181,11 @@ export async function listDesignsWithStuckConceptReview(): Promise<
       status: { notIn: ["CLOSED", "REJECTED"] },
       tasks: {
         some: {
-          subProcess: { code: "CONCEPT_REVIEW" },
-          status: { in: [...OPEN_CONCEPT_STATUSES] },
+          status: { in: [...OPEN_AUTO_ADVANCE_STATUSES] },
+          OR: [
+            { subProcess: { code: "CONCEPT_REVIEW" } },
+            { subProcess: { capabilities: { path: ["autoAdvanceOnCreate"], equals: true } } },
+          ],
         },
       },
     },

@@ -26,6 +26,11 @@ import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-que
 import { canRoleActOnStageApproval, getStageApprovalUiConfig } from "@/lib/stage-approval-rbac";
 import { isStageApprovalActionable } from "@/lib/design-workflow";
 import { releaseToProduction } from "@/lib/services/production-service";
+import {
+  validateProductionReleaseReadiness,
+} from "@/lib/services/production-release-readiness";
+import { formatProductionReleaseMissing } from "@/lib/services/production-workflow";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import { resolveStatusAfterAssign, reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
 import { enrichEmployeeTasks } from "@/lib/services/task-workflow-enrichment";
 import { sortTasksByEffectivePriority } from "@/lib/task-priority";
@@ -525,8 +530,21 @@ export async function endTask(
       throw conflict(APP_ERROR_CODES.CONCURRENCY_CONFLICT);
     }
 
-    const stageUi = getStageApprovalUiConfig(task.subProcess.code);
-    if (task.subProcess.isApproval && stageUi && stageUi.surface !== "task_end_dialog") {
+    const stageUi = getStageApprovalUiConfig(
+      task.subProcess.code,
+      task.subProcess.capabilities,
+    );
+    const stageBehavior = resolveStageBehavior({
+      code: task.subProcess.code,
+      isApproval: task.subProcess.isApproval,
+      isFileRequired: task.subProcess.isFileRequired,
+      capabilities: task.subProcess.capabilities,
+    });
+    if (
+      task.subProcess.isApproval &&
+      stageUi &&
+      stageUi.surface !== "task_end_dialog"
+    ) {
       throw businessRule(
         APP_ERROR_CODES.APPROVAL_NOT_ALLOWED,
         undefined,
@@ -542,9 +560,20 @@ export async function endTask(
       );
     }
 
-    const isSampleCheck = task.subProcess.code === "SAMPLE_CHECK";
+    const isSampleCheck = stageBehavior.sampleDecisionOutcomes;
     if (isSampleCheck && !input.sampleOutcome) {
       throw businessRule(APP_ERROR_CODES.SAMPLE_OUTCOME_REQUIRED);
+    }
+
+    if (stageBehavior.onComplete.includes("unlockErp")) {
+      const readiness = await validateProductionReleaseReadiness(task.designId, tx);
+      if (!readiness.ok) {
+        throw businessRule(
+          APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
+          readiness.missing,
+          formatProductionReleaseMissing(readiness.missing),
+        );
+      }
     }
 
     const requiredChecklist = await tx.qualityChecklistItem.findMany({
@@ -614,7 +643,7 @@ export async function endTask(
       }
     }
 
-    const isCosting = task.subProcess.code === "COSTING";
+    const isCosting = stageBehavior.costingEntry;
     if (isCosting) {
       for (const entry of input.costEntries ?? []) {
         await createCostEntryInTx(
@@ -834,7 +863,7 @@ export async function endTask(
     }
 
     const triggerProductionRelease =
-      task.subProcess.code === "PROD_RELEASE" && nextStatus === "COMPLETED";
+      stageBehavior.onComplete.includes("unlockErp") && nextStatus === "COMPLETED";
 
     await writeAuditLog(tx, {
       entityType: "DesignTask",
@@ -909,18 +938,53 @@ export async function completeStageApproval(
   const result = await prisma.$transaction(async (tx) => {
     const task = await tx.designTask.findUnique({
       where: { id: taskId },
-      include: { subProcess: true },
+      include: {
+        subProcess: {
+          include: { defaultRole: { select: { code: true, name: true } } },
+        },
+      },
     });
     if (!task) throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
-    if (!task.subProcess.isApproval) {
-      throw businessRule(APP_ERROR_CODES.APPROVAL_NOT_ALLOWED);
+
+    const ownerRoleCode = task.subProcess.defaultRole?.code ?? null;
+    const stageBehavior = resolveStageBehavior({
+      code: task.subProcess.code,
+      isApproval: task.subProcess.isApproval,
+      isFileRequired: task.subProcess.isFileRequired,
+      capabilities: task.subProcess.capabilities,
+      defaultRoleCode: ownerRoleCode,
+    });
+
+    if (!stageBehavior.isApproval || stageBehavior.approvalSurface === "none") {
+      throw businessRule(
+        APP_ERROR_CODES.APPROVAL_NOT_ALLOWED,
+        undefined,
+        "This task is not a stage approval — use the normal End task flow instead.",
+      );
     }
 
-    if (!canRoleActOnStageApproval(effectiveRoleCode, task.subProcess.code)) {
-      throw createAppError(APP_ERROR_CODES.PERMISSION_DENIED, 403);
+    if (
+      !canRoleActOnStageApproval(effectiveRoleCode, task.subProcess.code, {
+        ownerRoleCode,
+        capabilities: task.subProcess.capabilities,
+      })
+    ) {
+      const ownerLabel =
+        task.subProcess.defaultRole?.name ??
+        ownerRoleCode?.replace(/_/g, " ") ??
+        "the assigned stage owner";
+      throw businessRule(
+        APP_ERROR_CODES.APPROVAL_NOT_ALLOWED,
+        { requiredRole: ownerRoleCode },
+        `Only ${ownerLabel} (or Admin) can decide this stage. DESIGN_APPROVE on Roles & Access is for management sign-off, not every stage gate.`,
+      );
     }
 
-    const uiConfig = getStageApprovalUiConfig(task.subProcess.code);
+    const uiConfig = getStageApprovalUiConfig(
+      task.subProcess.code,
+      task.subProcess.capabilities,
+      { isApproval: task.subProcess.isApproval },
+    );
     if (uiConfig) {
       const decisionAction =
         decision === "APPROVED"
@@ -939,7 +1003,10 @@ export async function completeStageApproval(
       }
     }
 
-    const workCode = workSubProcessCodeForApproval(task.subProcess.code);
+    const workCode = workSubProcessCodeForApproval(
+      task.subProcess.code,
+      task.subProcess.capabilities,
+    );
     const linkedWork = workCode
       ? await tx.designTask.findFirst({
           where: { designId: task.designId, subProcess: { code: workCode } },
@@ -947,7 +1014,13 @@ export async function completeStageApproval(
           select: { status: true },
         })
       : null;
-    if (!isStageApprovalActionable(task.subProcess.code, linkedWork ?? undefined)) {
+    if (
+      !isStageApprovalActionable(
+        task.subProcess.code,
+        linkedWork ?? undefined,
+        task.subProcess.capabilities,
+      )
+    ) {
       throw conflict(
         APP_ERROR_CODES.WORKFLOW_NOT_READY,
         undefined,
@@ -1001,7 +1074,10 @@ export async function completeStageApproval(
       if (
         task.assignedEmployeeId != null &&
         task.assignedEmployeeId !== employeeId &&
-        !canRoleActOnStageApproval(effectiveRoleCode, task.subProcess.code)
+        !canRoleActOnStageApproval(effectiveRoleCode, task.subProcess.code, {
+          ownerRoleCode,
+          capabilities: task.subProcess.capabilities,
+        })
       ) {
         throw createAppError(APP_ERROR_CODES.TASK_NOT_ASSIGNED, 403);
       }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { BellIcon } from "lucide-react";
+import { IconBell } from "@/components/icons";
 import { apiGet, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -62,7 +62,7 @@ export function NotificationBell() {
         aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
         onClick={() => setOpen((v) => !v)}
       >
-        <BellIcon className="size-4" aria-hidden />
+        <IconBell className="size-4" aria-hidden />
         {unread > 0 ? <span className="notification-bell-badge">{unread}</span> : null}
       </button>
       {open ? (

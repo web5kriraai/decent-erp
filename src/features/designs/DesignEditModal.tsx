@@ -37,6 +37,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
   const [celebrityReference, setCelebrityReference] = useState(design.celebrityReference ?? "");
 
   async function handleSave() {
+    if (!collectionName.trim() || updateDesign.isPending) return;
     await updateDesign.mutateAsync({
       designId: design.id,
       version: design.version ?? 1,
@@ -49,6 +50,8 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
     });
     onClose();
   }
+
+  const canSave = !!collectionName.trim() && !updateDesign.isPending;
 
   return (
     <Modal
@@ -64,8 +67,8 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
           <AppButton
             type="button"
             appVariant="primary"
-            disabled={!collectionName.trim() || updateDesign.isPending}
-            onClick={handleSave}
+            disabled={!canSave}
+            onClick={() => void handleSave()}
           >
             {updateDesign.isPending ? "Saving…" : "Save"}
           </AppButton>
@@ -102,6 +105,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
           rows={3}
           value={conceptNote}
           onChange={(e) => setConceptNote(e.target.value)}
+          onEnterSubmit={canSave ? () => void handleSave() : undefined}
         />
         <ModalFormGrid>
           <FormTextField

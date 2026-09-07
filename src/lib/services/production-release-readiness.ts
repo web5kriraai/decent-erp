@@ -1,10 +1,15 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { canRoleSeeManagementSignOff } from "@/lib/approval-hub-rbac";
 import { designHasCosting } from "@/lib/services/costing-service";
 import {
   collectPresentStageGaps,
   type ReadinessTaskSnapshot,
 } from "@/lib/services/production-release-readiness-utils";
+import {
+  designRequiresCosting,
+  evaluateTransition,
+} from "@/lib/workflow/transition-policies";
 
 export { collectPresentStageGaps } from "@/lib/services/production-release-readiness-utils";
 export type { ReadinessTaskSnapshot } from "@/lib/services/production-release-readiness-utils";
@@ -16,27 +21,10 @@ export type ProductionReleaseReadiness = {
   missing: string[];
 };
 
-type TaskRow = {
-  id: bigint;
-  status: string;
-  subProcess: { name: string; code: string; isFileRequired: boolean };
-};
-
-async function taskByCode(
-  tx: Tx | typeof prisma,
-  designId: bigint,
-  code: string,
-): Promise<TaskRow | null> {
-  return (tx as Tx).designTask.findFirst({
-    where: { designId, subProcess: { code } },
-    include: { subProcess: { select: { name: true, code: true, isFileRequired: true } } },
-  });
-}
-
 /**
  * Server-authoritative checklist before production release.
- * Design-side stages are required only when present on the design (flexible patterns).
- * Production ladder stages are required when present (auto-appended on APPROVED).
+ * Design-side stages and data gates are required only when present on the design.
+ * Legacy management ApprovalLevel chain only when management decide UI is enabled.
  */
 export async function validateProductionReleaseReadiness(
   designId: bigint,
@@ -61,45 +49,54 @@ export async function validateProductionReleaseReadiness(
     missing.push("Management / final approval (design must be Approved)");
   }
 
+  const designTasks = await db.designTask.findMany({
+    where: { designId },
+    include: {
+      subProcess: {
+        select: {
+          name: true,
+          code: true,
+          isFileRequired: true,
+          isApproval: true,
+          capabilities: true,
+        },
+      },
+    },
+  });
+
   const hasCosting = await designHasCosting(designId, db);
-  if (!hasCosting) {
+  const costingEval = evaluateTransition({
+    transition: "design.production_release",
+    tasks: designTasks,
+    hasCosting,
+  });
+  if (!costingEval.ok && costingEval.meta.requiresCosting) {
     missing.push("Development costing");
   }
 
-  const levels = await db.approvalLevel.findMany({
-    where: { active: true },
-    orderBy: { sequence: "asc" },
-  });
-  if (levels.length > 0) {
-    const approvals = await db.designApproval.findMany({
-      where: { designId, decision: { in: ["APPROVED", "SKIPPED"] } },
+  // Option A: management decide chain disabled — skip per-level ApprovalLevel checklist
+  // for Design Head sign-off path. Legacy chain only when product UI re-enables it.
+  if (canRoleSeeManagementSignOff(null)) {
+    const levels = await db.approvalLevel.findMany({
+      where: { active: true },
+      orderBy: { sequence: "asc" },
     });
-    const passedIds = new Set(approvals.map((a) => a.approvalLevelId));
-    for (const level of levels) {
-      if (!passedIds.has(level.id)) {
-        missing.push(`${level.name} approval`);
+    if (levels.length > 0) {
+      const approvals = await db.designApproval.findMany({
+        where: { designId, decision: { in: ["APPROVED", "SKIPPED"] } },
+      });
+      const passedIds = new Set(approvals.map((a) => a.approvalLevelId));
+      for (const level of levels) {
+        if (!passedIds.has(level.id)) {
+          missing.push(`${level.name} approval`);
+        }
       }
     }
   }
 
-  const codes = [
-    "SKETCH",
-    "SKETCH_APPROVAL",
-    "PUNCH",
-    "PUNCH_CHECK",
-    "MAT_REQ",
-    "FABRIC_ISSUE",
-    "MACHINE_SAMPLE",
-    "SAMPLE_CHECK",
-    "FINAL_APPROVAL",
-    "PROD_HANDOFF",
-    "PROD_INSTRUCTION",
-  ] as const;
-
   const tasksByCode: Record<string, ReadinessTaskSnapshot | undefined> = {};
-  for (const code of codes) {
-    const task = await taskByCode(db, designId, code);
-    if (!task) continue;
+  for (const task of designTasks) {
+    const code = task.subProcess.code;
     let hasFile = true;
     if (task.subProcess.isFileRequired) {
       const files = await db.taskArtifact.count({
@@ -110,7 +107,11 @@ export async function validateProductionReleaseReadiness(
     tasksByCode[code] = {
       status: task.status,
       isFileRequired: task.subProcess.isFileRequired,
+      isApproval: task.subProcess.isApproval,
+      capabilities: task.subProcess.capabilities,
+      name: task.subProcess.name,
       hasFile,
+      code,
     };
   }
 
@@ -118,3 +119,6 @@ export async function validateProductionReleaseReadiness(
 
   return { ok: missing.length === 0, missing };
 }
+
+/** Re-export for callers that need presence check without full readiness. */
+export { designRequiresCosting };

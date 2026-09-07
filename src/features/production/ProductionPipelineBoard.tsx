@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { FactoryIcon } from "lucide-react";
+import { IconProduction } from "@/components/icons";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -280,7 +280,7 @@ export function ProductionPipelineBoard({
         {filtered.length === 0 ? (
           <div className="production-desk-empty" role="status">
             <span className="production-desk-empty-icon" aria-hidden>
-              <FactoryIcon className="size-6" />
+              <IconProduction className="size-6" />
             </span>
             <p className="production-desk-empty-title">
               {designs.length === 0

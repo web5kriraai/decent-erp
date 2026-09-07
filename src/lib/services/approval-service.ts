@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { ApiError } from "@/lib/api-utils";
+import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { designHasCosting } from "@/lib/services/costing-service";
 import type { ApprovalDecision } from "@prisma/client";
 import { ensureProductionLadderAndUnlock } from "@/lib/services/production-handoff-unlock";
@@ -17,8 +18,11 @@ import type {
   PendingApprovalQueueItem,
   ReadyForSignOffItem,
 } from "@/lib/types/api";
-
-const SIGN_OFF_CORRECTION_ROUTE_CODES = ["PUNCH", "SKETCH", "MACHINE_SAMPLE", "COSTING"] as const;
+import { correctionRouteCodesFromStages } from "@/lib/workflow/correction-routes";
+import {
+  designRequiresCosting,
+  evaluateTransition,
+} from "@/lib/workflow/transition-policies";
 
 export type { PendingApprovalQueueItem, ReadyForSignOffItem } from "@/lib/types/api";
 
@@ -62,7 +66,15 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
           sequence: true,
           assignedEmployeeId: true,
           process: { select: { name: true } },
-          subProcess: { select: { name: true, code: true, isApproval: true } },
+          subProcess: {
+            select: {
+              name: true,
+              code: true,
+              isApproval: true,
+              isFileRequired: true,
+              capabilities: true,
+            },
+          },
           assignedEmployee: { select: { id: true, name: true } },
         },
       },
@@ -74,6 +86,11 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
 
   const designIdsWithCosting = new Set(
     designs.filter((d) => d.costs.length > 0).map((d) => d.id.toString()),
+  );
+  const designIdsRequiringCosting = new Set(
+    designs
+      .filter((d) => designRequiresCosting(d.tasks))
+      .map((d) => d.id.toString()),
   );
 
   return buildPendingApprovalItems(
@@ -88,7 +105,7 @@ export async function listPendingApprovals(): Promise<PendingApprovalQueueItem[]
       tasks: d.tasks,
     })),
     levels,
-    { designIdsWithCosting },
+    { designIdsWithCosting, designIdsRequiringCosting },
   ) as PendingApprovalQueueItem[];
 }
 
@@ -122,7 +139,7 @@ export async function listDesignsReadyForSignOff(
 
   const portfolioFilter = readyForSignOffScopeFilter(employeeId, employee.role?.code);
 
-  const designs = await prisma.designConcept.findMany({
+    const designs = await prisma.designConcept.findMany({
     where: {
       status: { in: ["DRAFT", "ACTIVE"] },
       ...portfolioFilter,
@@ -132,7 +149,14 @@ export async function listDesignsReadyForSignOff(
         select: {
           status: true,
           updatedAtUtc: true,
-          subProcess: { select: { code: true, isApproval: true } },
+          subProcess: {
+            select: {
+              code: true,
+              isApproval: true,
+              isFileRequired: true,
+              capabilities: true,
+            },
+          },
         },
       },
     },
@@ -189,15 +213,36 @@ export async function requestDesignApproval(
         costs: { select: { amount: true }, take: 50 },
         corrections: {
           where: { status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"] } },
-          select: { id: true },
+          select: { id: true, correctionType: true, rootCause: true },
+        },
+        approvals: {
+          where: { decision: { not: "PENDING" } },
+          orderBy: { decisionAtUtc: "asc" },
+          select: {
+            decision: true,
+            remark: true,
+            decisionAtUtc: true,
+            level: { select: { name: true } },
+            approver: { select: { name: true } },
+          },
         },
         tasks: {
           orderBy: { sequence: "asc" },
           select: {
             id: true,
             status: true,
+            outputRemark: true,
+            completedAt: true,
             assignedEmployeeId: true,
-            subProcess: { select: { code: true, name: true, isApproval: true } },
+            subProcess: {
+              select: {
+                code: true,
+                name: true,
+                isApproval: true,
+                isFileRequired: true,
+                capabilities: true,
+              },
+            },
             assignedEmployee: { select: { id: true, name: true } },
           },
         },
@@ -210,28 +255,43 @@ export async function requestDesignApproval(
     });
     if (!design) throw new ApiError("Design not found", 404);
     if (!["DRAFT", "ACTIVE"].includes(design.status)) {
-      throw new ApiError("Design cannot enter approval from current status", 422);
+      throw new ApiError("Design cannot be approved for production from current status", 422);
     }
 
-    const levels = await tx.approvalLevel.findMany({
-      where: { active: true },
-      orderBy: { sequence: "asc" },
+    const stagesComplete =
+      design.tasks.length > 0 && isDesignReadyForSignOff(design.tasks);
+    const hasCosting = await designHasCosting(designId, tx);
+    const transition = evaluateTransition({
+      transition: "design.sign_off",
+      tasks: design.tasks,
+      hasCosting,
+      stagesComplete,
     });
-    if (levels.length === 0) {
-      throw new ApiError("No approval levels configured", 422);
-    }
-
-    if (design.tasks.length === 0 || !isDesignReadyForSignOff(design.tasks)) {
+    if (!transition.ok) {
+      const blocker = transition.blockers[0]!;
       throw new ApiError(
-        "All required workflow stages must be complete before requesting management approval.",
+        blocker.message,
         422,
+        undefined,
+        blocker.code === APP_ERROR_CODES.COSTING_REQUIRED
+          ? APP_ERROR_CODES.COSTING_REQUIRED
+          : undefined,
       );
     }
 
-    const totalCost = design.costs.reduce((sum, c) => sum + Number(c.amount), 0);
-    const completedStages = design.tasks
-      .filter((t) => ["COMPLETED", "CHECKING", "SKIPPED"].includes(t.status))
-      .map((t) => t.subProcess.name);
+    const positiveCosts = design.costs.filter((c) => Number(c.amount) > 0);
+    const totalCost = positiveCosts.reduce((sum, c) => sum + Number(c.amount), 0);
+    const completedTasks = design.tasks.filter((t) =>
+      ["COMPLETED", "CHECKING", "SKIPPED"].includes(t.status),
+    );
+    const completedStageDetails = completedTasks.map((t) => ({
+      code: t.subProcess.code,
+      name: t.subProcess.name,
+      outputRemark: t.outputRemark ?? null,
+      assigneeName: t.assignedEmployee?.name ?? null,
+      completedAt: t.completedAt?.toISOString() ?? null,
+    }));
+    const completedStages = completedStageDetails.map((d) => d.name);
 
     const stageAssignees = design.tasks
       .filter((t) => !t.subProcess.isApproval)
@@ -241,6 +301,20 @@ export async function requestDesignApproval(
         assigneeEmployeeId: t.assignedEmployeeId ?? t.assignedEmployee?.id ?? null,
         assigneeName: t.assignedEmployee?.name ?? null,
       }));
+
+    const openCorrectionBriefs = design.corrections.map((c) => ({
+      id: c.id.toString(),
+      type: c.correctionType,
+      rootCause: c.rootCause ?? null,
+    }));
+
+    const priorManagementDecisions = design.approvals.map((a) => ({
+      levelName: a.level.name,
+      decision: a.decision,
+      remark: a.remark ?? null,
+      decidedBy: a.approver?.name ?? null,
+      decidedAt: a.decisionAtUtc?.toISOString() ?? null,
+    }));
 
     const packagePayload = {
       requesterEmployeeId: requester.id,
@@ -255,9 +329,13 @@ export async function requestDesignApproval(
         priority: design.priority,
         statusBeforeRequest: design.status,
         completedStages,
+        completedStageDetails,
         openCorrections: design.corrections.length,
-        costingEntryCount: design.costs.length,
+        openCorrectionBriefs,
+        priorManagementDecisions,
+        costingEntryCount: positiveCosts.length,
         costingTotal: totalCost,
+        requiresCosting: transition.meta.requiresCosting,
         primaryFiles: design.images.map((img) => ({
           id: img.id.toString(),
           fileName: img.fileName,
@@ -270,15 +348,17 @@ export async function requestDesignApproval(
     const updated = await tx.designConcept.update({
       where: { id: designId },
       data: {
-        status: "APPROVAL_PENDING",
+        status: "APPROVED",
         approvalRequestPackage: packagePayload,
       },
     });
 
+    await ensureProductionLadderAndUnlock(tx, designId, correlationId);
+
     await writeAuditLog(tx, {
       entityType: "DesignConcept",
       entityId: designId.toString(),
-      action: "REQUEST_APPROVAL",
+      action: "DESIGN_APPROVED",
       userId: requesterId,
       correlationId,
       before: { status: design.status },
@@ -288,7 +368,7 @@ export async function requestDesignApproval(
     return updated;
   }).then(async (design) => {
     await enqueueOutboxAndNotify(
-      "APPROVAL_PENDING",
+      "DESIGN_APPROVED",
       { designId: design.id.toString(), ideaRef: design.ideaRef },
       correlationId,
     );
@@ -296,7 +376,35 @@ export async function requestDesignApproval(
   });
 }
 
+/**
+ * @deprecated Option A removed the Checker→DH→Management decide chain.
+ * Final approve is Design Head Request Sign-off → APPROVED.
+ */
 export async function submitApproval(
+  input: {
+    designId: bigint;
+    taskId?: bigint;
+    approvalLevelId: number;
+    decision: ApprovalDecision;
+    remark?: string;
+    correctionType?: string;
+    routeSubProcessCode?: string;
+    responsibleEmployeeId?: number;
+  },
+  approverEmployeeId: number,
+  correlationId: string,
+) {
+  void input;
+  void approverEmployeeId;
+  void correlationId;
+  throw new ApiError(
+    "Management decide chain was removed. Design Head approves for production via Request Sign-off after all stages are complete.",
+    410,
+  );
+}
+
+/** Legacy implementation retained for reference / one-off migration tooling — not used by product APIs. */
+export async function submitApprovalLegacy(
   input: {
     designId: bigint;
     taskId?: bigint;
@@ -383,11 +491,37 @@ export async function submitApproval(
       const passedIds = new Set([...approvals.map((a) => a.approvalLevelId), input.approvalLevelId]);
       const allPassed = levels.every((l) => passedIds.has(l.id));
       if (allPassed) {
+        const designTasks = await tx.designTask.findMany({
+          where: { designId: input.designId },
+          select: {
+            status: true,
+            subProcess: {
+              select: {
+                code: true,
+                name: true,
+                isApproval: true,
+                isFileRequired: true,
+                capabilities: true,
+              },
+            },
+          },
+        });
         const hasCosting = await designHasCosting(input.designId, tx);
-        if (!hasCosting) {
+        const transition = evaluateTransition({
+          transition: "design.sign_off",
+          tasks: designTasks,
+          hasCosting,
+          stagesComplete: true,
+        });
+        if (!transition.ok) {
+          const blocker = transition.blockers[0]!;
           throw new ApiError(
-            "Costing must be complete before final management approval. Add at least one cost entry on Finance → Costing, then approve again.",
+            blocker.message,
             422,
+            undefined,
+            blocker.code === APP_ERROR_CODES.COSTING_REQUIRED
+              ? APP_ERROR_CODES.COSTING_REQUIRED
+              : undefined,
           );
         }
         await tx.designConcept.update({
@@ -433,15 +567,32 @@ export async function submitApproval(
       const designTasks = await tx.designTask.findMany({
         where: { designId: input.designId },
         include: {
-          subProcess: { select: { id: true, code: true, name: true } },
+          subProcess: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              isCorrectionAllowed: true,
+              capabilities: true,
+            },
+          },
           assignedEmployee: { select: { id: true, name: true } },
         },
         orderBy: { sequence: "asc" },
       });
 
+      const signOffRoutes = correctionRouteCodesFromStages(
+        designTasks.map((t) => ({
+          code: t.subProcess.code,
+          name: t.subProcess.name,
+          isCorrectionAllowed: t.subProcess.isCorrectionAllowed,
+          capabilities: t.subProcess.capabilities,
+        })),
+      );
+
       const preferredCodes = input.routeSubProcessCode
-        ? [input.routeSubProcessCode, ...SIGN_OFF_CORRECTION_ROUTE_CODES]
-        : [...SIGN_OFF_CORRECTION_ROUTE_CODES];
+        ? [input.routeSubProcessCode, ...signOffRoutes]
+        : [...signOffRoutes];
 
       const routeTask =
         preferredCodes
@@ -597,4 +748,80 @@ export async function submitApproval(
     }
     return result;
   });
+}
+
+/**
+ * One-shot heal: APPROVAL_PENDING designs with complete stages + costing → APPROVED.
+ * Skips designs that fail costing or are not ready for sign-off.
+ */
+export async function healApprovalPendingDesigns(
+  correlationId: string,
+  actorUserId: number,
+): Promise<{
+  healed: string[];
+  skipped: Array<{ designId: string; reason: string }>;
+}> {
+  const pending = await prisma.designConcept.findMany({
+    where: { status: "APPROVAL_PENDING" },
+    select: {
+      id: true,
+      ideaRef: true,
+      tasks: {
+        select: {
+          status: true,
+          subProcess: {
+            select: {
+              code: true,
+              isApproval: true,
+              isFileRequired: true,
+              capabilities: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const healed: string[] = [];
+  const skipped: Array<{ designId: string; reason: string }> = [];
+
+  for (const design of pending) {
+    const designId = design.id.toString();
+    const stagesComplete = isDesignReadyForSignOff(design.tasks);
+    const hasCosting = await designHasCosting(design.id);
+    const transition = evaluateTransition({
+      transition: "design.sign_off",
+      tasks: design.tasks,
+      hasCosting,
+      stagesComplete,
+    });
+    if (!transition.ok) {
+      const reason =
+        transition.blockers[0]?.code === APP_ERROR_CODES.COSTING_REQUIRED
+          ? "costing missing"
+          : "stages incomplete";
+      skipped.push({ designId, reason });
+      continue;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.designConcept.update({
+        where: { id: design.id },
+        data: { status: "APPROVED" },
+      });
+      await ensureProductionLadderAndUnlock(tx, design.id, correlationId);
+      await writeAuditLog(tx, {
+        entityType: "DesignConcept",
+        entityId: designId,
+        action: "HEAL_APPROVAL_PENDING",
+        userId: actorUserId,
+        correlationId,
+        before: { status: "APPROVAL_PENDING" },
+        after: { status: "APPROVED" },
+      });
+    });
+    healed.push(designId);
+  }
+
+  return { healed, skipped };
 }

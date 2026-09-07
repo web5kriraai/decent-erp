@@ -9,6 +9,7 @@ import {
   type ProductionReturnReasonCode,
 } from "@/lib/production-return-reasons";
 import { raiseCorrectionInTransaction } from "@/lib/services/correction-service";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
 async function findProdTask(designId: bigint, code: string) {
   return prisma.designTask.findFirst({
@@ -182,22 +183,27 @@ export async function getProductionReturnOptions(designId: bigint) {
   const subProcesses = await prisma.designSubProcessMaster.findMany({
     where: {
       active: true,
-      code: {
-        in: [
-          "SKETCH",
-          "PUNCH",
-          "MACHINE_SAMPLE",
-          "SAMPLE_CHECK",
-          "COSTING",
-          "PROD_HANDOFF",
-          "MAT_REQ",
-          "FABRIC_ISSUE",
-        ],
-      },
+      isCorrectionAllowed: true,
+      isApproval: false,
     },
-    orderBy: { sequence: "asc" },
-    select: { id: true, code: true, name: true },
+    orderBy: [{ processId: "asc" }, { sequence: "asc" }],
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      capabilities: true,
+      isCorrectionAllowed: true,
+    },
   });
+
+  // Keep only capability-confirmed correction routes (column can lag seed).
+  const filtered = subProcesses.filter((sp) =>
+    resolveStageBehavior({
+      code: sp.code,
+      isCorrectionAllowed: sp.isCorrectionAllowed,
+      capabilities: sp.capabilities,
+    }).isCorrectionAllowed,
+  );
 
   const handoff = await findProdTask(designId, "PROD_HANDOFF");
   const instruction = await findProdTask(designId, "PROD_INSTRUCTION");
@@ -216,7 +222,11 @@ export async function getProductionReturnOptions(designId: bigint) {
       code,
       label: labelForProductionReturnReason(code),
     })),
-    routeOptions: subProcesses,
+    routeOptions: filtered.map((sp) => ({
+      id: sp.id,
+      code: sp.code,
+      name: sp.name,
+    })),
     instructionStatus: instruction?.status ?? null,
   };
 }

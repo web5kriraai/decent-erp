@@ -68,9 +68,11 @@ export const APP_ERROR_MESSAGES: Record<AppErrorCode, string> = {
   DESIGN_STATUS_INVALID: "This design can't move to that status right now.",
   WORKFLOW_NOT_READY: "The workflow isn't ready for this step yet.",
 
-  APPROVAL_NOT_ALLOWED: "This approval decision isn't assigned to your role.",
   COSTING_REQUIRED:
-    "Enter at least one development cost before completing Costing or final approval.",
+    "Add at least one cost entry under Finance → Costing, then try again.",
+
+  APPROVAL_NOT_ALLOWED:
+    "This approval isn't assigned to your role. Stage gates follow the sub-process default role.",
 
   PRODUCTION_RELEASE_BLOCKED: "Production release isn't available for this design yet.",
   PRODUCTION_RELEASE_TASK_REQUIRED:
@@ -130,7 +132,24 @@ export function humanizeClientError(input: {
       ? (input.code as AppErrorCode)
       : inferCodeFromMessage(input.message, input.status);
 
-  const title = code ? APP_ERROR_MESSAGES[code] : sanitizeLegacyMessage(input.message, input.status);
+  const catalogTitle = code ? APP_ERROR_MESSAGES[code] : undefined;
+  const serverMessage = input.message?.trim() ?? "";
+  // Prefer short catalog copy for costing (avoid long server paragraphs in toasts).
+  const preferCatalog = code === APP_ERROR_CODES.COSTING_REQUIRED;
+  const preferServerMessage =
+    !preferCatalog &&
+    !!serverMessage &&
+    !!catalogTitle &&
+    serverMessage !== catalogTitle &&
+    !/prisma|typeerror|undefined|axios|unhandled|exception|stack|ECONNREFUSED|P\d{4}/i.test(
+      serverMessage,
+    );
+
+  const title = preferCatalog
+    ? (catalogTitle ?? sanitizeLegacyMessage(input.message, input.status))
+    : preferServerMessage
+      ? serverMessage
+      : catalogTitle ?? sanitizeLegacyMessage(input.message, input.status);
 
   const missingList = Array.isArray(input.details)
     ? (input.details as unknown[]).filter((item): item is string => typeof item === "string")
@@ -158,7 +177,7 @@ export function humanizeClientError(input: {
   } else if (input.status === 400 && code === APP_ERROR_CODES.VALIDATION_FAILED) {
     hint = "Check the highlighted fields and try again.";
   } else if (input.status >= 500) {
-    hint = "If this keeps happening, share the reference below with support.";
+    hint = "If this keeps happening, ask support — they can look up the server log.";
   }
 
   return { title, hint };

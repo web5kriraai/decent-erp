@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ROLE_CODES } from "@/lib/permissions";
 import { canRoleSeeStageApproval } from "@/lib/stage-approval-rbac";
-import { isStageApprovalVisibleToViewer } from "@/lib/services/stage-approval-queue";
+import { isStageApprovalVisibleToViewer, priorSubProcessCodeForStage } from "@/lib/services/stage-approval-queue";
 
 describe("stage approval visibility (owner oversee)", () => {
   it("lets Design Head see SKETCH_APPROVAL assigned to someone else", () => {
@@ -69,5 +69,16 @@ describe("stage approval visibility (owner oversee)", () => {
         isUnassigned: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe("priorSubProcessCodeForStage", () => {
+  it("returns null for CONCEPT_REVIEW (no prior handoff stage)", () => {
+    expect(priorSubProcessCodeForStage("CONCEPT_REVIEW")).toBeNull();
+  });
+
+  it("maps known execute stages from PRIOR_CODE_BY_STAGE", () => {
+    expect(priorSubProcessCodeForStage("SKETCH")).toBe("CONCEPT_REVIEW");
+    expect(priorSubProcessCodeForStage("FINAL_APPROVAL")).toBe("COSTING");
   });
 });

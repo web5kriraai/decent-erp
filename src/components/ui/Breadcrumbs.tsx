@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRightIcon, HomeIcon } from "lucide-react";
+import { IconChevronRight, IconHome } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 export type BreadcrumbItem = { label: string; href?: string };
@@ -33,11 +33,11 @@ export function Breadcrumbs({ items, variant = "page", className }: BreadcrumbsP
           return (
             <li key={`${crumb.label}-${index}`} className="breadcrumb-list-item">
               {index > 0 ? (
-                <ChevronRightIcon className="breadcrumb-chevron" aria-hidden />
+                <IconChevronRight className="breadcrumb-chevron" aria-hidden />
               ) : null}
               {showLink ? (
                 <Link href={crumb.href!} className="breadcrumb-link">
-                  {isOverview ? <HomeIcon className="breadcrumb-icon" aria-hidden /> : null}
+                  {isOverview ? <IconHome className="breadcrumb-icon" aria-hidden /> : null}
                   <span className="breadcrumb-label">{crumb.label}</span>
                 </Link>
               ) : (
@@ -45,7 +45,7 @@ export function Breadcrumbs({ items, variant = "page", className }: BreadcrumbsP
                   className={cn("breadcrumb-current", isLast && "breadcrumb-current--active")}
                   aria-current={isLast ? "page" : undefined}
                 >
-                  {isOverview ? <HomeIcon className="breadcrumb-icon" aria-hidden /> : null}
+                  {isOverview ? <IconHome className="breadcrumb-icon" aria-hidden /> : null}
                   <span className="breadcrumb-label">{crumb.label}</span>
                 </span>
               )}

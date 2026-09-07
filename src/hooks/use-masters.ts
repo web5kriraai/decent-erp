@@ -94,6 +94,10 @@ type ProcessMaster = {
     sequence: number;
     defaultRoleId?: number | null;
     active?: boolean;
+    isApproval?: boolean;
+    isFileRequired?: boolean;
+    isCorrectionAllowed?: boolean;
+    capabilities?: unknown;
   }>;
 };
 

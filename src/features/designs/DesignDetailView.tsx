@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { ROUTES } from "@/config/routes";
 import { useDesign } from "@/hooks/use-designs";
+import { useDesignCosts } from "@/hooks/use-costing";
 import { ImageGallery } from "@/components/ImageGallery";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
 import { DesignCompletionSummaryPanel, canViewDesignCompletionSummary } from "@/features/designs/DesignCompletionSummaryPanel";
@@ -20,7 +21,6 @@ import { DesignWorkflowPanel } from "@/components/designs/DesignWorkflowPanel";
 import { DesignActiveTaskTimer } from "@/components/designs/DesignActiveTaskTimer";
 import { CompactDesignActions } from "@/components/designs/CompactDesignActions";
 import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprovalCard";
-import { ManagementApprovalCard } from "@/components/designs/ManagementApprovalCard";
 import { getPendingStageApproval } from "@/lib/design-workflow";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
@@ -61,8 +61,21 @@ export function DesignDetailView({
     });
   }, [canExecute, designQuery.data, employeeId, roleCode]);
 
+  const isFinalApproval =
+    pendingStageApproval?.approvalTask.subProcess?.code === "FINAL_APPROVAL";
+  const costsQuery = useDesignCosts(designId, isFinalApproval);
+  const sampleOutcomeForFinal = useMemo(() => {
+    if (!isFinalApproval || !designQuery.data?.tasks) return null;
+    const sampleCheck = designQuery.data.tasks.find(
+      (t) => t.subProcess?.code === "SAMPLE_CHECK",
+    );
+    if (!sampleCheck) return null;
+    if (sampleCheck.status === "COMPLETED") return "APPROVE";
+    if (sampleCheck.status === "CORRECTION_REQUIRED") return "REJECT / RESAMPLE pending";
+    return sampleCheck.status;
+  }, [designQuery.data?.tasks, isFinalApproval]);
+
   const showDesignFiles = !pendingStageApproval;
-  const isSignOff = designQuery.data?.status === "APPROVAL_PENDING";
 
   return (
     <div className="page-shell">
@@ -107,6 +120,7 @@ export function DesignDetailView({
                 employeeId={employeeId}
                 tasks={designQuery.data.tasks}
                 roleCode={roleCode}
+                permissions={permissions}
               />
             ) : null}
 
@@ -118,15 +132,16 @@ export function DesignDetailView({
                 workTask={pendingStageApproval.workTask}
                 employeeId={employeeId}
                 canAssign={canAssign}
+                costingTotal={
+                  isFinalApproval ? costsQuery.data?.summary.totalDevCost : undefined
+                }
+                costingEntryCount={
+                  isFinalApproval ? costsQuery.data?.summary.entryCount : undefined
+                }
+                sampleOutcome={isFinalApproval ? sampleOutcomeForFinal : undefined}
               />
             ) : (
               <div className="stack-section-sm">
-                {isSignOff ? (
-                  <ManagementApprovalCard
-                    designId={designId}
-                    ideaRef={designQuery.data.ideaRef}
-                  />
-                ) : null}
                 <CompactDesignActions
                   design={designQuery.data}
                   permissions={permissions}

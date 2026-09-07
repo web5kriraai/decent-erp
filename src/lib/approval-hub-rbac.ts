@@ -36,11 +36,7 @@ export function canRoleSeeReadyForSignOff(roleCode: string | null | undefined): 
   return roleCode === ROLE_CODES.DESIGN_HEAD;
 }
 
-export function canRoleSeeManagementSignOff(roleCode: string | null | undefined): boolean {
-  return (
-    roleCode === ROLE_CODES.ADMIN ||
-    roleCode === ROLE_CODES.SAMPLE_CHECKER ||
-    roleCode === ROLE_CODES.DESIGN_HEAD ||
-    roleCode === ROLE_CODES.MANAGEMENT
-  );
+/** @deprecated Option A removed the management decide chain — always false for product UI. */
+export function canRoleSeeManagementSignOff(_roleCode: string | null | undefined): boolean {
+  return false;
 }

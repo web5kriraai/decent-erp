@@ -13,6 +13,7 @@ export function buildNotificationMessage(
     TASK_DUE_SOON: "Task due soon",
     TASK_OVERDUE: "Task overdue",
     APPROVAL_PENDING: "Approval pending",
+    DESIGN_APPROVED: "Design approved for production",
     ERP_HANDOFF_SYNCED: "ERP handoff synced",
     ERP_HANDOFF_FAILED: "ERP handoff failed",
   };

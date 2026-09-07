@@ -7,8 +7,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  return withApiHandler(PERMISSIONS.COST_VIEW, async (ctx) => {
-    const readiness = await validateProductionReleaseReadiness(BigInt(id));
-    return jsonOk(readiness, ctx.correlationId);
-  });
+  return withApiHandler(
+    [PERMISSIONS.COST_VIEW, PERMISSIONS.PRODUCTION_RELEASE, PERMISSIONS.TASK_EXECUTE],
+    async (ctx) => {
+      const readiness = await validateProductionReleaseReadiness(BigInt(id));
+      return jsonOk(readiness, ctx.correlationId);
+    },
+  );
 }

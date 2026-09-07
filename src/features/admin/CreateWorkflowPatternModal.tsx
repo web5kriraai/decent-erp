@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { useProcessMasters, useProductTypes } from "@/hooks/use-masters";
 import type { CreateWorkflowPatternPayload, Priority, WorkflowPattern } from "@/lib/types/api";
+import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+import { parseStageCapabilities } from "@/lib/workflow/stage-capabilities";
 
 type TaskDraft = {
   id: string;
@@ -142,6 +144,49 @@ export function CreateWorkflowPatternModal({
     );
   }, [name, tasks, editPattern]);
 
+  const capabilitySummary = useMemo(() => {
+    const lines: string[] = [];
+    const errors: string[] = [];
+    tasks.forEach((task, index) => {
+      if (!task.processId || !task.subProcessId) return;
+      const process = processes.find((p) => p.id === task.processId);
+      const sub = process?.subProcesses.find((sp) => sp.id === task.subProcessId);
+      if (!sub) return;
+      const behavior = resolveStageBehavior({
+        code: sub.code,
+        name: sub.name,
+        isApproval: (sub as { isApproval?: boolean }).isApproval,
+        isFileRequired: (sub as { isFileRequired?: boolean }).isFileRequired,
+        capabilities:
+          (sub as { capabilities?: unknown }).capabilities ??
+          parseStageCapabilities((sub as { capabilities?: unknown }).capabilities),
+      });
+      const tags = [
+        behavior.isApproval ? `approval:${behavior.approvalSurface}` : null,
+        behavior.forcesChecking ? "checking" : null,
+        behavior.machineOutput ? "machine" : null,
+        behavior.costingEntry ? "costing" : null,
+        behavior.unlockAfterDesignApproved ? "post-approve-ladder" : null,
+        behavior.autoAdvanceOnCreate ? "auto-advance" : null,
+      ].filter(Boolean);
+      lines.push(`Step ${index + 1} · ${sub.code}${tags.length ? ` (${tags.join(", ")})` : ""}`);
+      if (behavior.isApproval && behavior.approvalSurface === "none") {
+        errors.push(`Step ${index + 1} (${sub.code}): approval needs a surface.`);
+      }
+      if (
+        behavior.isApproval &&
+        behavior.workGateMode !== "always" &&
+        !behavior.workPrecursorCode &&
+        !task.dependencySequence
+      ) {
+        errors.push(
+          `Step ${index + 1} (${sub.code}): approval needs workPrecursor or dependency.`,
+        );
+      }
+    });
+    return { lines, errors };
+  }, [tasks, processes]);
+
   function handleClose() {
     resetForm();
     onClose();
@@ -235,8 +280,8 @@ export function CreateWorkflowPatternModal({
       title={isEditMode ? "Edit workflow pattern" : "Create Workflow Pattern"}
       description={
         isEditMode
-          ? "Update the pattern name and task steps. In-flight designs keep their existing tasks."
-          : "Define a reusable sequence of process steps for new designs."
+          ? "Update the pattern name and task steps. In-flight designs keep their existing tasks. Costing / production gates apply only for stages you include."
+          : "Define a reusable sequence of process steps for new designs. Costing is required at production sign-off only if a costingEntry stage is in this pattern."
       }
       onClose={handleClose}
       size="xl"
@@ -245,7 +290,11 @@ export function CreateWorkflowPatternModal({
           <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button type="button" disabled={!canSubmit || submitPending} onClick={handleSubmit}>
+          <Button
+            type="button"
+            disabled={!canSubmit || submitPending || capabilitySummary.errors.length > 0}
+            onClick={handleSubmit}
+          >
             {submitPending
               ? isEditMode
                 ? "Saving…"
@@ -259,6 +308,14 @@ export function CreateWorkflowPatternModal({
     >
       <ModalForm>
         {formError ? <ModalAlert variant="error">{formError}</ModalAlert> : null}
+        {capabilitySummary.errors.length > 0 ? (
+          <ModalAlert variant="error">{capabilitySummary.errors.join(" ")}</ModalAlert>
+        ) : null}
+        {capabilitySummary.lines.length > 0 ? (
+          <ModalAlert variant="warning">
+            Capability preview: {capabilitySummary.lines.join(" · ")}
+          </ModalAlert>
+        ) : null}
         {isEditMode ? (
           <ModalAlert variant="warning">
             Changes apply to new designs only. Designs already in progress are not modified.

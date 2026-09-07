@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
-import { RequestSignOffModal } from "@/components/approvals/RequestSignOffModal";
 import { resolveDesignContextActions } from "@/lib/workflow-actions";
 import type { DesignSummary } from "@/lib/types/api";
 import type { ResolvedWorkflowAction } from "@/lib/workflow-actions/types";
@@ -34,8 +33,6 @@ export function CompactDesignActions({
   onAssignTask,
   className,
 }: CompactDesignActionsProps) {
-  const [signOffOpen, setSignOffOpen] = useState(false);
-
   const actions = useMemo(
     () =>
       resolveDesignContextActions({
@@ -60,10 +57,6 @@ export function CompactDesignActions({
 
   function handleAction(action: ResolvedWorkflowAction) {
     if (!action.enabled) return;
-    if (action.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL) {
-      setSignOffOpen(true);
-      return;
-    }
     if (action.code === WORKFLOW_ACTION_CODES.ASSIGN_TASK && action.taskId && onAssignTask) {
       onAssignTask(action.taskId);
     }
@@ -73,7 +66,7 @@ export function CompactDesignActions({
     <div className={cn("compact-design-actions", className)}>
       <div className="compact-design-actions-row">
         {ranked.map((action) => {
-          if (action.href && action.code !== WORKFLOW_ACTION_CODES.REQUEST_APPROVAL) {
+          if (action.href) {
             return (
               <AppButtonLink
                 key={`${action.code}-${action.taskId ?? action.designId}`}
@@ -98,15 +91,6 @@ export function CompactDesignActions({
           );
         })}
       </div>
-      <RequestSignOffModal
-        open={signOffOpen}
-        designId={design.id}
-        ideaRef={design.ideaRef}
-        onClose={() => setSignOffOpen(false)}
-        onSuccess={() => {
-          setSignOffOpen(false);
-        }}
-      />
     </div>
   );
 }
