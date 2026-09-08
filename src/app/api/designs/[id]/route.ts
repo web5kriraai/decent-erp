@@ -22,6 +22,8 @@ const patchSchema = z.object({
   machineId: z.number().int().positive().nullable().optional(),
   stitchingTypeId: z.number().int().positive().nullable().optional(),
   targetGrade: z.string().nullable().optional(),
+  /** Reassign workflow portfolio owner (must be an active Design Head). */
+  designHeadEmployeeId: z.number().int().positive().optional(),
   version: z.number().int().positive(),
 });
 

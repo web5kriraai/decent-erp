@@ -356,6 +356,43 @@ export async function getTaskTimeDetail(
   const now = new Date();
   const summary = computeTimeSummary(mapEvents(task.timeEvents), now);
 
+  const relatedCorrections = await prisma.designCorrection.findMany({
+    where: { OR: [{ taskId }, { routedTaskId: taskId }] },
+    select: {
+      id: true,
+      taskId: true,
+      routedTaskId: true,
+      createdAtUtc: true,
+      reworkAssigneeEmployeeId: true,
+      responsibleEmployeeId: true,
+    },
+  });
+
+  let correctionTime: {
+    priorSeconds: number;
+    reworkSeconds: number;
+    totalSeconds: number;
+    correctionCount: number;
+  } | null = null;
+  if (relatedCorrections.length > 0) {
+    const { attachCorrectionTimeBreakdowns } = await import(
+      "@/lib/services/correction-time-service"
+    );
+    const withTime = await attachCorrectionTimeBreakdowns(relatedCorrections);
+    const totals = withTime.reduce(
+      (acc, c) => {
+        const tb = c.timeBreakdown;
+        if (!tb) return acc;
+        acc.priorSeconds += tb.originalActiveSeconds;
+        acc.reworkSeconds += tb.reworkActiveSeconds;
+        acc.totalSeconds += tb.totalActiveSeconds;
+        return acc;
+      },
+      { priorSeconds: 0, reworkSeconds: 0, totalSeconds: 0 },
+    );
+    correctionTime = { ...totals, correctionCount: withTime.length };
+  }
+
   const stageSiblings: StageGateSibling[] = peerTasks.map((peer) => ({
     id: peer.id.toString(),
     dependencySequence: peer.dependencySequence,
@@ -429,6 +466,7 @@ export async function getTaskTimeDetail(
     subProcess: task.subProcess,
     assignedEmployee: task.assignedEmployee,
     timeSummary: summary,
+    correctionTime,
     timeline: task.timeEvents.map((e) => ({
       id: e.id.toString(),
       eventType: e.eventType,

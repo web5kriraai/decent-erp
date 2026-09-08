@@ -44,18 +44,6 @@ export default function LoginPage() {
     }
   }
 
-  function applyDemoRole(value: string) {
-    const option = demoOptions.find((o) => o.email === value);
-    if (!option) {
-      setEmail("");
-      setPassword("");
-      return;
-    }
-    setEmail(option.email);
-    setPassword(option.password);
-    setError("");
-  }
-
   return (
     <div className="login-page">
       <div className="login-brand-panel">

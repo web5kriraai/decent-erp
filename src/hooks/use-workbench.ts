@@ -5,45 +5,6 @@ import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { ProductionInboxResponse } from "@/lib/services/production-inbox-service";
 
-export type DesignHeadWorkbenchSummary = {
-  myOpenTasks: number;
-  overdueTasks: number;
-  handoffPending: number;
-  handoffTasks: Array<{
-    id: string;
-    status: string;
-    design: { id: string; ideaRef: string; collectionName: string; status: string };
-    subProcess: { name: string };
-  }>;
-  blockedDesigns: Array<{
-    id: string;
-    ideaRef: string;
-    collectionName: string;
-    status: string;
-    priority: string;
-  }>;
-  activeDesigns: number;
-  openCorrections: number;
-  stageApprovals: Array<{
-    taskId: string;
-    designId: string;
-    ideaRef: string;
-    collectionName: string;
-    stageName: string;
-    stageCode: string;
-    status: string;
-    assigneeName: string | null;
-    workStageName: string | null;
-  }>;
-  readyForSignOff: number;
-  readyForSignOffDesigns: Array<{
-    designId: string;
-    ideaRef: string;
-    collectionName: string;
-    completedAt: string | null;
-  }>;
-};
-
 export type ManagementWorkbenchSummary = {
   approvalPending: number;
   highPriorityPending: number;
@@ -69,15 +30,6 @@ export type ManagementWorkbenchSummary = {
     currentLevelName?: string;
   }>;
 };
-
-export function useDesignHeadWorkbench(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.dashboard.designHead,
-    queryFn: () => apiGet<DesignHeadWorkbenchSummary>("/api/dashboard/design-head"),
-    enabled,
-    staleTime: 30_000,
-  });
-}
 
 export function useManagementWorkbench(enabled = true) {
   return useQuery({

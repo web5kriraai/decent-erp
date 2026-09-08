@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { IconEye } from "@/components/icons";
@@ -14,6 +14,8 @@ import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
 import {
@@ -21,8 +23,16 @@ import {
   useTaskMutations,
   type ActionCenterBlockedItem,
 } from "@/hooks/use-tasks";
+import type { Priority } from "@/lib/types/api";
+import { resolveEffectiveTaskPriority } from "@/lib/task-priority";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { useTaskTimeDetail } from "@/hooks/use-time";
+import { useDesign } from "@/hooks/use-designs";
+import { useEmployeeOptions } from "@/hooks/use-corrections";
+import {
+  correctionRouteCodesFromStages,
+  suggestedCorrectionRouteCode,
+} from "@/lib/workflow/correction-routes";
 import {
   useErpStageAction,
   useErpStageChainForDesign,
@@ -70,31 +80,58 @@ const ACTION_TABS: { id: ActionTab; label: string }[] = [
 
 function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
   if (items.length === 0) {
-    return <p className="action-center-empty">No blocked tasks.</p>;
+    return (
+      <p className="action-center-empty">
+        No blocked tasks. Dependency and approval waits appear here until prior work unlocks yours.
+      </p>
+    );
   }
   return (
     <ul className="action-center-list">
-      {items.map((item) => (
-        <li key={item.taskId} className="action-center-list-item">
-          <div>
-            <Link href={ROUTES.designs.detail(item.design.id)} className="data-table-link">
-              {item.design.ideaRef}
-            </Link>
-            <p className="action-center-list-meta">{item.stage}</p>
-            <p className="action-center-list-detail">{item.blockedMessage}</p>
-          </div>
-          <AppButtonLink
-            href={ROUTES.work.taskDetail(item.taskId)}
-            appVariant="ghost"
-            size="icon-sm"
-            className="table-icon-action"
-            title="View task"
-            aria-label="View task"
-          >
-            <IconEye aria-hidden />
-          </AppButtonLink>
-        </li>
-      ))}
+      {items.map((item) => {
+        const priority = resolveEffectiveTaskPriority(
+          item.priority ?? "MEDIUM",
+          item.design.priority,
+        ) as Priority;
+        return (
+          <li key={item.taskId} className="action-center-list-item action-center-list-item--blocked">
+            <div className="action-center-blocked-body">
+              <div className="action-center-blocked-title-row">
+                <Link href={ROUTES.work.taskDetail(item.taskId)} className="data-table-link">
+                  {item.design.ideaRef}
+                </Link>
+                <StatusBadge status={item.status} />
+                <PriorityBadge priority={priority} />
+              </div>
+              <p className="action-center-list-meta">
+                {item.stage}
+                {item.design.collectionName ? ` · ${item.design.collectionName}` : ""}
+              </p>
+              <p className="action-center-list-detail" role="status">
+                {item.blockedMessage}
+              </p>
+              {item.blockedOwner ? (
+                <p className="action-center-list-meta">
+                  Blocked by {item.blockedBy}
+                  {item.blockedOwner ? ` · ${item.blockedOwner}` : ""}
+                </p>
+              ) : (
+                <p className="action-center-list-meta">Blocked by {item.blockedBy}</p>
+              )}
+            </div>
+            <AppButtonLink
+              href={ROUTES.work.taskDetail(item.taskId)}
+              appVariant="ghost"
+              size="icon-sm"
+              className="table-icon-action"
+              title="View task"
+              aria-label="View blocked task"
+            >
+              <IconEye aria-hidden />
+            </AppButtonLink>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -146,6 +183,10 @@ export function TaskWorkspace() {
   const [sampleOutcome, setSampleOutcome] = useState<
     "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE" | ""
   >("");
+  const [corrRouteId, setCorrRouteId] = useState<number | "">("");
+  const [corrReworkAssigneeId, setCorrReworkAssigneeId] = useState<number | "">("");
+  const [corrResponsibleId, setCorrResponsibleId] = useState<number | "">("");
+  const [corrType, setCorrType] = useState("IMPROVEMENT");
   const [costEntries, setCostEntries] = useState<
     Array<{ costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION"; description?: string; amount: number }>
   >([]);
@@ -155,6 +196,60 @@ export function TaskWorkspace() {
   const runningTask = (center?.actionRequired ?? []).find((t) => t.status === "RUNNING");
   const onHoldTask = (center?.actionRequired ?? []).find((t) => t.status === "ON_HOLD");
   const activeTask = runningTask ?? onHoldTask ?? selectedTask;
+  const isSampleCheck = activeTask?.subProcess?.code === "SAMPLE_CHECK";
+  const designIdForCorr = activeTask?.design?.id ?? "";
+  const designQuery = useDesign(
+    designIdForCorr,
+    endModalOpen && !!designIdForCorr && !!isSampleCheck,
+  );
+  const employeesQuery = useEmployeeOptions(endModalOpen && !!isSampleCheck);
+
+  const correctionRouteOptions = useMemo(() => {
+    const tasks = designQuery.data?.tasks ?? [];
+    const stages = tasks.map((t) => ({
+      code: t.subProcess.code,
+      name: t.subProcess.name,
+      isCorrectionAllowed: (t.subProcess as { isCorrectionAllowed?: boolean }).isCorrectionAllowed,
+      capabilities: (t.subProcess as { capabilities?: unknown }).capabilities,
+      status: t.status,
+    }));
+    const codes = correctionRouteCodesFromStages(stages);
+    const byCode = new Map<string, { id: number; name: string; code: string }>();
+    for (const t of tasks) {
+      if (!codes.includes(t.subProcess.code)) continue;
+      if (!byCode.has(t.subProcess.code)) {
+        byCode.set(t.subProcess.code, {
+          id: t.subProcess.id,
+          name: t.subProcess.name,
+          code: t.subProcess.code,
+        });
+      }
+    }
+    return codes
+      .map((c) => byCode.get(c))
+      .filter((r): r is { id: number; name: string; code: string } => !!r);
+  }, [designQuery.data?.tasks]);
+
+  useEffect(() => {
+    if (sampleOutcome !== "REJECT" || correctionRouteOptions.length === 0) return;
+    if (corrRouteId !== "") return;
+    const suggested = suggestedCorrectionRouteCode(
+      "SAMPLE_CHECK",
+      correctionRouteOptions.map((r) => r.code),
+    );
+    const match =
+      correctionRouteOptions.find((r) => r.code === suggested) ??
+      correctionRouteOptions.find((r) => r.code === "MACHINE_SAMPLE") ??
+      correctionRouteOptions[0];
+    setCorrRouteId(match.id);
+    const stageTask = (designQuery.data?.tasks ?? []).find(
+      (t) => t.subProcess.id === match.id,
+    );
+    if (stageTask?.assignedEmployee?.id) {
+      setCorrReworkAssigneeId(stageTask.assignedEmployee.id);
+    }
+  }, [sampleOutcome, correctionRouteOptions, corrRouteId, designQuery.data?.tasks]);
+
   const isTimerActive = !!(runningTask || onHoldTask);
   const activeDetailQuery = useTaskTimeDetail(
     activeTask?.id ?? "",
@@ -200,7 +295,6 @@ export function TaskWorkspace() {
   );
 
   const fileRequired = !!activeTask?.subProcess?.isFileRequired;
-  const isSampleCheck = activeTask?.subProcess?.code === "SAMPLE_CHECK";
   const holdDialogConfig = activeTask
     ? getTaskHoldDialogConfig({
         status: activeTask.status,
@@ -370,6 +464,15 @@ export function TaskWorkspace() {
     ) {
       return;
     }
+    if (
+      isSampleCheck &&
+      sampleOutcome === "REJECT" &&
+      (!corrRouteId ||
+        !corrReworkAssigneeId ||
+        (corrType === "MISTAKE" && !corrResponsibleId))
+    ) {
+      return;
+    }
 
     const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
@@ -388,6 +491,17 @@ export function TaskWorkspace() {
         : undefined,
       checklistNote: note,
       sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+      correctionRouteToSubProcessId:
+        sampleOutcome === "REJECT" && corrRouteId ? Number(corrRouteId) : undefined,
+      correctionReworkAssigneeEmployeeId:
+        sampleOutcome === "REJECT" && corrReworkAssigneeId
+          ? Number(corrReworkAssigneeId)
+          : undefined,
+      correctionResponsibleEmployeeId:
+        sampleOutcome === "REJECT" && corrType === "MISTAKE" && corrResponsibleId
+          ? Number(corrResponsibleId)
+          : undefined,
+      correctionType: sampleOutcome === "REJECT" ? corrType : undefined,
       costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
     });
     setEndModalOpen(false);
@@ -395,6 +509,10 @@ export function TaskWorkspace() {
     setChecklistResults({});
     setChecklistNote("");
     setSampleOutcome("");
+    setCorrRouteId("");
+    setCorrReworkAssigneeId("");
+    setCorrResponsibleId("");
+    setCorrType("IMPROVEMENT");
     setCostEntries([]);
     setSelectedTaskId(null);
   }
@@ -691,6 +809,19 @@ export function TaskWorkspace() {
         isSampleCheck={endDialogConfig?.showSampleOutcomes ?? isSampleCheck}
         sampleOutcome={sampleOutcome || undefined}
         onSampleOutcomeChange={setSampleOutcome}
+        correctionRouteOptions={correctionRouteOptions}
+        correctionRouteToSubProcessId={corrRouteId}
+        onCorrectionRouteChange={setCorrRouteId}
+        correctionReworkAssigneeEmployeeId={corrReworkAssigneeId}
+        onCorrectionReworkAssigneeChange={setCorrReworkAssigneeId}
+        correctionResponsibleEmployeeId={corrResponsibleId}
+        onCorrectionResponsibleChange={setCorrResponsibleId}
+        correctionType={corrType}
+        onCorrectionTypeChange={setCorrType}
+        employeeOptions={(employeesQuery.data ?? []).map((e) => ({
+          id: e.id,
+          name: e.name,
+        }))}
         gateForcesChecking={endDialogConfig?.forceChecking}
         dialogTitle={endDialogConfig?.title}
         dialogDescription={endDialogConfig?.description}

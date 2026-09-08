@@ -12,6 +12,12 @@ import {
 import { useManagementWorkbench } from "@/hooks/use-workbench";
 import { useConceptTargets } from "@/hooks/use-masters";
 import {
+  formatConceptTargetTrend,
+  formatConceptTargetValue,
+  formatSamplePassTargetTrend,
+  formatSamplePassTargetValue,
+} from "@/lib/concept-target-display";
+import {
   WorkbenchEmpty,
   WorkbenchListItem,
   WorkbenchQueueCard,
@@ -39,7 +45,7 @@ export function ManagementDashboard() {
           KPI dashboard
         </AppButtonLink>
       }
-      isLoading={summaryQuery.isLoading}
+      isLoading={summaryQuery.isLoading || conceptTargetsQuery.isLoading}
       isError={summaryQuery.isError}
       error={summaryQuery.error}
       onRetry={() => {
@@ -49,23 +55,27 @@ export function ManagementDashboard() {
     >
       <div className="workbench-overview">
         <div className="stat-grid workbench-pulse">
-          <StatCard label="Approved - production queue" value={summary?.approvedCount ?? 0} />
+          <StatCard label="Approved · production queue" value={summary?.approvedCount ?? 0} />
           <StatCard label="Released to production" value={summary?.releasedCount ?? 0} />
           <StatCard label="Live review pending" value={summary?.liveReviewPending ?? 0} />
           <StatCard label="Under development" value={summary?.underDevelopment ?? 0} />
           <StatCard
             label="Concept target"
-            value={
-              attainment
-                ? `${attainment.createdCount}/${attainment.targetCount || "-"}`
-                : "-"
+            value={attainment ? formatConceptTargetValue(attainment) : "—"}
+            trend={attainment ? formatConceptTargetTrend(attainment) : undefined}
+            tone={attainment && !attainment.hasTarget ? "warning" : "accent"}
+          />
+          <StatCard
+            label="Sample pass vs target"
+            value={attainment ? formatSamplePassTargetValue(attainment) : "—"}
+            trend={attainment ? formatSamplePassTargetTrend(attainment) : undefined}
+            tone={
+              attainment && attainment.hasTarget && (attainment.passPercent ?? 0) > 0
+                ? "success"
+                : attainment && !attainment.hasTarget
+                  ? "warning"
+                  : "default"
             }
-            trend={
-              attainment
-                ? `${attainment.percent}% · ${attainment.periodMonth}/${attainment.periodYear}`
-                : undefined
-            }
-            tone="accent"
           />
         </div>
       </div>

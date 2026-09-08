@@ -89,6 +89,7 @@ export function useUpdateDesign() {
       machineId?: number | null;
       stitchingTypeId?: number | null;
       estimatedCost?: number;
+      designHeadEmployeeId?: number;
     }) => apiPatch<DesignSummary>(`/api/designs/${designId}`, payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
@@ -97,30 +98,6 @@ export function useUpdateDesign() {
       toast.success("Design updated");
     },
     onError: (error) => toast.errorFromApi(error, "Failed to update design"),
-  });
-}
-
-export function useUpdateDesignStatus() {
-  const queryClient = useQueryClient();
-  const toast = useApiToast();
-
-  return useMutation({
-    mutationFn: ({
-      designId,
-      status,
-      version,
-    }: {
-      designId: string;
-      status: string;
-      version: number;
-    }) => apiPatch<DesignSummary>(`/api/designs/${designId}/status`, { status, version }),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.designs.kanban });
-      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(data.id) });
-      toast.success("Status updated", data.status.replace(/_/g, " "));
-    },
-    onError: (error) => toast.errorFromApi(error, "Could not update status"),
   });
 }
 

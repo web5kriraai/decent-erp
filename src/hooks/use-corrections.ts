@@ -17,6 +17,7 @@ export type RaiseCorrectionPayload = {
     | "MATERIAL"
     | "OTHER";
   responsibleEmployeeId?: number | null;
+  reworkAssigneeEmployeeId?: number | null;
   routeToSubProcessId?: number | null;
   rootCause: string;
   extraMinutes?: number | null;

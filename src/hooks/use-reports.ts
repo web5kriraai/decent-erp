@@ -14,11 +14,21 @@ export type CorrectionAnalysisReport = {
     design?: { ideaRef: string; collectionName: string } | null;
     task?: { subProcess?: { name: string; code: string } | null } | null;
     responsibleEmployee?: { name: string; employeeCode: string } | null;
+    reworkAssignee?: { name: string; employeeCode: string } | null;
+    routeToSubProcess?: { name: string; code: string } | null;
+    timeBreakdown?: {
+      employeeId: number | null;
+      originalActiveSeconds: number;
+      reworkActiveSeconds: number;
+      totalActiveSeconds: number;
+      measuredExtraMinutes: number;
+    } | null;
   }>;
   summary: {
     byType: Record<string, number>;
     totalExtraMinutes: number;
     totalExtraCost: number;
+    totalReworkSeconds?: number;
   };
 };
 

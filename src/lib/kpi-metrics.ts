@@ -20,6 +20,15 @@ export const KPI_CALCULATION_VERSION = 4;
  */
 export const MISTAKE_CORRECTION_TYPES = ["MISTAKE"] as const;
 
+/** KPI impact label for a correction type (only employee MISTAKE penalizes). */
+export function correctionKpiImpactLabel(correctionType: string): string {
+  return MISTAKE_CORRECTION_TYPES.includes(
+    correctionType as (typeof MISTAKE_CORRECTION_TYPES)[number],
+  )
+    ? "Penalty"
+    : "None";
+}
+
 export const ERP_HANDOFF_MODULES = [
   "GREY_MATERIAL",
   "CUTTING",

@@ -178,7 +178,61 @@ function SummaryBody({ data }: { data: DesignCompletionSummary }) {
           label="Skipped"
           value={String(data.totals.skippedPhaseCount)}
         />
+        {(data.totals.correctionLoopCount ?? 0) > 0 ? (
+          <MetricChip
+            icon={<IconClock3 className="size-4" />}
+            label="Correction-loop total"
+            value={formatDuration(data.totals.correctionLoopActiveSeconds ?? 0)}
+          />
+        ) : null}
       </div>
+
+      {(data.correctionLoops?.length ?? 0) > 0 ? (
+        <section className="completion-panel stack-section" aria-labelledby="completion-loops-heading">
+          <div className="completion-panel-head">
+            <h3 id="completion-loops-heading">Correction loops (Prior · Rework · Total)</h3>
+            <span className="completion-panel-count">{data.correctionLoops!.length}</span>
+          </div>
+          <ul className="completion-person-list">
+            {data.correctionLoops!.map((loop) => (
+              <li key={loop.correctionId} className="completion-person">
+                <div className="completion-person-main">
+                  <div className="min-w-0">
+                    <p className="completion-person-name">
+                      {loop.correctionType.replace(/_/g, " ")}
+                      {loop.routeStage ? ` → ${loop.routeStage}` : ""}
+                    </p>
+                    <p className="completion-person-role">
+                      Rework: {loop.reworkAssignee?.name ?? "—"}
+                      {loop.responsible ? ` · Blame: ${loop.responsible.name}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="completion-person-stats">
+                  <div className="completion-stat">
+                    <span className="completion-stat-label">Prior</span>
+                    <span className="completion-stat-value">
+                      {formatDuration(loop.priorSeconds)}
+                    </span>
+                  </div>
+                  <div className="completion-stat">
+                    <span className="completion-stat-label">Rework</span>
+                    <span className="completion-stat-value">
+                      {formatDuration(loop.reworkSeconds)}
+                    </span>
+                  </div>
+                  <div className="completion-stat">
+                    <span className="completion-stat-label">Total</span>
+                    <span className="completion-stat-value">
+                      {formatDuration(loop.totalSeconds)}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="completion-split">
         <section className="completion-panel" aria-labelledby="completion-team-heading">

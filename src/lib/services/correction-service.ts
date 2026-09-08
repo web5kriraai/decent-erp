@@ -48,6 +48,7 @@ const correctionInclude = {
   },
   raisedBy: { select: { id: true, name: true, employeeCode: true } },
   responsibleEmployee: { select: { id: true, name: true, employeeCode: true } },
+  reworkAssignee: { select: { id: true, name: true, employeeCode: true } },
   routeToSubProcess: { select: { id: true, code: true, name: true } },
 } as const;
 
@@ -135,6 +136,9 @@ export async function createOrReopenRoutedTask(
   input: {
     designId: bigint;
     routeToSubProcessId: number;
+    /** Preferred assignee for the rework task (not necessarily KPI blame). */
+    reworkAssigneeEmployeeId?: number | null;
+    /** @deprecated Prefer reworkAssigneeEmployeeId; kept as fallback. */
     responsibleEmployeeId?: number | null;
     sourceTaskId: bigint;
     actorId?: number;
@@ -156,7 +160,11 @@ export async function createOrReopenRoutedTask(
     orderBy: { id: "desc" },
   });
 
-  let assigneeId = input.responsibleEmployeeId ?? existing?.assignedEmployeeId ?? null;
+  let assigneeId =
+    input.reworkAssigneeEmployeeId ??
+    input.responsibleEmployeeId ??
+    existing?.assignedEmployeeId ??
+    null;
   if (!assigneeId && subProcess.defaultRoleId) {
     const map = await resolveEmployeesForRoles([subProcess.defaultRoleId]);
     assigneeId = map.get(subProcess.defaultRoleId) ?? null;
@@ -230,7 +238,7 @@ export async function listCorrections(filters: {
   designId?: bigint;
   status?: CorrectionStatus;
 }) {
-  return prisma.designCorrection.findMany({
+  const rows = await prisma.designCorrection.findMany({
     where: {
       AND: [
         buildCorrectionScopeForEmployee(filters.employeeId),
@@ -241,6 +249,11 @@ export async function listCorrections(filters: {
     include: correctionInclude,
     orderBy: { createdAtUtc: "desc" },
   });
+
+  const { attachCorrectionTimeBreakdowns } = await import(
+    "@/lib/services/correction-time-service"
+  );
+  return attachCorrectionTimeBreakdowns(rows);
 }
 
 export type RaiseCorrectionInput = {
@@ -248,6 +261,7 @@ export type RaiseCorrectionInput = {
   taskId: bigint;
   correctionType: CorrectionType;
   responsibleEmployeeId?: number | null;
+  reworkAssigneeEmployeeId?: number | null;
   routeToSubProcessId?: number | null;
   rootCause?: string;
   extraMinutes?: number;
@@ -273,11 +287,13 @@ export async function raiseCorrectionInTransaction(
   }
 
   let routedTaskId: bigint | null = null;
+  const reworkAssigneeId =
+    input.reworkAssigneeEmployeeId ?? input.responsibleEmployeeId ?? null;
   if (input.routeToSubProcessId) {
     const routed = await createOrReopenRoutedTask(tx, {
       designId: input.designId,
       routeToSubProcessId: input.routeToSubProcessId,
-      responsibleEmployeeId: input.responsibleEmployeeId,
+      reworkAssigneeEmployeeId: reworkAssigneeId,
       sourceTaskId: input.taskId,
       actorId: raisedById,
     });
@@ -290,6 +306,7 @@ export async function raiseCorrectionInTransaction(
       taskId: input.taskId,
       correctionType: input.correctionType,
       responsibleEmployeeId: input.responsibleEmployeeId ?? null,
+      reworkAssigneeEmployeeId: reworkAssigneeId,
       routeToSubProcessId: input.routeToSubProcessId ?? null,
       routedTaskId,
       raisedById,
@@ -340,6 +357,20 @@ export async function raiseCorrectionInTransaction(
     after: correction,
   });
 
+  const impact = Number(correction.ratingImpact ?? 0);
+  if (impact !== 0 && input.responsibleEmployeeId != null) {
+    const { appendPerformanceMark } = await import("@/lib/services/performance-service");
+    await appendPerformanceMark({
+      employeeId: input.responsibleEmployeeId,
+      sourceType: "CORRECTION_IMPACT",
+      sourceRef: `correction:${correction.id.toString()}`,
+      pointsDelta: impact,
+      note: `${correction.correctionType} correction on design ${correction.designId.toString()}`,
+      createdById: raisedById,
+      tx,
+    });
+  }
+
   return correction;
 }
 
@@ -359,19 +390,6 @@ export async function createCorrection(
       include: correctionInclude,
     });
   }).then(async (correction) => {
-    const impact = Number(correction.ratingImpact ?? 0);
-    const targetEmployeeId = correction.responsibleEmployeeId;
-    if (impact !== 0 && targetEmployeeId != null) {
-      const { appendPerformanceMark } = await import("@/lib/services/performance-service");
-      await appendPerformanceMark({
-        employeeId: targetEmployeeId,
-        sourceType: "CORRECTION_IMPACT",
-        sourceRef: `correction:${correction.id.toString()}`,
-        pointsDelta: impact,
-        note: `${correction.correctionType} correction on design ${correction.designId.toString()}`,
-        createdById: raisedById,
-      });
-    }
     await enqueueOutboxAndNotify(
       "CORRECTION_RAISED",
       {
@@ -379,10 +397,15 @@ export async function createCorrection(
         designId: correction.designId.toString(),
         taskId: correction.taskId.toString(),
         responsibleEmployeeId: correction.responsibleEmployeeId,
+        reworkAssigneeEmployeeId: correction.reworkAssigneeEmployeeId,
       },
       correlationId,
     );
-    return correction;
+    const { attachCorrectionTimeBreakdowns } = await import(
+      "@/lib/services/correction-time-service"
+    );
+    const [withTime] = await attachCorrectionTimeBreakdowns([correction]);
+    return withTime ?? correction;
   });
 }
 
@@ -450,6 +473,20 @@ export async function updateCorrection(
         }
       }
 
+      // Auto-fill extraMinutes from measured rework when caller did not set it.
+      if (input.extraMinutes == null && existing.extraMinutes == null) {
+        const { getCorrectionTimeBreakdownForId } = await import(
+          "@/lib/services/correction-time-service"
+        );
+        const breakdown = await getCorrectionTimeBreakdownForId(id);
+        if (breakdown && breakdown.measuredExtraMinutes > 0) {
+          await tx.designCorrection.update({
+            where: { id },
+            data: { extraMinutes: breakdown.measuredExtraMinutes },
+          });
+        }
+      }
+
       if (sourceTask && sourceTask.status === "CORRECTION_REQUIRED") {
         // Routed quality corrections: reopen the check/source for another review.
         // Never COMPLETE the gate or unlock Costing from the Corrections dropdown.
@@ -504,7 +541,12 @@ export async function updateCorrection(
       after: updated,
     });
 
-    return { updated, priorStatus: existing.status, priorImpact: Number(existing.ratingImpact ?? 0) };
+    const fresh = await tx.designCorrection.findUniqueOrThrow({
+      where: { id },
+      include: correctionInclude,
+    });
+
+    return { updated: fresh, priorStatus: existing.status, priorImpact: Number(existing.ratingImpact ?? 0) };
   }).then(async ({ updated, priorStatus, priorImpact }) => {
     // Reverse CORRECTION_IMPACT when a penalizing correction is rejected.
     if (
@@ -523,7 +565,11 @@ export async function updateCorrection(
         createdById: userId,
       });
     }
-    return updated;
+    const { attachCorrectionTimeBreakdowns } = await import(
+      "@/lib/services/correction-time-service"
+    );
+    const [withTime] = await attachCorrectionTimeBreakdowns([updated]);
+    return withTime ?? updated;
   });
 }
 

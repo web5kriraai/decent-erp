@@ -290,18 +290,22 @@ export function DesignKanbanView() {
   const summary = kanbanQuery.data?.summary;
 
   const ownerOptions = useMemo(() => {
-    const names = new Set<string>();
+    const byId = new Map<number, string>();
     for (const d of items) {
-      if (d.designHead?.name) names.add(d.designHead.name);
+      if (d.designHead?.id != null && d.designHead.name) {
+        byId.set(d.designHead.id, d.designHead.name);
+      }
     }
-    return [...names].sort((a, b) => a.localeCompare(b));
+    return [...byId.entries()]
+      .map(([id, name]) => ({ id: String(id), name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
 
   const filteredItems = useMemo(() => {
     return items.filter((d) => {
       if (productFilter !== "ALL" && d.productType?.name !== productFilter) return false;
       if (seasonFilter !== "ALL" && String(d.season?.id ?? "") !== seasonFilter) return false;
-      if (ownerFilter !== "ALL" && d.designHead?.name !== ownerFilter) return false;
+      if (ownerFilter !== "ALL" && String(d.designHead?.id ?? "") !== ownerFilter) return false;
       if (priorityFilter !== "ALL" && d.priority !== priorityFilter) return false;
       return true;
     });
@@ -360,7 +364,7 @@ export function DesignKanbanView() {
         isError={kanbanQuery.isError}
         error={kanbanQuery.error}
         onRetry={() => kanbanQuery.refetch()}
-        skeletonVariant="pipeline-accordion"
+        skeletonVariant="cards"
       >
         <div className="stat-grid workflow-dash-stats">
           <StatCard
@@ -452,7 +456,7 @@ export function DesignKanbanView() {
             onValueChange={(v) => setOwnerFilter(v ?? "ALL")}
             options={[
               { value: "ALL", label: "All Owners" },
-              ...ownerOptions.map((name) => ({ value: name, label: name })),
+              ...ownerOptions.map((owner) => ({ value: owner.id, label: owner.name })),
             ]}
           />
           <FormSelect

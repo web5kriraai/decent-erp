@@ -327,8 +327,12 @@ describe("ApprovalDecisionForm validation", () => {
       remark: "Fix stitch density",
       correctionType: "IMPROVEMENT",
       routeSubProcessCode: "PUNCH",
+      reworkAssigneeEmployeeId: "7",
     };
     expect(isApprovalDecisionFormValid(correction)).toBe(true);
     expect(isApprovalDecisionFormValid({ ...correction, remark: "" })).toBe(false);
+    expect(
+      isApprovalDecisionFormValid({ ...correction, reworkAssigneeEmployeeId: "" }),
+    ).toBe(false);
   });
 });

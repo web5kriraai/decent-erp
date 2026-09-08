@@ -29,6 +29,7 @@ import {
   type WorkType,
 } from "@/lib/types/api";
 import { expectedMinutesToHoursLabel } from "@/lib/services/task-date-mode";
+import { DesignHeadSelectField } from "@/features/designs/DesignHeadSelectField";
 
 type DesignEditModalProps = {
   design: DesignSummary;
@@ -117,6 +118,9 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
     design.stitchingTypeId ?? "",
   );
   const [designGradeId, setDesignGradeId] = useState<number | "">(design.designGradeId ?? "");
+  const [designHeadEmployeeId, setDesignHeadEmployeeId] = useState<number | "">(
+    design.designHead?.id ?? "",
+  );
   const [taskDrafts, setTaskDrafts] = useState<TaskScheduleDraft[]>(() =>
     draftsFromTasks(design.tasks),
   );
@@ -136,11 +140,13 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
     setMachineId(design.machineId ?? "");
     setStitchingTypeId(design.stitchingTypeId ?? "");
     setDesignGradeId(design.designGradeId ?? "");
+    setDesignHeadEmployeeId(design.designHead?.id ?? "");
     setTaskDrafts(draftsFromTasks(design.tasks));
     setAttemptedSubmit(false);
   }
 
   const collectionError = !collectionName.trim() ? "Collection name is required" : undefined;
+  const designHeadError = !designHeadEmployeeId ? "Design Head is required" : undefined;
   const taskErrors: Record<string, string> = {};
   taskDrafts.forEach((task) => {
     if (!task.editable) return;
@@ -160,7 +166,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
 
   async function handleSave() {
     setAttemptedSubmit(true);
-    if (collectionError || Object.keys(taskErrors).length > 0) return;
+    if (collectionError || designHeadError || Object.keys(taskErrors).length > 0) return;
     if (updateDesign.isPending || updateSchedule.isPending) return;
 
     const grade = (designGrades.data ?? []).find((g) => g.id === designGradeId);
@@ -177,6 +183,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
       machineId: machineId === "" ? null : Number(machineId),
       stitchingTypeId: stitchingTypeId === "" ? null : Number(stitchingTypeId),
       designGradeId: designGradeId === "" ? null : Number(designGradeId),
+      designHeadEmployeeId: Number(designHeadEmployeeId),
       targetGrade: grade?.name ?? design.targetGrade ?? null,
     });
 
@@ -232,6 +239,15 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             onChange={(e) => setCollectionName(e.target.value)}
             error={attemptedSubmit ? collectionError : undefined}
           />
+          <DesignHeadSelectField
+            id="editDesignHead"
+            enabled={open}
+            value={designHeadEmployeeId}
+            onChange={setDesignHeadEmployeeId}
+            error={attemptedSubmit ? designHeadError : undefined}
+          />
+        </ModalFormGrid>
+        <ModalFormGrid>
           <FormSelect
             id="editStyleName"
             label="Style"
@@ -240,8 +256,6 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             options={(styles.data ?? []).map((s) => ({ value: s.name, label: s.name }))}
             placeholder="Select style…"
           />
-        </ModalFormGrid>
-        <ModalFormGrid>
           <FormSelect
             id="editWorkType"
             label="Work Type"
@@ -250,6 +264,8 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             options={workTypeOptions}
             placeholder="Select…"
           />
+        </ModalFormGrid>
+        <ModalFormGrid>
           <FormSelect
             id="editTheme"
             label="Theme"
@@ -258,8 +274,6 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             options={(themes.data ?? []).map((t) => ({ value: t.name, label: t.name }))}
             placeholder="Select theme…"
           />
-        </ModalFormGrid>
-        <ModalFormGrid>
           <FormSelect
             id="editCelebrity"
             label="Celebrity"
@@ -268,6 +282,8 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             options={(celebrities.data ?? []).map((c) => ({ value: c.name, label: c.name }))}
             placeholder="Select…"
           />
+        </ModalFormGrid>
+        <ModalFormGrid>
           <FormSelect
             id="editGrade"
             label="Design Grade"
@@ -279,8 +295,6 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             }))}
             placeholder="Select…"
           />
-        </ModalFormGrid>
-        <ModalFormGrid>
           <FormSelect
             id="editFabric"
             label="Fabric"
@@ -292,6 +306,8 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             }))}
             placeholder="Select…"
           />
+        </ModalFormGrid>
+        <ModalFormGrid>
           <FormSelect
             id="editMachine"
             label="Machine"
@@ -303,8 +319,6 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             }))}
             placeholder="Select…"
           />
-        </ModalFormGrid>
-        <ModalFormGrid>
           <FormSelect
             id="editStitching"
             label="Stitching Type"

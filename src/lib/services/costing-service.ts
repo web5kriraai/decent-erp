@@ -24,13 +24,77 @@ export async function listDesignCosts(designId: bigint) {
   });
 }
 
+/** Active timer hours across a design's tasks (TaskTimeEvent), for salary costing. */
+export async function getDesignSalaryHoursBreakdown(designId: bigint) {
+  const { computeActiveSeconds } = await import("@/lib/services/time-calculation");
+
+  const tasks = await prisma.designTask.findMany({
+    where: { designId },
+    select: {
+      id: true,
+      assignedEmployeeId: true,
+      assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
+      subProcess: { select: { code: true, name: true } },
+      timeEvents: {
+        orderBy: { eventTimeUtc: "asc" },
+        select: {
+          eventType: true,
+          eventTimeUtc: true,
+          employeeId: true,
+          holdReason: { select: { code: true, excludeFromActiveTime: true } },
+        },
+      },
+    },
+  });
+
+  let totalActiveSeconds = 0;
+  const byEmployee = new Map<
+    number,
+    { employeeId: number; name: string; code: string; activeSeconds: number }
+  >();
+
+  for (const task of tasks) {
+    const seconds = computeActiveSeconds(
+      task.timeEvents.map((e) => ({
+        eventType: e.eventType,
+        eventTimeUtc: e.eventTimeUtc,
+        holdReason: e.holdReason,
+      })),
+    );
+    if (seconds <= 0) continue;
+    totalActiveSeconds += seconds;
+    const empId = task.assignedEmployeeId;
+    if (empId == null || !task.assignedEmployee) continue;
+    const cur = byEmployee.get(empId) ?? {
+      employeeId: empId,
+      name: task.assignedEmployee.name,
+      code: task.assignedEmployee.employeeCode,
+      activeSeconds: 0,
+    };
+    cur.activeSeconds += seconds;
+    byEmployee.set(empId, cur);
+  }
+
+  const totalHours = Math.round((totalActiveSeconds / 3600) * 100) / 100;
+
+  return {
+    totalActiveSeconds,
+    totalHours,
+    byEmployee: [...byEmployee.values()].map((row) => ({
+      ...row,
+      hours: Math.round((row.activeSeconds / 3600) * 100) / 100,
+    })),
+  };
+}
+
 export async function getCostSummary(designId: bigint) {
-  const [design, costs] = await Promise.all([
+  const [design, costs, salaryHours] = await Promise.all([
     prisma.designConcept.findUnique({
       where: { id: designId },
       select: { estimatedCost: true, standardCost: true, expectedMrp: true },
     }),
     prisma.designCost.findMany({ where: { designId } }),
+    getDesignSalaryHoursBreakdown(designId),
   ]);
 
   const byType: Record<string, number> = {};
@@ -73,6 +137,7 @@ export async function getCostSummary(designId: bigint) {
     marginPercent,
     mrpMarginAmount,
     mrpMarginPercent,
+    salaryHours,
   };
 }
 

@@ -26,6 +26,7 @@ const schema = z.object({
     .optional(),
   routeSubProcessCode: z.string().optional(),
   responsibleEmployeeId: z.number().int().positive().optional(),
+  reworkAssigneeEmployeeId: z.number().int().positive().optional(),
 });
 
 const HUB_PERMISSION = [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.DESIGN_APPROVE] as const;
@@ -114,6 +115,7 @@ export async function POST(request: Request) {
         correctionType: body.correctionType,
         routeSubProcessCode: body.routeSubProcessCode,
         responsibleEmployeeId: body.responsibleEmployeeId,
+        reworkAssigneeEmployeeId: body.reworkAssigneeEmployeeId,
       },
       ctx.employeeId,
       ctx.correlationId,

@@ -7,6 +7,13 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ImageGallery } from "@/components/ImageGallery";
 import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
+import {
+  CorrectionRouteFields,
+  correctionRouteApiPayload,
+  emptyCorrectionRouteSelection,
+  isCorrectionRouteSelectionValid,
+  type CorrectionRouteSelection,
+} from "@/components/corrections/CorrectionRouteFields";
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
 import { IconCheckCircle2, IconRotateCcw, IconXCircle } from "@/components/icons";
 import { AppCard } from "@/components/ui/AppCard";
@@ -94,6 +101,9 @@ export function TaskStageApprovalPanel({
   const completeStageApproval = useCompleteStageApproval();
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [routeSel, setRouteSel] = useState<CorrectionRouteSelection>(
+    emptyCorrectionRouteSelection(),
+  );
 
   const uiConfig = getStageApprovalUiConfig(stageCode, capabilities, { isApproval });
   const roleAllowed = canRoleActOnStageApproval(roleCode, stageCode, {
@@ -102,7 +112,6 @@ export function TaskStageApprovalPanel({
   });
   const isOpen = !["COMPLETED", "CANCELLED", "CORRECTION_REQUIRED"].includes(status);
 
-  // task_end_dialog stages (e.g. SAMPLE_CHECK) complete via End dialog - not this panel.
   if (
     !isOpen ||
     !uiConfig ||
@@ -116,8 +125,6 @@ export function TaskStageApprovalPanel({
   const showCorrection = uiConfig.actions.includes("correction");
   const showReject = uiConfig.actions.includes("reject");
 
-  // Only DESIGN_ASSIGN may reassign via /assign; owner roles without it rely on
-  // completeStageApproval server takeover (same as InlineStageApprovalCard).
   const needsAssign =
     employeeId != null &&
     canAssign &&
@@ -135,9 +142,19 @@ export function TaskStageApprovalPanel({
 
   async function submitDecision(decision: "APPROVED" | "REJECT" | "CORRECTION_REQUIRED") {
     if (decision !== "APPROVED" && !remark.trim()) return;
+    if (
+      (decision === "REJECT" || decision === "CORRECTION_REQUIRED") &&
+      !isCorrectionRouteSelectionValid(routeSel)
+    ) {
+      return;
+    }
     setIsSubmitting(true);
     try {
       const currentVersion = await resolveTaskVersion();
+      const routePayload =
+        decision === "REJECT" || decision === "CORRECTION_REQUIRED"
+          ? correctionRouteApiPayload(routeSel)
+          : {};
       await completeStageApproval.mutateAsync({
         taskId,
         version: currentVersion,
@@ -149,8 +166,10 @@ export function TaskStageApprovalPanel({
               ? `${stageName} rejected`
               : `${stageName} correction requested`),
         decision,
+        ...routePayload,
       });
       setRemark("");
+      setRouteSel(emptyCorrectionRouteSelection());
     } finally {
       setIsSubmitting(false);
     }
@@ -166,6 +185,8 @@ export function TaskStageApprovalPanel({
     capabilities,
   );
   const panelTitle = uiConfig.title ?? `${stageName} - review decision`;
+  const showRouteFields =
+    (showCorrection || showReject) && (remark.trim().length > 0 || true);
 
   const bannerContext: HandoffContext = handoff ?? {
     stageCode,
@@ -212,13 +233,25 @@ export function TaskStageApprovalPanel({
               : undefined
           }
         />
+
+        {showRouteFields ? (
+          <CorrectionRouteFields
+            designId={designId}
+            sourceStageCode={stageCode}
+            enabled={canApprove}
+            value={routeSel}
+            onChange={setRouteSel}
+            disabled={busy}
+          />
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           {showApprove ? (
             <AppButton
               type="button"
               disabled={busy || !canApprove}
               title={!canApprove ? approvalBlockedMessage : undefined}
-              onClick={() => submitDecision("APPROVED")}
+              onClick={() => void submitDecision("APPROVED")}
             >
               <IconCheckCircle2 className="size-4" aria-hidden />
               {approveLabelForCode(stageCode, stageName)}
@@ -228,9 +261,14 @@ export function TaskStageApprovalPanel({
             <AppButton
               type="button"
               appVariant="outline"
-              disabled={busy || !canApprove || !remark.trim()}
+              disabled={
+                busy ||
+                !canApprove ||
+                !remark.trim() ||
+                !isCorrectionRouteSelectionValid(routeSel)
+              }
               title={!canApprove ? approvalBlockedMessage : undefined}
-              onClick={() => submitDecision("CORRECTION_REQUIRED")}
+              onClick={() => void submitDecision("CORRECTION_REQUIRED")}
             >
               <IconRotateCcw className="size-4" aria-hidden />
               Request correction
@@ -239,10 +277,15 @@ export function TaskStageApprovalPanel({
           {showReject ? (
             <AppButton
               type="button"
-              appVariant="danger"
-              disabled={busy || !canApprove || !remark.trim()}
+              appVariant="outline"
+              disabled={
+                busy ||
+                !canApprove ||
+                !remark.trim() ||
+                !isCorrectionRouteSelectionValid(routeSel)
+              }
               title={!canApprove ? approvalBlockedMessage : undefined}
-              onClick={() => submitDecision("REJECT")}
+              onClick={() => void submitDecision("REJECT")}
             >
               <IconXCircle className="size-4" aria-hidden />
               Reject

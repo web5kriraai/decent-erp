@@ -58,6 +58,17 @@ type TaskEndDialogProps = {
   onSampleOutcomeChange?: (
     outcome: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE",
   ) => void;
+  /** Sample REJECT routing overrides */
+  correctionRouteOptions?: Array<{ id: number; name: string; code: string }>;
+  correctionRouteToSubProcessId?: number | "";
+  onCorrectionRouteChange?: (id: number | "") => void;
+  correctionReworkAssigneeEmployeeId?: number | "";
+  onCorrectionReworkAssigneeChange?: (id: number | "") => void;
+  correctionResponsibleEmployeeId?: number | "";
+  onCorrectionResponsibleChange?: (id: number | "") => void;
+  correctionType?: string;
+  onCorrectionTypeChange?: (type: string) => void;
+  employeeOptions?: Array<{ id: number; name: string }>;
   /** When true, server will force CHECKING. */
   gateForcesChecking?: boolean;
   dialogTitle?: string;
@@ -103,6 +114,16 @@ export function TaskEndDialog({
   isSampleCheck,
   sampleOutcome,
   onSampleOutcomeChange,
+  correctionRouteOptions = [],
+  correctionRouteToSubProcessId = "",
+  onCorrectionRouteChange,
+  correctionReworkAssigneeEmployeeId = "",
+  onCorrectionReworkAssigneeChange,
+  correctionResponsibleEmployeeId = "",
+  onCorrectionResponsibleChange,
+  correctionType = "IMPROVEMENT",
+  onCorrectionTypeChange,
+  employeeOptions = [],
   gateForcesChecking,
   dialogTitle,
   dialogDescription,
@@ -226,6 +247,11 @@ export function TaskEndDialog({
   const notesRequired = isPartialChecklist;
   const notesOk = !notesRequired || !!checklistNote.trim();
   const sampleOk = !isSampleCheck || !!sampleOutcome;
+  const rejectRoutingOk =
+    sampleOutcome !== "REJECT" ||
+    (!!correctionRouteToSubProcessId &&
+      !!correctionReworkAssigneeEmployeeId &&
+      (correctionType !== "MISTAKE" || !!correctionResponsibleEmployeeId));
   const sampleApproveBlocked =
     !!isSampleCheck &&
     (sampleOutcome === "APPROVE" || sampleOutcome === "PASS") &&
@@ -239,6 +265,7 @@ export function TaskEndDialog({
     !nonePassed &&
     (allChecklistPassed || (isPartialChecklist && notesOk)) &&
     sampleOk &&
+    rejectRoutingOk &&
     !sampleApproveBlocked &&
     (!isCosting || costingOk) &&
     !costingLoading;
@@ -529,25 +556,109 @@ export function TaskEndDialog({
         ) : null}
 
         {isSampleCheck ? (
-          <FormSelect
-            id="sampleOutcome"
-            label="Sample decision (Pass / Hold / Reject)"
-            required
-            value={sampleOutcome ?? ""}
-            onValueChange={(v) =>
-              onSampleOutcomeChange?.(
-                v as "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE",
-              )
-            }
-            options={[
-              { value: "PASS", label: "Pass - continue to costing" },
-              { value: "HOLD", label: "Hold - park design (reason required)" },
-              { value: "REJECT", label: "Reject - correction required" },
-              { value: "RESAMPLE", label: "Re-sample - quality loop" },
-            ]}
-            placeholder="Select commercial outcome…"
-            disabled={isPending || isUploading}
-          />
+          <>
+            <FormSelect
+              id="sampleOutcome"
+              label="Sample decision (Pass / Hold / Reject)"
+              required
+              value={sampleOutcome ?? ""}
+              onValueChange={(v) =>
+                onSampleOutcomeChange?.(
+                  v as "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE",
+                )
+              }
+              options={[
+                { value: "PASS", label: "Pass - continue to costing" },
+                { value: "HOLD", label: "Hold - park design (reason required)" },
+                { value: "REJECT", label: "Reject - correction required" },
+                { value: "RESAMPLE", label: "Re-sample - quality loop" },
+              ]}
+              placeholder="Select commercial outcome…"
+              disabled={isPending || isUploading}
+            />
+            {sampleOutcome === "REJECT" ? (
+              <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+                <p className="m-0 text-xs font-semibold text-foreground">
+                  Correction routing
+                </p>
+                <FormSelect
+                  id="corrRouteEnd"
+                  label="Route rework to"
+                  required
+                  value={
+                    correctionRouteToSubProcessId === ""
+                      ? null
+                      : String(correctionRouteToSubProcessId)
+                  }
+                  onValueChange={(v) =>
+                    onCorrectionRouteChange?.(v ? Number(v) : "")
+                  }
+                  options={correctionRouteOptions.map((r) => ({
+                    value: String(r.id),
+                    label: r.name,
+                  }))}
+                  placeholder="Select stage…"
+                  disabled={isPending || correctionRouteOptions.length === 0}
+                />
+                <FormSelect
+                  id="corrReworkEnd"
+                  label="Rework assignee"
+                  required
+                  value={
+                    correctionReworkAssigneeEmployeeId === ""
+                      ? null
+                      : String(correctionReworkAssigneeEmployeeId)
+                  }
+                  onValueChange={(v) =>
+                    onCorrectionReworkAssigneeChange?.(v ? Number(v) : "")
+                  }
+                  options={employeeOptions.map((e) => ({
+                    value: String(e.id),
+                    label: e.name,
+                  }))}
+                  placeholder="Who does the rework…"
+                  disabled={isPending}
+                />
+                <FormSelect
+                  id="corrTypeEnd"
+                  label="Correction type"
+                  required
+                  value={correctionType}
+                  onValueChange={(v) => onCorrectionTypeChange?.(v)}
+                  options={[
+                    { value: "IMPROVEMENT", label: "Improvement" },
+                    { value: "MISTAKE", label: "Mistake" },
+                    { value: "CUSTOMER_CHANGE", label: "Customer change" },
+                    { value: "MACHINE", label: "Machine" },
+                    { value: "MATERIAL", label: "Material" },
+                    { value: "OTHER", label: "Other" },
+                  ]}
+                  disabled={isPending}
+                />
+                {correctionType === "MISTAKE" ? (
+                  <FormSelect
+                    id="corrResponsibleEnd"
+                    label="Responsible (KPI blame)"
+                    required
+                    value={
+                      correctionResponsibleEmployeeId === ""
+                        ? null
+                        : String(correctionResponsibleEmployeeId)
+                    }
+                    onValueChange={(v) =>
+                      onCorrectionResponsibleChange?.(v ? Number(v) : "")
+                    }
+                    options={employeeOptions.map((e) => ({
+                      value: String(e.id),
+                      label: e.name,
+                    }))}
+                    placeholder="Select…"
+                    disabled={isPending}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </>
         ) : null}
 
         {!isSampleCheck && !isCosting && allowStatusSelect ? (

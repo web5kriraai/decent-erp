@@ -13,6 +13,9 @@ function eventAllowed(envKey: string, eventType: string): boolean {
 
 function resolveEmployeeId(payload: Record<string, unknown>): number | null {
   if (typeof payload.employeeId === "number") return payload.employeeId;
+  if (typeof payload.reworkAssigneeEmployeeId === "number") {
+    return payload.reworkAssigneeEmployeeId;
+  }
   if (typeof payload.responsibleEmployeeId === "number") return payload.responsibleEmployeeId;
   if (typeof payload.designHeadId === "number") return payload.designHeadId;
   return null;

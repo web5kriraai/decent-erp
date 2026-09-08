@@ -80,6 +80,7 @@ function buildInitialState(defaultDesignId?: string, defaultTaskId?: string) {
     taskId: defaultTaskId ?? "",
     correctionCatalogCode: "IMPROVEMENT",
     responsibleEmployeeId: "" as number | "",
+    reworkAssigneeEmployeeId: "" as number | "",
     routeToSubProcessId: "" as number | "",
     rootCause: "",
     extraMinutes: "",
@@ -135,6 +136,7 @@ export function RaiseCorrectionModal({
   const [taskId, setTaskId] = useState(defaultTaskId ?? "");
   const [correctionCatalogCode, setCorrectionCatalogCode] = useState("IMPROVEMENT");
   const [responsibleEmployeeId, setResponsibleEmployeeId] = useState<number | "">("");
+  const [reworkAssigneeEmployeeId, setReworkAssigneeEmployeeId] = useState<number | "">("");
   const [routeToSubProcessId, setRouteToSubProcessId] = useState<number | "">("");
   const [rootCause, setRootCause] = useState("");
   const [extraMinutes, setExtraMinutes] = useState("");
@@ -149,6 +151,7 @@ export function RaiseCorrectionModal({
     setTaskId(initial.taskId);
     setCorrectionCatalogCode(initial.correctionCatalogCode);
     setResponsibleEmployeeId(initial.responsibleEmployeeId);
+    setReworkAssigneeEmployeeId(initial.reworkAssigneeEmployeeId);
     setRouteToSubProcessId(initial.routeToSubProcessId);
     setRootCause(initial.rootCause);
     setExtraMinutes(initial.extraMinutes);
@@ -226,6 +229,17 @@ export function RaiseCorrectionModal({
   const routeTargetTask = (designQuery.data?.tasks ?? []).find(
     (t) => t.subProcess.id === routeToSubProcessId,
   );
+  const reworkAssigneeName =
+    (employeesQuery.data ?? []).find((e) => e.id === reworkAssigneeEmployeeId)?.name ??
+    routeTargetTask?.assignedEmployee?.name ??
+    null;
+
+  // Seed rework assignee from stage owner when route changes and field empty.
+  useEffect(() => {
+    if (!open || !routeToSubProcessId || reworkAssigneeEmployeeId !== "") return;
+    const stageAssignee = routeTargetTask?.assignedEmployee?.id;
+    if (stageAssignee) setReworkAssigneeEmployeeId(stageAssignee);
+  }, [open, routeToSubProcessId, routeTargetTask, reworkAssigneeEmployeeId]);
 
   const handoff = useMemo((): HandoffContext => {
     const ideaRef = designQuery.data?.ideaRef ?? defaultIdeaRef ?? null;
@@ -239,9 +253,8 @@ export function RaiseCorrectionModal({
 
     let nextStepHint: string | null = null;
     if (selectedRoute) {
-      const predicted = routeTargetTask?.assignedEmployee?.name ?? null;
-      nextStepHint = predicted
-        ? `Routes rework to ${selectedRoute.name} → ${predicted}`
+      nextStepHint = reworkAssigneeName
+        ? `Routes rework to ${selectedRoute.name} → ${reworkAssigneeName}`
         : `Routes rework to ${selectedRoute.name}`;
     } else if (stageName) {
       nextStepHint = "Select a rework stage to route the correction";
@@ -280,7 +293,7 @@ export function RaiseCorrectionModal({
     defaultAssigneeName,
     selectedTask,
     selectedRoute,
-    routeTargetTask,
+    reworkAssigneeName,
   ]);
 
   function handleClose() {
@@ -304,6 +317,9 @@ export function RaiseCorrectionModal({
     designId: !designId ? "Design is required" : undefined,
     taskId: !effectiveTaskId ? "Source task is required" : undefined,
     routeToSubProcessId: !routeToSubProcessId ? "Rework route is required" : undefined,
+    reworkAssigneeEmployeeId: !reworkAssigneeEmployeeId
+      ? "Rework assignee is required"
+      : undefined,
     responsibleEmployeeId:
       isMistake && !responsibleEmployeeId ? "Responsible employee is required" : undefined,
     rootCause: !rootCause.trim() ? "Reason / feedback is required" : undefined,
@@ -315,6 +331,7 @@ export function RaiseCorrectionModal({
       fieldErrors.designId ||
       fieldErrors.taskId ||
       fieldErrors.routeToSubProcessId ||
+      fieldErrors.reworkAssigneeEmployeeId ||
       fieldErrors.responsibleEmployeeId ||
       fieldErrors.rootCause
     ) {
@@ -335,6 +352,9 @@ export function RaiseCorrectionModal({
       taskId: effectiveTaskId,
       correctionType,
       responsibleEmployeeId: responsibleEmployeeId ? Number(responsibleEmployeeId) : null,
+      reworkAssigneeEmployeeId: reworkAssigneeEmployeeId
+        ? Number(reworkAssigneeEmployeeId)
+        : null,
       routeToSubProcessId: Number(routeToSubProcessId),
       rootCause: rootCauseWithCatalog,
       extraMinutes: extraMinutes.trim() ? Number(extraMinutes) : null,
@@ -348,6 +368,7 @@ export function RaiseCorrectionModal({
     !!effectiveTaskId &&
     !!rootCause.trim() &&
     !!routeToSubProcessId &&
+    !!reworkAssigneeEmployeeId &&
     (!isMistake || !!responsibleEmployeeId) &&
     !raiseCorrection.isPending;
 
@@ -444,9 +465,25 @@ export function RaiseCorrectionModal({
           options={correctionTypeOptions}
         />
         <FormSelect
+          id="corrReworkAssignee"
+          label="Rework assignee"
+          required
+          value={reworkAssigneeEmployeeId === "" ? null : String(reworkAssigneeEmployeeId)}
+          onValueChange={(v) => setReworkAssigneeEmployeeId(v ? Number(v) : "")}
+          options={(employeesQuery.data ?? []).map((e) => ({
+            value: String(e.id),
+            label: e.name,
+          }))}
+          placeholder="Who does the rework…"
+          error={attemptedSubmit ? fieldErrors.reworkAssigneeEmployeeId : undefined}
+        />
+      </ModalFormGrid>
+
+      {isMistake ? (
+        <FormSelect
           id="corrResponsible"
-          label="Responsible Employee"
-          required={isMistake}
+          label="Responsible (KPI blame)"
+          required
           value={responsibleEmployeeId === "" ? null : String(responsibleEmployeeId)}
           onValueChange={(v) => setResponsibleEmployeeId(v ? Number(v) : "")}
           options={(employeesQuery.data ?? []).map((e) => ({
@@ -456,7 +493,7 @@ export function RaiseCorrectionModal({
           placeholder="Select…"
           error={attemptedSubmit ? fieldErrors.responsibleEmployeeId : undefined}
         />
-      </ModalFormGrid>
+      ) : null}
 
       <ModalFormGrid>
         <FormTextField

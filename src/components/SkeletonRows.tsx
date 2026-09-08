@@ -1,6 +1,6 @@
 type SkeletonRowsProps = {
   rows?: number;
-  variant?: "table" | "cards" | "stats" | "pipeline-accordion";
+  variant?: "table" | "cards" | "stats";
 };
 
 export function SkeletonRows({ rows = 5, variant = "table" }: SkeletonRowsProps) {
@@ -11,22 +11,6 @@ export function SkeletonRows({ rows = 5, variant = "table" }: SkeletonRowsProps)
           <div key={i} className="stat-card">
             <div className="skeleton h-3 w-3/5" />
             <div className="skeleton mt-2 h-7 w-2/5" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (variant === "pipeline-accordion") {
-    return (
-      <div className="pipeline-accordion pipeline-accordion-skeleton">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="pipeline-accordion-section">
-            <div className="pipeline-accordion-trigger">
-              <div className="skeleton h-9 w-9 rounded-md" />
-              <div className="skeleton h-5 flex-1 max-w-[10rem]" />
-              <div className="skeleton h-6 w-8 rounded-full" />
-            </div>
           </div>
         ))}
       </div>

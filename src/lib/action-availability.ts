@@ -1,5 +1,7 @@
 import {
+  buildBlockedContext,
   findDependencyBlocker,
+  isBlockedByApprovalPrecursor,
   type DepSibling,
   type MyTaskRow,
 } from "@/lib/services/action-center";
@@ -37,7 +39,7 @@ export function describeDependencyBlocker(blocker: DepSibling): string {
   if (blocker.status === "CHECKING") {
     return `Waiting for ${label} to be checked${owner ? ` (${owner})` : ""}.`;
   }
-  return `${label} must be completed first${owner ? ` (${owner})` : ""}.`;
+  return `${label} must finish first${owner ? ` — waiting on ${owner}` : ""}.`;
 }
 
 export function getTaskStartAvailability(
@@ -88,6 +90,13 @@ export function getTaskStartAvailability(
   const blocker = findDependencyBlocker(task, siblings);
   if (blocker) {
     return { available: false, reason: describeDependencyBlocker(blocker) };
+  }
+
+  if (isBlockedByApprovalPrecursor(task, siblings)) {
+    return {
+      available: false,
+      reason: buildBlockedContext(task, siblings).blockedMessage,
+    };
   }
 
   return { available: true };

@@ -10,7 +10,7 @@ export type PageMeta = {
 };
 
 /** Static route metadata - titles match nav / breadcrumbs. */
-export const PAGE_META = {
+const PAGE_META = {
   login: {
     title: "Sign In",
     description: "Sign in to Decent ERP",
@@ -50,6 +50,22 @@ export const PAGE_META = {
   workTime: {
     title: "My Time Today",
     description: "Your time today",
+  },
+  workSketch: {
+    title: "Sketch Board",
+    description: "Sketch workbench",
+  },
+  workPunching: {
+    title: "Punching Board",
+    description: "Punching workbench",
+  },
+  workMaterials: {
+    title: "Materials",
+    description: "Materials workbench",
+  },
+  workSamples: {
+    title: "Sample Board",
+    description: "Sample workbench",
   },
   corrections: {
     title: "Corrections",
@@ -139,7 +155,7 @@ export const PAGE_META = {
 
 export type PageMetaKey = keyof typeof PAGE_META;
 
-export function buildPageMetadata(meta: PageMeta): Metadata {
+function buildPageMetadata(meta: PageMeta): Metadata {
   return {
     title: meta.title,
     description: meta.description,

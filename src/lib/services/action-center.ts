@@ -4,6 +4,10 @@ import {
   isTaskReady,
 } from "@/lib/services/task-dependency";
 import { findStageApprovalGate, resolveEffectiveTaskStatus } from "@/lib/services/workflow-stage-gate";
+import {
+  isStageApprovalActionableFromBehavior,
+  resolveStageBehavior,
+} from "@/lib/workflow/stage-behavior";
 
 export type DepSibling = {
   id: string;
@@ -38,9 +42,50 @@ export function findDependencyBlocker(task: MyTaskRow, siblings: DepSibling[]): 
 }
 
 export function findNextOpenTask(siblings: DepSibling[], afterSequence: number): DepSibling | null {
-  return siblings
-    .filter((s) => s.sequence > afterSequence && !isDependencySatisfiedStatus(s.status))
-    .sort((a, b) => a.sequence - b.sequence)[0] ?? null;
+  return (
+    siblings
+      .filter((s) => s.sequence > afterSequence && !isDependencySatisfiedStatus(s.status))
+      .sort((a, b) => a.sequence - b.sequence)[0] ?? null
+  );
+}
+
+/** Work precursor stage for an approval task (e.g. SKETCH for SKETCH_APPROVAL). */
+export function findApprovalWorkPrecursor(
+  task: MyTaskRow,
+  siblings: DepSibling[],
+): DepSibling | null {
+  if (!task.subProcess?.isApproval || !task.subProcess.code) return null;
+  const behavior = resolveStageBehavior({
+    code: task.subProcess.code,
+    isApproval: true,
+  });
+  const precursorCode = behavior.workPrecursorCode;
+  if (!precursorCode) return null;
+  return siblings.find((s) => s.subProcess?.code === precursorCode) ?? null;
+}
+
+/** True when an approval stage is assigned but prior work is not yet submitted for checking. */
+export function isBlockedByApprovalPrecursor(task: MyTaskRow, siblings: DepSibling[]): boolean {
+  if (!task.subProcess?.isApproval || !task.subProcess.code) return false;
+  const behavior = resolveStageBehavior({
+    code: task.subProcess.code,
+    isApproval: true,
+  });
+  if (!behavior.isApproval) return false;
+  const work = findApprovalWorkPrecursor(task, siblings);
+  return !isStageApprovalActionableFromBehavior(behavior, work);
+}
+
+function taskIsDependencyReady(task: MyTaskRow, siblings: DepSibling[]): boolean {
+  return isTaskReady(
+    {
+      id: task.id,
+      dependencySequence: task.dependencySequence,
+      sequence: task.sequence,
+      status: task.status,
+    },
+    siblings,
+  );
 }
 
 export type ActionCenterBucket =
@@ -50,6 +95,14 @@ export type ActionCenterBucket =
   | "upcoming"
   | "completed";
 
+/**
+ * Personal My Tasks buckets:
+ * - actionRequired — can work now (ready + approval precursor satisfied)
+ * - blocked — assigned/pending work blocked by prior stage or approval precursor
+ * - waitingForOthers — my work submitted / done; waiting on someone else (folded in UI)
+ * - upcoming — not yet in the unlock path (no concrete blocker)
+ * - completed — done for me
+ */
 export function categorizeEmployeeTask(
   task: MyTaskRow,
   siblings: DepSibling[],
@@ -67,23 +120,12 @@ export function categorizeEmployeeTask(
   }
 
   if (task.status === "PENDING") {
-    const ready = isTaskReady(
-      {
-        id: task.id,
-        dependencySequence: task.dependencySequence,
-        sequence: task.sequence,
-        status: task.status,
-      },
-      siblings,
-    );
-    if (ready) return "actionRequired";
-    const blocker = findDependencyBlocker(task, siblings);
-    if (blocker?.status === "CORRECTION_REQUIRED") {
-      return "blocked";
+    if (taskIsDependencyReady(task, siblings)) {
+      if (isBlockedByApprovalPrecursor(task, siblings)) return "blocked";
+      return "actionRequired";
     }
-    if (blocker) {
-      return "waitingForOthers";
-    }
+    // Any incomplete prior stage blocks this assignee's work (full-scoped Blocked tab).
+    if (findDependencyBlocker(task, siblings)) return "blocked";
     return "upcoming";
   }
 
@@ -93,16 +135,10 @@ export function categorizeEmployeeTask(
     task.status === "ON_HOLD" ||
     task.status === "CORRECTION_REQUIRED"
   ) {
-    const ready = isTaskReady(
-      {
-        id: task.id,
-        dependencySequence: task.dependencySequence,
-        sequence: task.sequence,
-        status: task.status,
-      },
-      siblings,
-    );
-    if (ready) return "actionRequired";
+    if (taskIsDependencyReady(task, siblings)) {
+      if (isBlockedByApprovalPrecursor(task, siblings)) return "blocked";
+      return "actionRequired";
+    }
     return "blocked";
   }
 
@@ -143,7 +179,7 @@ export function buildWaitingContext(
     };
   }
 
-  if (task.status === "PENDING") {
+  if (task.status === "PENDING" || task.status === "ASSIGNED") {
     const blocker = findDependencyBlocker(task, siblings);
     if (blocker) {
       return {
@@ -166,23 +202,67 @@ export function buildWaitingContext(
   return { waitingFor: "Workflow", nextAction: "Continue pipeline" };
 }
 
+function describeDependencyBlockMessage(blocker: DepSibling): string {
+  const stageName = blocker.subProcess?.name ?? "Prior stage";
+  const owner = blocker.assignedEmployee?.name;
+  const statusLabel = blocker.status.replace(/_/g, " ").toLowerCase();
+  if (blocker.status === "CORRECTION_REQUIRED") {
+    return owner
+      ? `${stageName} needs a correction before you can continue (${owner}).`
+      : `${stageName} needs a correction before you can continue.`;
+  }
+  if (blocker.status === "CHECKING") {
+    return owner
+      ? `Waiting for ${stageName} to be checked (${owner}).`
+      : `Waiting for ${stageName} to be checked.`;
+  }
+  return owner
+    ? `${stageName} must finish first — waiting on ${owner} (${statusLabel}).`
+    : `${stageName} must be completed first (currently ${statusLabel}).`;
+}
+
+function describeApprovalPrecursorBlockMessage(
+  task: MyTaskRow,
+  work: DepSibling | null,
+): string {
+  const code = task.subProcess?.code ?? "";
+  const workName = work?.subProcess?.name ?? "prior work";
+  const owner = work?.assignedEmployee?.name;
+  const ownerSuffix = owner ? ` (${owner})` : "";
+  if (work?.status === "ON_HOLD") {
+    return `${workName} is on hold${ownerSuffix} — approval unlocks after they resume and submit.`;
+  }
+  if (work?.status === "ASSIGNED" || work?.status === "RUNNING") {
+    return `Waiting for ${workName} to be submitted for checking${ownerSuffix}.`;
+  }
+  if (code === "LIVE_REVIEW") {
+    return "Production Release must be completed before Live Design Review.";
+  }
+  return `Waiting for ${workName} to be submitted for checking${ownerSuffix}.`;
+}
+
 export function buildBlockedContext(
   task: MyTaskRow,
   siblings: DepSibling[],
 ): { blockedBy: string; blockedOwner?: string; blockedMessage: string } {
   const blocker = findDependencyBlocker(task, siblings);
   if (blocker) {
-    const stageName = blocker.subProcess?.name ?? "Prior stage";
-    const owner = blocker.assignedEmployee?.name;
-    const statusLabel = blocker.status.replace(/_/g, " ").toLowerCase();
     return {
-      blockedBy: stageName,
-      blockedOwner: owner,
-      blockedMessage: owner
-        ? `${stageName} cannot start yet - waiting on ${owner} (${statusLabel}).`
-        : `${stageName} must be completed first (currently ${statusLabel}).`,
+      blockedBy: blocker.subProcess?.name ?? "Prior stage",
+      blockedOwner: blocker.assignedEmployee?.name,
+      blockedMessage: describeDependencyBlockMessage(blocker),
     };
   }
+
+  if (isBlockedByApprovalPrecursor(task, siblings)) {
+    const work = findApprovalWorkPrecursor(task, siblings);
+    return {
+      blockedBy: work?.subProcess?.name ?? "Prior work",
+      blockedOwner: work?.assignedEmployee?.name,
+      blockedMessage: describeApprovalPrecursorBlockMessage(task, work),
+    };
+  }
+
   return {
     blockedBy: "Workflow dependency",
     blockedMessage: "This task is blocked by an incomplete prior stage.",

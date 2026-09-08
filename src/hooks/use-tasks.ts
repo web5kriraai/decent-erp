@@ -19,12 +19,16 @@ export type ActionCenterWaitingItem = {
 
 export type ActionCenterBlockedItem = {
   taskId: string;
-  design: { id: string; ideaRef: string; collectionName: string };
+  design: { id: string; ideaRef: string; collectionName: string; priority?: string };
   stage: string;
+  stageCode?: string;
   status: string;
+  priority?: string;
+  dueAt?: string | null;
   blockedBy: string;
   blockedOwner?: string;
   blockedMessage: string;
+  canStart?: false;
 };
 
 export type ActionCenterData = {
@@ -139,6 +143,10 @@ export function useTaskMutations() {
       checklist,
       checklistNote,
       sampleOutcome,
+      correctionRouteToSubProcessId,
+      correctionReworkAssigneeEmployeeId,
+      correctionResponsibleEmployeeId,
+      correctionType,
       costEntries,
     }: {
       taskId: string;
@@ -148,6 +156,10 @@ export function useTaskMutations() {
       checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
       checklistNote?: string;
       sampleOutcome?: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE";
+      correctionRouteToSubProcessId?: number | null;
+      correctionReworkAssigneeEmployeeId?: number | null;
+      correctionResponsibleEmployeeId?: number | null;
+      correctionType?: string;
       costEntries?: Array<{
         costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION";
         description?: string;
@@ -161,6 +173,10 @@ export function useTaskMutations() {
         checklist,
         checklistNote,
         sampleOutcome,
+        correctionRouteToSubProcessId,
+        correctionReworkAssigneeEmployeeId,
+        correctionResponsibleEmployeeId,
+        correctionType,
         costEntries,
       }),
     onSuccess: () => {
@@ -197,16 +213,28 @@ export function useCompleteStageApproval() {
       version,
       outputRemark,
       decision = "APPROVED",
+      correctionRouteToSubProcessId,
+      correctionReworkAssigneeEmployeeId,
+      correctionResponsibleEmployeeId,
+      correctionType,
     }: {
       taskId: string;
       version: number;
       outputRemark: string;
       decision?: "APPROVED" | "REJECT" | "CORRECTION_REQUIRED";
+      correctionRouteToSubProcessId?: number | null;
+      correctionReworkAssigneeEmployeeId?: number | null;
+      correctionResponsibleEmployeeId?: number | null;
+      correctionType?: string;
     }) =>
       apiPost<DesignTask>(`/api/tasks/${taskId}/approve-stage`, {
         version,
         outputRemark,
         decision,
+        correctionRouteToSubProcessId,
+        correctionReworkAssigneeEmployeeId,
+        correctionResponsibleEmployeeId,
+        correctionType,
       }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
@@ -215,7 +243,7 @@ export function useCompleteStageApproval() {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.designHead });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.management });
       queryClient.invalidateQueries({ queryKey: queryKeys.time.mySummary });
       queryClient.invalidateQueries({ queryKey: queryKeys.time.live });
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });

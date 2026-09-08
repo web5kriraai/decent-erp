@@ -12,8 +12,8 @@ import { CostingTeamDashboard } from "@/features/dashboard/CostingTeamDashboard"
 
 /**
  * Home dashboard by role.
- * Design Head + Admin: Design Workflow Dashboard (kanban) — same UI as former Pipeline Board.
- * Other roles keep their role workbenches. DesignHeadDashboard.tsx remains in the repo unused here.
+ * Design Head + Admin: Design Workflow Dashboard (kanban).
+ * Other roles keep their role workbenches.
  */
 export function DailyWorkbench() {
   const { data: session } = useSession();

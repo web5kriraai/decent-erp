@@ -98,7 +98,7 @@ describe("categorizeEmployeeTask", () => {
     expect(categorizeEmployeeTask(task, siblings)).toBe("waitingForOthers");
   });
 
-  it("marks PENDING task blocked by an earlier stage as waitingForOthers", () => {
+  it("marks PENDING task blocked by an earlier stage as blocked", () => {
     const blockedSiblings: DepSibling[] = [
       sibling("1", 1, "RUNNING"),
       sibling("2", 2, "PENDING", { assignedEmployee: { name: "Me" } }),
@@ -111,7 +111,50 @@ describe("categorizeEmployeeTask", () => {
       subProcess: { name: "Punch", code: "PUNCH", isApproval: false },
       assignedEmployeeId: 5,
     };
-    expect(categorizeEmployeeTask(task, blockedSiblings)).toBe("waitingForOthers");
+    expect(categorizeEmployeeTask(task, blockedSiblings)).toBe("blocked");
+  });
+
+  it("marks approval waiting on unsubmitted work as blocked", () => {
+    const siblings: DepSibling[] = [
+      sibling("1", 1, "RUNNING", {
+        subProcess: { name: "Sketch Creation", code: "SKETCH", isApproval: false },
+        assignedEmployee: { name: "Ravi Sketch" },
+      }),
+      sibling("2", 2, "ASSIGNED", {
+        subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        assignedEmployee: { name: "Design Head" },
+      }),
+    ];
+    // Dependency: SKETCH RUNNING does not satisfy — approval stays blocked.
+    const pendingApproval = {
+      id: "2",
+      status: "PENDING",
+      dependencySequence: 2,
+      sequence: 2,
+      subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+      assignedEmployeeId: 10,
+    };
+    expect(categorizeEmployeeTask(pendingApproval, siblings)).toBe("blocked");
+
+    const checkingSiblings: DepSibling[] = [
+      sibling("1", 1, "CHECKING", {
+        subProcess: { name: "Sketch Creation", code: "SKETCH", isApproval: false },
+        assignedEmployee: { name: "Ravi Sketch" },
+      }),
+      sibling("2", 2, "ASSIGNED", {
+        subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+        assignedEmployee: { name: "Design Head" },
+      }),
+    ];
+    const readyApproval = {
+      id: "2",
+      status: "ASSIGNED",
+      dependencySequence: 2,
+      sequence: 2,
+      subProcess: { name: "Sketch Approval", code: "SKETCH_APPROVAL", isApproval: true },
+      assignedEmployeeId: 10,
+    };
+    expect(categorizeEmployeeTask(readyApproval, checkingSiblings)).toBe("actionRequired");
   });
 
   it("marks ready PENDING task as actionRequired", () => {
@@ -215,5 +258,6 @@ describe("categorizeEmployeeTask", () => {
     expect(ctx.blockedOwner).toBe("Production Head");
     expect(ctx.blockedMessage).toContain("Fabric Issue");
     expect(ctx.blockedMessage).toContain("Production Head");
+    expect(ctx.blockedMessage.toLowerCase()).toMatch(/finish|waiting|running/);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useBreadcrumbReplacement } from "@/components/layout/BreadcrumbProvider";
@@ -27,6 +27,12 @@ import { ROUTES } from "@/config/routes";
 import { useTaskTimeDetail } from "@/hooks/use-time";
 import { useTaskMutations } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
+import { useDesign } from "@/hooks/use-designs";
+import { useEmployeeOptions } from "@/hooks/use-corrections";
+import {
+  correctionRouteCodesFromStages,
+  suggestedCorrectionRouteCode,
+} from "@/lib/workflow/correction-routes";
 import {
   useErpStageAction,
   useErpStageChainForDesign,
@@ -86,11 +92,69 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   >(
     "",
   );
+  const [corrRouteId, setCorrRouteId] = useState<number | "">("");
+  const [corrReworkAssigneeId, setCorrReworkAssigneeId] = useState<number | "">("");
+  const [corrResponsibleId, setCorrResponsibleId] = useState<number | "">("");
+  const [corrType, setCorrType] = useState("IMPROVEMENT");
   const [costEntries, setCostEntries] = useState<
     Array<{ costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION"; description?: string; amount: number }>
   >([]);
 
   const task = detailQuery.data;
+  const isSampleCheck = task?.subProcess?.code === "SAMPLE_CHECK";
+  const designIdForCorr = task?.designId ?? task?.design?.id ?? "";
+  const designQuery = useDesign(
+    designIdForCorr,
+    endModalOpen && !!designIdForCorr && !!isSampleCheck,
+  );
+  const employeesQuery = useEmployeeOptions(endModalOpen && !!isSampleCheck);
+
+  const correctionRouteOptions = useMemo(() => {
+    const tasks = designQuery.data?.tasks ?? [];
+    const stages = tasks.map((t) => ({
+      code: t.subProcess.code,
+      name: t.subProcess.name,
+      isCorrectionAllowed: (t.subProcess as { isCorrectionAllowed?: boolean }).isCorrectionAllowed,
+      capabilities: (t.subProcess as { capabilities?: unknown }).capabilities,
+      status: t.status,
+    }));
+    const codes = correctionRouteCodesFromStages(stages);
+    const byCode = new Map<string, { id: number; name: string; code: string }>();
+    for (const t of tasks) {
+      if (!codes.includes(t.subProcess.code)) continue;
+      if (!byCode.has(t.subProcess.code)) {
+        byCode.set(t.subProcess.code, {
+          id: t.subProcess.id,
+          name: t.subProcess.name,
+          code: t.subProcess.code,
+        });
+      }
+    }
+    return codes
+      .map((c) => byCode.get(c))
+      .filter((r): r is { id: number; name: string; code: string } => !!r);
+  }, [designQuery.data?.tasks]);
+
+  useEffect(() => {
+    if (sampleOutcome !== "REJECT" || correctionRouteOptions.length === 0) return;
+    if (corrRouteId !== "") return;
+    const suggested = suggestedCorrectionRouteCode(
+      "SAMPLE_CHECK",
+      correctionRouteOptions.map((r) => r.code),
+    );
+    const match =
+      correctionRouteOptions.find((r) => r.code === suggested) ??
+      correctionRouteOptions.find((r) => r.code === "MACHINE_SAMPLE") ??
+      correctionRouteOptions[0];
+    setCorrRouteId(match.id);
+    const stageTask = (designQuery.data?.tasks ?? []).find(
+      (t) => t.subProcess.id === match.id,
+    );
+    if (stageTask?.assignedEmployee?.id) {
+      setCorrReworkAssigneeId(stageTask.assignedEmployee.id);
+    }
+  }, [sampleOutcome, correctionRouteOptions, corrRouteId, designQuery.data?.tasks]);
+
   const isProdReleaseTask = !!task
     ? resolveStageBehavior({
         code: task.subProcess.code,
@@ -139,7 +203,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const backLabel = designId ? "Back to Design" : "Back to My Tasks";
 
   const fileRequired = !!task?.subProcess?.isFileRequired;
-  const isSampleCheck = task?.subProcess?.code === "SAMPLE_CHECK";
 
   const linkedWorkTaskStatus = useMemo(() => {
     if (!task?.workflowPeers) return undefined;
@@ -322,6 +385,15 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     ) {
       return;
     }
+    if (
+      isSampleCheck &&
+      sampleOutcome === "REJECT" &&
+      (!corrRouteId ||
+        !corrReworkAssigneeId ||
+        (corrType === "MISTAKE" && !corrResponsibleId))
+    ) {
+      return;
+    }
 
     const note = checklistNote.trim() || undefined;
     await end.mutateAsync({
@@ -340,6 +412,17 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         : undefined,
       checklistNote: note,
       sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+      correctionRouteToSubProcessId:
+        sampleOutcome === "REJECT" && corrRouteId ? Number(corrRouteId) : undefined,
+      correctionReworkAssigneeEmployeeId:
+        sampleOutcome === "REJECT" && corrReworkAssigneeId
+          ? Number(corrReworkAssigneeId)
+          : undefined,
+      correctionResponsibleEmployeeId:
+        sampleOutcome === "REJECT" && corrType === "MISTAKE" && corrResponsibleId
+          ? Number(corrResponsibleId)
+          : undefined,
+      correctionType: sampleOutcome === "REJECT" ? corrType : undefined,
       costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
     });
     setEndModalOpen(false);
@@ -347,6 +430,10 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     setChecklistResults({});
     setChecklistNote("");
     setSampleOutcome("");
+    setCorrRouteId("");
+    setCorrReworkAssigneeId("");
+    setCorrResponsibleId("");
+    setCorrType("IMPROVEMENT");
     setCostEntries([]);
   }
 
@@ -501,6 +588,16 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   <dl className="detail-list">
                     <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
                     <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
+                    {task.correctionTime ? (
+                      <>
+                        <DetailItem label="Prior (correction)" value={formatDuration(task.correctionTime.priorSeconds)} />
+                        <DetailItem label="Rework" value={formatDuration(task.correctionTime.reworkSeconds)} />
+                        <DetailItem
+                          label="Correction total"
+                          value={formatDuration(task.correctionTime.totalSeconds)}
+                        />
+                      </>
+                    ) : null}
                     <DetailItem label="Expected" value={`${task.expectedMinutes} min`} />
                   </dl>
                 </AppCard>
@@ -611,6 +708,19 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             isSampleCheck={endDialogConfig?.showSampleOutcomes ?? isSampleCheck}
             sampleOutcome={sampleOutcome || undefined}
             onSampleOutcomeChange={setSampleOutcome}
+            correctionRouteOptions={correctionRouteOptions}
+            correctionRouteToSubProcessId={corrRouteId}
+            onCorrectionRouteChange={setCorrRouteId}
+            correctionReworkAssigneeEmployeeId={corrReworkAssigneeId}
+            onCorrectionReworkAssigneeChange={setCorrReworkAssigneeId}
+            correctionResponsibleEmployeeId={corrResponsibleId}
+            onCorrectionResponsibleChange={setCorrResponsibleId}
+            correctionType={corrType}
+            onCorrectionTypeChange={setCorrType}
+            employeeOptions={(employeesQuery.data ?? []).map((e) => ({
+              id: e.id,
+              name: e.name,
+            }))}
             gateForcesChecking={endDialogConfig?.forceChecking}
             dialogTitle={endDialogConfig?.title}
             dialogDescription={endDialogConfig?.description}

@@ -38,3 +38,6 @@ type, collection, season, style, concept note, plus images and files.
 ## User story seeds
 - As a Design Head, I want to register a new idea with images and a concept
   note so the design can start moving through the pipeline.
+- As Admin (or any creator), when multiple Design Heads exist I pick which
+  Design Head owns the concept (`designHeadEmployeeId`) so sign-off, KPI, and
+  first workflow assignment go to that portfolio.

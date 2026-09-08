@@ -57,10 +57,31 @@ const REPORT_LINKS: ReportLink[] = [
     group: "production",
   },
   {
+    id: "material",
+    title: "Material Analysis",
+    description: "Material requests, stock, and indent lines.",
+    href: ROUTES.analytics.reportsMaterial,
+    group: "production",
+  },
+  {
+    id: "delay",
+    title: "Delay Analysis",
+    description: "Overdue open tasks by stage and assignee.",
+    href: ROUTES.analytics.reportsDelay,
+    group: "production",
+  },
+  {
     id: "kpi",
     title: "Performance KPI",
     description: "Employee scores, grades, and metric weights.",
     href: ROUTES.analytics.kpi,
+    group: "people",
+  },
+  {
+    id: "designer-ranking",
+    title: "Designer Ranking",
+    description: "Weighted KPI ranking for the month.",
+    href: ROUTES.analytics.reportsDesignerRanking,
     group: "people",
   },
   {

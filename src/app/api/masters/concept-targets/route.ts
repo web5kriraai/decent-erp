@@ -37,7 +37,12 @@ export async function GET(request: Request) {
     const { year, month } = resolvePeriod(url);
     const [targets, attainment] = await Promise.all([
       listConceptTargets({ year, month }),
-      getConceptTargetAttainment({ year, month }),
+      getConceptTargetAttainment({
+        year,
+        month,
+        designHeadEmployeeId:
+          ctx.roleCode === "DESIGN_HEAD" ? ctx.employeeId : undefined,
+      }),
     ]);
     return jsonOk(
       serializeBigInt({

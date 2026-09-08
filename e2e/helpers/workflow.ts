@@ -357,7 +357,7 @@ export async function completeAssignedTask(
     page,
     `/api/tasks/${taskId}`,
   );
-  if (current.status === "ASSIGNED") {
+  if (current.status === "ASSIGNED" || current.status === "CORRECTION_REQUIRED") {
     await apiPostJson(page, `/api/tasks/${taskId}/start`, {});
   }
 

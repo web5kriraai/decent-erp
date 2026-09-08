@@ -176,6 +176,12 @@ export async function seedDatabase() {
 
   const demoUsers = [
     { code: "EMP002", name: "Priya Design Head", email: "designhead@decent-erp.local", role: ROLE_CODES.DESIGN_HEAD },
+    {
+      code: "EMP010",
+      name: "Asha Design Head",
+      email: "designhead2@decent-erp.local",
+      role: ROLE_CODES.DESIGN_HEAD,
+    },
     { code: "EMP003", name: "Ravi Sketch", email: "sketch@decent-erp.local", role: ROLE_CODES.SKETCH_DESIGNER },
     { code: "EMP004", name: "Meera Punch", email: "punch@decent-erp.local", role: ROLE_CODES.PUNCHING_DESIGNER },
     { code: "EMP005", name: "Kumar Machine", email: "machine@decent-erp.local", role: ROLE_CODES.MACHINE_OPERATOR },
@@ -234,6 +240,7 @@ export async function seedDatabase() {
     "checker@decent-erp.local": "SAMPLE_CHECK",
     "costing@decent-erp.local": "COSTING",
     "designhead@decent-erp.local": "DESIGN_LEAD",
+    "designhead2@decent-erp.local": "DESIGN_LEAD",
     "production@decent-erp.local": "PRODUCTION_LEAD",
     "management@decent-erp.local": "MANAGEMENT",
   };
@@ -330,6 +337,35 @@ export async function seedDatabase() {
   });
   const sketchEmployee = await prisma.employee.findUniqueOrThrow({
     where: { email: "sketch@decent-erp.local" },
+  });
+
+  const { seedRdDemoPortfolio } = await import("./seed/rd-demo-portfolio");
+  await seedRdDemoPortfolio({
+    prisma,
+    productTypeId: sareeType.id,
+    seasonId: festiveSeason.id,
+    designHeadId: designHead.id,
+    createdById: admin.id,
+    workflowPatternId: sareePatternId,
+    sketchEmployeeId: sketchEmployee.id,
+    processId: subIndex.SKETCH.processId,
+    sketchSubProcessId: subIndex.SKETCH.id,
+    conceptSubProcessId: subIndex.CONCEPT_REVIEW.id,
+    sketchRoleId: roles[ROLE_CODES.SKETCH_DESIGNER].id,
+    designHeadRoleId: roles[ROLE_CODES.DESIGN_HEAD].id,
+  });
+
+  // Always ensure current-month org concept target (even if RD demo seed is skipped).
+  const { ensureGlobalConceptTargetForPeriod } = await import(
+    "@/lib/services/concept-target-service"
+  );
+  const targetNow = new Date();
+  await ensureGlobalConceptTargetForPeriod({
+    year: targetNow.getUTCFullYear(),
+    month: targetNow.getUTCMonth() + 1,
+    targetCount: 10,
+    createdById: admin.id,
+    note: "Monthly concept / sample-pass target",
   });
 
   if (process.env.SEED_SKIP_SAMPLE === "1") {

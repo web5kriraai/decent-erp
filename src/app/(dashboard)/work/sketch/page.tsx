@@ -1,4 +1,7 @@
 import { OpsWorkbenchView } from "@/features/work/OpsWorkbenchView";
+import { pageMetadata } from "@/config/page-metadata";
+
+export const metadata = pageMetadata("workSketch");
 
 export default function SketchWorkbenchPage() {
   return (

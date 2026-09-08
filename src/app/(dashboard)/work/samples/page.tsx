@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { OpsWorkbenchView } from "@/features/work/OpsWorkbenchView";
 import { AppCard } from "@/components/ui/AppCard";
-import { AppButton } from "@/components/ui/AppButton";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { FormSelect } from "@/components/ui/form-select";
 import { useMasterCatalog } from "@/hooks/use-masters";
 import { apiGet, apiPatch } from "@/lib/api-client";
@@ -61,6 +61,11 @@ export default function SampleWorkbenchPage() {
         subtitle="Sample issue / receive queue with machine assignment"
         stageCodes={["MACHINE_SAMPLE", "SAMPLE_RECEIVE", "SAMPLE_CHECK", "RESAMPLE"]}
       />
+      <div className="px-[var(--content-padding)] pb-2">
+        <AppButtonLink href={ROUTES.work.sampleKanban} appVariant="secondary" size="sm">
+          Open Sample Kanban (Pass / Hold / Reject)
+        </AppButtonLink>
+      </div>
       <div className="px-[var(--content-padding)] pb-[var(--content-padding)]">
         <AppCard title="Assign machine from queue">
           <QueryState

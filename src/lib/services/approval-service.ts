@@ -255,6 +255,12 @@ export async function requestDesignApproval(
       },
     });
     if (!design) throw new ApiError("Design not found", 404);
+    if (design.designHeadEmployeeId !== requesterId) {
+      throw new ApiError(
+        "Only the Design Head assigned to this concept can request management sign-off",
+        403,
+      );
+    }
     if (design.status === "APPROVAL_PENDING") {
       return design;
     }
@@ -392,24 +398,7 @@ export async function submitApproval(
     correctionType?: string;
     routeSubProcessCode?: string;
     responsibleEmployeeId?: number;
-  },
-  approverEmployeeId: number,
-  correlationId: string,
-) {
-  return submitApprovalChain(input, approverEmployeeId, correlationId);
-}
-
-/** @deprecated Alias - use submitApproval. */
-export async function submitApprovalLegacy(
-  input: {
-    designId: bigint;
-    taskId?: bigint;
-    approvalLevelId: number;
-    decision: ApprovalDecision;
-    remark?: string;
-    correctionType?: string;
-    routeSubProcessCode?: string;
-    responsibleEmployeeId?: number;
+    reworkAssigneeEmployeeId?: number;
   },
   approverEmployeeId: number,
   correlationId: string,
@@ -427,6 +416,7 @@ async function submitApprovalChain(
     correctionType?: string;
     routeSubProcessCode?: string;
     responsibleEmployeeId?: number;
+    reworkAssigneeEmployeeId?: number;
   },
   approverEmployeeId: number,
   correlationId: string,
@@ -651,12 +641,19 @@ async function submitApprovalChain(
           | "OTHER") ?? "IMPROVEMENT";
 
       if (sourceTaskId && routeTask?.subProcess) {
-        const routeOwner =
+        const reworkAssignee =
+          input.reworkAssigneeEmployeeId ??
           input.responsibleEmployeeId ??
-          designTasks.find((t) => t.subProcess.id === routeTask.subProcess.id)?.assignedEmployeeId ??
+          designTasks.find((t) => t.subProcess.id === routeTask.subProcess.id)
+            ?.assignedEmployeeId ??
           null;
+        const responsible =
+          correctionType === "MISTAKE"
+            ? (input.responsibleEmployeeId ?? reworkAssignee)
+            : (input.responsibleEmployeeId ?? null);
         routedAssigneeName =
-          designTasks.find((t) => t.assignedEmployeeId === routeOwner)?.assignedEmployee?.name ??
+          designTasks.find((t) => t.assignedEmployeeId === reworkAssignee)?.assignedEmployee
+            ?.name ??
           routeTask.assignedEmployee?.name ??
           null;
         routedStageName = routeTask.subProcess.name;
@@ -666,7 +663,8 @@ async function submitApprovalChain(
             designId: input.designId,
             taskId: sourceTaskId,
             correctionType,
-            responsibleEmployeeId: routeOwner,
+            responsibleEmployeeId: responsible,
+            reworkAssigneeEmployeeId: reworkAssignee,
             routeToSubProcessId: routeTask.subProcess.id,
             rootCause: input.remark ?? "Approval returned for correction",
           },
@@ -686,6 +684,8 @@ async function submitApprovalChain(
             correctionType,
             raisedById: approverEmployeeId,
             responsibleEmployeeId: input.responsibleEmployeeId ?? null,
+            reworkAssigneeEmployeeId:
+              input.reworkAssigneeEmployeeId ?? input.responsibleEmployeeId ?? null,
             rootCause: input.remark ?? "Approval returned for correction",
             status: "OPEN",
             ratingImpact: 0,

@@ -41,6 +41,7 @@ export const ROUTES = {
     sketch: "/work/sketch",
     punching: "/work/punching",
     samples: "/work/samples",
+    sampleKanban: "/work/samples/kanban",
   },
   quality: {
     corrections: "/quality/corrections",
@@ -60,6 +61,9 @@ export const ROUTES = {
     reportsDesignSuccess: "/analytics/reports/design-success",
     reportsSampleStatus: "/analytics/reports/sample-status",
     reportsProductionStart: "/analytics/reports/production-start",
+    reportsMaterial: "/analytics/reports/material",
+    reportsDelay: "/analytics/reports/delay",
+    reportsDesignerRanking: "/analytics/reports/designer-ranking",
     reportsHub: "/analytics/reports",
   },
   admin: {
@@ -332,6 +336,11 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "My Tasks", href: ROUTES.work.tasks },
     { label: "Sample Board" },
   ],
+  [ROUTES.work.sampleKanban]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "Sample Board", href: ROUTES.work.samples },
+    { label: "Sample Kanban" },
+  ],
   [ROUTES.quality.corrections]: [
     { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Corrections" },
@@ -385,6 +394,21 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Reports Hub", href: ROUTES.analytics.reportsHub },
     { label: "Production Start" },
+  ],
+  [ROUTES.analytics.reportsMaterial]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "Reports Hub", href: ROUTES.analytics.reportsHub },
+    { label: "Material Analysis" },
+  ],
+  [ROUTES.analytics.reportsDelay]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "Reports Hub", href: ROUTES.analytics.reportsHub },
+    { label: "Delay Analysis" },
+  ],
+  [ROUTES.analytics.reportsDesignerRanking]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "Reports Hub", href: ROUTES.analytics.reportsHub },
+    { label: "Designer Ranking" },
   ],
   [ROUTES.admin.masters]: [
     { label: "Dashboard", href: ROUTES.dashboard },

@@ -15,14 +15,14 @@ import {
 
 export type ApprovalDecisionValue = "APPROVED" | "REJECTED" | "CORRECTION_REQUIRED";
 
-export const CORRECTION_ROUTE_OPTIONS = [
+const FALLBACK_ROUTE_OPTIONS = [
   { value: "PUNCH", label: "Punching / Wilcom" },
   { value: "SKETCH", label: "Sketch" },
   { value: "MACHINE_SAMPLE", label: "Machine Sample" },
   { value: "COSTING", label: "Costing" },
 ] as const;
 
-export const CORRECTION_TYPE_OPTIONS = [
+const CORRECTION_TYPE_OPTIONS = [
   { value: "MISTAKE", label: "Mistake" },
   { value: "IMPROVEMENT", label: "Improvement" },
   { value: "CUSTOMER_CHANGE", label: "Customer change" },
@@ -37,6 +37,7 @@ export type ApprovalDecisionFormState = {
   correctionType: string;
   routeSubProcessCode: string;
   responsibleEmployeeId: string;
+  reworkAssigneeEmployeeId: string;
 };
 
 type DecisionOption = { value: ApprovalDecisionValue; label: string };
@@ -53,7 +54,6 @@ type ApprovalDecisionFormProps = {
   stageAssignees?: ApprovalRequestStageAssignee[] | null;
   employeeOptions?: EmployeeOption[];
   nextLevelName?: string | null;
-  /** Enter in remark fields submits the primary decision when valid. */
   onEnterSubmit?: () => void;
 };
 
@@ -69,7 +69,14 @@ export function ApprovalDecisionForm({
   nextLevelName,
   onEnterSubmit,
 }: ApprovalDecisionFormProps) {
-  const { decision, remark, correctionType, routeSubProcessCode, responsibleEmployeeId } = state;
+  const {
+    decision,
+    remark,
+    correctionType,
+    routeSubProcessCode,
+    responsibleEmployeeId,
+    reworkAssigneeEmployeeId,
+  } = state;
 
   const enterSubmit =
     onEnterSubmit && isApprovalDecisionFormValid(state, costingReady) ? onEnterSubmit : undefined;
@@ -87,10 +94,30 @@ export function ApprovalDecisionForm({
       ? stageAssignees
       : (requestPackage?.snapshot.stageAssignees ?? []);
 
+  const routeOptions =
+    assignees.length > 0
+      ? assignees.map((a) => ({ value: a.code, label: a.name }))
+      : [...FALLBACK_ROUTE_OPTIONS];
+
+  const stageDefaultAssigneeId =
+    assignees.find((a) => a.code === routeSubProcessCode)?.assigneeEmployeeId ?? null;
+
+  useEffect(() => {
+    if (decision !== "CORRECTION_REQUIRED") return;
+    if (reworkAssigneeEmployeeId) return;
+    if (stageDefaultAssigneeId) {
+      onChange({
+        ...state,
+        reworkAssigneeEmployeeId: String(stageDefaultAssigneeId),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decision, routeSubProcessCode, stageDefaultAssigneeId]);
+
   const correctionAssigneePreview = previewCorrectionAssignee({
     routeSubProcessCode,
     stageAssignees: assignees,
-    responsibleEmployeeId,
+    responsibleEmployeeId: reworkAssigneeEmployeeId || responsibleEmployeeId,
     employees: employeeOptions,
   });
 
@@ -210,14 +237,32 @@ export function ApprovalDecisionForm({
                     label="Route back to stage"
                     required
                     value={routeSubProcessCode}
-                    onValueChange={(v) => onChange({ ...state, routeSubProcessCode: v })}
-                    options={[...CORRECTION_ROUTE_OPTIONS]}
+                    onValueChange={(v) =>
+                      onChange({
+                        ...state,
+                        routeSubProcessCode: v,
+                        reworkAssigneeEmployeeId: "",
+                      })
+                    }
+                    options={routeOptions}
                   />
                 </div>
+                <FormSelect
+                  id="reworkAssigneeEmployeeId"
+                  label="Rework assignee"
+                  required
+                  value={reworkAssigneeEmployeeId || null}
+                  onValueChange={(v) => onChange({ ...state, reworkAssigneeEmployeeId: v })}
+                  options={employeeOptions.map((e) => ({
+                    value: String(e.id),
+                    label: e.name,
+                  }))}
+                  placeholder="Who does the rework…"
+                />
                 {correctionType === "MISTAKE" ? (
                   <FormSelect
                     id="responsibleEmployeeId"
-                    label="Responsible employee"
+                    label="Responsible (KPI blame)"
                     required={false}
                     value={responsibleEmployeeId || null}
                     onValueChange={(v) => onChange({ ...state, responsibleEmployeeId: v })}
@@ -225,8 +270,8 @@ export function ApprovalDecisionForm({
                       value: String(e.id),
                       label: e.name,
                     }))}
-                    placeholder="Select employee…"
-                    hint="Defaults to stage assignee if blank."
+                    placeholder="Defaults to rework assignee…"
+                    hint="Defaults to rework assignee if blank."
                   />
                 ) : null}
                 <p className="approval-decision-impact approval-decision-impact--warn">
@@ -250,6 +295,7 @@ export function defaultApprovalDecisionFormState(): ApprovalDecisionFormState {
     correctionType: "IMPROVEMENT",
     routeSubProcessCode: "PUNCH",
     responsibleEmployeeId: "",
+    reworkAssigneeEmployeeId: "",
   };
 }
 
@@ -266,7 +312,7 @@ export function isApprovalDecisionFormValid(
   return (
     state.remark.trim().length > 0 &&
     !!state.correctionType &&
-    !!state.routeSubProcessCode
+    !!state.routeSubProcessCode &&
+    !!state.reworkAssigneeEmployeeId
   );
 }
-

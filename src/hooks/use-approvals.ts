@@ -22,6 +22,7 @@ export type SubmitApprovalPayload = {
   correctionType?: string;
   routeSubProcessCode?: string;
   responsibleEmployeeId?: number;
+  reworkAssigneeEmployeeId?: number;
 };
 
 export type PendingApprovalItem = PendingApprovalQueueItem;
@@ -67,7 +68,6 @@ export function useSubmitApproval() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.designHead });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.management });
       if (result.chainComplete || result.designStatus === "APPROVED") {
         toast.success("Final approval complete", "Design is approved and ready for production handoff.");
@@ -104,7 +104,6 @@ export function useRequestDesignApproval() {
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(variables.designId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.designHead });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.management });
       toast.success(
         "Sent for management approval",

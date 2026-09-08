@@ -17,7 +17,15 @@ Production-ready Next.js full-stack application for textile design operations: c
 
 ### Spec vs implemented stack (intentional)
 
-The Tech Spec PDF reference stack (React 18 + Vite SPA, .NET-style REST, SQL Server 2022) was **intentionally** replaced with Next.js App Router + PostgreSQL + Prisma. Domain APIs, RBAC, and the relational model remain aligned with the Design Management contract; see [`Docs/CODEBASE_SPEC_COMPLIANCE.md`](../Docs/CODEBASE_SPEC_COMPLIANCE.md) §2.
+The Tech Spec PDF reference stack (React 18 + Vite SPA, .NET-style REST, SQL Server 2022) was **intentionally** replaced with Next.js App Router + PostgreSQL + Prisma. Domain APIs, RBAC, and the relational model remain aligned with the Design Management contract; see [`Docs/CODEBASE_SPEC_COMPLIANCE.md`](../Docs/CODEBASE_SPEC_COMPLIANCE.md) §2 and §8.1 (Prisma supersets).
+
+### Master data API
+
+Prefer **`/api/masters/catalog?masterType=…`** (and `PATCH /api/masters/catalog/[id]`) for all catalog masters. Legacy collection URLs (`/api/masters/product-types`, `/fabrics`, `/machines`, …) remain thin wrappers over `MasterCatalog` for compatibility.
+
+### Demo seed portfolio
+
+`npm run db:seed` also seeds HTML A `ID-2026-*` designs (with primary `DesignImage` storage keys) and HTML B `CN-*` concepts for Sample Kanban / Owner Target UAT. Set `SEED_RD_DEMO=0` to skip. Runtime idea refs still use `IDEA-{ts}-{rand}`.
 
 ---
 

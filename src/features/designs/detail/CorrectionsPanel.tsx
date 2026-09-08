@@ -2,6 +2,7 @@
 
 import { AppButton } from "@/components/ui/AppButton";
 import { RaiseCorrectionModal } from "@/features/quality/RaiseCorrectionModal";
+import { formatActiveDuration } from "@/lib/services/correction-time-utils";
 import type { DesignCorrectionDetail, DesignSummary } from "@/lib/types/api";
 
 function formatDate(iso?: string | null) {
@@ -74,6 +75,7 @@ export function CorrectionsPanel({
             const title =
               c.rootCause?.trim() ||
               `${c.correctionType.replaceAll("_", " ")} · ${c.status}`;
+            const tb = c.timeBreakdown;
             return (
               <li key={c.id} className="relative">
                 <span className="absolute -left-[1.4rem] top-3 size-2.5 rounded-full bg-primary" />
@@ -82,11 +84,23 @@ export function CorrectionsPanel({
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatDate(c.createdAtUtc)}
                     {c.raisedBy ? ` · Raised by ${c.raisedBy.name}` : ""}
-                    {c.responsibleEmployee
-                      ? ` · Assigned to ${c.responsibleEmployee.name}`
-                      : ""}
+                    {c.routeToSubProcess ? ` · Route ${c.routeToSubProcess.name}` : ""}
+                    {c.reworkAssignee
+                      ? ` · Rework ${c.reworkAssignee.name}`
+                      : c.responsibleEmployee
+                        ? ` · ${c.responsibleEmployee.name}`
+                        : ""}
                     {penalty ? ` · ${penalty}` : ""}
                   </p>
+                  {tb ? (
+                    <p className="mt-1 text-xs font-medium text-foreground">
+                      Prior {formatActiveDuration(tb.originalActiveSeconds)}
+                      {" · "}
+                      Rework {formatActiveDuration(tb.reworkActiveSeconds)}
+                      {" · "}
+                      Total {formatActiveDuration(tb.totalActiveSeconds)}
+                    </p>
+                  ) : null}
                 </div>
               </li>
             );

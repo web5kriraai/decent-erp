@@ -27,6 +27,47 @@ import {
 import { resolveAssigneesForPatternTasks } from "@/lib/services/assignment-service";
 import { requireMasterOfType } from "@/lib/services/master-catalog-service";
 import { MASTER_TYPES } from "@/lib/master-catalog-types";
+import { ROLE_CODES } from "@/lib/permissions";
+
+/** Ensures the employee is active and holds Design Head role (workflow portfolio owner). */
+export async function assertActiveDesignHead(employeeId: number) {
+  const employee = await prisma.employee.findFirst({
+    where: {
+      id: employeeId,
+      active: true,
+      role: { code: ROLE_CODES.DESIGN_HEAD },
+    },
+    select: { id: true, name: true },
+  });
+  if (!employee) {
+    throw new ApiError(
+      "Selected Design Head must be an active employee with the Design Head role",
+      400,
+    );
+  }
+  return employee;
+}
+
+/**
+ * Resolve which Design Head owns a new concept.
+ * Explicit id wins; otherwise session Design Head defaults to self; others must pick.
+ */
+export function resolveCreateDesignHeadEmployeeId(input: {
+  requestedId?: number | null;
+  sessionEmployeeId: number;
+  sessionRoleCode?: string | null;
+}): number {
+  if (input.requestedId != null && Number.isFinite(input.requestedId) && input.requestedId > 0) {
+    return input.requestedId;
+  }
+  if (input.sessionRoleCode === ROLE_CODES.DESIGN_HEAD) {
+    return input.sessionEmployeeId;
+  }
+  throw new ApiError(
+    "Design Head is required. Select which Design Head owns this workflow.",
+    400,
+  );
+}
 
 export type CreateDesignInput = {
   productTypeId: number;
@@ -97,6 +138,7 @@ export async function createDesignWithTasks(
       ),
     );
   }
+  await assertActiveDesignHead(input.designHeadEmployeeId);
 
   return prisma.$transaction(async (tx) => {
     if (input.assignmentMode === "AUTOMATIC" && input.workflowPatternId) {
@@ -390,6 +432,7 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
         include: {
           raisedBy: { select: { id: true, name: true } },
           responsibleEmployee: { select: { id: true, name: true } },
+          reworkAssignee: { select: { id: true, name: true } },
           routeToSubProcess: { select: { id: true, code: true, name: true } },
         },
       },
@@ -433,8 +476,14 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
       ? Math.round(((baseline - costTotal) / baseline) * 1000) / 10
       : null;
 
+  const { attachCorrectionTimeBreakdowns } = await import(
+    "@/lib/services/correction-time-service"
+  );
+  const correctionsWithTime = await attachCorrectionTimeBreakdowns(design.corrections);
+
   return {
     ...design,
+    corrections: correctionsWithTime,
     detailMeta: {
       progressPercent: totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0,
       completedTasks,
@@ -531,6 +580,7 @@ export async function updateDesign(
     machineId?: number | null;
     stitchingTypeId?: number | null;
     targetGrade?: string | null;
+    designHeadEmployeeId?: number;
     version: number;
   },
   userId: number,
@@ -547,6 +597,9 @@ export async function updateDesign(
   }
   if (data.designGradeId != null) {
     await requireMasterOfType(data.designGradeId, MASTER_TYPES.DESIGN_GRADE);
+  }
+  if (data.designHeadEmployeeId != null) {
+    await assertActiveDesignHead(data.designHeadEmployeeId);
   }
 
   return prisma.$transaction(async (tx) => {
@@ -571,6 +624,9 @@ export async function updateDesign(
         ...(data.machineId !== undefined ? { machineId: data.machineId } : {}),
         ...(data.stitchingTypeId !== undefined ? { stitchingTypeId: data.stitchingTypeId } : {}),
         ...(data.targetGrade !== undefined ? { targetGrade: data.targetGrade } : {}),
+        ...(data.designHeadEmployeeId !== undefined
+          ? { designHeadEmployeeId: data.designHeadEmployeeId }
+          : {}),
         version: { increment: 1 },
       },
     });
@@ -905,7 +961,7 @@ export async function getDesignWorkflowDashboard(): Promise<{
           name: design.productType.name,
           code: design.productType.code,
         },
-        designHead: { name: design.designHead.name },
+        designHead: { id: design.designHead.id, name: design.designHead.name },
         season: design.season
           ? { id: design.season.id, name: design.season.name }
           : null,

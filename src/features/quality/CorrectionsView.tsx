@@ -25,6 +25,7 @@ import {
   normalizeCorrectionStatus,
   type CorrectionWorkflowStatus,
 } from "@/lib/services/correction-queue-utils";
+import { correctionKpiImpactLabel } from "@/lib/kpi-metrics";
 import {
   resolveCorrectionContextActions,
   WORKFLOW_ACTION_CODES,
@@ -194,14 +195,37 @@ export function CorrectionsView() {
                 },
                 {
                   key: "responsibleEmployee",
-                  header: "Person",
+                  header: "Rework / Blame",
                   render: (row) =>
-                    row.responsibleEmployee?.name ?? row.raisedBy.name,
+                    row.reworkAssignee?.name ??
+                    row.responsibleEmployee?.name ??
+                    row.raisedBy.name,
+                },
+                {
+                  key: "time",
+                  header: "Prior · Rework · Total",
+                  render: (row) => {
+                    const tb = row.timeBreakdown;
+                    if (!tb) return "—";
+                    const fmt = (s: number) => {
+                      if (s <= 0) return "0m";
+                      const h = Math.floor(s / 3600);
+                      const m = Math.floor((s % 3600) / 60);
+                      if (h <= 0) return `${m}m`;
+                      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                    };
+                    return `${fmt(tb.originalActiveSeconds)} · ${fmt(tb.reworkActiveSeconds)} · ${fmt(tb.totalActiveSeconds)}`;
+                  },
                 },
                 {
                   key: "correctionType",
                   header: "Type",
                   render: (row) => row.correctionType.replace(/_/g, " "),
+                },
+                {
+                  key: "kpiImpact",
+                  header: "KPI",
+                  render: (row) => correctionKpiImpactLabel(row.correctionType),
                 },
                 {
                   key: "extraCost",
@@ -302,7 +326,8 @@ export function CorrectionsView() {
                     </p>
                     <p className="event-timeline-meta">
                       {row.task.process.name} → {row.task.subProcess.name} ·{" "}
-                      {normalizeCorrectionStatus(row.status).replace(/_/g, " ")}
+                      {normalizeCorrectionStatus(row.status).replace(/_/g, " ")} ·{" "}
+                      KPI {correctionKpiImpactLabel(row.correctionType)}
                     </p>
                   </li>
                 ))}

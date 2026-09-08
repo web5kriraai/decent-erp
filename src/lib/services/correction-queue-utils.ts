@@ -2,16 +2,18 @@ import type { Prisma } from "@prisma/client";
 
 type CorrectionAccessRow = {
   responsibleEmployeeId?: number | null;
+  reworkAssigneeEmployeeId?: number | null;
   raisedById?: number | null;
   task?: { assignedEmployeeId?: number | null } | null;
 };
 
-/** Corrections the employee raised, is responsible for, or owns via the source task. */
+/** Corrections the employee raised, is responsible for, reworks, or owns via the source task. */
 export function correctionVisibleToEmployee(
   correction: CorrectionAccessRow,
   employeeId: number,
 ): boolean {
   if (correction.responsibleEmployeeId === employeeId) return true;
+  if (correction.reworkAssigneeEmployeeId === employeeId) return true;
   if (correction.raisedById === employeeId) return true;
   if (correction.task?.assignedEmployeeId === employeeId) return true;
   return false;
@@ -87,6 +89,7 @@ export function buildCorrectionScopeForEmployee(
   return {
     OR: [
       { responsibleEmployeeId: employeeId },
+      { reworkAssigneeEmployeeId: employeeId },
       { raisedById: employeeId },
       { task: { assignedEmployeeId: employeeId } },
     ],

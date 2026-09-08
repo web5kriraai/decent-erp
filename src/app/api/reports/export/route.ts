@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { withApiHandler } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
+import {
+  getDelayAnalysisReport,
+  getDesignerRankingReport,
+  getMaterialAnalysisReport,
+} from "@/lib/services/report-datasets-service";
+import { prisma } from "@/lib/db";
 
 function toCsv(headers: string[], rows: Array<Array<string | number | null | undefined>>) {
   const escape = (v: string | number | null | undefined) => {
@@ -28,53 +33,37 @@ export async function GET(request: Request) {
     const type = new URL(request.url).searchParams.get("type") ?? "design-performance";
 
     if (type === "delay-analysis") {
-      const delayed = await prisma.designTask.findMany({
-        where: {
-          dueAt: { lt: new Date() },
-          status: { in: ["PENDING", "ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING"] },
-        },
-        include: {
-          design: { select: { ideaRef: true, collectionName: true } },
-          assignedEmployee: { select: { name: true } },
-          subProcess: { select: { name: true } },
-        },
-        take: 500,
-      });
+      const report = await getDelayAnalysisReport();
       const csv = toCsv(
-        ["IdeaRef", "Collection", "Stage", "Assignee", "DueAt", "Status"],
-        delayed.map((t) => [
-          t.design.ideaRef,
-          t.design.collectionName,
-          t.subProcess.name,
-          t.assignedEmployee?.name,
-          t.dueAt?.toISOString() ?? "",
+        ["IdeaRef", "Collection", "Stage", "Assignee", "DueAt", "Status", "OverdueDays"],
+        report.tasks.map((t) => [
+          t.ideaRef,
+          t.collectionName,
+          t.stage,
+          t.assignee,
+          t.dueAt,
           t.status,
+          t.overdueDays,
         ]),
       );
-      return csvResponse(csv, "export.csv", ctx.correlationId);
+      return csvResponse(csv, "delay-analysis.csv", ctx.correlationId);
     }
 
     if (type === "material-analysis") {
-      const lines = await prisma.designMaterialLine.findMany({
-        include: {
-          design: { select: { ideaRef: true } },
-          catalogItem: { select: { code: true, name: true, masterType: true } },
-        },
-        take: 500,
-      });
+      const report = await getMaterialAnalysisReport();
       const csv = toCsv(
         ["IdeaRef", "ItemType", "Item", "Qty", "Unit", "Source", "Status"],
-        lines.map((l) => [
-          l.design.ideaRef,
-          l.catalogItem.masterType,
-          l.catalogItem.name,
+        report.lines.map((l) => [
+          l.ideaRef,
+          l.itemType,
+          l.itemName,
           String(l.quantity),
           l.unit,
           l.source,
           l.status,
         ]),
       );
-      return csvResponse(csv, "export.csv", ctx.correlationId);
+      return csvResponse(csv, "material-analysis.csv", ctx.correlationId);
     }
 
     if (type === "cost-analysis") {
@@ -93,38 +82,18 @@ export async function GET(request: Request) {
           String(c.amount),
         ]),
       );
-      return csvResponse(csv, "export.csv", ctx.correlationId);
+      return csvResponse(csv, "cost-analysis.csv", ctx.correlationId);
     }
 
     if (type === "designer-ranking") {
-      const scores = await prisma.employeeKpiScore.findMany({
-        where: {
-          periodYear: new Date().getUTCFullYear(),
-          periodMonth: new Date().getUTCMonth() + 1,
-        },
-        include: { employee: { select: { name: true, employeeCode: true } } },
-        take: 500,
-      });
-      const byEmp = new Map<string, { name: string; code: string; total: number }>();
-      for (const s of scores) {
-        const key = String(s.employeeId);
-        const cur = byEmp.get(key) ?? {
-          name: s.employee.name,
-          code: s.employee.employeeCode,
-          total: 0,
-        };
-        cur.total += Number(s.weightedScore);
-        byEmp.set(key, cur);
-      }
-      const ranked = [...byEmp.values()].sort((a, b) => b.total - a.total);
+      const report = await getDesignerRankingReport();
       const csv = toCsv(
         ["Rank", "Employee", "Code", "WeightedScore"],
-        ranked.map((r, i) => [i + 1, r.name, r.code, r.total.toFixed(2)]),
+        report.rankings.map((r) => [r.rank, r.name, r.code, r.weightedScore.toFixed(2)]),
       );
-      return csvResponse(csv, "export.csv", ctx.correlationId);
+      return csvResponse(csv, "designer-ranking.csv", ctx.correlationId);
     }
 
-    // design-performance default
     const designs = await prisma.designConcept.findMany({
       include: {
         productType: { select: { name: true } },
@@ -145,6 +114,6 @@ export async function GET(request: Request) {
         d.currentStage ?? "",
       ]),
     );
-    return csvResponse(csv, "export.csv", ctx.correlationId);
+    return csvResponse(csv, "design-performance.csv", ctx.correlationId);
   });
 }

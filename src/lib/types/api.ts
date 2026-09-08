@@ -97,10 +97,19 @@ export type DesignCorrectionDetail = {
   status: string;
   rootCause?: string | null;
   ratingImpact?: number | null;
+  extraMinutes?: number | null;
   createdAtUtc: string;
   raisedBy?: { id: number; name: string };
   responsibleEmployee?: { id: number; name: string } | null;
+  reworkAssignee?: { id: number; name: string } | null;
   routeToSubProcess?: { id: number; code: string; name: string } | null;
+  timeBreakdown?: {
+    employeeId: number | null;
+    originalActiveSeconds: number;
+    reworkActiveSeconds: number;
+    totalActiveSeconds: number;
+    measuredExtraMinutes: number;
+  };
 };
 
 export type DesignApprovalDetail = {
@@ -117,6 +126,10 @@ export type DesignKpiContribution = {
   name: string;
   score: number;
   maxScore: number;
+  /** Rework share of Prior+Rework for corrections where this user is KPI-responsible. */
+  reworkBurdenPercent?: number | null;
+  /** Merged Prior+Rework active seconds when this user is the rework assignee. */
+  mergedReworkActiveSeconds?: number;
 };
 
 export type EmployeePerformanceResponse = {
@@ -172,7 +185,7 @@ export type KanbanDesignItem = {
   priority: Priority;
   version: number;
   productType: { name: string; code?: string };
-  designHead: { name: string };
+  designHead: { id: number; name: string };
   season?: { id: number; name: string } | null;
   estimatedCost?: number | null;
   createdAtUtc?: string;
@@ -342,6 +355,13 @@ export type TaskTimeDetail = {
   };
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
   timeSummary: TimeSummary;
+  /** Merged Prior | Rework | Total active seconds for corrections touching this task. */
+  correctionTime?: {
+    priorSeconds: number;
+    reworkSeconds: number;
+    totalSeconds: number;
+    correctionCount: number;
+  } | null;
   timeline: TaskTimeEvent[];
   workflowPeers: Array<{
     id: string;
@@ -453,7 +473,15 @@ export type CorrectionRecord = {
   };
   raisedBy: { id: number; name: string; employeeCode: string };
   responsibleEmployee?: { id: number; name: string; employeeCode: string } | null;
+  reworkAssignee?: { id: number; name: string; employeeCode: string } | null;
   routeToSubProcess?: { id: number; code: string; name: string } | null;
+  timeBreakdown?: {
+    employeeId: number | null;
+    originalActiveSeconds: number;
+    reworkActiveSeconds: number;
+    totalActiveSeconds: number;
+    measuredExtraMinutes: number;
+  };
 };
 
 export type ApprovalLevel = {
@@ -577,6 +605,17 @@ export type DesignCostSummary = {
   marginPercent?: number | null;
   mrpMarginAmount?: number | null;
   mrpMarginPercent?: number | null;
+  salaryHours?: {
+    totalActiveSeconds: number;
+    totalHours: number;
+    byEmployee: Array<{
+      employeeId: number;
+      name: string;
+      code: string;
+      activeSeconds: number;
+      hours: number;
+    }>;
+  };
 };
 
 export type ManualDesignTask = {
@@ -632,6 +671,18 @@ export type DesignCompletionSummary = {
     expectedMinutes: number;
     skipReason: string | null;
   }>;
+  /** Correction loops with Prior | Rework | Total (not a simple phase sum). */
+  correctionLoops?: Array<{
+    correctionId: string;
+    correctionType: string;
+    status: string;
+    routeStage: string | null;
+    reworkAssignee: { id: number; name: string } | null;
+    responsible: { id: number; name: string } | null;
+    priorSeconds: number;
+    reworkSeconds: number;
+    totalSeconds: number;
+  }>;
   overrideHistory: Array<{
     action: string;
     atUtc: string;
@@ -647,6 +698,8 @@ export type DesignCompletionSummary = {
     totalHoldSeconds: number;
     totalElapsedSeconds: number;
     skippedPhaseCount: number;
+    correctionLoopActiveSeconds?: number;
+    correctionLoopCount?: number;
   };
 };
 
@@ -654,6 +707,8 @@ export type CreateDesignPayload = {
   productTypeId: number;
   collectionName: string;
   seasonId: number;
+  /** Design Head who owns sign-off, KPI, and portfolio for this concept. */
+  designHeadEmployeeId?: number;
   priority: Priority;
   conceptNote?: string;
   styleName?: string;

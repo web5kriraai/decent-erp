@@ -2,7 +2,6 @@ import type { LucideIcon, LucideProps } from "lucide-react";
 import {
   AlertCircle,
   AlertTriangle,
-  ArrowRight,
   Ban,
   BarChart3,
   Bell,
@@ -26,12 +25,10 @@ import {
   FileText,
   FolderOpen,
   Gavel,
-  GitBranch,
   Handshake,
   Home,
   IndianRupee,
   Info,
-  Kanban,
   LayoutDashboard,
   Layers,
   ListTodo,
@@ -56,7 +53,6 @@ import {
   Settings2,
   Shield,
   ShieldAlert,
-  ShieldCheck,
   SkipForward,
   Square,
   Timer,
@@ -96,7 +92,6 @@ function createIcon(Lucide: LucideIcon, displayName: string) {
 // -- Navigation / brand actions --
 export const IconDashboard = createIcon(LayoutDashboard, "IconDashboard");
 export const IconDesigns = createIcon(Boxes, "IconDesigns");
-export const IconKanban = createIcon(Kanban, "IconKanban");
 export const IconTasks = createIcon(ListTodo, "IconTasks");
 export const IconCorrections = createIcon(AlertTriangle, "IconCorrections");
 export const IconApprovals = createIcon(ClipboardCheck, "IconApprovals");
@@ -125,8 +120,6 @@ export const IconChevronDown = createIcon(ChevronDown, "IconChevronDown");
 export const IconChevronUp = createIcon(ChevronUp, "IconChevronUp");
 export const IconMenu = createIcon(Menu, "IconMenu");
 export const IconClose = createIcon(X, "IconClose");
-export const IconShieldCheck = createIcon(ShieldCheck, "IconShieldCheck");
-export const IconGitBranch = createIcon(GitBranch, "IconGitBranch");
 
 // -- Feedback / status --
 export const IconAlertTriangle = createIcon(AlertTriangle, "IconAlertTriangle");
@@ -151,7 +144,6 @@ export const IconPower = createIcon(Power, "IconPower");
 export const IconSend = createIcon(Send, "IconSend");
 export const IconListTree = createIcon(ListTree, "IconListTree");
 export const IconEye = createIcon(Eye, "IconEye");
-export const IconArrowRight = createIcon(ArrowRight, "IconArrowRight");
 export const IconRefreshCw = createIcon(RefreshCw, "IconRefreshCw");
 
 // -- Media / files --

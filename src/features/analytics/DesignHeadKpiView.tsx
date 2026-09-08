@@ -15,6 +15,10 @@ import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { ROUTES } from "@/config/routes";
 import { useConceptTargets } from "@/hooks/use-masters";
+import {
+  formatConceptTargetTrend,
+  formatConceptTargetValue,
+} from "@/lib/concept-target-display";
 
 type TeamScoreRow = {
   id: string;
@@ -125,8 +129,9 @@ export function DesignHeadKpiView() {
           {conceptAttainment ? (
             <StatCard
               label="Concept target"
-              value={`${conceptAttainment.createdCount}/${conceptAttainment.targetCount || "-"}`}
-              trend={`${conceptAttainment.percent}% · ${periodLabel}`}
+              value={formatConceptTargetValue(conceptAttainment)}
+              trend={formatConceptTargetTrend(conceptAttainment)}
+              tone={conceptAttainment.hasTarget ? "accent" : "warning"}
             />
           ) : null}
         </div>

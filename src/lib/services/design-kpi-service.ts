@@ -9,6 +9,10 @@ export type DesignContributorScore = {
   name: string;
   score: number;
   maxScore: number;
+  /** reworkActive / (original + rework) across corrections where this user is responsible (KPI blame). */
+  reworkBurdenPercent: number | null;
+  /** Merged Prior+Rework active seconds when this user is the rework assignee. */
+  mergedReworkActiveSeconds: number;
 };
 
 /** Design-scoped 0–100 contribution score for each contributor. */
@@ -49,7 +53,19 @@ export async function getDesignTeamContribution(
       });
       if (emp) people.set(emp.id, emp.name);
     }
+    if (c.reworkAssigneeEmployeeId) {
+      const emp = await prisma.employee.findUnique({
+        where: { id: c.reworkAssigneeEmployeeId },
+        select: { id: true, name: true },
+      });
+      if (emp) people.set(emp.id, emp.name);
+    }
   }
+
+  const { attachCorrectionTimeBreakdowns } = await import(
+    "@/lib/services/correction-time-service"
+  );
+  const correctionsWithTime = await attachCorrectionTimeBreakdowns(design.corrections);
 
   const results: DesignContributorScore[] = [];
 
@@ -116,6 +132,26 @@ export async function getDesignTeamContribution(
       }
     }
 
+    const responsibleLoops = correctionsWithTime.filter(
+      (c) => c.responsibleEmployeeId === employeeId,
+    );
+    let originalSum = 0;
+    let reworkSum = 0;
+    for (const c of responsibleLoops) {
+      originalSum += c.timeBreakdown.originalActiveSeconds;
+      reworkSum += c.timeBreakdown.reworkActiveSeconds;
+    }
+    const loopTotal = originalSum + reworkSum;
+    const reworkBurdenPercent =
+      loopTotal > 0 ? Math.round((reworkSum / loopTotal) * 1000) / 10 : null;
+
+    const mergedReworkActiveSeconds = correctionsWithTime
+      .filter(
+        (c) =>
+          (c.reworkAssigneeEmployeeId ?? c.responsibleEmployeeId) === employeeId,
+      )
+      .reduce((s, c) => s + c.timeBreakdown.totalActiveSeconds, 0);
+
     const score = Math.round(
       Math.max(
         0,
@@ -131,7 +167,14 @@ export async function getDesignTeamContribution(
       ),
     );
 
-    results.push({ employeeId, name, score, maxScore: 100 });
+    results.push({
+      employeeId,
+      name,
+      score,
+      maxScore: 100,
+      reworkBurdenPercent,
+      mergedReworkActiveSeconds,
+    });
   }
 
   return results.sort((a, b) => b.score - a.score);

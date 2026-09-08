@@ -36,6 +36,7 @@ export function CostingView() {
   >("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [hourlyRate, setHourlyRate] = useState("");
   const [expectedMrp, setExpectedMrp] = useState("");
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
@@ -72,12 +73,26 @@ export function CostingView() {
   }
 
   const summary = costsQuery.data?.summary;
+  const salaryHours = summary?.salaryHours;
   const costingActions = resolveCostingContextActions({
     designId: selectedDesignId || undefined,
     hasCosting: summary?.hasCosting,
     permissions,
   });
   const byTypeEntries = summary ? Object.entries(summary.byType) : [];
+
+  function applySalaryFromTimers() {
+    const rate = Number(hourlyRate);
+    const hours = salaryHours?.totalHours ?? 0;
+    if (!rate || rate <= 0 || hours <= 0) return;
+    const computed = Math.round(rate * hours * 100) / 100;
+    setCostType("TIME");
+    setCostCategory("SALARY");
+    setAmount(String(computed));
+    setDescription(
+      `Salary hours: ${hours.toFixed(2)}h × ₹${rate}/h (from TaskTimeEvent)`,
+    );
+  }
 
   return (
     <div className="page-shell">
@@ -243,6 +258,49 @@ export function CostingView() {
               />
             </AppCard>
           </QueryState>
+
+          {salaryHours && salaryHours.totalHours > 0 ? (
+            <AppCard title="Salary hours (from timers)" className="stack-section" flat>
+              <p className="m-0 mb-3 text-sm text-muted-foreground">
+                Measured active time across design tasks:{" "}
+                <strong>{salaryHours.totalHours.toFixed(2)} h</strong> (
+                {salaryHours.totalActiveSeconds}s). Amount = hourly rate × actual hours.
+              </p>
+              <div className="form-grid form-grid--2">
+                <FormTextField
+                  id="hourlyRate"
+                  label="Hourly rate (₹)"
+                  type="number"
+                  min={0.01}
+                  step="0.01"
+                  value={hourlyRate}
+                  onChange={(e) => setHourlyRate(e.target.value)}
+                />
+                <div className="flex items-end">
+                  <AppButton
+                    type="button"
+                    appVariant="secondary"
+                    disabled={!hourlyRate.trim() || Number(hourlyRate) <= 0}
+                    onClick={applySalaryFromTimers}
+                  >
+                    Apply rate × hours
+                  </AppButton>
+                </div>
+              </div>
+              {salaryHours.byEmployee.length > 0 ? (
+                <ul className="detail-task-list mt-3">
+                  {salaryHours.byEmployee.map((row) => (
+                    <li key={row.employeeId}>
+                      <span>
+                        {row.name} ({row.code})
+                      </span>
+                      <strong>{row.hours.toFixed(2)} h</strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </AppCard>
+          ) : null}
 
           <AppCard title="Add entry" className="form-card stack-section">
             <form onSubmit={handleAddCost} noValidate>

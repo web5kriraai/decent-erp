@@ -560,6 +560,16 @@ export async function endTask(
     checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
     checklistNote?: string;
     sampleOutcome?: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE";
+    correctionRouteToSubProcessId?: number | null;
+    correctionReworkAssigneeEmployeeId?: number | null;
+    correctionResponsibleEmployeeId?: number | null;
+    correctionType?:
+      | "MISTAKE"
+      | "IMPROVEMENT"
+      | "CUSTOMER_CHANGE"
+      | "MACHINE"
+      | "MATERIAL"
+      | "OTHER";
     costEntries?: Array<{
       costType: CostType;
       costCategory?: "FABRIC" | "EMBROIDERY" | "STITCHING" | "SALARY" | "OTHER" | null;
@@ -843,21 +853,34 @@ export async function endTask(
           orderBy: { id: "desc" },
           include: { subProcess: { select: { id: true } } },
         });
-        const routeSub =
-          machineSample?.subProcess ??
-          (await tx.designSubProcessMaster.findFirst({
-            where: { code: "MACHINE_SAMPLE", active: true },
-            select: { id: true },
-          }));
+        const routeSubId =
+          input.correctionRouteToSubProcessId ??
+          machineSample?.subProcess.id ??
+          (
+            await tx.designSubProcessMaster.findFirst({
+              where: { code: "MACHINE_SAMPLE", active: true },
+              select: { id: true },
+            })
+          )?.id ??
+          null;
+
+        const reworkAssignee =
+          input.correctionReworkAssigneeEmployeeId ??
+          machineSample?.assignedEmployeeId ??
+          null;
+        const responsible =
+          input.correctionResponsibleEmployeeId ??
+          (input.correctionType === "MISTAKE" ? reworkAssignee : null);
 
         await raiseCorrectionInTransaction(
           tx,
           {
             designId: task.designId,
             taskId: task.id,
-            correctionType: "IMPROVEMENT",
-            responsibleEmployeeId: machineSample?.assignedEmployeeId ?? null,
-            routeToSubProcessId: routeSub?.id ?? null,
+            correctionType: input.correctionType ?? "IMPROVEMENT",
+            responsibleEmployeeId: responsible,
+            reworkAssigneeEmployeeId: reworkAssignee,
+            routeToSubProcessId: routeSubId,
             rootCause: input.outputRemark || "Sample checking rejected - rework required",
           },
           employeeId,
@@ -1081,6 +1104,16 @@ export async function completeStageApproval(
     outputRemark: string;
     version: number;
     decision?: "APPROVED" | "REJECT" | "CORRECTION_REQUIRED";
+    correctionRouteToSubProcessId?: number | null;
+    correctionReworkAssigneeEmployeeId?: number | null;
+    correctionResponsibleEmployeeId?: number | null;
+    correctionType?:
+      | "MISTAKE"
+      | "IMPROVEMENT"
+      | "CUSTOMER_CHANGE"
+      | "MACHINE"
+      | "MATERIAL"
+      | "OTHER";
   },
   correlationId: string,
   roleCode?: string,
@@ -1325,7 +1358,10 @@ export async function completeStageApproval(
           })
         : null;
 
-      if (!workTask?.subProcess) {
+      const routeSubProcessId =
+        input.correctionRouteToSubProcessId ?? workTask?.subProcess.id ?? null;
+
+      if (!routeSubProcessId) {
         throw businessRule(
           APP_ERROR_CODES.WORKFLOW_NOT_READY,
           undefined,
@@ -1333,14 +1369,24 @@ export async function completeStageApproval(
         );
       }
 
+      const reworkAssignee =
+        input.correctionReworkAssigneeEmployeeId ??
+        workTask?.assignedEmployeeId ??
+        null;
+      const correctionType = input.correctionType ?? "IMPROVEMENT";
+      const responsible =
+        input.correctionResponsibleEmployeeId ??
+        (correctionType === "MISTAKE" ? reworkAssignee : null);
+
       await raiseCorrectionInTransaction(
         tx,
         {
           designId: task.designId,
           taskId: task.id,
-          correctionType: "IMPROVEMENT",
-          responsibleEmployeeId: workTask.assignedEmployeeId,
-          routeToSubProcessId: workTask.subProcess.id,
+          correctionType,
+          responsibleEmployeeId: responsible,
+          reworkAssigneeEmployeeId: reworkAssignee,
+          routeToSubProcessId: routeSubProcessId,
           rootCause: input.outputRemark,
         },
         employeeId,

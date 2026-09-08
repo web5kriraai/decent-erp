@@ -9,6 +9,7 @@ import {
 import { enrichActionCenterTaskList, enrichActionCenterHistoricalList } from "@/lib/services/action-center-enrichment";
 import { reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
 import { resolveEffectiveTaskStatus } from "@/lib/services/workflow-stage-gate";
+import { sortTasksByPriority } from "@/lib/task-priority";
 
 const taskInclude = {
   design: { select: { id: true, ideaRef: true, collectionName: true, priority: true } },
@@ -30,12 +31,16 @@ export type ActionCenterWaitingItem = {
 
 export type ActionCenterBlockedItem = {
   taskId: string;
-  design: { id: string; ideaRef: string; collectionName: string };
+  design: { id: string; ideaRef: string; collectionName: string; priority?: string };
   stage: string;
+  stageCode: string;
   status: string;
+  priority: string;
+  dueAt: string | null;
   blockedBy: string;
   blockedOwner?: string;
   blockedMessage: string;
+  canStart: false;
 };
 
 export type ActionCenterTask = Awaited<ReturnType<typeof prisma.designTask.findMany>>[number] & {
@@ -156,12 +161,19 @@ export async function getActionCenter(employeeId: number): Promise<ActionCenterR
         const ctx = buildBlockedContext(row, siblings);
         blocked.push({
           taskId: task.id.toString(),
-          design: designRef,
+          design: {
+            ...designRef,
+            priority: task.design.priority,
+          },
           stage: task.subProcess.name,
+          stageCode: task.subProcess.code,
           status: task.status,
+          priority: task.priority,
+          dueAt: task.dueAt?.toISOString() ?? null,
           blockedBy: ctx.blockedBy,
           blockedOwner: ctx.blockedOwner,
           blockedMessage: ctx.blockedMessage,
+          canStart: false,
         });
         break;
       }
@@ -187,7 +199,7 @@ export async function getActionCenter(employeeId: number): Promise<ActionCenterR
   return {
     actionRequired: enrichActionCenterTaskList(actionRequired, siblingsByDesign, runningTask?.id ?? null),
     waitingForOthers: [],
-    blocked,
+    blocked: sortTasksByPriority(blocked),
     upcoming: enrichActionCenterHistoricalList(upcoming, siblingsByDesign),
     completed: enrichActionCenterHistoricalList(completedRecent, siblingsByDesign).map((task) => ({
       ...task,

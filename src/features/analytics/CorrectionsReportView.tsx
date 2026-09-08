@@ -10,6 +10,15 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useCorrectionAnalysisReport } from "@/hooks/use-reports";
 import { useSession } from "next-auth/react";
+import { correctionKpiImpactLabel } from "@/lib/kpi-metrics";
+
+function formatActive(seconds: number) {
+  if (seconds <= 0) return "0m";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h <= 0) return `${m}m`;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
 
 export function CorrectionsReportView() {
   const { data: session } = useSession();
@@ -32,6 +41,7 @@ export function CorrectionsReportView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Correction Analysis"
+        subtitle="Prior · Rework · Total time and KPI impact by correction type."
       />
 
       <QueryState
@@ -51,8 +61,8 @@ export function CorrectionsReportView() {
                 value={`₹${summary.totalExtraCost.toLocaleString()}`}
               />
               <StatCard
-                label="Mistake types"
-                value={Object.keys(summary.byType).length}
+                label="Rework hours"
+                value={formatActive(summary.totalReworkSeconds ?? 0)}
               />
             </div>
 
@@ -60,7 +70,9 @@ export function CorrectionsReportView() {
               <ul className="detail-task-list">
                 {Object.entries(summary.byType).map(([type, count]) => (
                   <li key={type}>
-                    <span>{type.replace(/_/g, " ")}</span>
+                    <span>
+                      {type.replace(/_/g, " ")} · {correctionKpiImpactLabel(type)}
+                    </span>
                     <strong>{count}</strong>
                   </li>
                 ))}
@@ -79,14 +91,43 @@ export function CorrectionsReportView() {
                 },
                 { key: "correctionType", header: "Type" },
                 {
-                  key: "stage",
-                  header: "Stage",
-                  render: (row) => row.task?.subProcess?.name ?? "-",
+                  key: "impact",
+                  header: "Impact",
+                  render: (row) => correctionKpiImpactLabel(row.correctionType),
                 },
                 {
-                  key: "responsible",
-                  header: "Responsible",
+                  key: "stage",
+                  header: "Stage",
+                  render: (row) =>
+                    row.routeToSubProcess?.name ?? row.task?.subProcess?.name ?? "-",
+                },
+                {
+                  key: "rework",
+                  header: "Rework person",
+                  render: (row) => row.reworkAssignee?.name ?? "-",
+                },
+                {
+                  key: "blame",
+                  header: "KPI blame",
                   render: (row) => row.responsibleEmployee?.name ?? "-",
+                },
+                {
+                  key: "prior",
+                  header: "Prior",
+                  render: (row) =>
+                    formatActive(row.timeBreakdown?.originalActiveSeconds ?? 0),
+                },
+                {
+                  key: "reworkTime",
+                  header: "Rework",
+                  render: (row) =>
+                    formatActive(row.timeBreakdown?.reworkActiveSeconds ?? 0),
+                },
+                {
+                  key: "total",
+                  header: "Total",
+                  render: (row) =>
+                    formatActive(row.timeBreakdown?.totalActiveSeconds ?? 0),
                 },
                 {
                   key: "status",
@@ -97,7 +138,8 @@ export function CorrectionsReportView() {
                   key: "extraMinutes",
                   header: "Extra min",
                   align: "right",
-                  render: (row) => row.extraMinutes ?? 0,
+                  render: (row) =>
+                    row.extraMinutes ?? row.timeBreakdown?.measuredExtraMinutes ?? 0,
                 },
               ]}
               rows={corrections}

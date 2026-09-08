@@ -40,6 +40,7 @@ import {
   type AssignmentMode,
   type ManualTaskDraft,
 } from "@/features/designs/DesignAssignmentPanel";
+import { DesignHeadSelectField } from "@/features/designs/DesignHeadSelectField";
 
 const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: "LOW", label: "Low" },
@@ -64,6 +65,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [productTypeId, setProductTypeId] = useState<number | "">("");
   const [seasonId, setSeasonId] = useState<number | "">("");
+  const [designHeadEmployeeId, setDesignHeadEmployeeId] = useState<number | "">("");
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>("AUTOMATIC");
   const [workflowPatternId, setWorkflowPatternId] = useState<number | "">("");
   const [taskDateMode, setTaskDateMode] = useState<TaskDateMode>("SEQUENTIAL");
@@ -116,6 +118,9 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
+  if (!designHeadEmployeeId) {
+    validationErrors.designHeadEmployeeId = "Design Head is required";
+  }
   if (assignmentMode === "AUTOMATIC" && !effectiveWorkflowPatternId) {
     validationErrors.workflowPatternId =
       availablePatterns.length === 0
@@ -188,6 +193,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         productTypeId: Number(productTypeId),
         seasonId: Number(seasonId),
         collectionName: collectionName.trim(),
+        designHeadEmployeeId: Number(designHeadEmployeeId),
         conceptNote: conceptNote.trim() || undefined,
         priority,
         assignmentMode,
@@ -338,12 +344,14 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
           />
         </ModalFormGrid>
         <ModalFormGrid>
-          <FormTextField
+          <DesignHeadSelectField
             id="createDesignHead"
-            label="Design Head"
-            value={session?.user?.name ?? "Current user"}
-            readOnly
-            disabled
+            enabled={open}
+            value={designHeadEmployeeId}
+            onChange={setDesignHeadEmployeeId}
+            preferEmployeeId={session?.user?.employeeId}
+            preferRoleCode={session?.user?.roleCode}
+            error={showErrors ? validationErrors.designHeadEmployeeId : undefined}
           />
           <FormSelect
             id="createPriority"

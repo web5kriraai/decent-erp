@@ -20,16 +20,23 @@ counted as an employee mistake. This is stored as structured data on
 `CorrectionType` - never inferred from a remark string. Do not let a UI or
 API shortcut default `CorrectionType` to MISTAKE.
 
+## Blame vs rework
+- `ResponsibleEmployeeId` = KPI blame (MISTAKE only → `ratingImpact` −5 + `CORRECTION_IMPACT` mark).
+- `ReworkAssigneeEmployeeId` = who does the routed rework (may differ from blame).
+- Time loop = Prior (source task before `createdAtUtc`) + Rework (routed/source on/after) → Total for the rework user.
+- Productivity for rework assignees uses merged Prior+Rework hours; design KPI shows rework burden for the responsible user.
+
 ## Flow
 1. Correction is raised at any stage (typically by Sample Checker or Design Head).
-2. Type is classified; responsibility assigned only if type = MISTAKE.
-3. Extra minutes/cost and before/after version references are recorded.
-4. Correction routes the design back to Sketch, Punching, Machine Sample, or
-   another configured sub-process - the original `DesignTask` history is kept,
-   not overwritten.
-5. Status moves OPEN → IN_PROGRESS → DONE (or REJECTED). Closing a correction
+2. Type is classified; **ResponsibleEmployeeId** (KPI blame) assigned only if type = MISTAKE.
+3. **ReworkAssigneeEmployeeId** selects who performs the routed rework (may differ from blame).
+4. Extra minutes/cost and before/after version references are recorded (extra minutes can auto-fill from measured rework on DONE).
+5. Correction routes the design back to a selected sub-process - the original `DesignTask` history is kept,
+   not overwritten. Prior + rework active time is shown as a loop total for the rework user.
+6. Status moves OPEN → IN_PROGRESS → DONE (or REJECTED). Closing a correction
    may unlock a dependent task, but only within the same transaction.
 
 ## API
 - `POST /api/corrections` - create.
 - `PATCH /api/corrections/{id}` - progress/closure.
+- Raise / sample reject / stage approve / management approval all accept stage + rework person (+ responsible for MISTAKE).

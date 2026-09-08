@@ -6,13 +6,19 @@ import {
   withApiHandler,
 } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
-import { createDesignWithTasks, listDesigns } from "@/lib/services/design-service";
+import {
+  createDesignWithTasks,
+  listDesigns,
+  resolveCreateDesignHeadEmployeeId,
+} from "@/lib/services/design-service";
 
 const createDesignSchema = z
   .object({
     productTypeId: z.number().int().positive(),
     collectionName: z.string().min(1),
     seasonId: z.number().int().positive(),
+    /** Which Design Head owns the full workflow portfolio for this concept. */
+    designHeadEmployeeId: z.number().int().positive().optional(),
     priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
     conceptNote: z.string().optional(),
     styleName: z.string().optional(),
@@ -117,10 +123,15 @@ const createDesignSchema = z
 export async function POST(request: Request) {
   return withApiHandler(PERMISSIONS.DESIGN_CREATE, async (ctx) => {
     const body = await parseBody(request, createDesignSchema);
+    const designHeadEmployeeId = resolveCreateDesignHeadEmployeeId({
+      requestedId: body.designHeadEmployeeId,
+      sessionEmployeeId: ctx.employeeId,
+      sessionRoleCode: ctx.roleCode,
+    });
     const design = await createDesignWithTasks(
       {
         ...body,
-        designHeadEmployeeId: ctx.employeeId,
+        designHeadEmployeeId,
       },
       ctx.employeeId,
       ctx.correlationId,

@@ -2,6 +2,7 @@ export const queryKeys = {
   designs: {
     all: ["designs"] as const,
     kanban: ["designs", "kanban"] as const,
+    sampleKanban: ["designs", "sample-kanban"] as const,
     list: (filters?: { status?: string; search?: string }) =>
       ["designs", "list", filters] as const,
     detail: (id: string) => ["designs", "detail", id] as const,
@@ -36,7 +37,6 @@ export const queryKeys = {
     productTypesAdmin: ["masters", "product-types", "all"] as const,
     seasons: ["masters", "seasons"] as const,
     seasonsAdmin: ["masters", "seasons", "all"] as const,
-    componentTypes: ["masters", "component-types"] as const,
     checklistItems: ["masters", "checklist-items"] as const,
     employees: ["masters", "employees"] as const,
     fabrics: ["masters", "fabrics"] as const,
@@ -60,8 +60,6 @@ export const queryKeys = {
     employees: (page?: number, pageSize?: number) =>
       ["kpi", "employees", { page, pageSize }] as const,
     designHead: ["kpi", "design-head"] as const,
-    performance: (employeeId: number | string, year?: number, month?: number) =>
-      ["kpi", "performance", String(employeeId), year, month] as const,
   },
   reports: {
     corrections: ["reports", "corrections"] as const,
@@ -71,6 +69,10 @@ export const queryKeys = {
       ["reports", "sample-status", year, month] as const,
     productionStart: (year: number, month: number) =>
       ["reports", "production-start", year, month] as const,
+    material: ["reports", "material"] as const,
+    delay: ["reports", "delay"] as const,
+    designerRanking: (year: number, month: number) =>
+      ["reports", "designer-ranking", year, month] as const,
   },
   corrections: {
     all: ["corrections"] as const,
@@ -108,7 +110,6 @@ export const queryKeys = {
     list: (filters?: Record<string, string>) => ["audit", filters] as const,
   },
   dashboard: {
-    designHead: ["dashboard", "design-head"] as const,
     management: ["dashboard", "management"] as const,
   },
   notifications: {

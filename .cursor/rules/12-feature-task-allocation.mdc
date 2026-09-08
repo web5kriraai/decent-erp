@@ -33,6 +33,13 @@ alwaysApply: false
 - The same sub-process may appear more than once (e.g. "Sketch Correction V2").
 - **Never** silently replace manual tasks with workflow defaults on save.
 
+## My Tasks / Action Center buckets
+- **Action required** — assignee can start/work now (dependency ready + approval precursor satisfied).
+- **Blocked** — assignee’s stage cannot start: incomplete prior pipeline stage **or** approval waiting on unsubmitted work. Shows owner + reason.
+- **Upcoming** — submitted work waiting on approver (CHECKING), or not yet in the unlock path.
+- **Completed** — assignee’s work effectively done (incl. folded waiting when effectiveStatus is COMPLETED).
+
 ## API
 - `POST /api/designs/{id}/tasks/generate` - generate from a workflow pattern.
 - `POST /api/tasks` - manual task create.
+- `GET /api/tasks/action-center` - personal Action / Blocked / Upcoming / Completed buckets.

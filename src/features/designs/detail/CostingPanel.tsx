@@ -27,6 +27,7 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
   );
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [hourlyRate, setHourlyRate] = useState("");
 
   const summary = costsQuery.data?.summary;
   const byType = summary?.byType ?? {};
@@ -36,6 +37,7 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
     (byCategory.FABRIC ?? 0) + (byCategory.EMBROIDERY ?? 0) + (byCategory.STITCHING ?? 0);
   const materialEst = materialCat || (byType.MATERIAL ?? 0) || 0;
   const machineEst = byType.MACHINE ?? 0;
+  const salaryHours = summary?.salaryHours;
   const estimated =
     summary?.estimatedCost ??
     design.detailMeta?.costSummary.estimatedCost ??
@@ -62,6 +64,17 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
     setOpen(false);
     setAmount("");
     setDescription("");
+  }
+
+  function applySalaryFromTimers() {
+    const rate = Number(hourlyRate);
+    const hours = salaryHours?.totalHours ?? 0;
+    if (!rate || rate <= 0 || hours <= 0) return;
+    setCostType("TIME");
+    setAmount(String(Math.round(rate * hours * 100) / 100));
+    setDescription(
+      `Salary hours: ${hours.toFixed(2)}h × ₹${rate}/h (from TaskTimeEvent)`,
+    );
   }
 
   return (
@@ -145,6 +158,34 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
                 onChange={(e) => setAmount(e.target.value)}
               />
             </ModalFormGrid>
+            {salaryHours && salaryHours.totalHours > 0 ? (
+              <div className="space-y-2 rounded-md border border-border p-3">
+                <p className="m-0 text-xs text-muted-foreground">
+                  Timers: {salaryHours.totalHours.toFixed(2)} active hours. Amount = rate × hours.
+                </p>
+                <ModalFormGrid>
+                  <FormTextField
+                    id="hourlyRate"
+                    label="Hourly rate (₹)"
+                    type="number"
+                    min={0}
+                    value={hourlyRate}
+                    onChange={(e) => setHourlyRate(e.target.value)}
+                  />
+                  <div className="flex items-end">
+                    <AppButton
+                      type="button"
+                      appVariant="secondary"
+                      size="sm"
+                      disabled={!hourlyRate.trim() || Number(hourlyRate) <= 0}
+                      onClick={applySalaryFromTimers}
+                    >
+                      Apply rate × hours
+                    </AppButton>
+                  </div>
+                </ModalFormGrid>
+              </div>
+            ) : null}
             <FormTextField
               id="costDesc"
               label="Description"

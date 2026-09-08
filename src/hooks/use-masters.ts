@@ -93,34 +93,6 @@ export function useSeasons(enabled = true) {
   return useMasterCatalog("SEASON", enabled);
 }
 
-export type ComponentTypeMaster = {
-  id: number;
-  code: string;
-  name: string;
-  productTypeId?: number | null;
-  sequence: number;
-  active: boolean;
-  sortOrder?: number;
-};
-
-export function useComponentTypes(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.masters.componentTypes,
-    queryFn: async () => {
-      const rows = await apiGet<CatalogMaster[]>("/api/masters/component-types");
-      return rows.map((r) => ({
-        id: r.id,
-        code: r.code,
-        name: r.name,
-        sequence: r.sortOrder ?? 0,
-        active: r.active ?? r.isActive ?? true,
-      })) as ComponentTypeMaster[];
-    },
-    enabled,
-    staleTime: 10 * 60_000,
-  });
-}
-
 export type ChecklistItemMaster = {
   id: number;
   code: string;
@@ -176,16 +148,29 @@ export type MasterEmployee = {
   id: number;
   name: string;
   employeeCode: string;
-  active: boolean;
+  active?: boolean;
+  role?: { code: string; name: string };
 };
 
-export function useMasterEmployees(enabled = true) {
+export function useMasterEmployees(enabled = true, roleCode?: string) {
   return useQuery({
-    queryKey: queryKeys.masters.employees,
-    queryFn: () => apiGet<MasterEmployee[]>("/api/masters/employees"),
+    queryKey: roleCode
+      ? ([...queryKeys.masters.employees, roleCode] as const)
+      : queryKeys.masters.employees,
+    queryFn: () =>
+      apiGet<MasterEmployee[]>(
+        `/api/masters/employees${
+          roleCode ? `?roleCode=${encodeURIComponent(roleCode)}` : ""
+        }`,
+      ),
     enabled,
     staleTime: 5 * 60_000,
   });
+}
+
+/** Active employees with Design Head role — for concept ownership picker. */
+export function useDesignHeadEmployees(enabled = true) {
+  return useMasterEmployees(enabled, "DESIGN_HEAD");
 }
 
 export function useFabrics(enabled = true) {
@@ -211,9 +196,15 @@ export function useCorrectionReasons(enabled = true) {
 export type ConceptTargetAttainment = {
   targetCount: number;
   createdCount: number;
-  percent: number;
+  madeCount: number;
+  passCount: number;
+  holdCount: number;
+  rejectCount: number;
+  percent: number | null;
+  passPercent: number | null;
   periodYear: number;
   periodMonth: number;
+  hasTarget: boolean;
 };
 
 export type ConceptTargetsResponse = {

@@ -1,94 +1,6 @@
 import { prisma } from "@/lib/db";
 import { listStageApprovalQueue } from "@/lib/services/stage-approval-queue";
-import { countOpenCorrectionsForEmployee } from "@/lib/services/correction-service";
-import {
-  listDesignsReadyForSignOff,
-  listPendingApprovalsForEmployee,
-} from "@/lib/services/approval-service";
-
-export async function getDesignHeadWorkbenchSummary(designHeadId: number) {
-  const now = new Date();
-
-  const [
-    myOpenTasks,
-    overdueTasks,
-    handoffTasks,
-    blockedDesigns,
-    activeDesigns,
-    openCorrections,
-    stageApprovals,
-    readyForSignOff,
-  ] = await Promise.all([
-    prisma.designTask.count({
-      where: {
-        assignedEmployeeId: designHeadId,
-        status: { in: ["ASSIGNED", "RUNNING", "ON_HOLD", "CHECKING", "CORRECTION_REQUIRED"] },
-      },
-    }),
-    prisma.designTask.count({
-      where: {
-        assignedEmployeeId: designHeadId,
-        dueAt: { lt: now },
-        status: { in: ["ASSIGNED", "RUNNING", "ON_HOLD"] },
-      },
-    }),
-    prisma.designTask.findMany({
-      where: {
-        assignedEmployeeId: designHeadId,
-        subProcess: { code: "PROD_HANDOFF" },
-        status: { in: ["ASSIGNED", "RUNNING", "ON_HOLD"] },
-      },
-      take: 8,
-      include: {
-        design: { select: { id: true, ideaRef: true, collectionName: true, status: true } },
-        subProcess: { select: { name: true } },
-      },
-      orderBy: { dueAt: "asc" },
-    }),
-    prisma.designConcept.findMany({
-      where: {
-        designHeadEmployeeId: designHeadId,
-        status: { in: ["ACTIVE", "APPROVAL_PENDING", "ON_HOLD"] },
-        tasks: {
-          some: {
-            status: { in: ["CORRECTION_REQUIRED", "ON_HOLD", "CHECKING"] },
-          },
-        },
-      },
-      take: 8,
-      select: {
-        id: true,
-        ideaRef: true,
-        collectionName: true,
-        status: true,
-        priority: true,
-      },
-      orderBy: { updatedAtUtc: "desc" },
-    }),
-    prisma.designConcept.count({
-      where: {
-        designHeadEmployeeId: designHeadId,
-        status: { in: ["ACTIVE", "APPROVAL_PENDING", "ON_HOLD", "DRAFT"] },
-      },
-    }),
-    countOpenCorrectionsForEmployee(designHeadId),
-    listStageApprovalQueue(designHeadId, "DESIGN_HEAD"),
-    listDesignsReadyForSignOff(designHeadId, "DESIGN_HEAD"),
-  ]);
-
-  return {
-    myOpenTasks,
-    overdueTasks,
-    handoffPending: handoffTasks.length,
-    handoffTasks,
-    blockedDesigns,
-    activeDesigns,
-    openCorrections,
-    stageApprovals,
-    readyForSignOff: readyForSignOff.length,
-    readyForSignOffDesigns: readyForSignOff.slice(0, 8),
-  };
-}
+import { listPendingApprovalsForEmployee } from "@/lib/services/approval-service";
 
 export async function getManagementWorkbenchSummary(employeeId: number) {
   const now = new Date();
@@ -115,10 +27,14 @@ export async function getManagementWorkbenchSummary(employeeId: number) {
         updatedAtUtc: { lt: thirtyDaysAgo },
       },
     }),
-    prisma.designConcept.count({ where: { status: { in: ["APPROVED", "PRODUCTION_ACCEPTED"] } } }),
-    prisma.designConcept.count({ where: { status: "PRODUCTION_RELEASED" } }),
     prisma.designConcept.count({
-      where: { status: { in: ["ACTIVE", "APPROVAL_PENDING", "ON_HOLD"] } },
+      where: { status: { in: ["APPROVED", "PRODUCTION_ACCEPTED"] } },
+    }),
+    prisma.designConcept.count({
+      where: { status: { in: ["PRODUCTION_RELEASED", "LIVE"] } },
+    }),
+    prisma.designConcept.count({
+      where: { status: { in: ["DRAFT", "ACTIVE", "APPROVAL_PENDING", "ON_HOLD"] } },
     }),
     // Same visibility rules as Approvals hub Stage tab (owner oversee + ready PENDING).
     listStageApprovalQueue(employeeId, "MANAGEMENT"),

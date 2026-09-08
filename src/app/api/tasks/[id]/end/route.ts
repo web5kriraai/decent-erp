@@ -18,6 +18,13 @@ const schema = z.object({
     .optional(),
   checklistNote: z.string().optional(),
   sampleOutcome: z.enum(["APPROVE", "PASS", "HOLD", "REJECT", "RESAMPLE"]).optional(),
+  /** When sampleOutcome=REJECT: optional override for correction routing. */
+  correctionRouteToSubProcessId: z.number().int().positive().optional().nullable(),
+  correctionReworkAssigneeEmployeeId: z.number().int().positive().optional().nullable(),
+  correctionResponsibleEmployeeId: z.number().int().positive().optional().nullable(),
+  correctionType: z
+    .enum(["MISTAKE", "IMPROVEMENT", "CUSTOMER_CHANGE", "MACHINE", "MATERIAL", "OTHER"])
+    .optional(),
   costEntries: z
     .array(
       z.object({
@@ -48,6 +55,10 @@ export async function POST(
         checklist: body.checklist,
         checklistNote: body.checklistNote,
         sampleOutcome: body.sampleOutcome,
+        correctionRouteToSubProcessId: body.correctionRouteToSubProcessId,
+        correctionReworkAssigneeEmployeeId: body.correctionReworkAssigneeEmployeeId,
+        correctionResponsibleEmployeeId: body.correctionResponsibleEmployeeId,
+        correctionType: body.correctionType,
         costEntries: body.costEntries,
       },
       ctx.correlationId,

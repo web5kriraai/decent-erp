@@ -119,8 +119,9 @@ export function ConceptTargetsAdminView() {
           </AppButton>
           {attainment ? (
             <p className="m-0 text-sm text-muted-foreground">
-              Attainment {attainment.createdCount}/{attainment.targetCount || 0} (
-              {attainment.percent}%)
+              {attainment.hasTarget
+                ? `Created ${attainment.createdCount}/${attainment.targetCount} (${attainment.percent}%) · Pass ${attainment.passCount} · Made ${attainment.madeCount} · Hold ${attainment.holdCount} · Reject ${attainment.rejectCount} (${attainment.passPercent}% pass)`
+                : `No target set for ${m}/${y}. Created ${attainment.createdCount} · Pass ${attainment.passCount} · Made ${attainment.madeCount}. Save a target above to track attainment.`}
             </p>
           ) : null}
         </div>

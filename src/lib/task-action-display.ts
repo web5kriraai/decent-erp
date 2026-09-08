@@ -1,5 +1,8 @@
 /** Display helpers for Action Center list rows (completed / upcoming). */
 
+import { computeElapsedSeconds, type TaskTimeEvent } from "@/lib/types/api";
+import { formatDuration } from "@/lib/services/time-calculation";
+
 export type ActionCenterListVariant = "active" | "completed" | "upcoming";
 
 export type ActionCenterDisplayTask = {
@@ -10,6 +13,22 @@ export type ActionCenterDisplayTask = {
   waitingOnAssignee?: string | null;
   isWaitingOnOthers?: boolean;
 };
+
+export type ActionCenterTimeTask = {
+  expectedMinutes?: number | null;
+  timeEvents?: TaskTimeEvent[];
+};
+
+/** Tentative (expected) vs active worked — parity with R&D HTML task tables. */
+export function formatTentativeVsActual(task: ActionCenterTimeTask): string | null {
+  const expected = task.expectedMinutes;
+  if (expected == null || expected <= 0) return null;
+  const events = task.timeEvents ?? [];
+  const activeSeconds = events.length > 0 ? computeElapsedSeconds(events) : 0;
+  const actual =
+    activeSeconds > 0 ? formatDuration(activeSeconds) : "0m";
+  return `Tentative ${expected}m · Actual ${actual}`;
+}
 
 export function resolveListItemDisplayStatus(task: ActionCenterDisplayTask): string {
   return task.effectiveStatus ?? task.status;

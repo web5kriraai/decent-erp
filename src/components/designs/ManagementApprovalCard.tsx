@@ -55,6 +55,10 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
         formState.decision === "CORRECTION_REQUIRED" && formState.responsibleEmployeeId
           ? Number(formState.responsibleEmployeeId)
           : undefined,
+      reworkAssigneeEmployeeId:
+        formState.decision === "CORRECTION_REQUIRED" && formState.reworkAssigneeEmployeeId
+          ? Number(formState.reworkAssigneeEmployeeId)
+          : undefined,
     });
     setFormState(defaultApprovalDecisionFormState());
     if (result.nextLevel && !result.chainComplete) {

@@ -116,15 +116,6 @@ export function DesignDetailModalProvider({ children }: { children: ReactNode })
   );
 }
 
-export function useDesignDetailModal() {
-  const ctx = useContext(DesignDetailModalContext);
-  if (!ctx) {
-    throw new Error("useDesignDetailModal must be used within DesignDetailModalProvider");
-  }
-  return ctx;
-}
-
-/** Optional hook when provider may be absent (e.g. isolated pages). */
 export function useOptionalDesignDetailModal() {
   return useContext(DesignDetailModalContext);
 }

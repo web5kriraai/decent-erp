@@ -144,6 +144,7 @@ model Employee {
   createdTimeEvents    TaskTimeEvent[] @relation("TimeEventCreatedBy")
   raisedCorrections    DesignCorrection[] @relation("RaisedBy")
   responsibleCorrections DesignCorrection[] @relation("ResponsibleEmployee")
+  reworkAssigneeCorrections DesignCorrection[] @relation("ReworkAssignee")
   approvals            DesignApproval[]
   kpiScores            EmployeeKpiScore[]
   uploadedImages       DesignImage[]
@@ -633,7 +634,10 @@ model DesignCorrection {
   designId              BigInt           @map("design_id")
   taskId                BigInt           @map("task_id")
   correctionType        CorrectionType   @map("correction_type")
+  /** KPI blame owner (required for MISTAKE). */
   responsibleEmployeeId Int?             @map("responsible_employee_id")
+  /** Who performs the routed rework task (may differ from responsible). */
+  reworkAssigneeEmployeeId Int?          @map("rework_assignee_employee_id")
   raisedById            Int              @map("raised_by")
   routeToSubProcessId   Int?             @map("route_to_sub_process_id")
   routedTaskId          BigInt?          @map("routed_task_id")
@@ -650,10 +654,12 @@ model DesignCorrection {
   design              DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
   task                DesignTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   responsibleEmployee Employee?     @relation("ResponsibleEmployee", fields: [responsibleEmployeeId], references: [id])
+  reworkAssignee      Employee?     @relation("ReworkAssignee", fields: [reworkAssigneeEmployeeId], references: [id])
   raisedBy            Employee      @relation("RaisedBy", fields: [raisedById], references: [id])
   routeToSubProcess   DesignSubProcessMaster? @relation(fields: [routeToSubProcessId], references: [id])
 
   @@index([responsibleEmployeeId, status], map: "IX_DesignCorrection_ResponsibleEmployee_Status")
+  @@index([reworkAssigneeEmployeeId, status], map: "IX_DesignCorrection_ReworkAssignee_Status")
   @@map("design_corrections")
 }
 

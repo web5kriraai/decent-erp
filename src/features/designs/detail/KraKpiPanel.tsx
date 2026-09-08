@@ -50,12 +50,25 @@ export function KraKpiPanel({ design }: { design: DesignSummary }) {
             {contributors.map((c) => (
               <li
                 key={c.employeeId}
-                className="flex items-center justify-between gap-3 text-sm"
+                className="flex flex-col gap-1 rounded-md border border-border/60 px-3 py-2 text-sm"
               >
-                <span className="text-foreground">{c.name}</span>
-                <span className="font-semibold">
-                  {c.score}/{c.maxScore}
-                </span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-foreground">{c.name}</span>
+                  <span className="font-semibold">
+                    {c.score}/{c.maxScore}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  {c.reworkBurdenPercent != null ? (
+                    <span>Rework burden {c.reworkBurdenPercent}%</span>
+                  ) : null}
+                  {(c.mergedReworkActiveSeconds ?? 0) > 0 ? (
+                    <span>
+                      Merged loop{" "}
+                      {Math.round((c.mergedReworkActiveSeconds ?? 0) / 60)}m
+                    </span>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

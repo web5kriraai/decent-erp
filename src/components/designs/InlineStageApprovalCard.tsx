@@ -9,6 +9,13 @@ import { ImageGallery } from "@/components/ImageGallery";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
+import {
+  CorrectionRouteFields,
+  correctionRouteApiPayload,
+  emptyCorrectionRouteSelection,
+  isCorrectionRouteSelectionValid,
+  type CorrectionRouteSelection,
+} from "@/components/corrections/CorrectionRouteFields";
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
 import { queryKeys } from "@/lib/query-keys";
 import {
@@ -77,6 +84,9 @@ export function InlineStageApprovalCard({
 
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [routeSel, setRouteSel] = useState<CorrectionRouteSelection>(
+    emptyCorrectionRouteSelection(),
+  );
 
   const stageName = approvalTask.subProcess?.name ?? "Stage";
   const approvalCode = approvalTask.subProcess?.code ?? "";
@@ -171,7 +181,7 @@ export function InlineStageApprovalCard({
   }
 
   async function handleSendBack() {
-    if (!remark.trim()) return;
+    if (!remark.trim() || !isCorrectionRouteSelectionValid(routeSel)) return;
 
     setIsSubmitting(true);
     try {
@@ -181,8 +191,10 @@ export function InlineStageApprovalCard({
         version: current.version,
         outputRemark: remark.trim(),
         decision: "CORRECTION_REQUIRED",
+        ...correctionRouteApiPayload(routeSel),
       });
       setRemark("");
+      setRouteSel(emptyCorrectionRouteSelection());
       await refreshDesign();
     } finally {
       setIsSubmitting(false);
@@ -190,7 +202,7 @@ export function InlineStageApprovalCard({
   }
 
   async function handleReject() {
-    if (!remark.trim()) return;
+    if (!remark.trim() || !isCorrectionRouteSelectionValid(routeSel)) return;
 
     setIsSubmitting(true);
     try {
@@ -200,8 +212,10 @@ export function InlineStageApprovalCard({
         version: current.version,
         outputRemark: remark.trim(),
         decision: "REJECT",
+        ...correctionRouteApiPayload(routeSel),
       });
       setRemark("");
+      setRouteSel(emptyCorrectionRouteSelection());
       await refreshDesign();
     } finally {
       setIsSubmitting(false);
@@ -248,14 +262,30 @@ export function InlineStageApprovalCard({
           }
         />
 
+        {(showCorrection || showReject) ? (
+          <CorrectionRouteFields
+            designId={designId}
+            sourceStageCode={approvalCode}
+            enabled={canApprove}
+            value={routeSel}
+            onChange={setRouteSel}
+            disabled={busy}
+          />
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
           {showReject ? (
             <AppButton
               type="button"
               appVariant="danger"
               size="sm"
-              disabled={busy || !canApprove || !remark.trim()}
-              onClick={handleReject}
+              disabled={
+                busy ||
+                !canApprove ||
+                !remark.trim() ||
+                !isCorrectionRouteSelectionValid(routeSel)
+              }
+              onClick={() => void handleReject()}
             >
               <IconXCircle className="size-4" aria-hidden />
               Reject
@@ -266,8 +296,13 @@ export function InlineStageApprovalCard({
               type="button"
               appVariant="outline"
               size="sm"
-              disabled={busy || !canApprove || !remark.trim()}
-              onClick={handleSendBack}
+              disabled={
+                busy ||
+                !canApprove ||
+                !remark.trim() ||
+                !isCorrectionRouteSelectionValid(routeSel)
+              }
+              onClick={() => void handleSendBack()}
             >
               <IconRotateCcw className="size-4" aria-hidden />
               Request correction

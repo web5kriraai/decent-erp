@@ -90,7 +90,7 @@ export async function createDesignViaApi(
   }>,
 ) {
   const masters = await fetchMasters(page);
-  return apiPostJson<{ id: string; ideaRef: string; status: string; version: number }>(
+  const design = await apiPostJson<{ id: string; ideaRef: string; status: string; version: number }>(
     page,
     "/api/designs",
     {
@@ -103,4 +103,37 @@ export async function createDesignViaApi(
       workflowPatternId: masters.workflowPatternId,
     },
   );
+  await ensurePrimaryDesignImage(page, design.id);
+  return design;
+}
+
+/** Tiny PNG so workflow start gates (primary DesignImage) pass in API E2E. */
+export async function ensurePrimaryDesignImage(page: Page, designId: string) {
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const res = await page.request.post(`/api/designs/${designId}/images`, {
+    multipart: {
+      file: {
+        name: "e2e-primary.png",
+        mimeType: "image/png",
+        buffer: png,
+      },
+      isPrimary: "true",
+      mediaKind: "IMAGE",
+    },
+  });
+  const contentType = res.headers()["content-type"] ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      `POST /api/designs/${designId}/images expected JSON but got ${contentType} (${res.status()})`,
+    );
+  }
+  const json = (await res.json()) as { error?: string };
+  if (!res.ok()) {
+    throw new Error(
+      `POST /api/designs/${designId}/images failed (${res.status()}): ${json.error ?? ""}`,
+    );
+  }
 }

@@ -148,6 +148,10 @@ export function ApprovalsView() {
         formState.decision === "CORRECTION_REQUIRED" && formState.responsibleEmployeeId
           ? Number(formState.responsibleEmployeeId)
           : undefined,
+      reworkAssigneeEmployeeId:
+        formState.decision === "CORRECTION_REQUIRED" && formState.reworkAssigneeEmployeeId
+          ? Number(formState.reworkAssigneeEmployeeId)
+          : undefined,
     });
     setFormState(defaultApprovalDecisionFormState());
     await hubQuery.refetch();

@@ -228,9 +228,53 @@ export async function getDesignCompletionSummary(designId: bigint) {
     };
   });
 
+  const corrections = await prisma.designCorrection.findMany({
+    where: { designId },
+    select: {
+      id: true,
+      correctionType: true,
+      status: true,
+      taskId: true,
+      routedTaskId: true,
+      createdAtUtc: true,
+      reworkAssigneeEmployeeId: true,
+      responsibleEmployeeId: true,
+      routeToSubProcess: { select: { code: true, name: true } },
+      reworkAssignee: { select: { id: true, name: true } },
+      responsibleEmployee: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAtUtc: "asc" },
+  });
+  const { attachCorrectionTimeBreakdowns } = await import(
+    "@/lib/services/correction-time-service"
+  );
+  const correctionsWithTime = await attachCorrectionTimeBreakdowns(corrections);
+  const correctionLoops = correctionsWithTime.map((c) => ({
+    correctionId: c.id.toString(),
+    correctionType: c.correctionType,
+    status: c.status,
+    routeStage: c.routeToSubProcess?.name ?? null,
+    reworkAssignee: c.reworkAssignee
+      ? { id: c.reworkAssignee.id, name: c.reworkAssignee.name }
+      : null,
+    responsible: c.responsibleEmployee
+      ? { id: c.responsibleEmployee.id, name: c.responsibleEmployee.name }
+      : null,
+    priorSeconds: c.timeBreakdown.originalActiveSeconds,
+    reworkSeconds: c.timeBreakdown.reworkActiveSeconds,
+    totalSeconds: c.timeBreakdown.totalActiveSeconds,
+  }));
+  const correctionLoopActiveSeconds = correctionLoops.reduce(
+    (sum, loop) => sum + loop.totalSeconds,
+    0,
+  );
+
   const totals = {
     ...aggregateCompletionTotals(employees),
     skippedPhaseCount: phaseCounts.skipped,
+    /** Sum of Prior+Rework totals across correction loops (not a raw phase sum). */
+    correctionLoopActiveSeconds,
+    correctionLoopCount: correctionLoops.length,
   };
 
   return {
@@ -244,6 +288,7 @@ export async function getDesignCompletionSummary(designId: bigint) {
     phaseCounts,
     employees,
     phases,
+    correctionLoops,
     overrideHistory,
     totals,
   };

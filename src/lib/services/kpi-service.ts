@@ -143,37 +143,58 @@ export async function listEmployeeKpiScores(filters: {
   };
 }
 
-export async function getDesignHeadKpi() {
+export async function getDesignHeadKpi(input?: {
+  employeeId?: number;
+  roleCode?: string | null;
+}) {
   const now = new Date();
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth() + 1;
+  const period = {
+    gte: new Date(Date.UTC(year, month - 1, 1)),
+    lt: new Date(Date.UTC(year, month, 1)),
+  };
 
-  const [designsCreated, approved, released, live, teamScores] = await Promise.all([
-    prisma.designConcept.count({
-      where: {
-        createdAtUtc: {
-          gte: new Date(Date.UTC(year, month - 1, 1)),
-          lt: new Date(Date.UTC(year, month, 1)),
+  const portfolio =
+    input?.roleCode === "DESIGN_HEAD" && input.employeeId
+      ? { designHeadEmployeeId: input.employeeId }
+      : {};
+
+  const approvedStatuses = ["APPROVED", "PRODUCTION_ACCEPTED", "PRODUCTION_RELEASED", "LIVE"] as const;
+  const releasedStatuses = ["PRODUCTION_RELEASED", "LIVE"] as const;
+
+  const [designsCreated, approvedInPeriod, releasedSnapshot, liveSnapshot, teamScores] =
+    await Promise.all([
+      prisma.designConcept.count({
+        where: { createdAtUtc: period, ...portfolio },
+      }),
+      prisma.designConcept.count({
+        where: {
+          createdAtUtc: period,
+          status: { in: [...approvedStatuses] },
+          ...portfolio,
         },
-      },
-    }),
-    prisma.designConcept.count({ where: { status: "APPROVED" } }),
-    prisma.designConcept.count({ where: { status: "PRODUCTION_RELEASED" } }),
-    prisma.designConcept.count({ where: { status: "LIVE" } }),
-    getEmployeeKpiDashboard(),
-  ]);
+      }),
+      prisma.designConcept.count({
+        where: { status: { in: [...releasedStatuses] }, ...portfolio },
+      }),
+      prisma.designConcept.count({
+        where: { status: "LIVE", ...portfolio },
+      }),
+      getEmployeeKpiDashboard(),
+    ]);
 
   const conversionRate = designsCreated
-    ? Math.round((released / designsCreated) * 100)
+    ? Math.round((approvedInPeriod / designsCreated) * 100)
     : 0;
 
   return {
     periodYear: year,
     periodMonth: month,
     ideasCreated: designsCreated,
-    approvedCount: approved,
-    releasedCount: released,
-    liveCount: live,
+    approvedCount: approvedInPeriod,
+    releasedCount: releasedSnapshot,
+    liveCount: liveSnapshot,
     conversionPercent: conversionRate,
     teamScores: teamScores.filter((s) => s.employee.role.code === "DESIGN_HEAD"),
   };
@@ -289,6 +310,35 @@ export async function calculateMonthlyKpi(year: number, month: number) {
       if ((task.dependencySequence ?? 0) > 0) {
         depTotal += 1;
         if (task.status === "COMPLETED") depOk += 1;
+      }
+    }
+
+    // Rework assignees: prefer merged Prior+Rework loop hours for productivity.
+    const reworkCorrections = await prisma.designCorrection.findMany({
+      where: {
+        reworkAssigneeEmployeeId: employee.id,
+        createdAtUtc: { gte: start, lt: end },
+      },
+      select: {
+        id: true,
+        taskId: true,
+        routedTaskId: true,
+        createdAtUtc: true,
+        reworkAssigneeEmployeeId: true,
+        responsibleEmployeeId: true,
+      },
+    });
+    if (reworkCorrections.length > 0) {
+      const { attachCorrectionTimeBreakdowns } = await import(
+        "@/lib/services/correction-time-service"
+      );
+      const withTime = await attachCorrectionTimeBreakdowns(reworkCorrections);
+      const merged = withTime.reduce(
+        (sum, c) => sum + c.timeBreakdown.totalActiveSeconds,
+        0,
+      );
+      if (merged > 0) {
+        totalActive = Math.max(totalActive, merged);
       }
     }
 
@@ -532,21 +582,38 @@ export async function getCorrectionAnalysisReport() {
         },
       },
       responsibleEmployee: { select: { name: true, employeeCode: true } },
+      reworkAssignee: { select: { name: true, employeeCode: true } },
+      routeToSubProcess: { select: { name: true, code: true } },
     },
     orderBy: { createdAtUtc: "desc" },
     take: 200,
   });
 
+  const { attachCorrectionTimeBreakdowns } = await import(
+    "@/lib/services/correction-time-service"
+  );
+  const withTime = await attachCorrectionTimeBreakdowns(corrections);
+
   const byType: Record<string, number> = {};
   let totalExtraMinutes = 0;
   let totalExtraCost = 0;
-  for (const c of corrections) {
+  let totalReworkSeconds = 0;
+  for (const c of withTime) {
     byType[c.correctionType] = (byType[c.correctionType] ?? 0) + 1;
-    totalExtraMinutes += c.extraMinutes ?? 0;
+    totalExtraMinutes += c.extraMinutes ?? c.timeBreakdown.measuredExtraMinutes ?? 0;
     totalExtraCost += Number(c.extraCost ?? 0);
+    totalReworkSeconds += c.timeBreakdown.reworkActiveSeconds;
   }
 
-  return { corrections, summary: { byType, totalExtraMinutes, totalExtraCost } };
+  return {
+    corrections: withTime,
+    summary: {
+      byType,
+      totalExtraMinutes,
+      totalExtraCost,
+      totalReworkSeconds,
+    },
+  };
 }
 
 export async function getDesignSuccessReport(year: number, month: number) {
