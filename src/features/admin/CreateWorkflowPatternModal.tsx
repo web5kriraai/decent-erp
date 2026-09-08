@@ -318,17 +318,6 @@ export function CreateWorkflowPatternModal({
     >
       <ModalForm>
         {formError ? <ModalAlert variant="error">{formError}</ModalAlert> : null}
-        {capabilitySummary.errors.length > 0 ? (
-          <ModalAlert variant="error">{capabilitySummary.errors.join(" ")}</ModalAlert>
-        ) : null}
-        {capabilitySummary.lines.length > 0 ? (
-          <ModalAlert variant="warning">{capabilitySummary.lines.join(" · ")}</ModalAlert>
-        ) : null}
-        {isEditMode ? (
-          <ModalAlert variant="warning">
-            Applies to new designs only.
-          </ModalAlert>
-        ) : null}
 
         {isEditMode ? (
           <FormTextField
