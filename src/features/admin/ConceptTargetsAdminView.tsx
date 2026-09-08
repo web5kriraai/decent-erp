@@ -56,11 +56,8 @@ export function ConceptTargetsAdminView() {
   const attainment = targetsQuery.data?.attainment;
 
   return (
-    <div className="vstack vstack--loose">
-      <AppCard
-        title="Concept Targets"
-        description="Monthly idea targets by season / product category (master catalog)"
-      >
+    <div className="vstack vstack--tight">
+      <AppCard title="Concept Targets">
         <div className="form-grid form-grid--2" style={{ maxWidth: 720 }}>
           <FormTextField
             id="ct-year"
@@ -126,39 +123,37 @@ export function ConceptTargetsAdminView() {
         </div>
       </AppCard>
 
-      <AppCard title={`Targets · ${m}/${y}`}>
-        <QueryState
-          isLoading={targetsQuery.isLoading}
-          isError={targetsQuery.isError}
-          error={targetsQuery.error}
-          onRetry={() => targetsQuery.refetch()}
-          skeletonVariant="table"
-        >
-          <DataTable
-            columns={[
-              {
-                key: "season",
-                header: "Season",
-                render: (row) => row.season?.name ?? "All",
-              },
-              {
-                key: "product",
-                header: "Product",
-                render: (row) => row.productType?.name ?? "All",
-              },
-              { key: "targetCount", header: "Target" },
-              {
-                key: "note",
-                header: "Note",
-                render: (row) => row.note ?? "—",
-              },
-            ]}
-            rows={rows}
-            getRowKey={(row) => String(row.id)}
-            emptyTitle="No targets for this period"
-          />
-        </QueryState>
-      </AppCard>
+      <QueryState
+        isLoading={targetsQuery.isLoading}
+        isError={targetsQuery.isError}
+        error={targetsQuery.error}
+        onRetry={() => targetsQuery.refetch()}
+        skeletonVariant="table"
+      >
+        <DataTable
+          columns={[
+            {
+              key: "season",
+              header: "Season",
+              render: (row) => row.season?.name ?? "All",
+            },
+            {
+              key: "product",
+              header: "Product",
+              render: (row) => row.productType?.name ?? "All",
+            },
+            { key: "targetCount", header: "Target" },
+            {
+              key: "note",
+              header: "Note",
+              render: (row) => row.note ?? "—",
+            },
+          ]}
+          rows={rows}
+          getRowKey={(row) => String(row.id)}
+          emptyTitle="No targets for this period"
+        />
+      </QueryState>
     </div>
   );
 }

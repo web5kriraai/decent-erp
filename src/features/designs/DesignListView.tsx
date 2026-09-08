@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
-import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppButtonLink } from "@/components/ui/AppButton";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
@@ -18,7 +18,6 @@ import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useDesignsList } from "@/hooks/use-designs";
 import type { DesignSummary } from "@/lib/types/api";
-import { DesignCreateModal } from "@/features/designs/DesignCreateModal";
 import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
 
 const STATUS_FILTERS = ["ALL", "DRAFT", "ACTIVE", "APPROVAL_PENDING", "APPROVED", "ON_HOLD"];
@@ -29,7 +28,6 @@ export function DesignListView() {
   const detailModal = useOptionalDesignDetailModal();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [createOpen, setCreateOpen] = useState(false);
 
   const designsQuery = useDesignsList(permissions.includes(PERMISSIONS.DESIGN_CREATE));
 
@@ -59,38 +57,33 @@ export function DesignListView() {
         title="Concept Board"
         subtitle="Idea register, references, voice notes and approvals for new concepts"
         actions={
-          <AppButton
-            type="button"
-            appVariant="primary"
-            size="sm"
-            onClick={() => setCreateOpen(true)}
-          >
+          <AppButtonLink href={ROUTES.designs.new} appVariant="primary" size="sm">
             <IconPlus size={16} />
             New Design Concept
-          </AppButton>
+          </AppButtonLink>
         }
       />
 
       <div className="board-action-grid">
-        <button type="button" className="board-action-card" onClick={() => setCreateOpen(true)}>
+        <Link href={ROUTES.designs.new} className="board-action-card">
           <p className="board-action-card-title">Reference Gallery</p>
           <p className="board-action-card-desc">
             Attach images, video and documents while creating a concept.
           </p>
-        </button>
-        <button type="button" className="board-action-card" onClick={() => setCreateOpen(true)}>
+        </Link>
+        <Link href={ROUTES.designs.new} className="board-action-card">
           <p className="board-action-card-title">Voice Notes</p>
           <p className="board-action-card-desc">
             Record or upload voice notes on the concept media panel.
           </p>
-        </button>
+        </Link>
         {/* Scope freeze: create stays slim; orphans + style/theme/celebrity FKs deferred to Edit. */}
-        <button type="button" className="board-action-card" onClick={() => setCreateOpen(true)}>
+        <Link href={ROUTES.designs.new} className="board-action-card">
           <p className="board-action-card-title">Product Components</p>
           <p className="board-action-card-desc">
             Add style, fabric, components and other details later from Edit Design.
           </p>
-        </button>
+        </Link>
         <Link href={ROUTES.quality.approvals} className="board-action-card">
           <p className="board-action-card-title">Idea Approvals</p>
           <p className="board-action-card-desc">
@@ -179,15 +172,13 @@ export function DesignListView() {
           getRowKey={(row) => row.id}
           emptyTitle="No designs match your filters"
           emptyAction={
-            <AppButton type="button" appVariant="primary" onClick={() => setCreateOpen(true)}>
+            <AppButtonLink href={ROUTES.designs.new} appVariant="primary">
               <IconPlus size={16} />
               New Design Concept
-            </AppButton>
+            </AppButtonLink>
           }
         />
       </QueryState>
-
-      <DesignCreateModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }

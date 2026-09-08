@@ -14,10 +14,6 @@ describe("effectiveDayOffset", () => {
   it("SAME_DAY forces zero", () => {
     expect(effectiveDayOffset("SAME_DAY", 5, 2)).toBe(0);
   });
-
-  it("SEQUENTIAL_BY_INDEX uses index", () => {
-    expect(effectiveDayOffset("SEQUENTIAL_BY_INDEX", 5, 2)).toBe(2);
-  });
 });
 
 describe("resolveManualDueAt", () => {

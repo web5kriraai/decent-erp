@@ -151,7 +151,6 @@ export function KpiWeightsAdminView() {
   return (
     <AppCard
       title="KPI Weightage"
-      description="Pick a role, adjust metric weights, and save when the role totals 100%."
       headerAction={
         <AppButtonLink href={ROUTES.analytics.kpi} appVariant="outline" size="sm">
           Open KPI dashboard

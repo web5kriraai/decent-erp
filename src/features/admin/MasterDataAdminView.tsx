@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -13,6 +13,7 @@ import { StructuredMastersAdminView } from "@/features/admin/StructuredMastersAd
 import { KpiWeightsAdminView } from "@/features/admin/KpiWeightsAdminView";
 import { ConceptTargetsAdminView } from "@/features/admin/ConceptTargetsAdminView";
 import { PERMISSIONS } from "@/lib/permissions";
+import type { MasterDataPrimaryAction } from "@/features/admin/master-data-primary-action";
 
 const TABS = [
   { id: "processes", label: "Processes" },
@@ -41,7 +42,13 @@ export function MasterDataAdminView() {
     [tabParam],
   );
 
+  const [primaryAction, setPrimaryAction] = useState<MasterDataPrimaryAction>(null);
+  const registerPrimaryAction = useCallback((action: MasterDataPrimaryAction) => {
+    setPrimaryAction(action);
+  }, []);
+
   function setTab(next: TabId) {
+    setPrimaryAction(null);
     router.replace(`/admin/masters?tab=${next}`, { scroll: false });
   }
 
@@ -53,10 +60,21 @@ export function MasterDataAdminView() {
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Master Data"
-        subtitle="Processes, catalog lookups, structured masters, concept targets, and KPI weights."
+        actions={
+          primaryAction ? (
+            <AppButton
+              type="button"
+              appVariant="primary"
+              size="sm"
+              onClick={primaryAction.onClick}
+            >
+              {primaryAction.label}
+            </AppButton>
+          ) : null
+        }
       />
 
-      <PageToolbar panel className="mb-4" role="tablist" aria-label="Master data sections">
+      <PageToolbar panel className="!mb-0" role="tablist" aria-label="Master data sections">
         {TABS.map((item) => (
           <AppButton
             key={item.id}
@@ -73,15 +91,15 @@ export function MasterDataAdminView() {
       </PageToolbar>
 
       {tab === "processes" ? (
-        <MastersView embedded />
+        <MastersView embedded registerPrimaryAction={registerPrimaryAction} />
       ) : tab === "structured" ? (
-        <StructuredMastersAdminView />
+        <StructuredMastersAdminView registerPrimaryAction={registerPrimaryAction} />
       ) : tab === "kpi" ? (
         <KpiWeightsAdminView />
       ) : tab === "targets" ? (
         <ConceptTargetsAdminView />
       ) : (
-        <MasterCatalogView />
+        <MasterCatalogView registerPrimaryAction={registerPrimaryAction} />
       )}
     </div>
   );

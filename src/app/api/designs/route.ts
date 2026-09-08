@@ -14,7 +14,7 @@ const createDesignSchema = z
     collectionName: z.string().min(1),
     seasonId: z.number().int().positive(),
     priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
-    conceptNote: z.string().optional(),
+    conceptNote: z.string().trim().min(1, "Concept note is required"),
     styleName: z.string().optional(),
     workType: z.enum(["NEW_DESIGN", "REPEAT", "REVIVAL", "CUSTOM"]).optional(),
     trendReference: z.string().optional(),
@@ -28,7 +28,7 @@ const createDesignSchema = z
     assignmentMode: z.enum(["AUTOMATIC", "MANUAL"]),
     workflowPatternId: z.number().int().optional(),
     taskDateMode: z
-      .enum(["SEQUENTIAL", "SAME_DAY", "SEQUENTIAL_BY_INDEX"])
+      .enum(["SEQUENTIAL", "SAME_DAY"])
       .optional(),
     componentTypeIds: z.array(z.number().int().positive()).optional(),
     componentSpecs: z.record(z.string(), z.string()).optional(),

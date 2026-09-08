@@ -116,6 +116,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
+  if (!conceptNote.trim()) validationErrors.conceptNote = "Concept note is required";
   if (assignmentMode === "AUTOMATIC" && !effectiveWorkflowPatternId) {
     validationErrors.workflowPatternId =
       availablePatterns.length === 0
@@ -188,7 +189,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         productTypeId: Number(productTypeId),
         seasonId: Number(seasonId),
         collectionName: collectionName.trim(),
-        conceptNote: conceptNote.trim() || undefined,
+        conceptNote: conceptNote.trim(),
         priority,
         assignmentMode,
         taskDateMode: assignmentMode === "AUTOMATIC" ? taskDateMode : undefined,
@@ -357,10 +358,12 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         <FormTextArea
           id="createConcept"
           label="Concept Note"
+          required
           rows={3}
           value={conceptNote}
           onChange={(e) => setConceptNote(e.target.value)}
-          placeholder="Optional short note about the idea"
+          placeholder="Short note about the idea"
+          error={showErrors ? validationErrors.conceptNote : undefined}
         />
 
         <div className="form-section-label">Task Assignment System</div>

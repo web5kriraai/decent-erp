@@ -39,7 +39,6 @@ const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
 const TASK_DATE_MODE_OPTIONS: { value: TaskDateMode; label: string }[] = [
   { value: "SEQUENTIAL", label: "Sequential by stage" },
   { value: "SAME_DAY", label: "Same day (all stages)" },
-  { value: "SEQUENTIAL_BY_INDEX", label: "One day per stage index" },
 ];
 
 export function emptyManualTask(index: number, priority: Priority = "MEDIUM"): ManualTaskDraft {

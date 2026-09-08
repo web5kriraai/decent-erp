@@ -86,6 +86,7 @@ export function TableIconAction({
   className,
   title,
   "aria-label": ariaLabel,
+  onClick,
   ...props
 }: TableIconActionProps) {
   const meta = ACTION_META[action];
@@ -100,6 +101,10 @@ export function TableIconAction({
       title={title ?? name}
       aria-label={ariaLabel ?? name}
       {...props}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick?.(event);
+      }}
     >
       {meta.icon}
     </AppButton>
@@ -112,5 +117,12 @@ type TableIconActionGroupProps = {
 };
 
 export function TableIconActionGroup({ children, className }: TableIconActionGroupProps) {
-  return <div className={cn("table-icon-actions", className)}>{children}</div>;
+  return (
+    <div
+      className={cn("table-icon-actions", className)}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {children}
+    </div>
+  );
 }
