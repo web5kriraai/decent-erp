@@ -31,7 +31,7 @@ Use after migrate + seed (`npx prisma migrate deploy` && `npx prisma db seed`).
 - [ ] Design detail → Record voice: Start / Stop / Send (mic permission denied shows clear message)
 - [ ] Optional link upload to a design component
 - [ ] Gallery filters All / Images / Voice / Video / Files
-- [ ] Audio/video playback works; FILE rows show Download; image set-primary works
+- [ ] Audio/video playback works; FILE rows show Download; no Set primary / Remove controls (media cannot be deleted)
 - [ ] Unsupported browser for MediaRecorder shows upload-file fallback message
 
 ## Workbenches

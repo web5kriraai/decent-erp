@@ -348,9 +348,6 @@ export function DesignKanbanView() {
         subtitle="Idea to production release tracking for Saree, Suit, Kurti and Garments"
         actions={
           <div className="design-kanban-header-actions">
-            <AppButtonLink href={ROUTES.analytics.reportsHub} appVariant="outline" size="sm">
-              Open Reports
-            </AppButtonLink>
             <AppButtonLink href={ROUTES.designs.new} appVariant="primary" size="sm">
               + New Design Concept
             </AppButtonLink>

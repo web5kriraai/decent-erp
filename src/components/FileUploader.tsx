@@ -189,16 +189,6 @@ export function FileUploader({
     onPendingChange([...next]);
   }
 
-  function setPendingPrimary(id: string) {
-    if (!onPendingChange) return;
-    onPendingChange(
-      pendingItems.map((p) => ({
-        ...p,
-        isPrimary: p.mediaKind === "IMAGE" ? p.id === id : false,
-      })),
-    );
-  }
-
   const accept = autoDetectMediaKind
     ? acceptForAllConceptMedia()
     : acceptForConceptMedia(mediaKindProp);
@@ -337,16 +327,6 @@ export function FileUploader({
                 {item.file.name}
               </p>
               <div className="mt-1 flex flex-wrap gap-1">
-                {item.mediaKind === "IMAGE" && !item.isPrimary ? (
-                  <AppButton
-                    type="button"
-                    size="sm"
-                    appVariant="ghost"
-                    onClick={() => setPendingPrimary(item.id)}
-                  >
-                    Primary
-                  </AppButton>
-                ) : null}
                 {item.isPrimary && item.mediaKind === "IMAGE" ? (
                   <span className="badge">Primary</span>
                 ) : null}

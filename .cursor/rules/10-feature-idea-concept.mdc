@@ -10,7 +10,7 @@ Captures the starting point of every design: a unique Idea Reference, product
 type, collection, season, style, concept note, plus images and files.
 
 ## Behavior
-- Multi-image upload per design; exactly one image can be marked primary.
+- Multi-image upload per design; the first uploaded image is auto-marked primary. Users cannot re-mark or delete media.
 - Component-level breakdown (e.g. Pallu, Blouse, Sleeve, Front/Back) so images
   and specs attach to the correct part of the garment.
 - Celebrity/trend reference fields and free-text concept notes.

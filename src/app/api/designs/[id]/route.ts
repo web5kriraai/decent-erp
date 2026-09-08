@@ -7,6 +7,7 @@ import {
 } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { getDesignById, updateDesign } from "@/lib/services/design-service";
+import { withDownloadUrls } from "@/lib/services/download-url-utils";
 
 const patchSchema = z.object({
   collectionName: z.string().min(1).optional(),
@@ -31,7 +32,28 @@ export async function GET(
   return withApiHandler(null, async (ctx) => {
     const { id } = await params;
     const design = await getDesignById(BigInt(id), { viewerEmployeeId: ctx.employeeId });
-    return jsonOk(serializeBigInt(design), ctx.correlationId);
+    const serialized = serializeBigInt(design) as {
+      images?: Array<{ storageKey?: string | null }>;
+      tasks?: Array<{ artifacts?: Array<{ storageKey?: string | null }> }>;
+    };
+
+    if (serialized.images?.length) {
+      serialized.images = await withDownloadUrls(serialized.images);
+    }
+
+    if (serialized.tasks?.length) {
+      serialized.tasks = await Promise.all(
+        serialized.tasks.map(async (task) => {
+          if (!task.artifacts?.length) return task;
+          return {
+            ...task,
+            artifacts: await withDownloadUrls(task.artifacts),
+          };
+        }),
+      );
+    }
+
+    return jsonOk(serialized, ctx.correlationId);
   });
 }
 

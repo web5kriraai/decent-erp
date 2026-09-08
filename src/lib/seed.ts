@@ -29,11 +29,17 @@ export async function seedDatabase() {
       create: { code: roleCode, name: roleCode.replace(/_/g, " ") },
     });
 
+    const { getPermissionDefinition, formatPermissionTitle } = await import(
+      "./permission-catalog"
+    );
     for (const permCode of Object.values(PERMISSIONS)) {
+      const def = getPermissionDefinition(permCode);
+      const name = def?.title ?? formatPermissionTitle(permCode);
+      const description = def?.description ?? null;
       await prisma.permission.upsert({
         where: { code: permCode },
-        update: {},
-        create: { code: permCode, name: permCode.replace(/_/g, " ") },
+        update: { name, description },
+        create: { code: permCode, name, description },
       });
     }
 

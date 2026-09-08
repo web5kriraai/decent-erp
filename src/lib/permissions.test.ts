@@ -6,6 +6,12 @@ import {
   ROLE_CODES,
 } from "@/lib/permissions";
 import {
+  ALL_PERMISSION_CODES,
+  assertCatalogCoversAllPermissions,
+  PERMISSION_CATALOG,
+} from "@/lib/permission-catalog";
+import { ROLE_CATALOG } from "@/config/roles";
+import {
   DEPENDENCY_SATISFIED_STATUSES,
   isDependencySatisfiedStatus,
 } from "@/lib/services/task-dependency";
@@ -63,6 +69,19 @@ describe("permissions", () => {
     expect(DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MANAGEMENT]).toContain(
       PERMISSIONS.ERP_ACCOUNTS_OPERATE,
     );
+  });
+
+  it("keeps PERMISSION_CATALOG complete for every PERMISSIONS code", () => {
+    expect(() => assertCatalogCoversAllPermissions()).not.toThrow();
+    expect(ALL_PERMISSION_CODES).toHaveLength(Object.keys(PERMISSION_CATALOG).length);
+  });
+
+  it("keeps ROLE_CATALOG permissions aligned with DEFAULT_ROLE_PERMISSIONS", () => {
+    for (const role of Object.values(ROLE_CATALOG)) {
+      const defaults = [...(DEFAULT_ROLE_PERMISSIONS[role.code] ?? [])].sort();
+      const catalog = [...role.permissions].sort();
+      expect(catalog).toEqual(defaults);
+    }
   });
 });
 

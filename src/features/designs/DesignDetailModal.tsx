@@ -46,11 +46,13 @@ export function DesignDetailTabsBody({
   tab,
   onTabChange,
   compactHero = false,
+  highlightImageId = null,
 }: {
   designId: string;
   tab: DesignDetailTab;
   onTabChange: (tab: DesignDetailTab) => void;
   compactHero?: boolean;
+  highlightImageId?: string | null;
 }) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
@@ -104,7 +106,17 @@ export function DesignDetailTabsBody({
           >
             {!compactHero ? (
               <div className="flex size-28 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 text-xs text-muted-foreground">
-                {primaryImage?.fileName ?? "No image"}
+                {primaryImage?.downloadUrl &&
+                (!primaryImage.mediaKind || primaryImage.mediaKind === "IMAGE") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={primaryImage.downloadUrl}
+                    alt={primaryImage.fileName ?? design.collectionName}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  (primaryImage?.fileName ?? "No image")
+                )}
               </div>
             ) : null}
             <div className="min-w-0 space-y-2">
@@ -230,7 +242,11 @@ export function DesignDetailTabsBody({
               <KraKpiPanel design={design} />
             </TabsContent>
             <TabsContent value="files" className="pt-3">
-              <FilesPanel design={design} canUpload={canUpload} />
+              <FilesPanel
+                design={design}
+                canUpload={canUpload}
+                highlightImageId={highlightImageId}
+              />
             </TabsContent>
             <TabsContent value="approvals" className="pt-3">
               <ApprovalsPanel design={design} />
@@ -263,12 +279,14 @@ export function DesignDetailModal({
   onClose,
   tab,
   onTabChange,
+  highlightImageId = null,
 }: {
   designId: string;
   open: boolean;
   onClose: () => void;
   tab: DesignDetailTab;
   onTabChange: (tab: DesignDetailTab) => void;
+  highlightImageId?: string | null;
 }) {
   const designQuery = useDesign(designId, open, { refetchInterval: open ? 20_000 : false });
   const title = designQuery.data?.collectionName ?? "Design detail";
@@ -281,6 +299,7 @@ export function DesignDetailModal({
         tab={tab}
         onTabChange={onTabChange}
         compactHero
+        highlightImageId={highlightImageId}
       />
     </RightDrawer>
   );

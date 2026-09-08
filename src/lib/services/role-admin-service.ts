@@ -1,8 +1,28 @@
 import { ApiError } from "@/lib/api-utils";
 import { prisma } from "@/lib/db";
 import { ALL_ROLE_CODES, ROLE_CATALOG } from "@/config/roles";
+import {
+  ALL_PERMISSION_CODES,
+  formatPermissionTitle,
+  getPermissionDefinition,
+  listPermissionsOrdered,
+} from "@/lib/permission-catalog";
 import { DEFAULT_ROLE_PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
 import bcrypt from "bcryptjs";
+
+/** Upsert every code from PERMISSIONS so Roles & Access never misses catalog rows. */
+export async function ensurePermissionCatalogSynced() {
+  for (const code of ALL_PERMISSION_CODES) {
+    const def = getPermissionDefinition(code);
+    const name = def?.title ?? formatPermissionTitle(code);
+    const description = def?.description ?? null;
+    await prisma.permission.upsert({
+      where: { code },
+      update: { name, description },
+      create: { code, name, description },
+    });
+  }
+}
 
 const employeeSelect = {
   id: true,
@@ -198,6 +218,8 @@ export async function updateEmployeeRole(
 }
 
 export async function getRolePermissionMatrix(roleId: number) {
+  await ensurePermissionCatalogSynced();
+
   const role = await prisma.role.findUnique({
     where: { id: roleId },
     include: {
@@ -206,17 +228,24 @@ export async function getRolePermissionMatrix(roleId: number) {
   });
   if (!role) throw new ApiError("Role not found", 404);
 
-  const allPermissions = await prisma.permission.findMany({ orderBy: { code: "asc" } });
+  const allPermissions = await prisma.permission.findMany();
+  const byCode = new Map(allPermissions.map((p) => [p.code, p]));
   const assigned = new Set(role.permissions.map((rp) => rp.permission.code));
+  const ordered = listPermissionsOrdered();
 
   return {
     role: { id: role.id, code: role.code, name: role.name },
-    permissions: allPermissions.map((p) => ({
-      id: p.id,
-      code: p.code,
-      name: p.name,
-      assigned: assigned.has(p.code),
-    })),
+    permissions: ordered.map((def) => {
+      const p = byCode.get(def.code);
+      return {
+        id: p?.id ?? 0,
+        code: def.code,
+        name: p?.name ?? def.title,
+        description: p?.description ?? def.description,
+        group: def.group,
+        assigned: assigned.has(def.code),
+      };
+    }),
   };
 }
 
@@ -231,6 +260,15 @@ export async function updateRolePermissions(
 
   if (role.code === ROLE_CODES.ADMIN && !permissionCodes.includes("MASTER_ADMIN")) {
     throw new ApiError("System Admin role must retain MASTER_ADMIN permission", 422);
+  }
+
+  await ensurePermissionCatalogSynced();
+
+  const unknown = permissionCodes.filter(
+    (code) => !ALL_PERMISSION_CODES.includes(code as (typeof ALL_PERMISSION_CODES)[number]),
+  );
+  if (unknown.length > 0) {
+    throw new ApiError(`Unknown permission codes: ${unknown.join(", ")}`, 400);
   }
 
   const permissions = await prisma.permission.findMany({
@@ -261,17 +299,26 @@ export async function updateRolePermissions(
 }
 
 export async function getFullRbacMatrix() {
-  const [roles, permissions] = await Promise.all([
+  await ensurePermissionCatalogSynced();
+
+  const [roles, dbPermissions] = await Promise.all([
     prisma.role.findMany({
       where: { active: true },
       orderBy: { code: "asc" },
       include: {
         permissions: { include: { permission: true } },
-        _count: { select: { employees: true } },
+        employees: {
+          where: { active: true },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, employeeCode: true, email: true },
+        },
       },
     }),
-    prisma.permission.findMany({ orderBy: { code: "asc" } }),
+    prisma.permission.findMany(),
   ]);
+
+  const byCode = new Map(dbPermissions.map((p) => [p.code, p]));
+  const orderedDefs = listPermissionsOrdered();
 
   const assignments = new Map<string, Set<string>>();
   for (const role of roles) {
@@ -288,23 +335,37 @@ export async function getFullRbacMatrix() {
       name: role.name,
       displayName:
         ROLE_CATALOG[role.code as keyof typeof ROLE_CATALOG]?.displayName ?? role.name,
-      employeeCount: role._count.employees,
-    })),
-    permissions: permissions.map((p) => ({
-      id: p.id,
-      code: p.code,
-      name: p.name,
-      description: p.description,
-    })),
-    matrix: permissions.map((permission) => ({
-      permissionCode: permission.code,
-      permissionName: permission.name,
-      roles: roles.map((role) => ({
-        roleId: role.id,
-        roleCode: role.code,
-        assigned: assignments.get(role.code)?.has(permission.code) ?? false,
+      employeeCount: role.employees.length,
+      employees: role.employees.map((e) => ({
+        id: e.id,
+        name: e.name,
+        employeeCode: e.employeeCode,
+        email: e.email,
       })),
     })),
+    permissions: orderedDefs.map((def) => {
+      const p = byCode.get(def.code);
+      return {
+        id: p?.id ?? 0,
+        code: def.code,
+        name: p?.name ?? def.title,
+        description: p?.description ?? def.description,
+        group: def.group,
+      };
+    }),
+    matrix: orderedDefs.map((def) => {
+      const permission = byCode.get(def.code);
+      return {
+        permissionCode: def.code,
+        permissionName: permission?.name ?? def.title,
+        permissionGroup: def.group,
+        roles: roles.map((role) => ({
+          roleId: role.id,
+          roleCode: role.code,
+          assigned: assignments.get(role.code)?.has(def.code) ?? false,
+        })),
+      };
+    }),
   };
 }
 

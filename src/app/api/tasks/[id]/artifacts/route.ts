@@ -11,6 +11,7 @@ import {
   MACHINE_FORMATS,
 } from "@/lib/services/task-machine-output-utils";
 import { assertTaskAssignedToEmployee } from "@/lib/services/task-service";
+import { withDownloadUrls } from "@/lib/services/download-url-utils";
 import type { TaskArtifactType } from "@prisma/client";
 
 const schema = z
@@ -143,6 +144,7 @@ export async function GET(
       where: { taskId },
       orderBy: { uploadedAtUtc: "desc" },
     });
-    return jsonOk(serializeBigInt(artifacts), ctx.correlationId);
+    const withUrls = await withDownloadUrls(artifacts);
+    return jsonOk(serializeBigInt(withUrls), ctx.correlationId);
   });
 }

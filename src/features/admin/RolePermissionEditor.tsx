@@ -7,7 +7,11 @@ import {
   useRolePermissionMatrix,
   useUpdateRolePermissions,
 } from "@/hooks/use-admin-roles";
-import { PERMISSIONS, type PermissionCode } from "@/lib/permissions";
+import {
+  listPermissionsByGroup,
+  formatPermissionTitle,
+} from "@/lib/permission-catalog";
+import { PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
 
 type Props = {
   roleId: number;
@@ -15,14 +19,14 @@ type Props = {
   roleName: string;
 };
 
-const ALL_PERMISSIONS = Object.values(PERMISSIONS) as PermissionCode[];
-
 export function RolePermissionEditor({ roleId, roleCode, roleName }: Props) {
   const matrixQuery = useRolePermissionMatrix(roleId);
   const updatePermissions = useUpdateRolePermissions();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
   const [syncedAt, setSyncedAt] = useState(0);
+
+  const groups = useMemo(() => listPermissionsByGroup(), []);
 
   const serverSelected = useMemo(
     () =>
@@ -79,29 +83,39 @@ export function RolePermissionEditor({ roleId, roleCode, roleName }: Props) {
         onRetry={() => matrixQuery.refetch()}
         skeletonVariant="table"
       >
-        <div className="role-perm-grid">
-          {ALL_PERMISSIONS.map((code) => {
-            const meta = matrixQuery.data?.permissions.find((p) => p.code === code);
-            const checked = selected.has(code);
-            const isAdminLock = roleCode === "ADMIN" && code === PERMISSIONS.MASTER_ADMIN;
+        <div className="role-perm-groups">
+          {groups.map((group) => (
+            <div key={group.group} className="role-perm-group">
+              <h4 className="role-perm-group-title">{group.meta.title}</h4>
+              <p className="role-perm-group-desc">{group.meta.description}</p>
+              <div className="role-perm-grid">
+                {group.permissions.map((def) => {
+                  const checked = selected.has(def.code);
+                  const isAdminLock =
+                    roleCode === ROLE_CODES.ADMIN && def.code === PERMISSIONS.MASTER_ADMIN;
 
-            return (
-              <label key={code} className={`role-perm-check ${checked ? "role-perm-check--on" : ""}`}>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={isAdminLock}
-                  onChange={() => toggle(code)}
-                />
-                <span>
-                  <strong>{code.replace(/_/g, " ")}</strong>
-                  {meta?.name && meta.name !== code ? (
-                    <small>{meta.name}</small>
-                  ) : null}
-                </span>
-              </label>
-            );
-          })}
+                  return (
+                    <label
+                      key={def.code}
+                      className={`role-perm-check ${checked ? "role-perm-check--on" : ""}`}
+                      title={def.description}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={isAdminLock}
+                        onChange={() => toggle(def.code)}
+                      />
+                      <span>
+                        <strong>{formatPermissionTitle(def.code)}</strong>
+                        <small>{def.actionLabel}</small>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </QueryState>
     </div>

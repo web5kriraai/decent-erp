@@ -77,7 +77,14 @@ export function useUpdateEmployee() {
 
 export type RolePermissionMatrix = {
   role: { id: number; code: string; name: string };
-  permissions: Array<{ id: number; code: string; name: string; assigned: boolean }>;
+  permissions: Array<{
+    id: number;
+    code: string;
+    name: string;
+    description?: string | null;
+    group?: string;
+    assigned: boolean;
+  }>;
 };
 
 export type FullRbacMatrix = {
@@ -87,11 +94,24 @@ export type FullRbacMatrix = {
     name: string;
     displayName: string;
     employeeCount: number;
+    employees: Array<{
+      id: number;
+      name: string;
+      employeeCode: string;
+      email: string;
+    }>;
   }>;
-  permissions: Array<{ id: number; code: string; name: string; description: string | null }>;
+  permissions: Array<{
+    id: number;
+    code: string;
+    name: string;
+    description: string | null;
+    group: string;
+  }>;
   matrix: Array<{
     permissionCode: string;
     permissionName: string;
+    permissionGroup: string;
     roles: Array<{ roleId: number; roleCode: string; assigned: boolean }>;
   }>;
 };

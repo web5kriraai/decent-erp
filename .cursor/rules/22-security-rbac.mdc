@@ -6,23 +6,34 @@ alwaysApply: true
 
 # Security, RBAC & audit
 
+## Source of truth
+- Permission **codes**: `src/lib/permissions.ts` (`PERMISSIONS`, `DEFAULT_ROLE_PERMISSIONS`)
+- Permission **labels / groups**: `src/lib/permission-catalog.ts` (`PERMISSION_CATALOG`)
+- Role guide copy: `src/config/roles.ts` — `ROLE_CATALOG.permissions` **must** mirror `DEFAULT_ROLE_PERMISSIONS`
+- Live grants: DB `RolePermission` (edited under Admin → Roles & Access)
+- Opening the RBAC matrix upserts any missing catalog permissions into DB
+
 ## Roles and core permissions
 | Role | Core permissions | Restrictions |
 |---|---|---|
-| Design Head | Create/approve concepts, assign/reassign tasks, run stage tasks (Concept Review / approvals), view KPI/costing, release design | Cannot alter server time events directly |
-| Sketch Designer | View assigned sketch tasks, start/hold/resume/end, upload versions, respond to corrections | No final approval or KPI weight editing |
-| Punching Designer | Punching tasks, upload EMB/DST files, corrections, stitch metadata | No concept deletion after approval |
-| Machine Operator | Sample task execution, machine details, sample output and wastage | No design-level approval |
-| Sample Checker | Quality checklist, approve/reject/re-sample, raise correction | No cost master changes |
-| Costing Team | Development/standard cost entries, margin review | Cannot mark employee mistakes unless permitted |
-| Production Head | View approved designs, production instructions, accept production release | Cannot alter prior design history |
-| Admin | Masters, workflow patterns, hold reasons, KPI definitions, role permissions | All admin actions audited |
-| Management/Owner | Final approval, analytics and read access to all performance views | Operational edits should be restricted by role |
+| Design Head | Create/approve concepts, assign/reassign, stage tasks, cost/time, corrections, workflow override | Cannot alter server time events directly |
+| Sketch Designer | Assigned sketch tasks, timers, corrections | No final approval or KPI weight editing |
+| Punching Designer | Punching tasks, EMB/DST, corrections | No concept deletion after approval |
+| Machine Operator | Sample / machine tasks | No design-level approval |
+| Sample Checker | Checklist, approve/reject/re-sample, corrections, `DESIGN_APPROVE` | No cost master changes |
+| Costing Team | Cost entries + `ERP_ACCOUNTS_OPERATE` | No design create / final approve |
+| Production Head | Production release, floor + sales ERP | No admin masters |
+| Admin | All permissions incl. `MASTER_ADMIN` | All admin actions audited |
+| Management/Owner | Approve, KPI, team time, production release, full ERP SoD | No process master configuration |
 
-## Permission codes
-`DESIGN_CREATE`, `DESIGN_ASSIGN`, `TASK_EXECUTE`, `CORRECTION_RAISE`,
-`DESIGN_APPROVE`, `COST_VIEW`, `KPI_ADMIN`, `MASTER_ADMIN`,
-`PRODUCTION_RELEASE`.
+## Permission codes (full)
+`DESIGN_CREATE`, `DESIGN_ASSIGN`, `TASK_EXECUTE`, `TIME_VIEW_TEAM`,
+`CORRECTION_RAISE`, `DESIGN_APPROVE`, `COST_VIEW`, `KPI_ADMIN`,
+`MASTER_ADMIN`, `PRODUCTION_RELEASE`, `WORKFLOW_OVERRIDE`,
+`ERP_FLOOR_OPERATE`, `ERP_SALES_OPERATE`, `ERP_ACCOUNTS_OPERATE`.
+
+## Roles & Access UX
+Stepwise: **1 People & roles** (user names) → **2 Permissions** (permission column × roles, grouped) → **3 Role guide**.
 
 ## Rules
 - Authenticated identity on every API call; never accept `CreatedBy`/
@@ -31,7 +42,9 @@ alwaysApply: true
   caller's role and org/company/location scope on every request.
 - Sensitive cost/KPI screens require extra permissions beyond basic design access.
 - Audit: design edits, task state changes, reassignment, correction
-  responsibility, approval, cost changes, KPI definition changes, file deletion.
+  responsibility, approval, cost changes, KPI definition changes, file deletion,
+  role permission updates.
 - Never expose physical server file paths in API responses; use signed,
   non-guessable download URLs for confidential design files.
 - Apply anti-malware/file-scanning policy to uploads where infrastructure supports it.
+- When adding a permission: update `PERMISSIONS` + `PERMISSION_CATALOG` + defaults + nav/API gates in the same change.

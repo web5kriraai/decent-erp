@@ -47,7 +47,15 @@ export type DesignSummary = {
     componentType?: { name: string; code: string };
     specification?: string | null;
   }>;
-  images?: Array<{ id: string; isPrimary: boolean; fileName?: string; mediaKind?: string }>;
+  images?: Array<{
+    id: string;
+    isPrimary: boolean;
+    fileName?: string;
+    mediaKind?: string;
+    storageKey?: string | null;
+    downloadUrl?: string | null;
+    contentType?: string | null;
+  }>;
   tasks?: DesignTask[];
   corrections?: DesignCorrectionDetail[];
   approvals?: DesignApprovalDetail[];
@@ -233,6 +241,7 @@ export type DesignTask = {
     storageKey?: string | null;
     contentType?: string | null;
     uploadedAtUtc?: string | null;
+    downloadUrl?: string | null;
   }>;
   /** Resolved workflow status for display (CHECKING work may read COMPLETED after approval). */
   effectiveStatus?: string;

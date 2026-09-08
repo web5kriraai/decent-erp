@@ -8,6 +8,7 @@ import { QueryState } from "@/components/ui/QueryState";
 import { RolePermissionEditor } from "@/features/admin/RolePermissionEditor";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { ROLE_CATALOG, formatRoleLabel, getRoleDefinition } from "@/config/roles";
+import { formatPermissionTitle } from "@/lib/permission-catalog";
 
 export function RoleCatalogList() {
   const rolesQuery = useAdminRoles();
@@ -64,9 +65,17 @@ export function RoleCatalogList() {
                       </ul>
                     </div>
                     <div>
-                      <h4>Assigned ({role.permissionCount})</h4>
-                      <p className="m-0 text-sm text-[var(--color-neutral-600)]">
-                        {role.employeeCount} active employee{role.employeeCount === 1 ? "" : "s"}
+                      <h4>Default permissions ({catalog.permissions.length})</h4>
+                      <ul className="rbac-guide-perm-list">
+                        {catalog.permissions.map((code) => (
+                          <li key={code}>
+                            <strong>{formatPermissionTitle(code)}</strong>
+                            <code className="role-code-tag">{code}</code>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="m-0 mt-2 text-sm text-[var(--color-neutral-600)]">
+                        Live grants: {role.permissionCount} · People: {role.employeeCount}
                       </p>
                       <h4 className="mt-4">Sidebar modules</h4>
                       <p className="m-0 text-sm text-[var(--color-neutral-600)]">

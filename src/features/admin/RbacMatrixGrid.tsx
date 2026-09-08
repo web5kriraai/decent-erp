@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { QueryState } from "@/components/ui/QueryState";
@@ -9,6 +9,11 @@ import {
   useRestoreRolePermissions,
   useUpdateRolePermissions,
 } from "@/hooks/use-admin-roles";
+import {
+  PERMISSION_GROUP_META,
+  type PermissionGroupCode,
+  formatPermissionTitle,
+} from "@/lib/permission-catalog";
 import { PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
 import { formatPermissionLabel, sessionPermissionsStaleHint } from "@/lib/user-messages";
 
@@ -27,7 +32,7 @@ function buildMatrixState(
   return state;
 }
 
-export function RbacMatrixGrid() {
+export function RbacMatrixGrid({ onBack, onContinue }: { onBack?: () => void; onContinue?: () => void }) {
   const matrixQuery = useFullRbacMatrix();
   const updatePermissions = useUpdateRolePermissions();
   const restoreDefaults = useRestoreRolePermissions();
@@ -47,6 +52,34 @@ export function RbacMatrixGrid() {
 
   const roles = matrixQuery.data?.roles ?? [];
   const rows = matrixQuery.data?.matrix ?? [];
+
+  const groupedRows = useMemo(() => {
+    const groups: Array<{
+      group: PermissionGroupCode;
+      title: string;
+      rows: typeof rows;
+    }> = [];
+    const order = new Map(
+      Object.entries(PERMISSION_GROUP_META).map(([k, v]) => [k, v.sortOrder]),
+    );
+    const map = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const g = row.permissionGroup || "SYSTEM";
+      const list = map.get(g) ?? [];
+      list.push(row);
+      map.set(g, list);
+    }
+    for (const [group, list] of [...map.entries()].sort(
+      (a, b) => (order.get(a[0]) ?? 99) - (order.get(b[0]) ?? 99),
+    )) {
+      groups.push({
+        group: group as PermissionGroupCode,
+        title: PERMISSION_GROUP_META[group as PermissionGroupCode]?.title ?? group,
+        rows: list,
+      });
+    }
+    return groups;
+  }, [rows]);
 
   function isAssigned(permissionCode: string, roleId: number): boolean {
     return localMatrix.get(permissionCode)?.has(String(roleId)) ?? false;
@@ -100,10 +133,24 @@ export function RbacMatrixGrid() {
     <div className="rbac-matrix-panel">
       <div className="rbac-matrix-intro">
         <p>
-          Toggle access for each role. Changes apply on save - people in that role should sign out
-          and back in to pick them up.
+          Permission column (left) × role columns. Toggle access per role, then Save. People from
+          step 1 inherit these grants automatically.
         </p>
         <p className="form-hint">{sessionPermissionsStaleHint()}</p>
+        {(onBack || onContinue) && (
+          <div className="rbac-step-nav">
+            {onBack ? (
+              <button type="button" className="rbac-step-continue" onClick={onBack}>
+                ← Back to people
+              </button>
+            ) : null}
+            {onContinue ? (
+              <button type="button" className="rbac-step-continue" onClick={onContinue}>
+                Continue to role guide →
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
 
       <QueryState
@@ -118,11 +165,27 @@ export function RbacMatrixGrid() {
             <table className="rbac-matrix-table">
               <thead>
                 <tr>
-                  <th scope="col">Permission</th>
+                  <th scope="col" className="rbac-matrix-perm-col-head">
+                    Permission
+                  </th>
                   {roles.map((role) => (
                     <th key={role.id} scope="col" className="rbac-matrix-role-col">
                       <span className="rbac-matrix-role-name">{role.displayName}</span>
                       <code className="role-code-tag">{role.code}</code>
+                      <span
+                        className="rbac-matrix-role-people"
+                        title={(role.employees ?? []).map((e) => e.name).join(", ") || "No people"}
+                      >
+                        {(role.employees ?? []).length > 0
+                          ? (role.employees ?? [])
+                              .slice(0, 2)
+                              .map((e) => e.name)
+                              .join(", ") +
+                            ((role.employees ?? []).length > 2
+                              ? ` +${(role.employees ?? []).length - 2}`
+                              : "")
+                          : "No people"}
+                      </span>
                       <div className="rbac-matrix-role-actions">
                         {dirtyRoles.has(role.id) ? (
                           <AppButton
@@ -151,37 +214,49 @@ export function RbacMatrixGrid() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.permissionCode}>
-                    <th scope="row" className="rbac-matrix-perm-cell">
-                      <strong>{row.permissionName}</strong>
-                      <span>{formatPermissionLabel(row.permissionCode)}</span>
-                      <code className="role-code-tag">{row.permissionCode}</code>
-                    </th>
-                    {roles.map((role) => {
-                      const cellRole = row.roles.find((r) => r.roleId === role.id);
-                      const checked = cellRole ? isAssigned(row.permissionCode, role.id) : false;
-                      const locked =
-                        role.code === ROLE_CODES.ADMIN &&
-                        row.permissionCode === PERMISSIONS.MASTER_ADMIN;
+                {groupedRows.map((group) => (
+                  <Fragment key={`g-${group.group}`}>
+                    <tr className="rbac-matrix-group-row">
+                      <th
+                        colSpan={roles.length + 1}
+                        scope="colgroup"
+                        className="rbac-matrix-group-cell"
+                      >
+                        {group.title}
+                      </th>
+                    </tr>
+                    {group.rows.map((row) => (
+                      <tr key={row.permissionCode}>
+                        <th scope="row" className="rbac-matrix-perm-cell">
+                          <strong>{formatPermissionTitle(row.permissionCode)}</strong>
+                          <span>{formatPermissionLabel(row.permissionCode)}</span>
+                          <code className="role-code-tag">{row.permissionCode}</code>
+                        </th>
+                        {roles.map((role) => {
+                          const checked = isAssigned(row.permissionCode, role.id);
+                          const locked =
+                            role.code === ROLE_CODES.ADMIN &&
+                            row.permissionCode === PERMISSIONS.MASTER_ADMIN;
 
-                      return (
-                        <td key={role.id} className="rbac-matrix-cell">
-                          <label className="rbac-matrix-toggle">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={locked || isSaving}
-                              aria-label={`${row.permissionCode} for ${role.code}`}
-                              onChange={() =>
-                                toggleCell(row.permissionCode, role.id, role.code)
-                              }
-                            />
-                          </label>
-                        </td>
-                      );
-                    })}
-                  </tr>
+                          return (
+                            <td key={role.id} className="rbac-matrix-cell">
+                              <label className="rbac-matrix-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={locked || isSaving}
+                                  aria-label={`${row.permissionCode} for ${role.code}`}
+                                  onChange={() =>
+                                    toggleCell(row.permissionCode, role.id, role.code)
+                                  }
+                                />
+                              </label>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

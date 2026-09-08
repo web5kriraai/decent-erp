@@ -215,6 +215,7 @@ export function DesignDetailView({
                 tab={detailTab}
                 onTabChange={setDetailTab}
                 compactHero
+                highlightImageId={highlightImageId}
               />
             </AppCard>
 

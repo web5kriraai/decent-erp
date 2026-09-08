@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { withApiHandler, ApiError } from "@/lib/api-utils";
 import { readLocalObject } from "@/lib/local-storage";
-import { PERMISSIONS } from "@/lib/permissions";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
-  return withApiHandler(
-    [PERMISSIONS.DESIGN_CREATE, PERMISSIONS.TASK_EXECUTE],
-    async () => {
+  // Any authenticated user who can open design detail may load stored media.
+  return withApiHandler(null, async () => {
       const { path: segments } = await params;
       if (!segments?.length) {
         throw new ApiError("File path is required", 400);

@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { IconAlertCircle } from "@/components/icons";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignImageRecord } from "@/lib/types/api";
 import { ConceptMediaPanel } from "@/components/ConceptMediaPanel";
 import { AppButton } from "@/components/ui/AppButton";
-import { useApiToast } from "@/components/ui/ToastProvider";
 
 type ImageGalleryProps = {
   designId: string;
@@ -36,8 +35,6 @@ export function ImageGallery({
   components,
   showUploader = true,
 }: ImageGalleryProps) {
-  const toast = useApiToast();
-  const queryClient = useQueryClient();
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [filter, setFilter] = useState<MediaFilter>("ALL");
 
@@ -57,27 +54,6 @@ export function ImageGallery({
     if (!highlightImageId || !imagesQuery.data?.length) return;
     highlightRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [highlightImageId, imagesQuery.data]);
-
-  async function handleDelete(imageId: string) {
-    await fetch(`/api/designs/${designId}/images?imageId=${imageId}`, { method: "DELETE" });
-    imagesQuery.refetch();
-  }
-
-  async function handleSetPrimary(imageId: string) {
-    const res = await fetch(`/api/designs/${designId}/images?imageId=${imageId}`, {
-      method: "PATCH",
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      toast.errorFromApi(
-        new Error(typeof json.error === "string" ? json.error : "Could not set primary image"),
-        "Could not set primary image",
-      );
-      return;
-    }
-    toast.success("Primary image updated");
-    await queryClient.invalidateQueries({ queryKey: queryKeys.designs.images(designId) });
-  }
 
   return (
     <div className="vstack vstack--loose w-full">
@@ -115,6 +91,11 @@ export function ImageGallery({
           const isRejected = image.reviewStatus === "REJECTED";
           const isHighlighted = highlightImageId === image.id;
           const kind = image.mediaKind ?? "IMAGE";
+          const sizeLabel = formatBytes(image.fileSize);
+          const ext = image.fileName?.includes(".")
+            ? image.fileName.split(".").pop()?.toUpperCase()
+            : "FILE";
+
           return (
             <div
               key={image.id}
@@ -124,63 +105,55 @@ export function ImageGallery({
                 isHighlighted ? " ring-2 ring-primary" : ""
               }`}
             >
-              {isRejected ? (
-                <div className="image-gallery-rejected">
-                  <IconAlertCircle className="image-gallery-rejected-icon" aria-hidden />
-                  <p className="image-gallery-rejected-name">{image.fileName}</p>
-                  <p className="image-gallery-rejected-label">Not approved</p>
-                  <p className="image-gallery-rejected-hint">
-                    {image.reviewNote ?? "Click to view error"}
-                  </p>
-                </div>
-              ) : kind === "IMAGE" && image.contentType.startsWith("image/") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={image.downloadUrl} alt={image.fileName} className="image-gallery-thumb" />
-              ) : kind === "AUDIO" ? (
-                <audio controls src={image.downloadUrl} className="w-full" />
-              ) : kind === "VIDEO" ? (
-                <video controls src={image.downloadUrl} className="w-full" style={{ maxHeight: 180 }} />
-              ) : (
-                <div className="image-gallery-file">
-                  <p className="m-0 font-medium">{image.fileName}</p>
-                  <p className="m-0 mt-1 text-xs opacity-80">
-                    {formatBytes(image.fileSize)}
-                    {image.contentType ? ` · ${image.contentType}` : ""}
-                  </p>
-                  <a
-                    href={image.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block text-sm font-medium underline underline-offset-2"
-                  >
-                    Download
-                  </a>
-                </div>
-              )}
+              <div className="image-gallery-preview">
+                {isRejected ? (
+                  <div className="image-gallery-rejected">
+                    <IconAlertCircle className="image-gallery-rejected-icon" aria-hidden />
+                    <p className="image-gallery-rejected-name">{image.fileName}</p>
+                    <p className="image-gallery-rejected-label">Not approved</p>
+                    <p className="image-gallery-rejected-hint">
+                      {image.reviewNote ?? "Click to view error"}
+                    </p>
+                  </div>
+                ) : kind === "IMAGE" && image.contentType.startsWith("image/") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={image.downloadUrl}
+                    alt={image.fileName}
+                    className="image-gallery-thumb"
+                  />
+                ) : kind === "AUDIO" ? (
+                  <audio controls src={image.downloadUrl} className="image-gallery-audio" />
+                ) : kind === "VIDEO" ? (
+                  <video controls src={image.downloadUrl} className="image-gallery-video" />
+                ) : (
+                  <div className="image-gallery-file" title={image.fileName}>
+                    <span className="image-gallery-file-ext">{ext}</span>
+                    {sizeLabel ? (
+                      <span className="image-gallery-file-size">{sizeLabel}</span>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
               <div className="image-gallery-meta">
-                {!isRejected && kind !== "FILE" ? <span>{image.fileName}</span> : null}
-                <span className="badge">{kind}</span>
-                {image.isPrimary && <span className="badge">Primary</span>}
-                {canUpload && kind === "IMAGE" && !image.isPrimary && !isRejected && (
-                  <AppButton
-                    type="button"
-                    appVariant="ghost"
-                    size="sm"
-                    onClick={() => void handleSetPrimary(image.id)}
-                  >
-                    Set primary
-                  </AppButton>
-                )}
-                {canUpload && (
-                  <AppButton
-                    type="button"
-                    appVariant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(image.id)}
-                  >
-                    Remove
-                  </AppButton>
-                )}
+                <p className="image-gallery-name" title={image.fileName}>
+                  {image.fileName}
+                </p>
+                <div className="image-gallery-footer">
+                  <span className="badge">{kind}</span>
+                  {!isRejected && image.downloadUrl ? (
+                    <a
+                      href={image.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={image.fileName}
+                      className="image-gallery-download"
+                    >
+                      Download
+                    </a>
+                  ) : null}
+                </div>
               </div>
             </div>
           );

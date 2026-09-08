@@ -1,4 +1,4 @@
-import { PERMISSIONS, ROLE_CODES, type PermissionCode } from "@/lib/permissions";
+import { ROLE_CODES, DEFAULT_ROLE_PERMISSIONS, type PermissionCode } from "@/lib/permissions";
 
 export type RoleCode = (typeof ROLE_CODES)[keyof typeof ROLE_CODES];
 
@@ -8,10 +8,15 @@ export type RoleDefinition = {
   summary: string;
   responsibilities: string[];
   restrictions: string[];
+  /** Always mirrors DEFAULT_ROLE_PERMISSIONS — do not diverge. */
   permissions: PermissionCode[];
   /** Primary sidebar sections this role typically uses */
   navFocus: string[];
 };
+
+function defaultsFor(code: RoleCode): PermissionCode[] {
+  return [...(DEFAULT_ROLE_PERMISSIONS[code] ?? [])];
+}
 
 export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
   [ROLE_CODES.DESIGN_HEAD]: {
@@ -25,20 +30,10 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Approve design stages and release to next process",
       "Monitor team time, costing, and KPI for the design unit",
       "Raise corrections and coordinate rework",
+      "Override workflow phases when needed (bypass / send to QC)",
     ],
-    restrictions: [
-      "Cannot alter server time events directly",
-    ],
-    permissions: [
-      PERMISSIONS.DESIGN_CREATE,
-      PERMISSIONS.DESIGN_ASSIGN,
-      PERMISSIONS.DESIGN_APPROVE,
-      PERMISSIONS.TASK_EXECUTE,
-      PERMISSIONS.CORRECTION_RAISE,
-      PERMISSIONS.COST_VIEW,
-      PERMISSIONS.TIME_VIEW_TEAM,
-      PERMISSIONS.WORKFLOW_OVERRIDE,
-    ],
+    restrictions: ["Cannot alter server time events directly"],
+    permissions: defaultsFor(ROLE_CODES.DESIGN_HEAD),
     navFocus: ["My Work", "Design Pipeline", "Quality", "Finance", "Team & Reports", "Production"],
   },
   [ROLE_CODES.SKETCH_DESIGNER]: {
@@ -55,7 +50,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "No final design approval or KPI definition editing",
       "Cannot change process masters or workflow patterns",
     ],
-    permissions: [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.CORRECTION_RAISE],
+    permissions: defaultsFor(ROLE_CODES.SKETCH_DESIGNER),
     navFocus: ["My Work", "Quality"],
   },
   [ROLE_CODES.PUNCHING_DESIGNER]: {
@@ -72,7 +67,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Cannot delete approved concepts",
       "No costing master or approval authority",
     ],
-    permissions: [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.CORRECTION_RAISE],
+    permissions: defaultsFor(ROLE_CODES.PUNCHING_DESIGNER),
     navFocus: ["My Work", "Quality"],
   },
   [ROLE_CODES.MACHINE_OPERATOR]: {
@@ -88,7 +83,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "No design-level approval or concept changes",
       "No access to costing or admin masters",
     ],
-    permissions: [PERMISSIONS.TASK_EXECUTE],
+    permissions: defaultsFor(ROLE_CODES.MACHINE_OPERATOR),
     navFocus: ["My Work"],
   },
   [ROLE_CODES.SAMPLE_CHECKER]: {
@@ -102,13 +97,8 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Raise corrections with responsible employee",
       "Complete checking tasks with audited timestamps",
     ],
-    restrictions: [
-      "Cannot change cost masters or workflow configuration",
-    ],
-    permissions: [
-      PERMISSIONS.TASK_EXECUTE,
-      PERMISSIONS.CORRECTION_RAISE,
-    ],
+    restrictions: ["Cannot change cost masters or workflow configuration"],
+    permissions: defaultsFor(ROLE_CODES.SAMPLE_CHECKER),
     navFocus: ["My Work", "Quality"],
   },
   [ROLE_CODES.COSTING_TEAM]: {
@@ -120,13 +110,14 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Complete Costing stage tasks on My Tasks when assigned by workflow",
       "Review margin against thresholds",
       "Support approval gate with mandatory costing completeness",
+      "Post Accounts / margin steps on the ERP Chain",
     ],
     restrictions: [
       "Cannot mark employee mistakes unless explicitly permitted",
       "No design creation or final approval authority",
     ],
-    permissions: [PERMISSIONS.COST_VIEW, PERMISSIONS.TASK_EXECUTE],
-    navFocus: ["My Work", "Finance"],
+    permissions: defaultsFor(ROLE_CODES.COSTING_TEAM),
+    navFocus: ["My Work", "Finance", "Production"],
   },
   [ROLE_CODES.PRODUCTION_HEAD]: {
     code: ROLE_CODES.PRODUCTION_HEAD,
@@ -136,18 +127,13 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "View approved designs ready for production",
       "Review production instructions and costing summary",
       "Accept or hold production release decisions",
+      "Operate Grey through Ready Stock and Sales on the ERP Chain",
     ],
     restrictions: [
       "Cannot alter prior design history or time events",
       "No admin master configuration",
     ],
-    permissions: [
-      PERMISSIONS.PRODUCTION_RELEASE,
-      PERMISSIONS.COST_VIEW,
-      PERMISSIONS.TASK_EXECUTE,
-      PERMISSIONS.ERP_FLOOR_OPERATE,
-      PERMISSIONS.ERP_SALES_OPERATE,
-    ],
+    permissions: defaultsFor(ROLE_CODES.PRODUCTION_HEAD),
     navFocus: ["My Work", "Finance", "Production"],
   },
   [ROLE_CODES.ADMIN]: {
@@ -166,7 +152,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "All admin actions are audited",
       "Cannot approve for production - that is Design Head only",
     ],
-    permissions: Object.values(PERMISSIONS),
+    permissions: defaultsFor(ROLE_CODES.ADMIN),
     navFocus: ["All modules"],
   },
   [ROLE_CODES.MANAGEMENT]: {
@@ -179,19 +165,14 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "View KPI, team time reports, and costing summaries",
       "Authorize production release visibility at management level",
       "Mark designs live after production release when required",
+      "Operate full ERP Chain visibility (floor, sales, accounts)",
     ],
     restrictions: [
       "Operational edits restricted - read and approve focus",
       "No process master configuration",
       "Does not create designs or approve for production (Design Head does)",
     ],
-    permissions: [
-      PERMISSIONS.TASK_EXECUTE,
-      PERMISSIONS.COST_VIEW,
-      PERMISSIONS.KPI_ADMIN,
-      PERMISSIONS.TIME_VIEW_TEAM,
-      PERMISSIONS.PRODUCTION_RELEASE,
-    ],
+    permissions: defaultsFor(ROLE_CODES.MANAGEMENT),
     navFocus: ["Quality", "Finance", "Team & Reports", "Production"],
   },
 };

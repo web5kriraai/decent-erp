@@ -1,25 +1,21 @@
 import type { PermissionCode } from "@/lib/permissions";
 
 /** Plain-language labels shown in UI instead of raw permission codes. */
-export const PERMISSION_LABELS: Record<PermissionCode, string> = {
-  DESIGN_CREATE: "create and edit design concepts",
-  DESIGN_ASSIGN: "assign tasks to team members",
-  TASK_EXECUTE: "run tasks on My Tasks",
-  TIME_VIEW_TEAM: "view team time reports",
-  CORRECTION_RAISE: "raise corrections",
-  DESIGN_APPROVE: "approve designs for production",
-  COST_VIEW: "view costing",
-  KPI_ADMIN: "manage KPI settings",
-  MASTER_ADMIN: "manage system settings and roles",
-  PRODUCTION_RELEASE: "release designs to production",
-  WORKFLOW_OVERRIDE: "override workflow phases",
-  ERP_FLOOR_OPERATE: "run Grey through Ready Stock on the ERP Chain",
-  ERP_SALES_OPERATE: "post Sales and Sales Return on the ERP Chain",
-  ERP_ACCOUNTS_OPERATE: "post Accounts / margin on the ERP Chain",
-};
+import {
+  formatPermissionActionLabel,
+  PERMISSION_CATALOG,
+} from "@/lib/permission-catalog";
+
+/** @deprecated Prefer formatPermissionActionLabel / PERMISSION_CATALOG */
+export const PERMISSION_LABELS: Record<PermissionCode, string> = Object.fromEntries(
+  (Object.keys(PERMISSION_CATALOG) as PermissionCode[]).map((code) => [
+    code,
+    PERMISSION_CATALOG[code].actionLabel,
+  ]),
+) as Record<PermissionCode, string>;
 
 export function formatPermissionLabel(code: string): string {
-  return PERMISSION_LABELS[code as PermissionCode] ?? code.replace(/_/g, " ").toLowerCase();
+  return formatPermissionActionLabel(code);
 }
 
 export function permissionDeniedMessage(required: string | string[]): string {

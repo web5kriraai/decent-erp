@@ -44,12 +44,16 @@ export function DesignDetailModalProvider({ children }: { children: ReactNode })
   const searchParams = useSearchParams();
   const urlDesignId = searchParams.get("designId");
   const urlTab = parseTab(searchParams.get("tab"));
+  const urlImageId = searchParams.get("image");
 
   const [localDesignId, setLocalDesignId] = useState<string | null>(null);
   const [localTab, setLocalTab] = useState<DesignDetailTab>("overview");
 
   const designId = urlDesignId ?? localDesignId;
-  const tab = urlDesignId ? urlTab : localTab;
+  const tabFromUrl = urlDesignId ? urlTab : localTab;
+  const highlightImageId = urlDesignId ? urlImageId : null;
+  const tab =
+    highlightImageId && tabFromUrl === "overview" ? "files" : tabFromUrl;
 
   const syncUrl = useCallback(
     (nextId: string | null, nextTab: DesignDetailTab) => {
@@ -105,6 +109,7 @@ export function DesignDetailModalProvider({ children }: { children: ReactNode })
           tab={tab}
           onTabChange={setTab}
           onClose={closeDesign}
+          highlightImageId={highlightImageId}
         />
       ) : null}
     </DesignDetailModalContext.Provider>
