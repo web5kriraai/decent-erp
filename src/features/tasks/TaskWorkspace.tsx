@@ -448,7 +448,7 @@ export function TaskWorkspace() {
           onValueChange={(value) => setActiveTab(value as ActionTab)}
           className="action-center-tabs-root"
         >
-          <TabsList className="action-center-tabs-list mb-4">
+          <TabsList className="action-center-tabs-list mb-5">
             {ACTION_TABS.map((tab) => (
               <TabsTrigger key={tab.id} value={tab.id} className="action-center-tab-trigger">
                 {tab.label}

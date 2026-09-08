@@ -77,11 +77,7 @@ export function FormSelect({
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent
-          alignItemWithTrigger={false}
-          align="start"
-          className="min-w-[var(--anchor-width)]"
-        >
+        <SelectContent alignItemWithTrigger={false} align="start">
           {options.length === 0 ? (
             <div className="px-2 py-1.5 text-sm text-muted-foreground">No options</div>
           ) : (
@@ -89,8 +85,11 @@ export function FormSelect({
               <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                 {opt.description ? (
                   <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
-                    <span className="truncate font-medium">{opt.label}</span>
-                    <span className="truncate text-xs text-muted-foreground">
+                    <span className="font-medium whitespace-nowrap">{opt.label}</span>
+                    <span
+                      className="max-w-[22rem] text-xs leading-snug whitespace-normal text-muted-foreground"
+                      title={opt.description}
+                    >
                       {opt.description}
                     </span>
                   </span>

@@ -166,13 +166,14 @@ export function TaskActionListItem({
         shouldApplyWaitingListStyle(task, variant) && "action-center-list-item--waiting",
       )}
     >
-      <div>
+      <div className="action-center-list-body min-w-0 flex-1">
         <div className="task-list-item-head">
           <Link href={ROUTES.work.taskDetail(task.id)} className="data-table-link">
-            {primaryLabel} · {task.subProcess.name}
+            {primaryLabel}
           </Link>
           {showPriority ? <PriorityBadge priority={priority} /> : null}
         </div>
+        <p className="action-center-list-stage">{task.subProcess.name}</p>
         {secondaryLabel ? <p className="action-center-list-meta">{secondaryLabel}</p> : null}
         {listHint ? (
           <p className="action-center-list-detail action-center-list-detail--muted">{listHint}</p>

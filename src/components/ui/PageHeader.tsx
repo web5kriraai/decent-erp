@@ -21,11 +21,11 @@ export function PageHeader({
     <header
       className={cn(
         // Stack on phones; side-by-side from sm up - actions wrap, never overflow
-        "page-header mb-4 flex flex-col gap-3 border-b border-border/70 pb-4 sm:mb-5 sm:flex-row sm:items-start sm:justify-between",
+        "page-header mb-0 flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4",
         className,
       )}
     >
-      <div className="min-w-0 flex-1 space-y-1">
+      <div className="min-w-0 flex-1 space-y-1.5">
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <Breadcrumbs items={breadcrumbs} variant="page" />
         ) : null}
@@ -33,7 +33,7 @@ export function PageHeader({
           {title}
         </h1>
         {subtitle ? (
-          <p className="max-w-2xl text-[length:var(--font-size-body)] text-muted-foreground">
+          <p className="max-w-2xl text-[length:var(--font-size-body)] leading-relaxed text-muted-foreground">
             {subtitle}
           </p>
         ) : null}

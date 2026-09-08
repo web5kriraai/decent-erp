@@ -20,6 +20,7 @@ import { useDesignsList } from "@/hooks/use-designs";
 import type { DesignSummary } from "@/lib/types/api";
 import { DesignCreateModal } from "@/features/designs/DesignCreateModal";
 import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
+import { pipelineStatusLabel } from "@/lib/pipeline-status-theme";
 
 const STATUS_FILTERS = ["ALL", "DRAFT", "ACTIVE", "APPROVAL_PENDING", "APPROVED", "ON_HOLD"];
 
@@ -120,7 +121,7 @@ export function DesignListView() {
           onValueChange={setStatusFilter}
           options={STATUS_FILTERS.map((s) => ({
             value: s,
-            label: s === "ALL" ? "All statuses" : s.replace(/_/g, " "),
+            label: s === "ALL" ? "All statuses" : pipelineStatusLabel(s),
           }))}
           triggerClassName="page-toolbar-select"
         />
