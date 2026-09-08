@@ -6,6 +6,11 @@ import {
 } from "@/lib/kpi-metrics";
 import { computeTimeSummary } from "@/lib/services/time-calculation";
 import { countOpenCorrectionsForEmployee } from "@/lib/services/correction-service";
+import {
+  getLatestMarkBalance,
+  upsertMonthlyKpiMark,
+  upsertPerformanceGrade,
+} from "@/lib/services/performance-service";
 
 const kpiScoreInclude = {
   employee: {
@@ -58,10 +63,15 @@ export async function listEmployeeKpiScores(filters: {
       by: ["metricCode"],
       where,
       _count: { _all: true },
+      _avg: { score: true },
     }),
   ]);
 
   const employeeIds = byEmployee.map((row) => row.employeeId);
+  const now = new Date();
+  const periodYear = now.getUTCFullYear();
+  const periodMonth = now.getUTCMonth() + 1;
+
   const employees =
     employeeIds.length > 0
       ? await prisma.employee.findMany({
@@ -69,19 +79,54 @@ export async function listEmployeeKpiScores(filters: {
           select: { id: true, name: true },
         })
       : [];
+
+  const grades =
+    employeeIds.length > 0
+      ? await prisma.employeePerformanceGrade.findMany({
+          where: {
+            employeeId: { in: employeeIds },
+            periodYear,
+            periodMonth,
+          },
+          select: {
+            employeeId: true,
+            gradeCode: true,
+            totalMarks: true,
+          },
+        })
+      : [];
+
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
+  const gradeById = new Map(
+    grades.map((g) => [
+      g.employeeId,
+      { gradeCode: g.gradeCode, marksBalance: Number(g.totalMarks) },
+    ]),
+  );
 
   const chart = byEmployee
-    .map((row) => ({
-      employeeId: row.employeeId,
-      name: (nameById.get(row.employeeId) ?? `Emp ${row.employeeId}`).split(" ")[0],
-      score: Number(row._sum.weightedScore ?? 0),
-    }))
+    .map((row) => {
+      const grade = gradeById.get(row.employeeId);
+      return {
+        employeeId: row.employeeId,
+        name: (nameById.get(row.employeeId) ?? `Emp ${row.employeeId}`).split(" ")[0],
+        score: Number(row._sum.weightedScore ?? 0),
+        gradeCode: grade?.gradeCode ?? null,
+        marksBalance: grade?.marksBalance ?? null,
+      };
+    })
     .sort((a, b) => b.score - a.score);
 
   const metricCounts = Object.fromEntries(
     byMetric.map((row) => [row.metricCode, row._count._all]),
   ) as Record<string, number>;
+
+  const metricAverages = Object.fromEntries(
+    byMetric.map((row) => [
+      row.metricCode,
+      row._avg.score != null ? Number(row._avg.score) : null,
+    ]),
+  ) as Record<string, number | null>;
 
   return {
     items,
@@ -93,6 +138,7 @@ export async function listEmployeeKpiScores(filters: {
       employeeCount: byEmployee.length,
       chart,
       metricCounts,
+      metricAverages,
     },
   };
 }
@@ -174,6 +220,14 @@ export async function calculateMonthlyKpi(year: number, month: number) {
         corrections: true,
         subProcess: true,
         checklistResults: true,
+        artifacts: { select: { id: true } },
+      },
+    });
+
+    const responsibleCorrections = await prisma.designCorrection.findMany({
+      where: {
+        responsibleEmployeeId: employee.id,
+        createdAtUtc: { gte: start, lt: end },
       },
     });
 
@@ -181,13 +235,32 @@ export async function calculateMonthlyKpi(year: number, month: number) {
     const onTime = completed.filter(
       (t) => t.completedAt && t.dueAt && t.completedAt <= t.dueAt,
     ).length;
-    const mistakeCorrections = tasks.flatMap((t) =>
-      t.corrections.filter((c) =>
-        MISTAKE_CORRECTION_TYPES.includes(c.correctionType as (typeof MISTAKE_CORRECTION_TYPES)[number]),
-      ),
+
+    const mistakeCorrections =
+      responsibleCorrections.length > 0
+        ? responsibleCorrections.filter((c) =>
+            MISTAKE_CORRECTION_TYPES.includes(
+              c.correctionType as (typeof MISTAKE_CORRECTION_TYPES)[number],
+            ),
+          )
+        : tasks.flatMap((t) =>
+            t.corrections.filter((c) =>
+              MISTAKE_CORRECTION_TYPES.includes(
+                c.correctionType as (typeof MISTAKE_CORRECTION_TYPES)[number],
+              ),
+            ),
+          );
+
+    const ratingImpactSum = mistakeCorrections.reduce(
+      (sum, c) => sum + Number(c.ratingImpact ?? -5),
+      0,
     );
+
     const firstTimeRight = completed.filter(
-      (t) => !t.corrections.some((c) => MISTAKE_CORRECTION_TYPES.includes(c.correctionType as never)),
+      (t) =>
+        !t.corrections.some((c) =>
+          MISTAKE_CORRECTION_TYPES.includes(c.correctionType as never),
+        ),
     ).length;
 
     let totalActive = 0;
@@ -209,7 +282,7 @@ export async function calculateMonthlyKpi(year: number, month: number) {
       }
       if (task.subProcess.isFileRequired && task.status === "COMPLETED") {
         docsRequired += 1;
-        if (task.outputRemark && task.checklistResults.length >= 0) {
+        if (task.outputRemark || task.artifacts.length > 0) {
           docsOk += 1;
         }
       }
@@ -218,6 +291,61 @@ export async function calculateMonthlyKpi(year: number, month: number) {
         if (task.status === "COMPLETED") depOk += 1;
       }
     }
+
+    const designIds = [
+      ...new Set(
+        (
+          await prisma.designTask.findMany({
+            where: { assignedEmployeeId: employee.id },
+            select: { designId: true },
+            distinct: ["designId"],
+          })
+        ).map((t) => t.designId),
+      ),
+    ];
+
+    const approvals =
+      designIds.length > 0
+        ? await prisma.designApproval.findMany({
+            where: {
+              designId: { in: designIds },
+              OR: [
+                { approverEmployeeId: employee.id },
+                { design: { tasks: { some: { assignedEmployeeId: employee.id } } } },
+              ],
+              decisionAtUtc: { gte: start, lt: end },
+            },
+          })
+        : [];
+    const approvalDecided = approvals.filter((a) => a.decision !== "PENDING");
+    const approvalApproved = approvalDecided.filter((a) => a.decision === "APPROVED").length;
+    const approvalRate = approvalDecided.length
+      ? (approvalApproved / approvalDecided.length) * 100
+      : null;
+    const checklistRate = checklistTotal
+      ? (checklistPassed / checklistTotal) * 100
+      : null;
+    let qualityScore = 0;
+    if (checklistRate != null && approvalRate != null) {
+      qualityScore = checklistRate * 0.5 + approvalRate * 0.5;
+    } else if (checklistRate != null) {
+      qualityScore = checklistRate;
+    } else if (approvalRate != null) {
+      qualityScore = approvalRate;
+    } else if (completed.length) {
+      qualityScore = 80;
+    }
+
+    const creativityRatings = await prisma.designCreativityRating.findMany({
+      where: {
+        employeeId: employee.id,
+        ratedAtUtc: { gte: start, lt: end },
+      },
+    });
+    const creativityFromRatings = creativityRatings.length
+      ? creativityRatings.reduce((s, r) => s + Number(r.score), 0) /
+        creativityRatings.length
+      : null;
 
     const designs = await prisma.designConcept.findMany({
       where: {
@@ -239,31 +367,50 @@ export async function calculateMonthlyKpi(year: number, month: number) {
             ? Number(d.standardCost)
             : null;
       if (baseline != null && baseline > 0 && actual > 0) {
-        costScores.push(Math.max(0, Math.min(100, (1 - Math.abs(actual - baseline) / baseline) * 100)));
+        costScores.push(
+          Math.max(0, Math.min(100, (1 - Math.abs(actual - baseline) / baseline) * 100)),
+        );
       }
     }
 
+    const correctionPerformance = Math.max(
+      0,
+      Math.min(100, 100 + ratingImpactSum - mistakeCorrections.length * 2),
+    );
+
     const scores: Record<string, number> = {
       ON_TIME_COMPLETION: completed.length ? (onTime / completed.length) * 100 : 100,
-      QUALITY_APPROVAL: checklistTotal
-        ? (checklistPassed / checklistTotal) * 100
-        : completed.length
-          ? 80
-          : 0,
-      FIRST_TIME_RIGHT: completed.length ? (firstTimeRight / completed.length) * 100 : 100,
-      CORRECTION_PERFORMANCE: Math.max(0, 100 - mistakeCorrections.length * 12),
-      CREATIVITY: completed.length ? Math.min(100, 70 + firstTimeRight * 2) : 0,
+      QUALITY_APPROVAL: qualityScore,
+      FIRST_TIME_RIGHT: completed.length
+        ? (firstTimeRight / completed.length) * 100
+        : 100,
+      CORRECTION_PERFORMANCE: correctionPerformance,
+      CREATIVITY:
+        creativityFromRatings != null
+          ? creativityFromRatings
+          : completed.length
+            ? Math.min(100, 70 + firstTimeRight * 2)
+            : 0,
       COST_CONTROL: costScores.length
         ? costScores.reduce((a, b) => a + b, 0) / costScores.length
         : 70,
-      TEAM_COORDINATION: depTotal ? (depOk / depTotal) * 100 : completed.length ? 85 : 70,
-      PRODUCTIVITY: totalExpected ? Math.min(100, (totalExpected / Math.max(totalActive, 1)) * 100) : 0,
+      TEAM_COORDINATION: depTotal
+        ? (depOk / depTotal) * 100
+        : completed.length
+          ? 85
+          : 70,
+      PRODUCTIVITY: totalExpected
+        ? Math.min(100, (totalExpected / Math.max(totalActive, 1)) * 100)
+        : 0,
       DOCUMENTATION: docsRequired ? (docsOk / docsRequired) * 100 : 100,
     };
+
+    let weightedTotal = 0;
 
     for (const metric of metrics) {
       const score = scores[metric.code] ?? 0;
       const weightedScore = (score * metric.weight) / 100;
+      weightedTotal += weightedScore;
 
       const existing = await prisma.employeeKpiScore.findFirst({
         where: {
@@ -300,6 +447,21 @@ export async function calculateMonthlyKpi(year: number, month: number) {
 
       results.push({ employeeId: employee.id, metricCode: metric.code, score, weightedScore });
     }
+
+    await upsertMonthlyKpiMark({
+      employeeId: employee.id,
+      periodYear: year,
+      periodMonth: month,
+      weightedTotal,
+    });
+    const marksBalance = await getLatestMarkBalance(employee.id);
+    await upsertPerformanceGrade({
+      employeeId: employee.id,
+      periodYear: year,
+      periodMonth: month,
+      weightedKpiScore: weightedTotal,
+      totalMarks: marksBalance,
+    });
   }
 
   return results;

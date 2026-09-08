@@ -9,11 +9,12 @@ import { writeAuditLogDirect } from "@/lib/audit";
 import {
   canRecordMachineMetrics,
   hasMachineMetricsInPayload,
+  MACHINE_FORMATS,
 } from "@/lib/services/task-machine-output-utils";
 
 const patchSchema = z.object({
   stitchCount: z.number().int().min(0).optional().nullable(),
-  machineFormat: z.string().max(32).optional().nullable(),
+  machineFormat: z.enum(MACHINE_FORMATS).optional().nullable(),
   sampleQty: z.number().int().min(0).optional().nullable(),
   wastageQty: z.number().int().min(0).optional().nullable(),
 });

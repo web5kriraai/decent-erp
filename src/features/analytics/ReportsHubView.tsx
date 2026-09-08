@@ -1,61 +1,132 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
-import { AppCard } from "@/components/ui/AppCard";
-import { AppButton } from "@/components/ui/AppButton";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ROUTES } from "@/config/routes";
-import { IconKpi } from "@/components/icons";
+import { IconChevronRight, IconKpi } from "@/components/icons";
+import { cn } from "@/lib/utils";
 
-const REPORT_CARDS = [
+type ReportLink = {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  group: "quality" | "production" | "people";
+  permission?: string;
+};
+
+type ExportItem = {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+};
+
+const REPORT_LINKS: ReportLink[] = [
   {
+    id: "corrections",
     title: "Correction Analysis",
-    description: "Correction trends and impact.",
+    description: "Correction trends and impact by type.",
     href: ROUTES.analytics.reportsCorrections,
+    group: "quality",
   },
   {
+    id: "sample-status",
+    title: "Sample Status",
+    description: "Pass / Hold / Reject by stage for the month.",
+    href: ROUTES.analytics.reportsSampleStatus,
+    group: "quality",
+  },
+  {
+    id: "design-success",
     title: "Design Success",
     description: "Quantity, sales, and margin by design.",
     href: ROUTES.analytics.reportsDesignSuccess,
+    group: "production",
   },
   {
-    title: "Sample Status",
-    description: "Sample Pass / Hold / Reject by stage for the month.",
-    href: ROUTES.analytics.reportsSampleStatus,
-  },
-  {
+    id: "production-start",
     title: "Production Start",
-    description: "Designs accepted or released to production by product type.",
+    description: "Accepted or released designs by product type.",
     href: ROUTES.analytics.reportsProductionStart,
+    group: "production",
   },
   {
+    id: "kpi",
     title: "Performance KPI",
-    description: "Employee performance metrics.",
+    description: "Employee scores, grades, and metric weights.",
     href: ROUTES.analytics.kpi,
+    group: "people",
   },
   {
+    id: "time",
     title: "Time Report",
     description: "Team time by employee and process.",
     href: ROUTES.analytics.timeReport,
+    group: "people",
+    permission: PERMISSIONS.TIME_VIEW_TEAM,
   },
-] as const;
+];
 
-const EXPORT_REPORTS = [
-  { title: "Design Performance", type: "design-performance", description: "Design status by product and season." },
-  { title: "Cost Analysis", type: "cost-analysis", description: "Cost entries by design." },
-  { title: "Material Analysis", type: "material-analysis", description: "Material requests and issues." },
-  { title: "Delay Analysis", type: "delay-analysis", description: "Overdue tasks." },
-  { title: "Designer Ranking", type: "designer-ranking", description: "Weighted KPI ranking this month." },
-  { title: "Employee Performance", type: "designer-ranking", description: "Export employee weighted scores." },
-] as const;
+const EXPORT_ITEMS: ExportItem[] = [
+  {
+    id: "design-performance",
+    title: "Design Performance",
+    description: "Design status by product and season",
+    type: "design-performance",
+  },
+  {
+    id: "cost-analysis",
+    title: "Cost Analysis",
+    description: "Cost entries by design",
+    type: "cost-analysis",
+  },
+  {
+    id: "material-analysis",
+    title: "Material Analysis",
+    description: "Material requests and issues",
+    type: "material-analysis",
+  },
+  {
+    id: "delay-analysis",
+    title: "Delay Analysis",
+    description: "Overdue tasks",
+    type: "delay-analysis",
+  },
+  {
+    id: "designer-ranking",
+    title: "Designer Ranking",
+    description: "Weighted KPI ranking this month",
+    type: "designer-ranking",
+  },
+];
+
+const GROUPS = [
+  { id: "quality" as const, title: "Quality", description: "Corrections and sample outcomes" },
+  { id: "production" as const, title: "Production", description: "Success and start metrics" },
+  { id: "people" as const, title: "People", description: "KPI and time" },
+];
 
 export function ReportsHubView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const enabled = permissions.includes(PERMISSIONS.KPI_ADMIN);
+  const canViewTime = permissions.includes(PERMISSIONS.TIME_VIEW_TEAM);
+  const [exportType, setExportType] = useState(EXPORT_ITEMS[0]?.type ?? "design-performance");
+
+  const visibleLinks = useMemo(
+    () =>
+      REPORT_LINKS.filter((link) => {
+        if (!link.permission) return true;
+        return permissions.includes(link.permission);
+      }),
+    [permissions],
+  );
 
   if (!enabled) {
     return (
@@ -65,40 +136,91 @@ export function ReportsHubView() {
     );
   }
 
+  function downloadExport() {
+    window.location.href = `/api/reports/export?type=${encodeURIComponent(exportType)}`;
+  }
+
   return (
     <div className="page-shell page-shell--wide">
-      <PageHeader title="Reports & Scorecards" />
+      <PageHeader
+        title="Reports Hub"
+        subtitle="Browse scorecards and download CSV exports."
+        actions={
+          <AppButtonLink href={ROUTES.analytics.kpi} appVariant="secondary" size="sm">
+            Performance KPI
+          </AppButtonLink>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 stack-section">
-        {REPORT_CARDS.map((card) => (
-          <Link key={card.href} href={card.href} className="block no-underline">
-            <AppCard
-              title={card.title}
-              headerAction={<IconKpi size={18} className="text-muted-foreground" />}
-            >
-              <p className="m-0 text-sm text-muted-foreground">{card.description}</p>
-            </AppCard>
-          </Link>
-        ))}
-      </div>
+      <div className="reports-hub-layout">
+        <section className="reports-hub-directory" aria-label="Interactive reports">
+          {GROUPS.map((group) => {
+            const links = visibleLinks.filter((l) => l.group === group.id);
+            if (links.length === 0) return null;
+            return (
+              <div key={group.id} className="reports-hub-group">
+                <div className="reports-hub-group-head">
+                  <h2 className="reports-hub-group-title">{group.title}</h2>
+                  <p className="reports-hub-group-desc">{group.description}</p>
+                </div>
+                <ul className="reports-hub-link-list">
+                  {links.map((link) => (
+                    <li key={link.id}>
+                      <Link href={link.href} className="reports-hub-link">
+                        <span className="reports-hub-link-icon" aria-hidden>
+                          <IconKpi size={16} />
+                        </span>
+                        <span className="reports-hub-link-copy">
+                          <span className="reports-hub-link-title">{link.title}</span>
+                          <span className="reports-hub-link-desc">{link.description}</span>
+                        </span>
+                        <IconChevronRight
+                          size={16}
+                          className="reports-hub-link-chevron"
+                          aria-hidden
+                        />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+          {!canViewTime ? (
+            <p className="reports-hub-perm-note">
+              Time Report is hidden — requires team time access.
+            </p>
+          ) : null}
+        </section>
 
-      <h3 className="mt-6 mb-3 text-base font-semibold">CSV Exports</h3>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {EXPORT_REPORTS.map((card) => (
-          <AppCard key={card.type + card.title} title={card.title}>
-            <p className="m-0 mb-3 text-sm text-muted-foreground">{card.description}</p>
-            <AppButton
-              type="button"
-              size="sm"
-              appVariant="secondary"
-              onClick={() => {
-                window.location.href = `/api/reports/export?type=${encodeURIComponent(card.type)}`;
-              }}
-            >
-              Export CSV
-            </AppButton>
-          </AppCard>
-        ))}
+        <aside className="reports-hub-exports" aria-label="CSV exports">
+          <div className="reports-hub-exports-head">
+            <h2 className="reports-hub-group-title">CSV Exports</h2>
+            <p className="reports-hub-group-desc">Download a dataset without opening a report page.</p>
+          </div>
+          <ul className="reports-hub-export-list" role="listbox" aria-label="Export type">
+            {EXPORT_ITEMS.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={exportType === item.type}
+                  className={cn(
+                    "reports-hub-export-item",
+                    exportType === item.type && "reports-hub-export-item--selected",
+                  )}
+                  onClick={() => setExportType(item.type)}
+                >
+                  <span className="reports-hub-link-title">{item.title}</span>
+                  <span className="reports-hub-link-desc">{item.description}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <AppButton type="button" className="reports-hub-export-btn" onClick={downloadExport}>
+            Download CSV
+          </AppButton>
+        </aside>
       </div>
     </div>
   );

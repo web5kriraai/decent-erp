@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api-utils";
 import type { MaterialLineStatus, MaterialSource } from "@prisma/client";
+import { MASTER_TYPES } from "@/lib/master-catalog-types";
+
+const MATERIAL_CATALOG_TYPES = new Set<string>([
+  MASTER_TYPES.FABRIC_QUALITY,
+  MASTER_TYPES.THREAD,
+  MASTER_TYPES.ACCESSORIES,
+]);
 
 export async function listMaterialLines(designId?: bigint) {
   return prisma.designMaterialLine.findMany({
@@ -28,6 +35,12 @@ export async function createMaterialLine(input: {
   if (!design) throw new ApiError("Design not found", 404);
   const item = await prisma.masterCatalog.findUnique({ where: { id: input.catalogItemId } });
   if (!item || !item.isActive) throw new ApiError("Catalog item not found", 404);
+  if (!MATERIAL_CATALOG_TYPES.has(item.masterType)) {
+    throw new ApiError(
+      "Material lines must use FABRIC_QUALITY, THREAD, or ACCESSORIES catalog items",
+      400,
+    );
+  }
 
   return prisma.designMaterialLine.create({
     data: {

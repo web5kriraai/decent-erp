@@ -8,11 +8,10 @@ import { writeAuditLogDirect } from "@/lib/audit";
 import {
   canRecordMachineMetrics,
   hasMachineMetricsInPayload,
+  MACHINE_FORMATS,
 } from "@/lib/services/task-machine-output-utils";
 import { assertTaskAssignedToEmployee } from "@/lib/services/task-service";
 import type { TaskArtifactType } from "@prisma/client";
-
-const MACHINE_FORMATS = ["EMB", "DST", "OTHER"] as const;
 
 const schema = z
   .object({
@@ -65,6 +64,43 @@ export async function POST(
         undefined,
         "Machine output metrics can only be recorded on machine sample, receive, or re-sample tasks.",
       );
+    }
+
+    // Keep one SAMPLE_OUTPUT row so file upload and metrics stay on the same artifact.
+    if (body.artifactType === "SAMPLE_OUTPUT") {
+      const existing = await prisma.taskArtifact.findFirst({
+        where: { taskId, artifactType: "SAMPLE_OUTPUT" },
+        orderBy: { uploadedAtUtc: "desc" },
+      });
+
+      if (existing) {
+        const before = existing;
+        const artifact = await prisma.taskArtifact.update({
+          where: { id: existing.id },
+          data: {
+            ...(body.fileName !== undefined ? { fileName: body.fileName } : {}),
+            ...(body.storageKey !== undefined ? { storageKey: body.storageKey } : {}),
+            ...(body.stitchCount !== undefined ? { stitchCount: body.stitchCount } : {}),
+            ...(body.machineFormat !== undefined
+              ? { machineFormat: body.machineFormat }
+              : {}),
+            ...(body.sampleQty !== undefined ? { sampleQty: body.sampleQty } : {}),
+            ...(body.wastageQty !== undefined ? { wastageQty: body.wastageQty } : {}),
+          },
+        });
+
+        await writeAuditLogDirect({
+          entityType: "TaskArtifact",
+          entityId: artifact.id.toString(),
+          action: "UPDATE",
+          userId: ctx.employeeId,
+          correlationId: ctx.correlationId,
+          before,
+          after: artifact,
+        });
+
+        return jsonOk(serializeBigInt(artifact), ctx.correlationId);
+      }
     }
 
     const artifact = await prisma.taskArtifact.create({

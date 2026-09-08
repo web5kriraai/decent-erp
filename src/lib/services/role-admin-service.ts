@@ -14,9 +14,44 @@ const employeeSelect = {
 } as const;
 
 export async function listEmployeesForAdmin() {
-  return prisma.employee.findMany({
+  const now = new Date();
+  const periodYear = now.getUTCFullYear();
+  const periodMonth = now.getUTCMonth() + 1;
+
+  const employees = await prisma.employee.findMany({
     orderBy: [{ active: "desc" }, { name: "asc" }],
     select: employeeSelect,
+  });
+
+  if (employees.length === 0) return [];
+
+  const grades = await prisma.employeePerformanceGrade.findMany({
+    where: {
+      employeeId: { in: employees.map((e) => e.id) },
+      periodYear,
+      periodMonth,
+    },
+    select: {
+      employeeId: true,
+      gradeCode: true,
+      totalMarks: true,
+    },
+  });
+
+  const gradeById = new Map(
+    grades.map((g) => [
+      g.employeeId,
+      { gradeCode: g.gradeCode, marksBalance: Number(g.totalMarks) },
+    ]),
+  );
+
+  return employees.map((employee) => {
+    const grade = gradeById.get(employee.id);
+    return {
+      ...employee,
+      gradeCode: grade?.gradeCode ?? null,
+      marksBalance: grade?.marksBalance ?? null,
+    };
   });
 }
 

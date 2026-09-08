@@ -17,7 +17,7 @@ type ModalProps = {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "full";
   description?: string;
 };
 
@@ -27,6 +27,7 @@ const sizeClasses = {
   md: "max-w-[calc(100%-1.5rem)] sm:max-w-2xl",
   lg: "max-w-[calc(100%-1.5rem)] sm:max-w-3xl lg:max-w-4xl",
   xl: "max-w-[calc(100%-1.5rem)] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl",
+  full: "max-w-[calc(100%-1rem)] sm:max-w-[min(96vw,72rem)]",
 };
 
 /**

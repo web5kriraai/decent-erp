@@ -15,7 +15,6 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
-import { AppCard } from "@/components/ui/AppCard";
 import {
   Modal,
   ModalFooterActions,
@@ -33,7 +32,7 @@ import { useApiToast } from "@/components/ui/ToastProvider";
 import type { LiveTeamTimeRow } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
 
-type StatusFilter = "ALL" | "RUNNING" | "ON_HOLD" | "IDLE";
+type StatusFilter = "ACTIVE" | "RUNNING" | "ON_HOLD" | "IDLE" | "ALL";
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -60,31 +59,7 @@ function statusBadgeStatus(status: LiveTeamTimeRow["status"]) {
   return status;
 }
 
-function MetricChip({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className={cn("live-time-metric", accent && "live-time-metric--accent")}>
-      <span className="live-time-metric-icon" aria-hidden>
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="live-time-metric-label">{label}</p>
-        <p className="live-time-metric-value">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function PersonRow({
+function CompactPersonRow({
   row,
   canAdjust,
   onAdjust,
@@ -94,89 +69,52 @@ function PersonRow({
   onAdjust: (row: LiveTeamTimeRow) => void;
 }) {
   const busy = row.status !== "IDLE" && row.task;
-  const dueLabel = row.task?.dueAt
-    ? new Date(row.task.dueAt).toLocaleDateString(undefined, {
-        day: "numeric",
-        month: "short",
-      })
-    : null;
 
   return (
     <article
       className={cn(
-        "live-time-person",
-        row.status === "RUNNING" && "live-time-person--running",
-        row.status === "ON_HOLD" && "live-time-person--hold",
-        row.status === "IDLE" && "live-time-person--idle",
+        "live-time-compact",
+        row.status === "RUNNING" && "live-time-compact--running",
+        row.status === "ON_HOLD" && "live-time-compact--hold",
+        row.status === "IDLE" && "live-time-compact--idle",
       )}
     >
-      <div className="live-time-person-main">
-        <span
-          className={cn(
-            "live-time-avatar",
-            row.status === "RUNNING" && "live-time-avatar--running",
-            row.status === "ON_HOLD" && "live-time-avatar--hold",
-          )}
-          aria-hidden
-        >
-          {initials(row.name)}
-        </span>
-        <div className="min-w-0">
-          <div className="live-time-person-title-row">
-            <h3 className="live-time-person-name">{row.name}</h3>
-            <StatusBadge
-              status={statusBadgeStatus(row.status)}
-              label={statusLabel(row.status)}
-            />
-          </div>
-          <p className="live-time-person-role">{formatRoleName(row.role.name)}</p>
-          <p className="live-time-person-code">{row.employeeCode}</p>
-        </div>
-      </div>
+      <span
+        className={cn(
+          "live-time-avatar",
+          row.status === "RUNNING" && "live-time-avatar--running",
+          row.status === "ON_HOLD" && "live-time-avatar--hold",
+        )}
+        aria-hidden
+      >
+        {initials(row.name)}
+      </span>
 
-      <div className="live-time-person-task">
+      <div className="live-time-compact-main min-w-0">
+        <div className="live-time-person-title-row">
+          <h3 className="live-time-person-name">{row.name}</h3>
+          <StatusBadge
+            status={statusBadgeStatus(row.status)}
+            label={statusLabel(row.status)}
+          />
+        </div>
+        <p className="live-time-person-role">{formatRoleName(row.role.name)}</p>
         {busy && row.task ? (
-          <>
-            <p className="live-time-task-label">Current task</p>
-            <Link
-              href={ROUTES.work.taskDetail(row.task.taskId)}
-              className="live-time-task-link"
-            >
+          <p className="live-time-compact-task">
+            <Link href={ROUTES.work.taskDetail(row.task.taskId)} className="live-time-task-link">
               {row.task.ideaRef}
             </Link>
-            <p className="live-time-task-meta">
-              {row.task.subProcessName}
-              {row.task.collectionName ? ` · ${row.task.collectionName}` : ""}
-            </p>
-          </>
+            <span className="live-time-task-meta">
+              {" "}
+              · {row.task.subProcessName} · {formatDuration(row.task.activeSeconds)} active
+            </span>
+          </p>
         ) : (
-          <div className="live-time-idle-note">
-            <IconUserRound className="size-4" aria-hidden />
-            <span>No active task</span>
-          </div>
+          <p className="live-time-compact-task text-muted-foreground">No active task</p>
         )}
       </div>
 
-      <div className="live-time-person-times">
-        <div className="live-time-stat">
-          <span className="live-time-stat-label">Active</span>
-          <span className="live-time-stat-value">
-            {row.task ? formatDuration(row.task.activeSeconds) : "-"}
-          </span>
-        </div>
-        <div className="live-time-stat">
-          <span className="live-time-stat-label">Hold</span>
-          <span className="live-time-stat-value">
-            {row.task ? formatDuration(row.task.holdSeconds) : "-"}
-          </span>
-        </div>
-        <div className="live-time-stat">
-          <span className="live-time-stat-label">Due</span>
-          <span className="live-time-stat-value">{dueLabel ?? "-"}</span>
-        </div>
-      </div>
-
-      <div className="live-time-person-actions">
+      <div className="live-time-compact-actions">
         {busy && row.task ? (
           <>
             <AppButtonLink
@@ -184,7 +122,7 @@ function PersonRow({
               appVariant="outline"
               size="sm"
             >
-              Open task
+              Open
             </AppButtonLink>
             {canAdjust ? (
               <AppButton
@@ -193,13 +131,11 @@ function PersonRow({
                 size="sm"
                 onClick={() => onAdjust(row)}
               >
-                Adjust time
+                Adjust
               </AppButton>
             ) : null}
           </>
-        ) : (
-          <span className="live-time-action-idle">Waiting</span>
-        )}
+        ) : null}
       </div>
     </article>
   );
@@ -213,7 +149,7 @@ export function AdminTimeLiveView() {
   const liveQuery = useLiveTeamTime(enabled);
   const toast = useApiToast();
 
-  const [filter, setFilter] = useState<StatusFilter>("ALL");
+  const [filter, setFilter] = useState<StatusFilter>("ACTIVE");
   const [adjustTarget, setAdjustTarget] = useState<{
     taskId: string;
     ideaRef: string;
@@ -240,10 +176,16 @@ export function AdminTimeLiveView() {
 
   const employees = liveQuery.data?.employees ?? [];
   const idleCount = employees.filter((e) => e.status === "IDLE").length;
+  const activeCount =
+    (liveQuery.data?.runningCount ?? 0) + (liveQuery.data?.onHoldCount ?? 0);
 
   const filtered = useMemo(() => {
-    const list =
-      filter === "ALL" ? employees : employees.filter((e) => e.status === filter);
+    let list = employees;
+    if (filter === "ACTIVE") {
+      list = employees.filter((e) => e.status === "RUNNING" || e.status === "ON_HOLD");
+    } else if (filter !== "ALL") {
+      list = employees.filter((e) => e.status === filter);
+    }
     return [...list].sort((a, b) => {
       const rank = (s: LiveTeamTimeRow["status"]) =>
         s === "RUNNING" ? 0 : s === "ON_HOLD" ? 1 : 2;
@@ -263,15 +205,49 @@ export function AdminTimeLiveView() {
 
   const data = liveQuery.data;
 
+  const railFilters: Array<{
+    key: StatusFilter;
+    label: string;
+    count: number;
+    icon: ReactNode;
+  }> = [
+    {
+      key: "ACTIVE",
+      label: "Working now",
+      count: activeCount,
+      icon: <IconPlayCircle className="size-4" />,
+    },
+    {
+      key: "RUNNING",
+      label: "Running",
+      count: data?.runningCount ?? 0,
+      icon: <IconPlayCircle className="size-4" />,
+    },
+    {
+      key: "ON_HOLD",
+      label: "On hold",
+      count: data?.onHoldCount ?? 0,
+      icon: <IconPauseCircle className="size-4" />,
+    },
+    {
+      key: "IDLE",
+      label: "Idle",
+      count: idleCount,
+      icon: <IconUserRound className="size-4" />,
+    },
+    {
+      key: "ALL",
+      label: "Everyone",
+      count: employees.length,
+      icon: <IconClock3 className="size-4" />,
+    },
+  ];
+
   return (
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Live Team Time"
-        subtitle={
-          canAdjust
-            ? "Monitor RUNNING / ON_HOLD / IDLE. MASTER_ADMIN can record ADMIN_ADJUSTMENT on a running task (seconds + remark, audited)."
-            : "Monitor RUNNING / ON_HOLD / IDLE across the team."
-        }
+        subtitle="Who is working, on hold, or idle — updates every 15 seconds."
         actions={
           <div className="live-time-header-actions">
             <AppButton
@@ -289,7 +265,7 @@ export function AdminTimeLiveView() {
               Refresh
             </AppButton>
             <AppButtonLink href={ROUTES.analytics.timeReport} appVariant="secondary" size="sm">
-              Time reports
+              Time report
             </AppButtonLink>
           </div>
         }
@@ -302,76 +278,57 @@ export function AdminTimeLiveView() {
         onRetry={() => liveQuery.refetch()}
         skeletonVariant="stats"
       >
-        {data && (
-          <div className="live-time-page">
-            <div className="live-time-metric-row">
-              <MetricChip
-                accent
-                icon={<IconPlayCircle className="size-4" />}
-                label="Running now"
-                value={String(data.runningCount)}
-              />
-              <MetricChip
-                icon={<IconPauseCircle className="size-4" />}
-                label="On hold"
-                value={String(data.onHoldCount)}
-              />
-              <MetricChip
-                icon={<IconUserRound className="size-4" />}
-                label="Idle"
-                value={String(idleCount)}
-              />
-              <MetricChip
-                icon={<IconClock3 className="size-4" />}
-                label="Last refresh"
-                value={new Date(data.asOfUtc).toLocaleTimeString()}
-              />
-            </div>
-
-            <AppCard
-              title="Team board"
-              headerAction={
-                <p className="live-time-auto-hint">Auto-updates every 15s</p>
-              }
-              contentClassName="live-time-card-content"
-            >
-              <div className="live-time-filters" role="tablist" aria-label="Filter by status">
-                {(
-                  [
-                    ["ALL", "All", employees.length],
-                    ["RUNNING", "Working", data.runningCount],
-                    ["ON_HOLD", "On hold", data.onHoldCount],
-                    ["IDLE", "Idle", idleCount],
-                  ] as const
-                ).map(([key, label, count]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    role="tab"
-                    aria-selected={filter === key}
-                    className={cn(
-                      "live-time-filter",
-                      filter === key && "live-time-filter--active",
-                    )}
-                    onClick={() => setFilter(key)}
-                  >
-                    {label}
-                    <span className="live-time-filter-count">{count}</span>
-                  </button>
+        {data ? (
+          <div className="live-time-shell">
+            <aside className="live-time-rail" aria-label="Status filters">
+              <p className="live-time-rail-label">Focus</p>
+              <ul className="live-time-rail-list">
+                {railFilters.map((item) => (
+                  <li key={item.key}>
+                    <button
+                      type="button"
+                      className={cn(
+                        "live-time-rail-btn",
+                        filter === item.key && "live-time-rail-btn--selected",
+                      )}
+                      aria-pressed={filter === item.key}
+                      onClick={() => setFilter(item.key)}
+                    >
+                      <span className="live-time-rail-btn-icon" aria-hidden>
+                        {item.icon}
+                      </span>
+                      <span className="live-time-rail-btn-copy">
+                        <span className="live-time-rail-btn-label">{item.label}</span>
+                        <span className="live-time-rail-btn-count">{item.count}</span>
+                      </span>
+                    </button>
+                  </li>
                 ))}
+              </ul>
+              <p className="live-time-rail-meta">
+                Last refresh {new Date(data.asOfUtc).toLocaleTimeString()}
+              </p>
+            </aside>
+
+            <section className="live-time-main" aria-label="Team board">
+              <div className="live-time-main-head">
+                <h2 className="live-time-main-title">
+                  {railFilters.find((f) => f.key === filter)?.label ?? "Team"}
+                </h2>
+                <p className="live-time-auto-hint">Auto-updates every 15s</p>
               </div>
 
               {filtered.length === 0 ? (
                 <div className="live-time-empty" role="status">
-                  <p className="live-time-empty-title">No people in this filter</p>
+                  <p className="live-time-empty-title">No people in this focus</p>
                   <p className="live-time-empty-text">
-                    Switch filters or wait for someone to start a task.
+                    Switch focus or wait for someone to start a task.
                   </p>
                 </div>
               ) : (
-                <div className="live-time-board">
+                <div className="live-time-compact-board">
                   {filtered.map((row) => (
-                    <PersonRow
+                    <CompactPersonRow
                       key={row.employeeId}
                       row={row}
                       canAdjust={canAdjust}
@@ -389,9 +346,9 @@ export function AdminTimeLiveView() {
                   ))}
                 </div>
               )}
-            </AppCard>
+            </section>
           </div>
-        )}
+        ) : null}
       </QueryState>
 
       <Modal

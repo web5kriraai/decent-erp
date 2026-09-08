@@ -49,8 +49,88 @@ export type DesignSummary = {
   }>;
   images?: Array<{ id: string; isPrimary: boolean; fileName?: string; mediaKind?: string }>;
   tasks?: DesignTask[];
-  corrections?: unknown[];
-  approvals?: unknown[];
+  corrections?: DesignCorrectionDetail[];
+  approvals?: DesignApprovalDetail[];
+  costs?: Array<{
+    id: string;
+    amount: number;
+    costType: string;
+    costCategory?: string | null;
+    description?: string | null;
+  }>;
+  creativityRatings?: Array<{
+    id: string;
+    employeeId: number;
+    score: number;
+    remark?: string | null;
+    employee?: { id: number; name: string };
+  }>;
+  detailMeta?: DesignDetailMeta;
+};
+
+export type DesignDetailMeta = {
+  progressPercent: number;
+  completedTasks: number;
+  totalTasks: number;
+  currentOwner: { id: number; name: string } | null;
+  dueAt: string | null;
+  costSummary: {
+    estimatedCost: number | null;
+    standardCost: number | null;
+    totalDevCost: number;
+    correctionCost: number;
+    marginPercent: number | null;
+  };
+};
+
+export type DesignCorrectionDetail = {
+  id: string;
+  correctionType: string;
+  status: string;
+  rootCause?: string | null;
+  ratingImpact?: number | null;
+  createdAtUtc: string;
+  raisedBy?: { id: number; name: string };
+  responsibleEmployee?: { id: number; name: string } | null;
+  routeToSubProcess?: { id: number; code: string; name: string } | null;
+};
+
+export type DesignApprovalDetail = {
+  id: string;
+  decision: string;
+  remark?: string | null;
+  decisionAtUtc?: string | null;
+  level?: { id: number; name: string; sequence: number; code?: string };
+  approver?: { id: number; name: string };
+};
+
+export type DesignKpiContribution = {
+  employeeId: number;
+  name: string;
+  score: number;
+  maxScore: number;
+};
+
+export type EmployeePerformanceResponse = {
+  employeeId: number;
+  periodYear: number;
+  periodMonth: number;
+  marksBalance: number;
+  grade: {
+    gradeCode: string;
+    weightedKpiScore: number;
+    totalMarks: number;
+    calculatedAtUtc: string;
+  } | null;
+  marks: Array<{
+    id: string;
+    sourceType: string;
+    sourceRef?: string | null;
+    pointsDelta: number;
+    balanceAfter: number;
+    note?: string | null;
+    createdAtUtc: string;
+  }>;
 };
 
 export type DesignListResponse = {
@@ -141,6 +221,19 @@ export type DesignTask = {
   timeEvents?: TaskTimeEvent[];
   dueAt?: string | null;
   completedAt?: string | null;
+  /** Task artifacts when loaded via design detail. */
+  artifacts?: Array<{
+    id?: string;
+    artifactType?: string;
+    stitchCount?: number | null;
+    machineFormat?: string | null;
+    sampleQty?: number | null;
+    wastageQty?: number | null;
+    fileName?: string | null;
+    storageKey?: string | null;
+    contentType?: string | null;
+    uploadedAtUtc?: string | null;
+  }>;
   /** Resolved workflow status for display (CHECKING work may read COMPLETED after approval). */
   effectiveStatus?: string;
   isWaitingOnOthers?: boolean;
@@ -318,6 +411,10 @@ export type AdminEmployeeRow = {
   email: string;
   active: boolean;
   role: { id: number; code: string; name: string };
+  /** Current UTC month performance grade (A–E), when computed. */
+  gradeCode?: string | null;
+  /** Marks balance snapshot from current-month grade row. */
+  marksBalance?: number | null;
 };
 
 export type AdminRoleOption = {

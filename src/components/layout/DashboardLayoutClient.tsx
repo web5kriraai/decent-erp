@@ -1,8 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { Sidebar, TopBar } from "@/components/layout/DashboardShell";
 import { BreadcrumbProvider } from "@/components/layout/BreadcrumbProvider";
 import { SidebarProvider, useSidebarState } from "@/components/layout/SidebarProvider";
+import { DesignDetailModalProvider } from "@/features/designs/DesignDetailModalProvider";
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebarState();
@@ -27,7 +29,11 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
   return (
     <SidebarProvider>
       <BreadcrumbProvider>
-        <DashboardShellInner>{children}</DashboardShellInner>
+        <Suspense fallback={null}>
+          <DesignDetailModalProvider>
+            <DashboardShellInner>{children}</DashboardShellInner>
+          </DesignDetailModalProvider>
+        </Suspense>
       </BreadcrumbProvider>
     </SidebarProvider>
   );

@@ -179,6 +179,36 @@ export function EmployeesAdminView() {
                 ),
               },
               {
+                key: "grade",
+                header: "Grade",
+                render: (row) =>
+                  row.gradeCode ? (
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        status={
+                          row.gradeCode === "A"
+                            ? "APPROVED"
+                            : row.gradeCode === "B"
+                              ? "COMPLETED"
+                              : row.gradeCode === "C"
+                                ? "ASSIGNED"
+                                : row.gradeCode === "D"
+                                  ? "ON_HOLD"
+                                  : "REJECTED"
+                        }
+                        label={`Grade ${row.gradeCode}`}
+                      />
+                      {row.marksBalance != null ? (
+                        <span className="text-sm text-muted-foreground">
+                          {Math.round(row.marksBalance * 10) / 10} marks
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    "—"
+                  ),
+              },
+              {
                 key: "active",
                 header: "Status",
                 render: (row) => (

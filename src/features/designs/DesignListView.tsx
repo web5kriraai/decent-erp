@@ -19,12 +19,14 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { useDesignsList } from "@/hooks/use-designs";
 import type { DesignSummary } from "@/lib/types/api";
 import { DesignCreateModal } from "@/features/designs/DesignCreateModal";
+import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
 
 const STATUS_FILTERS = ["ALL", "DRAFT", "ACTIVE", "APPROVAL_PENDING", "APPROVED", "ON_HOLD"];
 
 export function DesignListView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
+  const detailModal = useOptionalDesignDetailModal();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [createOpen, setCreateOpen] = useState(false);
@@ -82,6 +84,7 @@ export function DesignListView() {
             Record or upload voice notes on the concept media panel.
           </p>
         </button>
+        {/* Scope freeze: create stays slim; orphans + style/theme/celebrity FKs deferred to Edit. */}
         <button type="button" className="board-action-card" onClick={() => setCreateOpen(true)}>
           <p className="board-action-card-title">Product Components</p>
           <p className="board-action-card-desc">
@@ -141,9 +144,13 @@ export function DesignListView() {
               key: "ideaRef",
               header: "Ref",
               render: (row) => (
-                <Link href={ROUTES.designs.detail(row.id)} className="data-table-link">
+                <button
+                  type="button"
+                  className="data-table-link"
+                  onClick={() => detailModal?.openDesign(row.id)}
+                >
                   {row.ideaRef}
-                </Link>
+                </button>
               ),
             },
             { key: "collectionName", header: "Design" },

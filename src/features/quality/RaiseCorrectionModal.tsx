@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Modal,
   ModalFooterActions,
@@ -21,19 +21,24 @@ import {
   correctionRouteCodesFromStages,
   suggestedCorrectionRouteCode,
 } from "@/lib/workflow/correction-routes";
+import { cn } from "@/lib/utils";
 
 type RaiseCorrectionModalProps = {
   open: boolean;
   onClose: () => void;
   defaultDesignId?: string;
   defaultTaskId?: string;
-  /** Prefill display context when opener already knows design/task facts */
   defaultIdeaRef?: string;
   defaultCollectionName?: string;
   defaultSourceStageName?: string;
   defaultSourceStageCode?: string;
   defaultSourceRemark?: string;
   defaultAssigneeName?: string;
+  /**
+   * `modal` = centered dialog (hubs).
+   * `inline` = embed in right design drawer (no nested dialog).
+   */
+  presentation?: "modal" | "inline";
 };
 
 const CORRECTION_ENUM_CODES = [
@@ -62,7 +67,6 @@ function mapCatalogCodeToCorrectionType(code: string): CorrectionEnumCode {
     : "OTHER";
 }
 
-/** Preferred rework targets for the correction loop (capability-driven). */
 function suggestedRouteCode(
   sourceCode: string | null | undefined,
   routeCodes: string[],
@@ -83,6 +87,29 @@ function buildInitialState(defaultDesignId?: string, defaultTaskId?: string) {
   };
 }
 
+function FormShell({
+  presentation,
+  children,
+  footer,
+}: {
+  presentation: "modal" | "inline";
+  children: ReactNode;
+  footer: ReactNode;
+}) {
+  if (presentation === "inline") {
+    return (
+      <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-3 sm:p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Raise Correction</h3>
+        </div>
+        <ModalForm className="gap-3">{children}</ModalForm>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{footer}</div>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 export function RaiseCorrectionModal({
   open,
   onClose,
@@ -94,9 +121,10 @@ export function RaiseCorrectionModal({
   defaultSourceStageCode,
   defaultSourceRemark,
   defaultAssigneeName,
+  presentation = "modal",
 }: RaiseCorrectionModalProps) {
   const isPrefilled = !!(defaultDesignId && defaultTaskId);
-  const designsQuery = useDesignsList(open && !isPrefilled);
+  const designsQuery = useDesignsList(open && !isPrefilled && presentation === "modal");
   const employeesQuery = useEmployeeOptions(open);
   const correctionReasons = useCorrectionReasons(open);
   const raiseCorrection = useRaiseCorrection();
@@ -133,13 +161,33 @@ export function RaiseCorrectionModal({
   const correctionType = mapCatalogCodeToCorrectionType(correctionCatalogCode);
   const isMistake = correctionType === "MISTAKE";
 
+  const resolvedTaskId = useMemo(() => {
+    if (taskId) return taskId;
+    const tasks = designQuery.data?.tasks ?? [];
+    const preferred =
+      tasks.find((t) =>
+        ["ASSIGNED", "RUNNING", "CHECKING", "CORRECTION_REQUIRED", "PENDING"].includes(
+          t.status,
+        ),
+      ) ?? tasks[0];
+    return preferred?.id ?? "";
+  }, [taskId, designQuery.data?.tasks]);
+
   const correctionTypeOptions = useMemo(() => {
     const catalog = correctionReasons.data ?? [];
     if (catalog.length === 0) return CORRECTION_TYPE_OPTIONS;
     return catalog.map((r) => ({ value: r.code, label: r.name }));
   }, [correctionReasons.data]);
 
-  const selectedTask = (designQuery.data?.tasks ?? []).find((t) => t.id === taskId);
+  const effectiveTaskId = taskId || resolvedTaskId;
+  const selectedTask = (designQuery.data?.tasks ?? []).find((t) => t.id === effectiveTaskId);
+
+  useEffect(() => {
+    if (open && designId && !taskId && resolvedTaskId) {
+      setTaskId(resolvedTaskId);
+    }
+  }, [open, designId, taskId, resolvedTaskId]);
+
   const routeOptions = useMemo(() => {
     const tasks = designQuery.data?.tasks ?? [];
     const stages = tasks.map((t) => ({
@@ -163,8 +211,8 @@ export function RaiseCorrectionModal({
       .filter((r): r is { id: number; name: string; code: string } => !!r);
   }, [designQuery.data?.tasks]);
 
-  const routeSeedKey = `${designId}:${taskId}:${routeOptions.map((r) => r.id).join(",")}`;
-  if (open && routeSeedKey !== routeSeededFor && routeOptions.length > 0 && taskId) {
+  const routeSeedKey = `${designId}:${effectiveTaskId}:${routeOptions.map((r) => r.id).join(",")}`;
+  if (open && routeSeedKey !== routeSeededFor && routeOptions.length > 0 && effectiveTaskId) {
     setRouteSeededFor(routeSeedKey);
     const suggested = suggestedRouteCode(
       selectedTask?.subProcess.code ?? defaultSourceStageCode,
@@ -180,23 +228,18 @@ export function RaiseCorrectionModal({
   );
 
   const handoff = useMemo((): HandoffContext => {
-    const ideaRef =
-      designQuery.data?.ideaRef ?? defaultIdeaRef ?? null;
+    const ideaRef = designQuery.data?.ideaRef ?? defaultIdeaRef ?? null;
     const collectionName =
       designQuery.data?.collectionName ?? defaultCollectionName ?? null;
-    const stageName =
-      selectedTask?.subProcess.name ?? defaultSourceStageName ?? null;
-    const stageCode =
-      selectedTask?.subProcess.code ?? defaultSourceStageCode ?? null;
-    const sourceRemark =
-      selectedTask?.outputRemark ?? defaultSourceRemark ?? null;
+    const stageName = selectedTask?.subProcess.name ?? defaultSourceStageName ?? null;
+    const stageCode = selectedTask?.subProcess.code ?? defaultSourceStageCode ?? null;
+    const sourceRemark = selectedTask?.outputRemark ?? defaultSourceRemark ?? null;
     const assigneeName =
       selectedTask?.assignedEmployee?.name ?? defaultAssigneeName ?? null;
 
     let nextStepHint: string | null = null;
     if (selectedRoute) {
-      const predicted =
-        routeTargetTask?.assignedEmployee?.name ?? null;
+      const predicted = routeTargetTask?.assignedEmployee?.name ?? null;
       nextStepHint = predicted
         ? `Routes rework to ${selectedRoute.name} → ${predicted}`
         : `Routes rework to ${selectedRoute.name}`;
@@ -259,7 +302,7 @@ export function RaiseCorrectionModal({
 
   const fieldErrors = {
     designId: !designId ? "Design is required" : undefined,
-    taskId: !taskId ? "Source task is required" : undefined,
+    taskId: !effectiveTaskId ? "Source task is required" : undefined,
     routeToSubProcessId: !routeToSubProcessId ? "Rework route is required" : undefined,
     responsibleEmployeeId:
       isMistake && !responsibleEmployeeId ? "Responsible employee is required" : undefined,
@@ -289,7 +332,7 @@ export function RaiseCorrectionModal({
 
     await raiseCorrection.mutateAsync({
       designId,
-      taskId,
+      taskId: effectiveTaskId,
       correctionType,
       responsibleEmployeeId: responsibleEmployeeId ? Number(responsibleEmployeeId) : null,
       routeToSubProcessId: Number(routeToSubProcessId),
@@ -302,11 +345,176 @@ export function RaiseCorrectionModal({
 
   const canSubmit =
     !!designId &&
-    !!taskId &&
+    !!effectiveTaskId &&
     !!rootCause.trim() &&
     !!routeToSubProcessId &&
     (!isMistake || !!responsibleEmployeeId) &&
     !raiseCorrection.isPending;
+
+  if (!open) return null;
+
+  const formFields = (
+    <>
+      <ActionHandoffBanner
+        context={handoff}
+        dense={presentation === "inline"}
+        className={cn(presentation === "inline" && "text-xs")}
+      />
+
+      {!isPrefilled && !defaultDesignId ? (
+        <ModalFormGrid>
+          <FormSelect
+            id="corrDesign"
+            label="Design"
+            required
+            value={designId || null}
+            onValueChange={(v) => {
+              setDesignId(v);
+              setTaskId("");
+              setRouteToSubProcessId("");
+              setRouteSeededFor("");
+            }}
+            options={(designsQuery.data?.items ?? []).map((d) => ({
+              value: d.id,
+              label: `${d.ideaRef} - ${d.collectionName}`,
+            }))}
+            placeholder="Select…"
+            error={attemptedSubmit ? fieldErrors.designId : undefined}
+          />
+          <FormSelect
+            id="corrTask"
+            label="Source task"
+            required
+            value={effectiveTaskId || null}
+            onValueChange={(v) => {
+              setTaskId(v);
+              setRouteSeededFor("");
+            }}
+            options={(designQuery.data?.tasks ?? []).map((t) => ({
+              value: t.id,
+              label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
+            }))}
+            placeholder="Select…"
+            disabled={!designId || designQuery.isLoading}
+            error={attemptedSubmit ? fieldErrors.taskId : undefined}
+          />
+        </ModalFormGrid>
+      ) : !isPrefilled && defaultDesignId ? (
+        <FormSelect
+          id="corrTaskOnly"
+          label="Source task"
+          required
+          value={effectiveTaskId || null}
+          onValueChange={(v) => {
+            setTaskId(v);
+            setRouteSeededFor("");
+          }}
+          options={(designQuery.data?.tasks ?? []).map((t) => ({
+            value: t.id,
+            label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
+          }))}
+          placeholder="Select…"
+          disabled={designQuery.isLoading}
+          error={attemptedSubmit ? fieldErrors.taskId : undefined}
+        />
+      ) : null}
+
+      <FormSelect
+        id="corrRoute"
+        label="Route rework to"
+        required
+        value={routeToSubProcessId === "" ? null : String(routeToSubProcessId)}
+        onValueChange={(v) => setRouteToSubProcessId(v ? Number(v) : "")}
+        options={routeOptions.map((r) => ({
+          value: String(r.id),
+          label: r.name,
+        }))}
+        placeholder="Select…"
+        disabled={!designId || routeOptions.length === 0}
+        error={attemptedSubmit ? fieldErrors.routeToSubProcessId : undefined}
+      />
+
+      <ModalFormGrid>
+        <FormSelect
+          id="corrType"
+          label="Type"
+          required
+          value={correctionCatalogCode}
+          onValueChange={(v) => handleCorrectionCatalogChange(v)}
+          options={correctionTypeOptions}
+        />
+        <FormSelect
+          id="corrResponsible"
+          label="Responsible Employee"
+          required={isMistake}
+          value={responsibleEmployeeId === "" ? null : String(responsibleEmployeeId)}
+          onValueChange={(v) => setResponsibleEmployeeId(v ? Number(v) : "")}
+          options={(employeesQuery.data ?? []).map((e) => ({
+            value: String(e.id),
+            label: e.name,
+          }))}
+          placeholder="Select…"
+          error={attemptedSubmit ? fieldErrors.responsibleEmployeeId : undefined}
+        />
+      </ModalFormGrid>
+
+      <ModalFormGrid>
+        <FormTextField
+          id="corrExtraMinutes"
+          label="Extra minutes"
+          type="number"
+          min={0}
+          value={extraMinutes}
+          onChange={(e) => setExtraMinutes(e.target.value)}
+        />
+        <FormTextField
+          id="corrExtraCost"
+          label="Extra cost"
+          type="number"
+          min={0}
+          step="0.01"
+          value={extraCost}
+          onChange={(e) => setExtraCost(e.target.value)}
+        />
+      </ModalFormGrid>
+
+      <FormTextArea
+        id="corrRootCause"
+        label="Reason / feedback"
+        required
+        rows={presentation === "inline" ? 2 : 3}
+        value={rootCause}
+        onChange={(e) => setRootCause(e.target.value)}
+        onEnterSubmit={canSubmit ? () => void handleSubmit() : undefined}
+        error={attemptedSubmit ? fieldErrors.rootCause : undefined}
+      />
+    </>
+  );
+
+  const footerButtons = (
+    <>
+      <AppButton type="button" appVariant="outline" size="sm" onClick={handleClose}>
+        Cancel
+      </AppButton>
+      <AppButton
+        type="button"
+        appVariant="primary"
+        size="sm"
+        disabled={raiseCorrection.isPending}
+        onClick={() => void handleSubmit()}
+      >
+        {raiseCorrection.isPending ? "Raising…" : "Raise Correction"}
+      </AppButton>
+    </>
+  );
+
+  if (presentation === "inline") {
+    return (
+      <FormShell presentation="inline" footer={footerButtons}>
+        {formFields}
+      </FormShell>
+    );
+  }
 
   return (
     <Modal
@@ -314,131 +522,9 @@ export function RaiseCorrectionModal({
       title="Raise Correction"
       onClose={handleClose}
       size="lg"
-      footer={
-        <ModalFooterActions>
-          <AppButton type="button" appVariant="outline" onClick={handleClose}>
-            Cancel
-          </AppButton>
-          <AppButton type="button" disabled={raiseCorrection.isPending} onClick={handleSubmit}>
-            {raiseCorrection.isPending ? "Raising…" : "Raise Correction"}
-          </AppButton>
-        </ModalFooterActions>
-      }
+      footer={<ModalFooterActions>{footerButtons}</ModalFooterActions>}
     >
-      <ModalForm>
-        <ActionHandoffBanner context={handoff} />
-
-        {!isPrefilled ? (
-          <>
-            <FormSelect
-              id="corrDesign"
-              label="Design"
-              required
-              value={designId || null}
-              onValueChange={(v) => {
-                setDesignId(v);
-                setTaskId("");
-                setRouteToSubProcessId("");
-                setRouteSeededFor("");
-              }}
-              options={(designsQuery.data?.items ?? []).map((d) => ({
-                value: d.id,
-                label: `${d.ideaRef} - ${d.collectionName}`,
-              }))}
-              placeholder="Select…"
-              error={attemptedSubmit ? fieldErrors.designId : undefined}
-            />
-
-            <FormSelect
-              id="corrTask"
-              label="Source task"
-              required
-              value={taskId || null}
-              onValueChange={(v) => {
-                setTaskId(v);
-                setRouteSeededFor("");
-              }}
-              options={(designQuery.data?.tasks ?? []).map((t) => ({
-                value: t.id,
-                label: `${t.process.name} → ${t.subProcess.name} (${t.status})`,
-              }))}
-              placeholder="Select…"
-              disabled={!designId || designQuery.isLoading}
-              error={attemptedSubmit ? fieldErrors.taskId : undefined}
-            />
-          </>
-        ) : null}
-
-        <FormSelect
-          id="corrRoute"
-          label="Route rework to"
-          required
-          value={routeToSubProcessId === "" ? null : String(routeToSubProcessId)}
-          onValueChange={(v) => setRouteToSubProcessId(v ? Number(v) : "")}
-          options={routeOptions.map((r) => ({
-            value: String(r.id),
-            label: r.name,
-          }))}
-          placeholder="Select…"
-          disabled={!designId || routeOptions.length === 0}
-          error={attemptedSubmit ? fieldErrors.routeToSubProcessId : undefined}
-        />
-
-        <ModalFormGrid>
-          <FormSelect
-            id="corrType"
-            label="Type"
-            required
-            value={correctionCatalogCode}
-            onValueChange={(v) => handleCorrectionCatalogChange(v)}
-            options={correctionTypeOptions}
-          />
-          <FormSelect
-            id="corrResponsible"
-            label="Responsible Employee"
-            required={isMistake}
-            value={responsibleEmployeeId === "" ? null : String(responsibleEmployeeId)}
-            onValueChange={(v) => setResponsibleEmployeeId(v ? Number(v) : "")}
-            options={(employeesQuery.data ?? []).map((e) => ({
-              value: String(e.id),
-              label: e.name,
-            }))}
-            placeholder="Select…"
-            error={attemptedSubmit ? fieldErrors.responsibleEmployeeId : undefined}
-          />
-        </ModalFormGrid>
-
-        <ModalFormGrid>
-          <FormTextField
-            id="corrExtraMinutes"
-            label="Extra minutes"
-            type="number"
-            min={0}
-            value={extraMinutes}
-            onChange={(e) => setExtraMinutes(e.target.value)}
-          />
-          <FormTextField
-            id="corrExtraCost"
-            label="Extra cost"
-            type="number"
-            min={0}
-            step="0.01"
-            value={extraCost}
-            onChange={(e) => setExtraCost(e.target.value)}
-          />
-        </ModalFormGrid>
-
-        <FormTextArea
-          id="corrRootCause"
-          label="Reason / feedback"
-          required
-          rows={3}
-          value={rootCause}
-          onChange={(e) => setRootCause(e.target.value)}
-          onEnterSubmit={canSubmit ? () => void handleSubmit() : undefined}
-          error={attemptedSubmit ? fieldErrors.rootCause : undefined}
-        />
-      </ModalForm>
+      <ModalForm>{formFields}</ModalForm>
     </Modal>
   );
 }

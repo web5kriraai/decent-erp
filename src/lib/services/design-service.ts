@@ -25,6 +25,8 @@ import {
   type TaskDateMode,
 } from "@/lib/services/task-date-mode";
 import { resolveAssigneesForPatternTasks } from "@/lib/services/assignment-service";
+import { requireMasterOfType } from "@/lib/services/master-catalog-service";
+import { MASTER_TYPES } from "@/lib/master-catalog-types";
 
 export type CreateDesignInput = {
   productTypeId: number;
@@ -74,6 +76,28 @@ export async function createDesignWithTasks(
   correlationId: string,
   actorRoleCode?: string,
 ) {
+  await requireMasterOfType(input.productTypeId, MASTER_TYPES.PRODUCT_CATEGORY);
+  await requireMasterOfType(input.seasonId, MASTER_TYPES.SEASON);
+  if (input.fabricId != null) {
+    await requireMasterOfType(input.fabricId, MASTER_TYPES.FABRIC_QUALITY);
+  }
+  if (input.machineId != null) {
+    await requireMasterOfType(input.machineId, MASTER_TYPES.MACHINE);
+  }
+  if (input.stitchingTypeId != null) {
+    await requireMasterOfType(input.stitchingTypeId, MASTER_TYPES.STITCHING_TYPE);
+  }
+  if (input.designGradeId != null) {
+    await requireMasterOfType(input.designGradeId, MASTER_TYPES.DESIGN_GRADE);
+  }
+  if (input.componentTypeIds?.length) {
+    await Promise.all(
+      input.componentTypeIds.map((id) =>
+        requireMasterOfType(id, MASTER_TYPES.PRODUCT_COMPONENT),
+      ),
+    );
+  }
+
   return prisma.$transaction(async (tx) => {
     if (input.assignmentMode === "AUTOMATIC" && input.workflowPatternId) {
       const pattern = await tx.workflowPattern.findUnique({
@@ -311,7 +335,18 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
       designHead: { select: { id: true, name: true } },
       components: { include: { componentType: true } },
       images: true,
-      costs: { select: { id: true, amount: true, costType: true }, take: 100 },
+      costs: {
+        select: {
+          id: true,
+          amount: true,
+          costType: true,
+          costCategory: true,
+          description: true,
+          enteredById: true,
+          enteredAtUtc: true,
+        },
+        take: 200,
+      },
       tasks: {
         orderBy: { sequence: "asc" },
         include: {
@@ -319,6 +354,21 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
           process: true,
           subProcess: {
             include: { defaultRole: { select: { id: true, code: true, name: true } } },
+          },
+          artifacts: {
+            orderBy: { uploadedAtUtc: "desc" },
+            select: {
+              id: true,
+              artifactType: true,
+              stitchCount: true,
+              machineFormat: true,
+              sampleQty: true,
+              wastageQty: true,
+              fileName: true,
+              storageKey: true,
+              contentType: true,
+              uploadedAtUtc: true,
+            },
           },
           timeEvents: {
             orderBy: { eventTimeUtc: "desc" },
@@ -337,14 +387,69 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
       corrections: {
         where: correctionScope,
         orderBy: { createdAtUtc: "desc" },
+        include: {
+          raisedBy: { select: { id: true, name: true } },
+          responsibleEmployee: { select: { id: true, name: true } },
+          routeToSubProcess: { select: { id: true, code: true, name: true } },
+        },
       },
-      approvals: true,
+      approvals: {
+        orderBy: { id: "asc" },
+        include: {
+          level: { select: { id: true, name: true, sequence: true, code: true } },
+          approver: { select: { id: true, name: true } },
+        },
+      },
       productionHandoffs: { orderBy: { releasedAtUtc: "desc" }, take: 5 },
+      creativityRatings: {
+        include: {
+          employee: { select: { id: true, name: true } },
+          ratedBy: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 
   if (!design) throw new ApiError("Design not found", 404);
-  return design;
+
+  const totalTasks = design.tasks.length;
+  const completedTasks = design.tasks.filter((t) => t.status === "COMPLETED").length;
+  const activeTask =
+    design.tasks.find((t) =>
+      ["RUNNING", "ASSIGNED", "CHECKING", "ON_HOLD", "CORRECTION_REQUIRED"].includes(t.status),
+    ) ?? design.tasks.find((t) => t.status !== "COMPLETED" && t.status !== "SKIPPED");
+  const costTotal = design.costs.reduce((s, c) => s + Number(c.amount), 0);
+  const correctionCost = design.costs
+    .filter((c) => c.costType === "CORRECTION")
+    .reduce((s, c) => s + Number(c.amount), 0);
+  const baseline =
+    design.estimatedCost != null
+      ? Number(design.estimatedCost)
+      : design.standardCost != null
+        ? Number(design.standardCost)
+        : null;
+  const marginPercent =
+    baseline != null && baseline > 0
+      ? Math.round(((baseline - costTotal) / baseline) * 1000) / 10
+      : null;
+
+  return {
+    ...design,
+    detailMeta: {
+      progressPercent: totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      completedTasks,
+      totalTasks,
+      currentOwner: activeTask?.assignedEmployee ?? null,
+      dueAt: activeTask?.dueAt ?? null,
+      costSummary: {
+        estimatedCost: design.estimatedCost != null ? Number(design.estimatedCost) : null,
+        standardCost: design.standardCost != null ? Number(design.standardCost) : null,
+        totalDevCost: costTotal,
+        correctionCost,
+        marginPercent,
+      },
+    },
+  };
 }
 
 /**
@@ -431,6 +536,19 @@ export async function updateDesign(
   userId: number,
   correlationId: string,
 ) {
+  if (data.fabricId != null) {
+    await requireMasterOfType(data.fabricId, MASTER_TYPES.FABRIC_QUALITY);
+  }
+  if (data.machineId != null) {
+    await requireMasterOfType(data.machineId, MASTER_TYPES.MACHINE);
+  }
+  if (data.stitchingTypeId != null) {
+    await requireMasterOfType(data.stitchingTypeId, MASTER_TYPES.STITCHING_TYPE);
+  }
+  if (data.designGradeId != null) {
+    await requireMasterOfType(data.designGradeId, MASTER_TYPES.DESIGN_GRADE);
+  }
+
   return prisma.$transaction(async (tx) => {
     const existing = await tx.designConcept.findUnique({ where: { id } });
     if (!existing) throw new ApiError("Design not found", 404);

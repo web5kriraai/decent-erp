@@ -120,8 +120,8 @@ export const PAGE_META = {
     description: "Roles and access",
   },
   adminMasters: {
-    title: "Process Masters",
-    description: "Process masters",
+    title: "Master Data",
+    description: "Processes, catalog lookups, targets, and KPI weights",
   },
   adminWorkflowPatterns: {
     title: "Workflow Patterns",

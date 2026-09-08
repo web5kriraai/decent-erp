@@ -102,3 +102,56 @@ export async function getSubProcessUsage(
   );
   return warnings;
 }
+
+/** Usage counts for soft-deactivate warnings only - never blocks retirement. */
+export async function getCatalogUsage(catalogId: number): Promise<MasterUsageWarning[]> {
+  const row = await prisma.masterCatalog.findUnique({
+    where: { id: catalogId },
+    select: { id: true, masterType: true },
+  });
+  if (!row) return [];
+
+  const warnings: MasterUsageWarning[] = [];
+
+  const [
+    asProductType,
+    asSeason,
+    asFabric,
+    asMachine,
+    asStitching,
+    asGrade,
+    asComponents,
+    asMaterials,
+    asPatternProduct,
+    asConceptTargets,
+    asSampleMachine,
+  ] = await Promise.all([
+    prisma.designConcept.count({ where: { productTypeId: catalogId } }),
+    prisma.designConcept.count({ where: { seasonId: catalogId } }),
+    prisma.designConcept.count({ where: { fabricId: catalogId } }),
+    prisma.designConcept.count({ where: { machineId: catalogId } }),
+    prisma.designConcept.count({ where: { stitchingTypeId: catalogId } }),
+    prisma.designConcept.count({ where: { designGradeId: catalogId } }),
+    prisma.designComponent.count({ where: { componentTypeId: catalogId } }),
+    prisma.designMaterialLine.count({ where: { catalogItemId: catalogId } }),
+    prisma.workflowPattern.count({ where: { productTypeId: catalogId } }),
+    prisma.conceptTarget.count({
+      where: { OR: [{ productTypeId: catalogId }, { seasonId: catalogId }] },
+    }),
+    prisma.designTask.count({ where: { sampleMachineId: catalogId } }),
+  ]);
+
+  pushIfUsed(warnings, "DESIGNS_PRODUCT_TYPE", asProductType, "design", "designs");
+  pushIfUsed(warnings, "DESIGNS_SEASON", asSeason, "design", "designs");
+  pushIfUsed(warnings, "DESIGNS_FABRIC", asFabric, "design", "designs");
+  pushIfUsed(warnings, "DESIGNS_MACHINE", asMachine, "design", "designs");
+  pushIfUsed(warnings, "DESIGNS_STITCHING", asStitching, "design", "designs");
+  pushIfUsed(warnings, "DESIGNS_GRADE", asGrade, "design", "designs");
+  pushIfUsed(warnings, "DESIGN_COMPONENTS", asComponents, "component link", "component links");
+  pushIfUsed(warnings, "MATERIAL_LINES", asMaterials, "material line", "material lines");
+  pushIfUsed(warnings, "WORKFLOW_PATTERNS", asPatternProduct, "workflow pattern", "workflow patterns");
+  pushIfUsed(warnings, "CONCEPT_TARGETS", asConceptTargets, "concept target", "concept targets");
+  pushIfUsed(warnings, "SAMPLE_MACHINE_TASKS", asSampleMachine, "sample task", "sample tasks");
+
+  return warnings;
+}

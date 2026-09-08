@@ -62,7 +62,11 @@ export function useRaiseCorrection() {
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(variables.designId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.designs.kpiContribution(variables.designId),
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      queryClient.invalidateQueries({ queryKey: queryKeys.kpi.employeesRoot });
       toast.success("Correction raised", "Responsible employee has been notified");
     },
     onError: (error) => toast.errorFromApi(error, "Could not raise correction"),
@@ -87,11 +91,19 @@ export function useUpdateCorrectionStatus() {
         | "DONE"
         | "REJECTED";
     }) => apiPatch<CorrectionRecord>(`/api/corrections/${id}`, { status }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.corrections.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
+      if (result.designId) {
+        const designId = String(result.designId);
+        queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.designs.kpiContribution(designId),
+        });
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      queryClient.invalidateQueries({ queryKey: queryKeys.kpi.employeesRoot });
       toast.success("Correction updated");
     },
     onError: (error) => toast.errorFromApi(error, "Could not update correction"),

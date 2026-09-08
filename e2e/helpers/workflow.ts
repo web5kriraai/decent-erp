@@ -13,6 +13,16 @@ export type WorkflowTask = {
   assignedEmployeeId?: number | null;
 };
 
+/** Stages that require SAMPLE_OUTPUT machine metrics before endTask. */
+const MACHINE_OUTPUT_CODES = new Set(["MACHINE_SAMPLE", "SAMPLE_RECEIVE", "RESAMPLE"]);
+
+const DEFAULT_MACHINE_METRICS = {
+  stitchCount: 12500,
+  machineFormat: "EMB" as const,
+  sampleQty: 2,
+  wastageQty: 0,
+};
+
 export type DesignWithTasks = {
   id: string;
   ideaRef: string;
@@ -47,12 +57,43 @@ export async function addTaskArtifact(
   page: Page,
   taskId: string,
   artifactType: "SKETCH_VERSION" | "PUNCHING_FILE" | "SAMPLE_OUTPUT",
+  options?: {
+    includeFile?: boolean;
+    metrics?: {
+      stitchCount?: number;
+      machineFormat?: "EMB" | "DST" | "OTHER";
+      sampleQty?: number;
+      wastageQty?: number;
+    };
+  },
 ) {
+  const includeFile = options?.includeFile !== false;
   return apiPostJson(page, `/api/tasks/${taskId}/artifacts`, {
     artifactType,
-    fileName: "e2e-placeholder.png",
-    storageKey: `e2e/${taskId}/${artifactType.toLowerCase()}.png`,
+    ...(includeFile
+      ? {
+          fileName: "e2e-placeholder.png",
+          storageKey: `e2e/${taskId}/${artifactType.toLowerCase()}.png`,
+        }
+      : {}),
+    ...(options?.metrics ?? {}),
   });
+}
+
+/** Persist machine metrics (and optional file) so endTask gates pass on machine stages. */
+export async function ensureMachineOutputArtifact(
+  page: Page,
+  taskId: string,
+  options?: { includeFile?: boolean },
+) {
+  return addTaskArtifact(page, taskId, "SAMPLE_OUTPUT", {
+    includeFile: options?.includeFile !== false,
+    metrics: DEFAULT_MACHINE_METRICS,
+  });
+}
+
+function isMachineOutputCode(code?: string | null): boolean {
+  return !!code && MACHINE_OUTPUT_CODES.has(code);
 }
 
 export async function getChecklistForSubProcessCode(
@@ -105,14 +146,20 @@ export async function clearStaleRunningTasks(page: Page, exceptTaskId?: string) 
       subProcess: { id?: number; code?: string; isFileRequired?: boolean };
     }>(page, `/api/tasks/${task.id}`);
 
-    if (detail.subProcess.isFileRequired) {
-      const type =
-        detail.subProcess.code === "SKETCH"
-          ? "SKETCH_VERSION"
-          : detail.subProcess.code === "PUNCH"
-            ? "PUNCHING_FILE"
-            : "SAMPLE_OUTPUT";
-      await addTaskArtifact(page, task.id, type);
+    if (detail.subProcess.isFileRequired || isMachineOutputCode(detail.subProcess.code)) {
+      if (isMachineOutputCode(detail.subProcess.code)) {
+        await ensureMachineOutputArtifact(page, task.id, {
+          includeFile: !!detail.subProcess.isFileRequired,
+        });
+      } else {
+        const type =
+          detail.subProcess.code === "SKETCH"
+            ? "SKETCH_VERSION"
+            : detail.subProcess.code === "PUNCH"
+              ? "PUNCHING_FILE"
+              : "SAMPLE_OUTPUT";
+        await addTaskArtifact(page, task.id, type);
+      }
     }
 
     let checklist: Array<{ itemId: number; result: boolean }> | undefined;
@@ -321,14 +368,20 @@ export async function completeAssignedTask(
     subProcess: { id?: number; code?: string; isFileRequired?: boolean };
   }>(page, `/api/tasks/${taskId}`);
 
-  if (detail.subProcess.isFileRequired) {
-    const type =
-      detail.subProcess.code === "SKETCH"
-        ? "SKETCH_VERSION"
-        : detail.subProcess.code === "PUNCH"
-          ? "PUNCHING_FILE"
-          : "SAMPLE_OUTPUT";
-    await addTaskArtifact(page, taskId, type);
+  if (detail.subProcess.isFileRequired || isMachineOutputCode(detail.subProcess.code)) {
+    if (isMachineOutputCode(detail.subProcess.code)) {
+      await ensureMachineOutputArtifact(page, taskId, {
+        includeFile: !!detail.subProcess.isFileRequired,
+      });
+    } else {
+      const type =
+        detail.subProcess.code === "SKETCH"
+          ? "SKETCH_VERSION"
+          : detail.subProcess.code === "PUNCH"
+            ? "PUNCHING_FILE"
+            : "SAMPLE_OUTPUT";
+      await addTaskArtifact(page, taskId, type);
+    }
   }
 
   if (detail.subProcess.code === "PROD_RELEASE") {

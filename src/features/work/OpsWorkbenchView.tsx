@@ -9,6 +9,10 @@ import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { apiGet } from "@/lib/api-client";
 import { ROUTES } from "@/config/routes";
+import {
+  formatMachineOutputSummary,
+  pickPreferredSampleOutput,
+} from "@/lib/services/task-machine-output-utils";
 
 type WorkbenchTask = {
   id: string;
@@ -19,7 +23,12 @@ type WorkbenchTask = {
   assignedEmployee?: { name?: string } | null;
   artifacts?: Array<{
     artifactType: string;
-    metadata?: { stitchCount?: number; software?: string; version?: string } | null;
+    stitchCount?: number | null;
+    machineFormat?: string | null;
+    sampleQty?: number | null;
+    wastageQty?: number | null;
+    storageKey?: string | null;
+    fileName?: string | null;
   }>;
   sampleMachine?: { name?: string; code?: string } | null;
 };
@@ -85,15 +94,8 @@ export function OpsWorkbenchView({
                 key: "meta",
                 header: "Output",
                 render: (row) => {
-                  const art = row.artifacts?.[0];
-                  const meta = art?.metadata as
-                    | { stitchCount?: number; software?: string; version?: string }
-                    | null
-                    | undefined;
-                  if (!meta) return "—";
-                  return [meta.software, meta.version, meta.stitchCount != null ? `${meta.stitchCount} stitches` : null]
-                    .filter(Boolean)
-                    .join(" · ");
+                  const preferred = pickPreferredSampleOutput(row.artifacts ?? []);
+                  return formatMachineOutputSummary(preferred) ?? "—";
                 },
               },
               {

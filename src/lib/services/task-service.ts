@@ -31,6 +31,10 @@ import {
 } from "@/lib/services/production-release-readiness";
 import { formatProductionReleaseMissing } from "@/lib/services/production-workflow";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+import {
+  hasMachineMetricsInPayload,
+  isMachineOutputTask,
+} from "@/lib/services/task-machine-output-utils";
 import { resolveStatusAfterAssign, reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
 import { enrichEmployeeTasks } from "@/lib/services/task-workflow-enrichment";
 import { sortTasksByEffectivePriority } from "@/lib/task-priority";
@@ -725,6 +729,26 @@ export async function endTask(
       });
       if (artifactCount === 0) {
         throw businessRule(APP_ERROR_CODES.REQUIRED_FILE_MISSING);
+      }
+    }
+
+    if (isMachineOutputTask(task.subProcess.code, task.subProcess.capabilities)) {
+      const sampleArtifacts = await tx.taskArtifact.findMany({
+        where: { taskId, artifactType: "SAMPLE_OUTPUT" },
+        select: {
+          stitchCount: true,
+          machineFormat: true,
+          sampleQty: true,
+          wastageQty: true,
+        },
+      });
+      const hasMetrics = sampleArtifacts.some((row) => hasMachineMetricsInPayload(row));
+      if (!hasMetrics) {
+        throw businessRule(
+          APP_ERROR_CODES.VALIDATION_FAILED,
+          undefined,
+          "Record machine output (sample qty, format, or stitch count) before ending this task.",
+        );
       }
     }
 

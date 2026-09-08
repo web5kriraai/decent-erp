@@ -4,6 +4,8 @@ import {
   MACHINE_FORMAT_OPTIONS,
   hasMachineMetricsInPayload,
   canRecordMachineMetrics,
+  pickPreferredSampleOutput,
+  formatMachineOutputSummary,
 } from "@/lib/services/task-machine-output-utils";
 
 describe("task-machine-output-utils", () => {
@@ -29,5 +31,23 @@ describe("task-machine-output-utils", () => {
     expect(canRecordMachineMetrics("MACHINE_SAMPLE", { sampleQty: 1 })).toBe(true);
     expect(canRecordMachineMetrics("SKETCH", { sampleQty: 1 })).toBe(false);
     expect(canRecordMachineMetrics("SKETCH", {})).toBe(true);
+  });
+
+  it("prefers SAMPLE_OUTPUT rows that carry metrics", () => {
+    const preferred = pickPreferredSampleOutput([
+      {
+        artifactType: "SAMPLE_OUTPUT",
+        uploadedAtUtc: "2026-01-02T00:00:00.000Z",
+        storageKey: "file-only",
+      },
+      {
+        artifactType: "SAMPLE_OUTPUT",
+        uploadedAtUtc: "2026-01-01T00:00:00.000Z",
+        sampleQty: 2,
+        machineFormat: "EMB",
+      },
+    ]);
+    expect(preferred?.sampleQty).toBe(2);
+    expect(formatMachineOutputSummary(preferred)).toContain("2 pcs");
   });
 });

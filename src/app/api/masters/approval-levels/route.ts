@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { jsonOk, parseBody, withApiHandler } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
-import { getApprovalLevels } from "@/lib/services/approval-service";
 import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
 
@@ -11,9 +10,14 @@ const createSchema = z.object({
   sequence: z.number().int().positive(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
-    const levels = await getApprovalLevels();
+    const includeInactive =
+      new URL(request.url).searchParams.get("includeInactive") === "1";
+    const levels = await prisma.approvalLevel.findMany({
+      where: includeInactive ? undefined : { active: true },
+      orderBy: { sequence: "asc" },
+    });
     return jsonOk(levels, ctx.correlationId);
   });
 }

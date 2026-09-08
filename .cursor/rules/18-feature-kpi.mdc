@@ -1,6 +1,6 @@
 ---
-description: KRA/KPI engine - weighted scoring and dashboards.
-globs: **/features/kpi/**,**/api/kpi/**,**/EmployeeKpi*
+description: KRA/KPI engine - weighted scoring, marks/grades, and dashboards.
+globs: **/features/kpi/**,**/api/kpi/**,**/EmployeeKpi*,**/performance-grade*,**/performance-service*,**/design-kpi*
 alwaysApply: false
 ---
 
@@ -30,6 +30,24 @@ WeightedScore = SUM(MetricScore * WeightPercent / 100)
 - Improvement-type corrections must be excluded from the Correction
   Performance metric (see `14-feature-correction.mdc`).
 
+## Marks & grades
+- Monthly recompute writes `EmployeePerformanceMark` (`KPI_MONTHLY`) and upserts
+  `EmployeePerformanceGrade` for the UTC period.
+- Grade bands (from weighted KPI 0–100): A ≥90, B ≥75, C ≥60, D ≥40, E below.
+- Other mark sources: `DESIGN_CONTRIBUTION`, `CORRECTION_IMPACT`,
+  `CREATIVITY_RATING`, `MANUAL_ADJUST`.
+- `GET /api/kpi/employees` chart items include `gradeCode` + `marksBalance` for
+  the current UTC month when a grade row exists.
+- `GET /api/admin/employees` includes optional `gradeCode` + `marksBalance` for
+  the current UTC month.
+- `GET /api/kpi/employees/{id}/performance?year=&month=` returns grade, marks
+  ledger, and live `marksBalance`.
+
+## Design contribution
+- `GET /api/designs/{id}/kpi-contribution` — per-contributor score breakdown on a design.
+- `POST /api/designs/{id}/creativity-ratings` — Design Head creativity/design-quality
+  rating (`employeeId`, `score`, optional `remark`); feeds creativity KPI + marks.
+
 ## Design Head rollups
 Ideas created/completed by month, approved/rejected/live counts, average
 development lead time, design-to-production and design-to-sales conversion,
@@ -38,4 +56,8 @@ design success by season/collection/product type/target market.
 
 ## API
 - `GET /api/kpi/employees`
+- `GET /api/kpi/employees/{id}/performance`
 - `GET /api/kpi/design-head`
+- `POST /api/kpi/recompute`
+- `GET /api/designs/{id}/kpi-contribution`
+- `POST /api/designs/{id}/creativity-ratings`

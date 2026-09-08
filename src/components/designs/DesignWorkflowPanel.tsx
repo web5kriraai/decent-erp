@@ -19,6 +19,10 @@ import {
   IconClock3,
   IconLock,
 } from "@/components/icons";
+import {
+  formatMachineOutputSummary,
+  isMachineOutputTask,
+} from "@/lib/services/task-machine-output-utils";
 
 type DesignWorkflowPanelProps = {
   design: DesignSummary;
@@ -138,6 +142,12 @@ export function DesignWorkflowPanel({
                           ? " · On hold"
                           : ""}
                     </p>
+                    {isMachineOutputTask(step.task.subProcess?.code) ? (
+                      <p className="workflow-step-meta">
+                        {formatMachineOutputSummary(step.task.artifacts?.[0]) ??
+                          "Machine output not recorded"}
+                      </p>
+                    ) : null}
                   </div>
                   <StepStatusIcon step={step} />
                 </div>

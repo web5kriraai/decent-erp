@@ -14,11 +14,12 @@ export function useDesignsList(enabled = true) {
   });
 }
 
-export function useDesign(id: string, enabled = true) {
+export function useDesign(id: string, enabled = true, options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: queryKeys.designs.detail(id),
     queryFn: () => apiGet<DesignSummary>(`/api/designs/${id}`),
     enabled: enabled && !!id,
+    refetchInterval: options?.refetchInterval,
   });
 }
 

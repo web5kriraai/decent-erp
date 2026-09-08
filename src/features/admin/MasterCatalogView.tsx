@@ -24,10 +24,11 @@ import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import type { CatalogMaster } from "@/hooks/use-masters";
 import {
-  isMasterType,
   MASTER_HUB_GROUPS,
   MASTER_TYPE_LABELS,
   MASTER_TYPES,
+  isMasterType,
+  isMasterTypeWired,
   type MasterHubGroup,
   type MasterHubTile,
   type MasterType,
@@ -141,10 +142,22 @@ export function MasterCatalogView() {
       description?: string | null;
       sortOrder?: number;
       isActive?: boolean;
-    }) => apiPatch(`/api/masters/catalog/${payload.id}`, payload),
-    onSuccess: () => {
+    }) =>
+      apiPatch<{
+        id: number;
+        warnings?: Array<{ code: string; message: string; count: number }>;
+      }>(`/api/masters/catalog/${payload.id}`, payload),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["masters", "catalog"] });
-      toast.success("Master item updated");
+      const warnings = data?.warnings ?? [];
+      if (warnings.length > 0) {
+        toast.success(
+          "Master item updated",
+          warnings.map((w) => w.message).join(" · "),
+        );
+      } else {
+        toast.success("Master item updated");
+      }
       setEditItem(null);
     },
     onError: (e) => toast.errorFromApi(e, "Could not update master item"),
@@ -254,6 +267,7 @@ export function MasterCatalogView() {
                       }
 
                       const count = countsByType[tile.masterType] ?? 0;
+                      const wired = isMasterTypeWired(tile.masterType);
                       return (
                         <button
                           key={tile.masterType}
@@ -272,6 +286,7 @@ export function MasterCatalogView() {
                               {countsQuery.isLoading
                                 ? "Loading…"
                                 : `${count} record${count === 1 ? "" : "s"}`}
+                              {!wired ? " · Lookup only" : ""}
                             </p>
                           </div>
                           <IconChevronRight

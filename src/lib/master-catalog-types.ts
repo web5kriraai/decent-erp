@@ -86,6 +86,28 @@ function catalogTile(masterType: MasterType): MasterHubCatalogTile {
   };
 }
 
+/** Catalog types that already have domain consumers (designs, materials, quality, samples). */
+export const MASTER_TYPES_WIRED: ReadonlySet<MasterType> = new Set([
+  MASTER_TYPES.PRODUCT_CATEGORY,
+  MASTER_TYPES.PRODUCT_COMPONENT,
+  MASTER_TYPES.SEASON,
+  MASTER_TYPES.STYLE,
+  MASTER_TYPES.THEME,
+  MASTER_TYPES.CELEBRITY,
+  MASTER_TYPES.WORK_TYPE,
+  MASTER_TYPES.FABRIC_QUALITY,
+  MASTER_TYPES.THREAD,
+  MASTER_TYPES.ACCESSORIES,
+  MASTER_TYPES.MACHINE,
+  MASTER_TYPES.STITCHING_TYPE,
+  MASTER_TYPES.DESIGN_GRADE,
+  MASTER_TYPES.CORRECTION_TYPE,
+]);
+
+export function isMasterTypeWired(masterType: MasterType): boolean {
+  return MASTER_TYPES_WIRED.has(masterType);
+}
+
 /** Admin hub: domain groups for catalog types + links to structured masters. */
 export const MASTER_HUB_GROUPS: MasterHubGroup[] = [
   {
@@ -146,22 +168,29 @@ export const MASTER_HUB_GROUPS: MasterHubGroup[] = [
         kind: "link",
         id: "approval-levels",
         label: "Approval Level",
-        href: "/admin/masters?tab=processes",
-        description: "Process & role setup",
+        href: "/admin/masters?tab=structured&section=approvals",
+        description: "Stage approval levels",
       },
       {
         kind: "link",
         id: "skills",
         label: "Employee Skill",
-        href: "/admin/masters?tab=processes",
-        description: "Process & role setup",
+        href: "/admin/masters?tab=structured&section=skills",
+        description: "Skills for assignment",
       },
       {
         kind: "link",
         id: "checklist",
         label: "Checklist",
-        href: "/admin/masters?tab=processes",
-        description: "Process & role setup",
+        href: "/admin/masters?tab=structured&section=checklist",
+        description: "Quality checklist items",
+      },
+      {
+        kind: "link",
+        id: "hold-reasons",
+        label: "Hold Reasons",
+        href: "/admin/masters?tab=structured&section=holds",
+        description: "Task hold reasons",
       },
       {
         kind: "link",

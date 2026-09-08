@@ -7,6 +7,7 @@ import {
   toLegacyActiveShape,
   updateMasterCatalog,
 } from "@/lib/services/master-catalog-service";
+import { getCatalogUsage } from "@/lib/services/master-usage-service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -36,11 +37,15 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const body = await parseBody(request, patchSchema);
     const existing = await getMasterCatalogById(catalogId);
+    const nextActive = body.isActive ?? body.active;
+    const deactivating = nextActive === false && existing.isActive === true;
+    const warnings = deactivating ? await getCatalogUsage(catalogId) : [];
+
     const updated = await updateMasterCatalog(catalogId, {
       name: body.name,
       description: body.description,
       sortOrder: body.sortOrder,
-      isActive: body.isActive ?? body.active,
+      isActive: nextActive,
     });
 
     await writeAuditLogDirect({
@@ -53,6 +58,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       after: updated,
     });
 
-    return jsonOk(serializeBigInt(toLegacyActiveShape(updated)), ctx.correlationId);
+    return jsonOk(
+      {
+        ...serializeBigInt(toLegacyActiveShape(updated)),
+        warnings,
+      },
+      ctx.correlationId,
+    );
   });
 }

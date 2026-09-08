@@ -20,7 +20,6 @@ import {
   TaskStageApprovalPanel,
 } from "@/components/tasks/TaskStageApprovalPanel";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
-import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
 import { ActionUnavailable } from "@/components/ui/ActionUnavailable";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
@@ -40,7 +39,6 @@ import {
 import { PERMISSIONS } from "@/lib/permissions";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import { formatDuration } from "@/lib/services/time-calculation";
-import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
 import {
   canControlTask,
@@ -142,7 +140,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
   const fileRequired = !!task?.subProcess?.isFileRequired;
   const isSampleCheck = task?.subProcess?.code === "SAMPLE_CHECK";
-  const showMachineOutput = isMachineOutputTask(task?.subProcess?.code);
 
   const linkedWorkTaskStatus = useMemo(() => {
     if (!task?.workflowPeers) return undefined;
@@ -419,10 +416,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
 
             {showComparePanel ? (
               <TaskCompareVersionsPanel designId={task.design.id} />
-            ) : null}
-
-            {showMachineOutput ? (
-              <TaskMachineOutputPanel taskId={task.id} canEdit={canControl} />
             ) : null}
 
             {isStageApproval && canControl ? (

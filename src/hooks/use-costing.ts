@@ -30,6 +30,7 @@ export function useAddCostEntry(designId: string) {
     }) => apiPost<DesignCostRecord>(`/api/designs/${designId}/costs`, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.list(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
       toast.success("Cost entry added");
     },
     onError: (error) => toast.errorFromApi(error, "Could not add cost"),

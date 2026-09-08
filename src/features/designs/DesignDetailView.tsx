@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useBreadcrumbReplacement } from "@/components/layout/BreadcrumbProvider";
 import { QueryState } from "@/components/ui/QueryState";
@@ -14,12 +13,12 @@ import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { ROUTES } from "@/config/routes";
 import { useDesign } from "@/hooks/use-designs";
 import { useDesignCosts } from "@/hooks/use-costing";
-import { ImageGallery } from "@/components/ImageGallery";
-import { ConceptMediaPanel } from "@/components/ConceptMediaPanel";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
 import { DesignCompletionSummaryPanel, canViewDesignCompletionSummary } from "@/features/designs/DesignCompletionSummaryPanel";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
 import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
+import { DesignDetailTabsBody } from "@/features/designs/DesignDetailModal";
+import type { DesignDetailTab } from "@/features/designs/DesignDetailModalProvider";
 import { DesignWorkflowPanel } from "@/components/designs/DesignWorkflowPanel";
 import { DesignActiveTaskTimer } from "@/components/designs/DesignActiveTaskTimer";
 import { CompactDesignActions } from "@/components/designs/CompactDesignActions";
@@ -27,9 +26,7 @@ import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprova
 import { ManagementApprovalCard } from "@/components/designs/ManagementApprovalCard";
 import { getPendingStageApproval } from "@/lib/design-workflow";
 import { PERMISSIONS } from "@/lib/permissions";
-import { apiGet } from "@/lib/api-client";
-import { queryKeys } from "@/lib/query-keys";
-import type { DesignImageRecord, DesignTask } from "@/lib/types/api";
+import type { DesignTask } from "@/lib/types/api";
 
 export function DesignDetailView({
   designId,
@@ -45,13 +42,11 @@ export function DesignDetailView({
   const permissions = session?.user?.permissions ?? [];
   const employeeId = session?.user?.employeeId;
   const designQuery = useDesign(designId);
-  const imagesQuery = useQuery({
-    queryKey: queryKeys.designs.images(designId),
-    queryFn: () => apiGet<DesignImageRecord[]>(`/api/designs/${designId}/images`),
-    enabled: !!designId,
-  });
   const [assignTask, setAssignTask] = useState<DesignTask | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<DesignDetailTab>(
+    highlightImageId || showConceptSetup ? "files" : "overview",
+  );
 
   useBreadcrumbReplacement(designId, designQuery.data?.ideaRef);
 
@@ -59,10 +54,9 @@ export function DesignDetailView({
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
-  const canUploadFiles = permissions.includes(PERMISSIONS.DESIGN_CREATE);
   const canOverrideWorkflow = permissions.includes(PERMISSIONS.WORKFLOW_OVERRIDE);
   const canViewCompletion = canViewDesignCompletionSummary(permissions);
-  const images = imagesQuery.data ?? designQuery.data?.images ?? [];
+  const images = designQuery.data?.images ?? [];
   const needsPrimaryImage = images.length === 0 || !images.some((img) => img.isPrimary);
   const showImageGate = needsPrimaryImage || (showConceptSetup && images.length === 0);
 
@@ -215,30 +209,13 @@ export function DesignDetailView({
               enabled={canViewCompletion}
             />
 
-            <AppCard title="Design Files" id="design-files">
-              <div className="vstack vstack--loose">
-                {canUploadFiles ? (
-                  <ConceptMediaPanel
-                    designId={designId}
-                    canUpload={canUploadFiles}
-                    components={(designQuery.data?.components ?? []).map((c) => ({
-                      id: c.id,
-                      label: c.componentType?.name ?? c.id,
-                    }))}
-                    onUploaded={() => imagesQuery.refetch()}
-                  />
-                ) : null}
-                <ImageGallery
-                  designId={designId}
-                  canUpload={canUploadFiles}
-                  highlightImageId={highlightImageId}
-                  components={(designQuery.data?.components ?? []).map((c) => ({
-                    id: c.id,
-                    label: c.componentType?.name ?? c.id,
-                  }))}
-                  showUploader={false}
-                />
-              </div>
+            <AppCard title="Design detail" id="design-files">
+              <DesignDetailTabsBody
+                designId={designId}
+                tab={detailTab}
+                onTabChange={setDetailTab}
+                compactHero
+              />
             </AppCard>
 
             <AssignTaskModal

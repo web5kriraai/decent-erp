@@ -11,8 +11,8 @@ export const SPEC_KPI_METRICS = [
   { code: "DOCUMENTATION", weight: 5, label: "Documentation Discipline" },
 ] as const;
 
-/** Bumped when correction penalty scope narrowed to MISTAKE-only (spec Stage 7). */
-export const KPI_CALCULATION_VERSION = 3;
+/** Bumped when marks/grades, ratingImpact, approvals, and creativity ratings feed scores. */
+export const KPI_CALCULATION_VERSION = 4;
 
 /**
  * Spec Stage 7 / §8–9: only employee MISTAKE corrections penalize KPI.

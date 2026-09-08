@@ -326,3 +326,27 @@ export function useTaskHasFiles(taskId: string, designId: string, enabled = true
     refetch: artifactsQuery.refetch,
   };
 }
+
+export function useTaskHasMachineMetrics(taskId: string, enabled = true) {
+  const artifactsQuery = useQuery({
+    queryKey: ["tasks", taskId, "artifacts"],
+    queryFn: () => apiGet<TaskArtifact[]>(`/api/tasks/${taskId}/artifacts`),
+    enabled: enabled && !!taskId,
+  });
+
+  const hasMetrics =
+    artifactsQuery.data?.some(
+      (a) =>
+        a.artifactType === "SAMPLE_OUTPUT" &&
+        (a.stitchCount != null ||
+          a.sampleQty != null ||
+          a.wastageQty != null ||
+          !!a.machineFormat?.trim()),
+    ) ?? false;
+
+  return {
+    hasMetrics,
+    isLoading: artifactsQuery.isLoading,
+    refetch: artifactsQuery.refetch,
+  };
+}

@@ -16,7 +16,7 @@ import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { cn } from "@/lib/utils";
 import { IconCheck, IconTrash2, IconClose } from "@/components/icons";
 import type { ChecklistItemMaster } from "@/hooks/use-masters";
-import { TaskArtifactPanel, useTaskHasFiles } from "@/components/tasks/TaskArtifactPanel";
+import { TaskArtifactPanel, useTaskHasFiles, useTaskHasMachineMetrics } from "@/components/tasks/TaskArtifactPanel";
 import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
 import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { useDesignCosts } from "@/hooks/use-costing";
@@ -121,6 +121,7 @@ export function TaskEndDialog({
   const [draftAmount, setDraftAmount] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
   const [costingNote, setCostingNote] = useState("");
+  const [machineOutputBusy, setMachineOutputBusy] = useState(false);
 
   const stageBehavior = resolveStageBehavior({
     code: subProcessCode ?? "",
@@ -159,6 +160,7 @@ export function TaskEndDialog({
     setDraftDescription("");
     setDraftCostType("TIME");
     setCostingNote("");
+    setMachineOutputBusy(false);
     onClose();
   }
 
@@ -170,7 +172,12 @@ export function TaskEndDialog({
 
   const showFileUpload = !!fileRequired && !!taskId && !!designId;
   const showMachineOutput = isMachineOutputTask(subProcessCode) && !!taskId;
+  const { hasMetrics, isLoading: metricsLoading } = useTaskHasMachineMetrics(
+    taskId ?? "",
+    open && showMachineOutput && !!taskId,
+  );
   const filesBlocking = showFileUpload && (filesLoading || isUploading || !hasFiles);
+  const metricsBlocking = showMachineOutput && (metricsLoading || !hasMetrics);
   const denseDeliverables = showFileUpload && showMachineOutput;
   const resolvedForcesChecking = subProcessCode
     ? (() => {
@@ -236,7 +243,13 @@ export function TaskEndDialog({
     (!isCosting || costingOk) &&
     !costingLoading;
 
-  const canSubmit = formComplete && !filesBlocking && !isPending && !readinessBlocking;
+  const canSubmit =
+    formComplete &&
+    !filesBlocking &&
+    !metricsBlocking &&
+    !isPending &&
+    !readinessBlocking &&
+    !machineOutputBusy;
 
   function markAllPassed() {
     for (const item of checklistItems) {
@@ -246,6 +259,8 @@ export function TaskEndDialog({
 
   function submitLabel() {
     if (isPending) return "Submitting…";
+    if (machineOutputBusy) return "Saving machine output…";
+    if (metricsBlocking) return "Enter machine output…";
     if (isUploading) return "Waiting for upload…";
     if (isPartialChecklist) return "Submit with notes";
     return "Submit Completion";
@@ -280,7 +295,12 @@ export function TaskEndDialog({
       size={denseDeliverables || isCosting || isProdRelease ? "lg" : "md"}
       footer={
         <ModalFooterActions>
-          <AppButton type="button" appVariant="outline" onClick={handleClose} disabled={isPending || isUploading}>
+          <AppButton
+            type="button"
+            appVariant="outline"
+            onClick={handleClose}
+            disabled={isPending || isUploading || machineOutputBusy}
+          >
             Cancel
           </AppButton>
           <AppButton type="button" disabled={!canSubmit} onClick={onSubmit}>
@@ -335,11 +355,15 @@ export function TaskEndDialog({
               )}
             >
               {showMachineOutput ? (
-                <TaskMachineOutputPanel
-                  taskId={taskId!}
-                  canEdit={canUpload && !isPending}
-                  compact
-                />
+                <div className="min-w-0 space-y-2">
+                  <p className="text-sm font-medium text-foreground">Machine output</p>
+                  <TaskMachineOutputPanel
+                    taskId={taskId!}
+                    canEdit={canUpload && !isPending}
+                    compact
+                    onBusyChange={setMachineOutputBusy}
+                  />
+                </div>
               ) : null}
               {showFileUpload ? (
                 <div className="min-w-0 space-y-2">
@@ -652,6 +676,11 @@ export function TaskEndDialog({
             {isUploading
               ? "Finish uploading your file to enable submit."
               : "Upload at least one file to enable submit."}
+          </p>
+        )}
+        {!canSubmit && formComplete && metricsBlocking && !filesBlocking && !isPending && (
+          <p className="text-xs text-muted-foreground" role="status">
+            Enter at least one machine output field (sample qty, format, or stitch count).
           </p>
         )}
       </ModalForm>

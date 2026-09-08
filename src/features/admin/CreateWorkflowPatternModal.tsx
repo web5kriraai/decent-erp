@@ -487,6 +487,9 @@ export function CreateWorkflowPatternModal({
                       }))}
                       placeholder="Any skill for role"
                     />
+                  </ModalFormGrid>
+
+                  <ModalFormGrid>
                     <FormTextField
                       id={`task-${task.id}-minutes`}
                       label="Minutes"
@@ -504,9 +507,6 @@ export function CreateWorkflowPatternModal({
                           : undefined
                       }
                     />
-                  </ModalFormGrid>
-
-                  <ModalFormGrid>
                     <FormTextField
                       id={`task-${task.id}-dayOffset`}
                       label="Day Offset"
@@ -515,6 +515,9 @@ export function CreateWorkflowPatternModal({
                       value={task.dayOffset}
                       onChange={(e) => updateTask(task.id, { dayOffset: e.target.value })}
                     />
+                  </ModalFormGrid>
+
+                  <ModalFormGrid>
                     <FormSelect
                       id={`task-${task.id}-priority`}
                       label="Priority"

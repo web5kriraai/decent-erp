@@ -304,17 +304,19 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
             placeholder="Select…"
           />
         </ModalFormGrid>
-        <FormSelect
-          id="editStitching"
-          label="Stitching Type"
-          value={stitchingTypeId === "" ? null : String(stitchingTypeId)}
-          onValueChange={(v) => setStitchingTypeId(v ? Number(v) : "")}
-          options={(stitchingTypes.data ?? []).map((s) => ({
-            value: String(s.id),
-            label: s.name,
-          }))}
-          placeholder="Select…"
-        />
+        <ModalFormGrid>
+          <FormSelect
+            id="editStitching"
+            label="Stitching Type"
+            value={stitchingTypeId === "" ? null : String(stitchingTypeId)}
+            onValueChange={(v) => setStitchingTypeId(v ? Number(v) : "")}
+            options={(stitchingTypes.data ?? []).map((s) => ({
+              value: String(s.id),
+              label: s.name,
+            }))}
+            placeholder="Select…"
+          />
+        </ModalFormGrid>
         <FormTextArea
           id="editConcept"
           label="Concept Note"

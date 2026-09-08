@@ -445,7 +445,7 @@ export function DesignCreateForm() {
 
             <div className="form-layout-span">
               <AppCard title="Task Assignment System">
-                <div className="form-grid">
+                <div className="form-grid form-grid--2">
                   <FormSelect
                     id="priority"
                     label="Priority"
@@ -455,7 +455,8 @@ export function DesignCreateForm() {
                     options={PRIORITY_OPTIONS}
                     error={showErrors ? validationErrors.priority : undefined}
                   />
-                  <DesignAssignmentPanel
+                </div>
+                <DesignAssignmentPanel
                     assignmentMode={assignmentMode}
                     onAssignmentModeChange={setAssignmentMode}
                     workflowPatternId={workflowPatternId || effectiveWorkflowPatternId || ""}
@@ -472,7 +473,6 @@ export function DesignCreateForm() {
                     validationErrors={validationErrors}
                     fieldErrors={fieldErrors}
                   />
-                </div>
               </AppCard>
             </div>
           </div>

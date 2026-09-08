@@ -13,6 +13,7 @@ import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { ROUTES } from "@/config/routes";
 import { useDesignKanban } from "@/hooks/use-designs";
 import { useProductTypes, useSeasons } from "@/hooks/use-masters";
+import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { KanbanDesignItem, Priority } from "@/lib/types/api";
 
@@ -154,9 +155,11 @@ function formatInr(amount: number | null | undefined): string {
 function WorkflowDesignCard({
   design,
   laneLabel,
+  onOpen,
 }: {
   design: KanbanDesignItem;
   laneLabel: string;
+  onOpen?: (designId: string) => void;
 }) {
   const progress =
     design.workflow.totalStages > 0
@@ -168,7 +171,22 @@ function WorkflowDesignCard({
   const costLabel = formatInr(design.estimatedCost);
 
   return (
-    <article className="workflow-dash-card">
+    <article
+      className="workflow-dash-card"
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen ? () => onOpen(design.id) : undefined}
+      onKeyDown={
+        onOpen
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpen(design.id);
+              }
+            }
+          : undefined
+      }
+    >
       <div className="workflow-dash-card__visual">
         {design.primaryImageUrl ? (
           <img
@@ -188,9 +206,25 @@ function WorkflowDesignCard({
       </div>
 
       <div className="workflow-dash-card__body">
-        <Link href={ROUTES.designs.detail(design.id)} className="workflow-dash-card__ref">
-          {design.ideaRef}
-        </Link>
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            className="workflow-dash-card__ref text-left"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen?.(design.id);
+            }}
+          >
+            {design.ideaRef}
+          </button>
+          <Link
+            href={ROUTES.designs.detail(design.id)}
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Full page
+          </Link>
+        </div>
         <p className="workflow-dash-card__title">{design.collectionName}</p>
 
         <dl className="workflow-dash-card__meta">
@@ -238,6 +272,8 @@ function WorkflowDesignCard({
 }
 
 export function DesignKanbanView() {
+  const detailModal = useOptionalDesignDetailModal();
+
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const canView = permissions.includes(PERMISSIONS.DESIGN_CREATE);
@@ -475,6 +511,7 @@ export function DesignKanbanView() {
                         key={design.id}
                         design={design}
                         laneLabel={lane.label}
+                        onOpen={(id) => detailModal?.openDesign(id)}
                       />
                     ))
                   )}

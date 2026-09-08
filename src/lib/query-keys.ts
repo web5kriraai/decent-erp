@@ -8,6 +8,7 @@ export const queryKeys = {
     completionSummary: (id: string) => ["designs", "completion-summary", id] as const,
     productionReadiness: (id: string) => ["designs", "production-readiness", id] as const,
     images: (id: string) => ["designs", "images", id] as const,
+    kpiContribution: (id: string) => ["designs", "kpi-contribution", id] as const,
   },
   tasks: {
     all: ["tasks"] as const,
@@ -59,6 +60,8 @@ export const queryKeys = {
     employees: (page?: number, pageSize?: number) =>
       ["kpi", "employees", { page, pageSize }] as const,
     designHead: ["kpi", "design-head"] as const,
+    performance: (employeeId: number | string, year?: number, month?: number) =>
+      ["kpi", "performance", String(employeeId), year, month] as const,
   },
   reports: {
     corrections: ["reports", "corrections"] as const,

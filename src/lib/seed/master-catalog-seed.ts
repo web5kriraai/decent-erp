@@ -114,11 +114,7 @@ export const CORRECTION_TYPE_SEED: CatalogSeedRow[] = [
   { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "CUSTOMER_CHANGE", name: "Customer Change", sortOrder: 3 },
   { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "MACHINE", name: "Machine Issue", sortOrder: 4 },
   { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "MATERIAL", name: "Material Issue", sortOrder: 5 },
-  { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "FIT_ISSUE", name: "Fit issue", sortOrder: 6 },
-  { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "COLOR_MISMATCH", name: "Color mismatch", sortOrder: 7 },
-  { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "STITCH_DEFECT", name: "Stitch defect", sortOrder: 8 },
-  { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "EMBROIDERY_ERROR", name: "Embroidery error", sortOrder: 9 },
-  { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "OTHER", name: "Other", sortOrder: 10 },
+  { masterType: MASTER_TYPES.CORRECTION_TYPE, code: "OTHER", name: "Other", sortOrder: 6 },
 ];
 
 const EXTRA_CATALOG_SEED: CatalogSeedRow[] = [

@@ -2,17 +2,22 @@
 
 import { useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { PageToolbar } from "@/components/ui/PageToolbar";
+import { PermissionDenied } from "@/components/PermissionDenied";
 import { MastersView } from "@/features/admin/MastersView";
 import { MasterCatalogView } from "@/features/admin/MasterCatalogView";
+import { StructuredMastersAdminView } from "@/features/admin/StructuredMastersAdminView";
 import { KpiWeightsAdminView } from "@/features/admin/KpiWeightsAdminView";
 import { ConceptTargetsAdminView } from "@/features/admin/ConceptTargetsAdminView";
+import { PERMISSIONS } from "@/lib/permissions";
 
 const TABS = [
   { id: "processes", label: "Processes" },
   { id: "catalog", label: "Master Catalog" },
+  { id: "structured", label: "Structured" },
   { id: "targets", label: "Concept Targets" },
   { id: "kpi", label: "KPI Weights" },
 ] as const;
@@ -24,6 +29,10 @@ function isTabId(value: string | null): value is TabId {
 }
 
 export function MasterDataAdminView() {
+  const { data: session } = useSession();
+  const permissions = session?.user?.permissions ?? [];
+  const canAdmin = permissions.includes(PERMISSIONS.MASTER_ADMIN);
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -36,11 +45,15 @@ export function MasterDataAdminView() {
     router.replace(`/admin/masters?tab=${next}`, { scroll: false });
   }
 
+  if (!canAdmin) {
+    return <PermissionDenied />;
+  }
+
   return (
     <div className="page-shell page-shell--wide">
       <PageHeader
         title="Master Data"
-        subtitle="Processes, flat catalog lookups, concept targets, and KPI weights."
+        subtitle="Processes, catalog lookups, structured masters, concept targets, and KPI weights."
       />
 
       <PageToolbar panel className="mb-4" role="tablist" aria-label="Master data sections">
@@ -61,6 +74,8 @@ export function MasterDataAdminView() {
 
       {tab === "processes" ? (
         <MastersView embedded />
+      ) : tab === "structured" ? (
+        <StructuredMastersAdminView />
       ) : tab === "kpi" ? (
         <KpiWeightsAdminView />
       ) : tab === "targets" ? (

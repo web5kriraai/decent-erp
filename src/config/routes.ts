@@ -265,7 +265,7 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       {
         id: "masters",
-        label: "Process Masters",
+        label: "Master Data",
         href: ROUTES.admin.masters,
         icon: IconMasters,
         permission: PERMISSIONS.MASTER_ADMIN,
@@ -364,32 +364,31 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   ],
   [ROUTES.analytics.reportsHub]: [
     { label: "Dashboard", href: ROUTES.dashboard },
-    { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Reports Hub" },
   ],
   [ROUTES.analytics.reportsCorrections]: [
     { label: "Dashboard", href: ROUTES.dashboard },
-    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Reports Hub", href: ROUTES.analytics.reportsHub },
     { label: "Correction Analysis" },
   ],
   [ROUTES.analytics.reportsDesignSuccess]: [
     { label: "Dashboard", href: ROUTES.dashboard },
-    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Reports Hub", href: ROUTES.analytics.reportsHub },
     { label: "Design Success" },
   ],
   [ROUTES.analytics.reportsSampleStatus]: [
     { label: "Dashboard", href: ROUTES.dashboard },
-    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Reports Hub", href: ROUTES.analytics.reportsHub },
     { label: "Sample Status" },
   ],
   [ROUTES.analytics.reportsProductionStart]: [
     { label: "Dashboard", href: ROUTES.dashboard },
-    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Reports Hub", href: ROUTES.analytics.reportsHub },
     { label: "Production Start" },
   ],
   [ROUTES.admin.masters]: [
     { label: "Dashboard", href: ROUTES.dashboard },
-    { label: "Process Masters" },
+    { label: "Master Data" },
   ],
   [ROUTES.admin.workflowPatterns]: [
     { label: "Dashboard", href: ROUTES.dashboard },

@@ -158,6 +158,11 @@ model Employee {
   conceptTargetsCreated ConceptTarget[] @relation("ConceptTargetCreatedBy")
   materialLinesRequested DesignMaterialLine[] @relation("MaterialRequestedBy")
   materialLinesIssued    DesignMaterialLine[] @relation("MaterialIssuedBy")
+  performanceMarks       EmployeePerformanceMark[] @relation("PerformanceMarkEmployee")
+  performanceMarksCreated EmployeePerformanceMark[] @relation("PerformanceMarkCreatedBy")
+  performanceGrades      EmployeePerformanceGrade[]
+  creativityRatingsGiven DesignCreativityRating[] @relation("CreativityRatedBy")
+  creativityRatingsReceived DesignCreativityRating[] @relation("CreativityRatedEmployee")
 
   @@map("employees")
 }
@@ -474,6 +479,7 @@ model DesignConcept {
   successMetrics   DesignSuccessMetric[]
   erpStages        ErpStageRecord[]
   materialLines    DesignMaterialLine[]
+  creativityRatings DesignCreativityRating[]
 
   @@index([status, priority])
   @@map("design_concepts")
@@ -718,6 +724,65 @@ model EmployeeKpiScore {
 
   @@index([employeeId, periodYear, periodMonth], map: "IX_EmployeeKpiScore_Employee_Period")
   @@map("employee_kpi_scores")
+}
+
+/** Ledger of performance points that feed grades (not payroll). */
+model EmployeePerformanceMark {
+  id            BigInt   @id @default(autoincrement()) @map("performance_mark_id")
+  employeeId    Int      @map("employee_id")
+  /** KPI_MONTHLY | DESIGN_CONTRIBUTION | CORRECTION_IMPACT | CREATIVITY_RATING | MANUAL_ADJUST */
+  sourceType    String   @map("source_type") @db.VarChar(40)
+  sourceRef     String?  @map("source_ref") @db.VarChar(120)
+  pointsDelta   Decimal  @map("points_delta") @db.Decimal(10, 2)
+  balanceAfter  Decimal  @map("balance_after") @db.Decimal(12, 2)
+  note          String?  @db.Text
+  createdById   Int?     @map("created_by")
+  createdAtUtc  DateTime @default(now()) @map("created_at_utc")
+
+  employee  Employee  @relation("PerformanceMarkEmployee", fields: [employeeId], references: [id])
+  createdBy Employee? @relation("PerformanceMarkCreatedBy", fields: [createdById], references: [id])
+
+  @@index([employeeId, createdAtUtc], map: "IX_EmployeePerformanceMark_Employee_Created")
+  @@index([sourceType, sourceRef])
+  @@map("employee_performance_marks")
+}
+
+/** Monthly performance grade derived from weighted KPI (A–E). */
+model EmployeePerformanceGrade {
+  id                 BigInt   @id @default(autoincrement()) @map("performance_grade_id")
+  employeeId         Int      @map("employee_id")
+  periodYear         Int      @map("period_year")
+  periodMonth        Int      @map("period_month")
+  totalMarks         Decimal  @map("total_marks") @db.Decimal(12, 2)
+  gradeCode          String   @map("grade_code") @db.VarChar(8)
+  weightedKpiScore   Decimal  @map("weighted_kpi_score") @db.Decimal(10, 2)
+  calculatedAtUtc    DateTime @default(now()) @map("calculated_at_utc")
+  calculationVersion Int      @map("calculation_version")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, periodYear, periodMonth], map: "UQ_EmployeePerformanceGrade_Period")
+  @@index([periodYear, periodMonth, gradeCode])
+  @@map("employee_performance_grades")
+}
+
+/** Design Head creativity / design-quality rating for a contributor on a design. */
+model DesignCreativityRating {
+  id           BigInt   @id @default(autoincrement()) @map("creativity_rating_id")
+  designId     BigInt   @map("design_id")
+  employeeId   Int      @map("employee_id")
+  ratedById    Int      @map("rated_by")
+  score        Decimal  @db.Decimal(5, 2)
+  remark       String?  @db.Text
+  ratedAtUtc   DateTime @default(now()) @map("rated_at_utc")
+
+  design   DesignConcept @relation(fields: [designId], references: [id], onDelete: Cascade)
+  employee Employee      @relation("CreativityRatedEmployee", fields: [employeeId], references: [id])
+  ratedBy  Employee      @relation("CreativityRatedBy", fields: [ratedById], references: [id])
+
+  @@unique([designId, employeeId], map: "UQ_DesignCreativityRating_Design_Employee")
+  @@index([employeeId, ratedAtUtc])
+  @@map("design_creativity_ratings")
 }
 
 model AuditLog {

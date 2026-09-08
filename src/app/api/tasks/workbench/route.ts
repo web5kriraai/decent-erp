@@ -25,7 +25,15 @@ export async function GET(request: Request) {
         artifacts: {
           orderBy: { id: "desc" },
           take: 3,
-          select: { artifactType: true, metadata: true },
+          select: {
+            artifactType: true,
+            stitchCount: true,
+            machineFormat: true,
+            sampleQty: true,
+            wastageQty: true,
+            storageKey: true,
+            fileName: true,
+          },
         },
       },
       orderBy: [{ dueAt: "asc" }, { id: "desc" }],

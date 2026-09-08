@@ -10,12 +10,20 @@ const createSchema = z.object({
   excludeFromActiveTime: z.boolean().optional(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   return withApiHandler(null, async (ctx) => {
+    const includeInactive =
+      new URL(request.url).searchParams.get("includeInactive") === "1";
     const reasons = await prisma.taskHoldReason.findMany({
-      where: { active: true },
+      where: includeInactive ? undefined : { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, code: true, name: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        excludeFromActiveTime: true,
+        active: true,
+      },
     });
     return jsonOk(serializeBigInt(reasons), ctx.correlationId);
   });

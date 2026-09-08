@@ -13,6 +13,7 @@ import { useCorrections } from "@/hooks/use-corrections";
 import { OPEN_CORRECTION_STATUSES } from "@/lib/services/correction-queue-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignSummary } from "@/lib/types/api";
+import { formatMachineOutputSummary } from "@/lib/services/task-machine-output-utils";
 
 type TaskQualityContextProps = {
   designId: string;
@@ -59,8 +60,13 @@ export function TaskQualityContextPanel({ designId, subProcessCode }: TaskQualit
   );
   const sketch = design.tasks?.find((t) => t.subProcess?.code === "SKETCH");
   const punch = design.tasks?.find((t) => t.subProcess?.code === "PUNCH");
-  const machineSample = design.tasks?.find((t) => t.subProcess?.code === "MACHINE_SAMPLE");
+  const machineSample =
+    design.tasks?.find((t) => t.subProcess?.code === "MACHINE_SAMPLE") ??
+    design.tasks?.find((t) => t.subProcess?.code === "RESAMPLE") ??
+    design.tasks?.find((t) => t.subProcess?.code === "SAMPLE_RECEIVE");
   const matReq = design.tasks?.find((t) => t.subProcess?.code === "MAT_REQ");
+  // Scope freeze: SAMPLE_CHECK approve stays checklist/outcome-based; precursor metrics are display-only.
+  const machineOutputSummary = formatMachineOutputSummary(machineSample?.artifacts?.[0]);
 
   return (
     <AppCard title="Quality context" className="task-quality-context stack-section-sm">
@@ -72,7 +78,12 @@ export function TaskQualityContextPanel({ designId, subProcessCode }: TaskQualit
           <StatusBadge status={punch?.status ?? "PENDING"} />
         </ContextTile>
         <ContextTile label="Machine sample">
-          <StatusBadge status={machineSample?.status ?? "PENDING"} />
+          <div className="space-y-1">
+            <StatusBadge status={machineSample?.status ?? "PENDING"} />
+            {machineOutputSummary ? (
+              <p className="m-0 text-xs text-muted-foreground">{machineOutputSummary}</p>
+            ) : null}
+          </div>
         </ContextTile>
         <ContextTile label="Material">
           <StatusBadge status={matReq?.status ?? "PENDING"} />

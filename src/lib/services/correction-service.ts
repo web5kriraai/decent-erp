@@ -359,6 +359,19 @@ export async function createCorrection(
       include: correctionInclude,
     });
   }).then(async (correction) => {
+    const impact = Number(correction.ratingImpact ?? 0);
+    const targetEmployeeId = correction.responsibleEmployeeId;
+    if (impact !== 0 && targetEmployeeId != null) {
+      const { appendPerformanceMark } = await import("@/lib/services/performance-service");
+      await appendPerformanceMark({
+        employeeId: targetEmployeeId,
+        sourceType: "CORRECTION_IMPACT",
+        sourceRef: `correction:${correction.id.toString()}`,
+        pointsDelta: impact,
+        note: `${correction.correctionType} correction on design ${correction.designId.toString()}`,
+        createdById: raisedById,
+      });
+    }
     await enqueueOutboxAndNotify(
       "CORRECTION_RAISED",
       {
@@ -491,6 +504,25 @@ export async function updateCorrection(
       after: updated,
     });
 
+    return { updated, priorStatus: existing.status, priorImpact: Number(existing.ratingImpact ?? 0) };
+  }).then(async ({ updated, priorStatus, priorImpact }) => {
+    // Reverse CORRECTION_IMPACT when a penalizing correction is rejected.
+    if (
+      updated.status === "REJECTED" &&
+      priorStatus !== "REJECTED" &&
+      priorImpact !== 0 &&
+      updated.responsibleEmployeeId != null
+    ) {
+      const { appendPerformanceMark } = await import("@/lib/services/performance-service");
+      await appendPerformanceMark({
+        employeeId: updated.responsibleEmployeeId,
+        sourceType: "CORRECTION_IMPACT",
+        sourceRef: `correction:${updated.id.toString()}:reversed`,
+        pointsDelta: -priorImpact,
+        note: `Reversed ${updated.correctionType} correction impact on design ${updated.designId.toString()}`,
+        createdById: userId,
+      });
+    }
     return updated;
   });
 }
