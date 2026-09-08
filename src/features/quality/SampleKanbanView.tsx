@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -9,12 +8,13 @@ import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatCard } from "@/components/ui/StatCard";
 import { AppButtonLink } from "@/components/ui/AppButton";
-import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { StatusBadge } from "@/components/StatusBadge";
+import { WorkflowBoardCard } from "@/components/ui/WorkflowBoardCard";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import { apiGet } from "@/lib/api-client";
 import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
+import { masterDisplayName } from "@/lib/master-display";
 import { queryKeys } from "@/lib/query-keys";
 
 type SampleKanbanItem = {
@@ -46,10 +46,7 @@ type SampleKanbanBoard = {
 export function SampleKanbanView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
-  const canView =
-    permissions.includes(PERMISSIONS.DESIGN_CREATE) ||
-    permissions.includes(PERMISSIONS.TASK_EXECUTE) ||
-    permissions.includes(PERMISSIONS.KPI_ADMIN);
+  const canView = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const detailModal = useOptionalDesignDetailModal();
 
   const boardQuery = useQuery({
@@ -68,6 +65,8 @@ export function SampleKanbanView() {
     return map;
   }, [boardQuery.data?.items]);
 
+  const summary = boardQuery.data?.summary;
+
   if (!canView) {
     return (
       <div className="page-shell">
@@ -76,22 +75,15 @@ export function SampleKanbanView() {
     );
   }
 
-  const summary = boardQuery.data?.summary;
-
   return (
-    <div className="page-shell page-shell--wide">
+    <div className="page-shell page-shell--wide workflow-dash-page">
       <PageHeader
         title="Sample Kanban"
-        subtitle="Concept → sample stages → Pass / Hold / Reject from sampleDecision + current stage."
+        subtitle="Commercial sample Pass / Hold / Reject board"
         actions={
-          <div className="flex flex-wrap gap-2">
-            <AppButtonLink href={ROUTES.work.samples} appVariant="secondary" size="sm">
-              Sample queue
-            </AppButtonLink>
-            <AppButtonLink href={ROUTES.designs.kanban} appVariant="ghost" size="sm">
-              Workflow kanban
-            </AppButtonLink>
-          </div>
+          <AppButtonLink href={ROUTES.designs.list} appVariant="secondary" size="sm">
+            All designs
+          </AppButtonLink>
         }
       />
 
@@ -102,83 +94,81 @@ export function SampleKanbanView() {
         onRetry={() => boardQuery.refetch()}
         skeletonVariant="stats"
       >
-        <div className="stat-grid stack-section">
-          <StatCard label="In board" value={summary?.total ?? 0} />
-          <StatCard label="Pending decision" value={summary?.pendingDecision ?? 0} />
-          <StatCard label="Pass" value={summary?.pass ?? 0} tone="success" />
-          <StatCard label="Hold" value={summary?.hold ?? 0} tone="warning" />
-          <StatCard label="Reject" value={summary?.reject ?? 0} />
-        </div>
+        <div className="workflow-dash-body">
+          <div className="stat-grid stack-section workflow-dash-stats">
+            <StatCard label="In board" value={summary?.total ?? 0} />
+            <StatCard label="Pending decision" value={summary?.pendingDecision ?? 0} />
+            <StatCard label="Pass" value={summary?.pass ?? 0} tone="success" />
+            <StatCard label="Hold" value={summary?.hold ?? 0} tone="warning" />
+            <StatCard label="Reject" value={summary?.reject ?? 0} />
+          </div>
 
-        <div className="workflow-dash-board" role="list" aria-label="Sample kanban lanes">
-          {(boardQuery.data?.lanes ?? []).map((lane) => {
-            const cards = byLane.get(lane.id) ?? [];
-            return (
-              <section key={lane.id} className="workflow-dash-lane" role="listitem">
-                <header className="workflow-dash-lane__head">
-                  <h2 className="workflow-dash-lane__title">{lane.label}</h2>
-                  <span className="workflow-dash-lane__count">{cards.length}</span>
-                </header>
-                <div className="workflow-dash-lane__cards">
-                  {cards.length === 0 ? (
-                    <p className="m-0 text-xs text-muted-foreground">Empty</p>
-                  ) : (
-                    cards.map((design) => (
-                      <article
-                        key={design.id}
-                        className="workflow-dash-card"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => detailModal?.openDesign?.(design.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            detailModal?.openDesign?.(design.id);
-                          }
-                        }}
-                      >
-                        <div className="workflow-dash-card__visual">
-                          {design.primaryImageUrl ? (
-                            <img
-                              src={design.primaryImageUrl}
-                              alt=""
-                              className="workflow-dash-card__img"
+          <div className="workflow-dash-board-shell">
+            <div
+              className="workflow-dash-board-scroll"
+              role="region"
+              aria-label="Sample kanban lanes"
+              tabIndex={0}
+            >
+            <div
+              className="kanban kanban--workflow-dash"
+              role="list"
+              aria-label="Sample kanban lanes"
+            >
+              {(boardQuery.data?.lanes ?? []).map((lane) => {
+                const cards = byLane.get(lane.id) ?? [];
+                return (
+                  <section key={lane.id} className="kanban-column" role="listitem">
+                    <div className="kanban-column-header">
+                      <span className="kanban-column-title">{lane.label}</span>
+                      <span className="kanban-column-count">{cards.length}</span>
+                    </div>
+                    <div className="kanban-cards">
+                      {cards.length === 0 ? (
+                        <p className="workflow-dash-empty">Empty</p>
+                      ) : (
+                        cards.map((design) => {
+                          const productLabel = masterDisplayName(
+                            design.productType?.name,
+                            design.productType?.code,
+                          );
+                          const stageLabel = (design.currentStage ?? "—").replace(
+                            /_/g,
+                            " ",
+                          );
+                          return (
+                            <WorkflowBoardCard
+                              key={design.id}
+                              ideaRef={design.ideaRef}
+                              title={design.collectionName}
+                              laneLabel={lane.label}
+                              priority={design.priority}
+                              productType={design.productType}
+                              primaryImageUrl={design.primaryImageUrl}
+                              detailHref={ROUTES.designs.detail(design.id)}
+                              onOpenCard={() => detailModal?.openDesign?.(design.id)}
+                              meta={[
+                                { label: "Product", value: productLabel },
+                                { label: "Stage", value: stageLabel },
+                              ]}
+                              footer={
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <StatusBadge
+                                    status={design.sampleDecision ?? "PENDING"}
+                                  />
+                                </div>
+                              }
                             />
-                          ) : (
-                            <div className="workflow-dash-card__fallback" aria-hidden>
-                              <span>
-                                {(design.productType.code ?? design.productType.name).slice(0, 4)}
-                              </span>
-                            </div>
-                          )}
-                          <div className="workflow-dash-card__badges">
-                            <span className="workflow-dash-card__stage">{lane.label}</span>
-                            <PriorityBadge priority={design.priority} />
-                          </div>
-                        </div>
-                        <div className="workflow-dash-card__body">
-                          <Link
-                            href={ROUTES.designs.detail(design.id)}
-                            className="workflow-dash-card__ref"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {design.ideaRef}
-                          </Link>
-                          <p className="workflow-dash-card__meta m-0">{design.collectionName}</p>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <StatusBadge status={design.sampleDecision ?? "PENDING"} />
-                            <span className="text-xs text-muted-foreground">
-                              {(design.currentStage ?? "—").replace(/_/g, " ")}
-                            </span>
-                          </div>
-                        </div>
-                      </article>
-                    ))
-                  )}
-                </div>
-              </section>
-            );
-          })}
+                          );
+                        })
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+            </div>
+          </div>
         </div>
       </QueryState>
     </div>

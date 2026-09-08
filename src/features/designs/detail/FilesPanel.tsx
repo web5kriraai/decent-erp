@@ -1,9 +1,11 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { AppCard } from "@/components/ui/AppCard";
 import { ConceptMediaPanel } from "@/components/ConceptMediaPanel";
 import { ImageGallery } from "@/components/ImageGallery";
+import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignSummary } from "@/lib/types/api";
 
@@ -21,9 +23,11 @@ type TechArtifact = {
 function TechFileRow({
   label,
   artifact,
+  onViewImage,
 }: {
   label: string;
   artifact?: TechArtifact | null;
+  onViewImage?: (url: string, title: string) => void;
 }) {
   if (!artifact) {
     return (
@@ -44,7 +48,15 @@ function TechFileRow({
     <div className="flex items-start justify-between gap-3 text-sm">
       <div className="min-w-0">
         <p className="m-0 text-muted-foreground">{label}</p>
-        {href ? (
+        {href && isImage && onViewImage ? (
+          <button
+            type="button"
+            className="m-0 p-0 text-left font-semibold text-foreground underline-offset-2 hover:underline"
+            onClick={() => onViewImage(href, name)}
+          >
+            {name}
+          </button>
+        ) : href ? (
           <a
             href={href}
             target="_blank"
@@ -63,12 +75,16 @@ function TechFileRow({
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
         {href && isImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={href}
-            alt={name}
-            className="size-12 rounded border border-border object-cover"
-          />
+          <button
+            type="button"
+            className="workflow-dash-card__img-btn size-12 overflow-hidden rounded border border-border"
+            title="View full image"
+            aria-label={`View ${name}`}
+            onClick={() => onViewImage?.(href, name)}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={href} alt={name} className="size-full object-contain" />
+          </button>
         ) : null}
         {href ? (
           <a
@@ -96,6 +112,9 @@ export function FilesPanel({
   highlightImageId?: string | null;
 }) {
   const queryClient = useQueryClient();
+  const [lightbox, setLightbox] = useState<{ url: string; title: string } | null>(
+    null,
+  );
   const images = design.images ?? [];
   const imageCount = images.filter((i) => !i.mediaKind || i.mediaKind === "IMAGE").length;
   const audioCount = images.filter((i) => i.mediaKind === "AUDIO").length;
@@ -159,9 +178,21 @@ export function FilesPanel({
         </AppCard>
         <AppCard title="Technical Files">
           <div className="space-y-3">
-            <TechFileRow label="Sketch" artifact={sketch} />
-            <TechFileRow label="Wilcom" artifact={punching} />
-            <TechFileRow label="Machine" artifact={machine} />
+            <TechFileRow
+              label="Sketch"
+              artifact={sketch}
+              onViewImage={(url, title) => setLightbox({ url, title })}
+            />
+            <TechFileRow
+              label="Wilcom"
+              artifact={punching}
+              onViewImage={(url, title) => setLightbox({ url, title })}
+            />
+            <TechFileRow
+              label="Machine"
+              artifact={machine}
+              onViewImage={(url, title) => setLightbox({ url, title })}
+            />
           </div>
         </AppCard>
       </div>
@@ -182,6 +213,13 @@ export function FilesPanel({
           highlightImageId={highlightImageId}
         />
       </AppCard>
+
+      <ImageLightboxModal
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        imageUrl={lightbox?.url}
+        title={lightbox?.title ?? "Design image"}
+      />
     </div>
   );
 }

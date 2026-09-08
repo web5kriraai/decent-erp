@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -9,7 +8,11 @@ import { QueryState } from "@/components/ui/QueryState";
 import { StatCard } from "@/components/ui/StatCard";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { FormSelect } from "@/components/ui/form-select";
-import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { FormTextField } from "@/components/ui/form-text-field";
+import {
+  WorkflowBoardCard,
+  buildProductSeasonOwnerDueMeta,
+} from "@/components/ui/WorkflowBoardCard";
 import { ROUTES } from "@/config/routes";
 import { useDesignKanban } from "@/hooks/use-designs";
 import { useProductTypes, useSeasons } from "@/hooks/use-masters";
@@ -167,107 +170,48 @@ function WorkflowDesignCard({
           (design.workflow.completedStages / design.workflow.totalStages) * 100,
         )
       : 0;
-  const productCode = design.productType?.code ?? design.productType?.name ?? "?";
   const costLabel = formatInr(design.estimatedCost);
 
   return (
-    <article
-      className="workflow-dash-card"
-      role={onOpen ? "button" : undefined}
-      tabIndex={onOpen ? 0 : undefined}
-      onClick={onOpen ? () => onOpen(design.id) : undefined}
-      onKeyDown={
-        onOpen
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onOpen(design.id);
-              }
-            }
-          : undefined
+    <WorkflowBoardCard
+      ideaRef={design.ideaRef}
+      title={design.collectionName}
+      laneLabel={laneLabel}
+      priority={design.priority}
+      productType={design.productType}
+      primaryImageUrl={design.primaryImageUrl}
+      detailHref={ROUTES.designs.detail(design.id)}
+      onOpenCard={onOpen ? () => onOpen(design.id) : undefined}
+      meta={buildProductSeasonOwnerDueMeta({
+        productType: design.productType,
+        seasonName: design.season?.name,
+        ownerName: design.designHead?.name,
+        dueLabel: formatDueDate(design.dueAt),
+      })}
+      footer={
+        <>
+          {design.workflow.totalStages > 0 ? (
+            <div className="workflow-dash-card__progress">
+              <div className="workflow-dash-card__progress-label">
+                <span>{progress}% complete</span>
+                <span>
+                  {design.workflow.completedStages}/{design.workflow.totalStages}
+                </span>
+              </div>
+              <div className="workflow-dash-card__progress-track" aria-hidden>
+                <div
+                  className="workflow-dash-card__progress-fill"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+          {costLabel ? (
+            <p className="workflow-dash-card__cost">{costLabel}</p>
+          ) : null}
+        </>
       }
-    >
-      <div className="workflow-dash-card__visual">
-        {design.primaryImageUrl ? (
-          <img
-            src={design.primaryImageUrl}
-            alt=""
-            className="workflow-dash-card__img"
-          />
-        ) : (
-          <div className="workflow-dash-card__fallback" aria-hidden>
-            <span>{String(productCode).slice(0, 4)}</span>
-          </div>
-        )}
-        <div className="workflow-dash-card__badges">
-          <span className="workflow-dash-card__stage">{laneLabel}</span>
-          <PriorityBadge priority={design.priority} />
-        </div>
-      </div>
-
-      <div className="workflow-dash-card__body">
-        <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
-            className="workflow-dash-card__ref text-left"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen?.(design.id);
-            }}
-          >
-            {design.ideaRef}
-          </button>
-          <Link
-            href={ROUTES.designs.detail(design.id)}
-            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            Full page
-          </Link>
-        </div>
-        <p className="workflow-dash-card__title">{design.collectionName}</p>
-
-        <dl className="workflow-dash-card__meta">
-          <div>
-            <dt>Product</dt>
-            <dd>{design.productType?.name ?? "—"}</dd>
-          </div>
-          <div>
-            <dt>Season</dt>
-            <dd>{design.season?.name ?? "—"}</dd>
-          </div>
-          <div>
-            <dt>Owner</dt>
-            <dd>{design.designHead?.name ?? "—"}</dd>
-          </div>
-          <div>
-            <dt>Due</dt>
-            <dd>{formatDueDate(design.dueAt)}</dd>
-          </div>
-        </dl>
-
-        {design.workflow.totalStages > 0 ? (
-          <div className="workflow-dash-card__progress">
-            <div className="workflow-dash-card__progress-label">
-              <span>{progress}% complete</span>
-              <span>
-                {design.workflow.completedStages}/{design.workflow.totalStages}
-              </span>
-            </div>
-            <div className="workflow-dash-card__progress-track" aria-hidden>
-              <div
-                className="workflow-dash-card__progress-fill"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        ) : null}
-
-        {costLabel ? (
-          <p className="workflow-dash-card__cost">{costLabel}</p>
-        ) : null}
-      </div>
-    </article>
+    />
   );
 }
 
@@ -285,6 +229,7 @@ export function DesignKanbanView() {
   const [seasonFilter, setSeasonFilter] = useState<string>("ALL");
   const [ownerFilter, setOwnerFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<Priority | "ALL">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const items = kanbanQuery.data?.items ?? [];
   const summary = kanbanQuery.data?.summary;
@@ -302,14 +247,32 @@ export function DesignKanbanView() {
   }, [items]);
 
   const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return items.filter((d) => {
       if (productFilter !== "ALL" && d.productType?.name !== productFilter) return false;
       if (seasonFilter !== "ALL" && String(d.season?.id ?? "") !== seasonFilter) return false;
       if (ownerFilter !== "ALL" && String(d.designHead?.id ?? "") !== ownerFilter) return false;
       if (priorityFilter !== "ALL" && d.priority !== priorityFilter) return false;
+      if (q) {
+        const haystack = [
+          d.ideaRef,
+          d.collectionName,
+          d.productType?.name,
+          d.productType?.code,
+          d.season?.name,
+          d.designHead?.name,
+          d.priority,
+          d.workflow?.currentStage,
+          d.currentStage,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [items, productFilter, seasonFilter, ownerFilter, priorityFilter]);
+  }, [items, productFilter, seasonFilter, ownerFilter, priorityFilter, searchQuery]);
 
   const lanes = useMemo(() => {
     const map = Object.fromEntries(
@@ -328,13 +291,15 @@ export function DesignKanbanView() {
     productFilter !== "ALL" ||
     seasonFilter !== "ALL" ||
     ownerFilter !== "ALL" ||
-    priorityFilter !== "ALL";
+    priorityFilter !== "ALL" ||
+    searchQuery.trim().length > 0;
 
   function resetFilters() {
     setProductFilter("ALL");
     setSeasonFilter("ALL");
     setOwnerFilter("ALL");
     setPriorityFilter("ALL");
+    setSearchQuery("");
   }
 
   if (!canView) {
@@ -346,10 +311,9 @@ export function DesignKanbanView() {
   }
 
   return (
-    <div className="page-shell page-shell--wide">
+    <div className="page-shell page-shell--wide workflow-dash-page">
       <PageHeader
         title="Design Workflow Dashboard"
-        subtitle="Idea to production release tracking for Saree, Suit, Kurti and Garments"
         actions={
           <div className="design-kanban-header-actions">
             <AppButtonLink href={ROUTES.designs.new} appVariant="primary" size="sm">
@@ -366,6 +330,7 @@ export function DesignKanbanView() {
         onRetry={() => kanbanQuery.refetch()}
         skeletonVariant="cards"
       >
+        <div className="workflow-dash-body">
         <div className="stat-grid workflow-dash-stats">
           <StatCard
             label="Total Ideas"
@@ -469,6 +434,16 @@ export function DesignKanbanView() {
             options={PRIORITY_FILTER_OPTIONS}
           />
           <div className="workflow-dash-filters__actions">
+            <FormTextField
+              id="wf-search"
+              label="Search"
+              type="search"
+              placeholder="Idea ref, name, product…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoComplete="off"
+              fieldClassName="workflow-dash-search"
+            />
             <AppButton
               type="button"
               appVariant="ghost"
@@ -478,13 +453,16 @@ export function DesignKanbanView() {
             >
               Reset
             </AppButton>
-            <AppButtonLink href={ROUTES.analytics.reportsHub} appVariant="secondary" size="sm">
-              Open Reports
-            </AppButtonLink>
           </div>
         </div>
 
-        <div className="workflow-dash-board-scroll scroll-region">
+        <div className="workflow-dash-board-shell">
+          <div
+            className="workflow-dash-board-scroll"
+            role="region"
+            aria-label="Design workflow stages"
+            tabIndex={0}
+          >
           <div className="kanban kanban--workflow-dash" role="list">
             {lanes.map((lane) => (
               <section
@@ -503,7 +481,7 @@ export function DesignKanbanView() {
                   </span>
                   <span className="kanban-column-count">{lane.items.length}</span>
                 </div>
-                <div className="kanban-cards scroll-region">
+                <div className="kanban-cards">
                   {lane.items.length === 0 ? (
                     <p className="workflow-dash-empty">No designs</p>
                   ) : (
@@ -520,6 +498,8 @@ export function DesignKanbanView() {
               </section>
             ))}
           </div>
+          </div>
+        </div>
         </div>
       </QueryState>
     </div>

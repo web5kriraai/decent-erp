@@ -8,6 +8,7 @@ import { queryKeys } from "@/lib/query-keys";
 import type { DesignImageRecord } from "@/lib/types/api";
 import { ConceptMediaPanel } from "@/components/ConceptMediaPanel";
 import { AppButton } from "@/components/ui/AppButton";
+import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 
 type ImageGalleryProps = {
   designId: string;
@@ -37,6 +38,10 @@ export function ImageGallery({
 }: ImageGalleryProps) {
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [filter, setFilter] = useState<MediaFilter>("ALL");
+  const [lightbox, setLightbox] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
 
   const imagesQuery = useQuery({
     queryKey: queryKeys.designs.images(designId),
@@ -116,12 +121,25 @@ export function ImageGallery({
                     </p>
                   </div>
                 ) : kind === "IMAGE" && image.contentType.startsWith("image/") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={image.downloadUrl}
-                    alt={image.fileName}
-                    className="image-gallery-thumb"
-                  />
+                  <button
+                    type="button"
+                    className="workflow-dash-card__img-btn"
+                    title="View full image"
+                    aria-label={`View ${image.fileName}`}
+                    onClick={() =>
+                      setLightbox({
+                        url: image.downloadUrl,
+                        title: image.fileName,
+                      })
+                    }
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={image.downloadUrl}
+                      alt={image.fileName}
+                      className="image-gallery-thumb"
+                    />
+                  </button>
                 ) : kind === "AUDIO" ? (
                   <audio controls src={image.downloadUrl} className="image-gallery-audio" />
                 ) : kind === "VIDEO" ? (
@@ -162,6 +180,12 @@ export function ImageGallery({
           <p className="m-0 text-sm text-[var(--color-neutral-500)]">No files uploaded yet</p>
         )}
       </div>
+      <ImageLightboxModal
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        imageUrl={lightbox?.url}
+        title={lightbox?.title ?? "Design image"}
+      />
     </div>
   );
 }
