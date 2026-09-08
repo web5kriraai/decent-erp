@@ -28,6 +28,8 @@ type FormSelectProps = {
   disabled?: boolean;
   className?: string;
   triggerClassName?: string;
+  /** Extra classes for the dropdown popup (e.g. wider menus for long labels). */
+  contentClassName?: string;
   hint?: string;
   error?: string;
 };
@@ -47,6 +49,7 @@ export function FormSelect({
   disabled,
   className,
   triggerClassName,
+  contentClassName,
   hint,
   error,
 }: FormSelectProps) {
@@ -77,7 +80,15 @@ export function FormSelect({
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false} align="start">
+        <SelectContent
+          alignItemWithTrigger={false}
+          align="start"
+          className={cn(
+            // Grow past the trigger so long option labels are fully visible
+            "w-auto min-w-[var(--anchor-width)] max-w-[min(28rem,calc(100vw-2rem))]",
+            contentClassName,
+          )}
+        >
           {options.length === 0 ? (
             <div className="px-2 py-1.5 text-sm text-muted-foreground">No options</div>
           ) : (

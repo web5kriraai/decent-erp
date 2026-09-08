@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,7 +15,6 @@ import {
 import { FormTextField } from "@/components/ui/form-text-field";
 import { FormSelect } from "@/components/ui/form-select";
 import { AppButton } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
 import { Input } from "@/components/ui/input";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { IconChevronLeft, IconChevronRight, IconSearch } from "@/components/icons";
@@ -36,6 +35,7 @@ import {
 import { WORK_TYPE_OPTIONS } from "@/lib/types/api";
 import { PageToolbar } from "@/components/ui/PageToolbar";
 import { cn } from "@/lib/utils";
+import type { RegisterMasterDataPrimaryAction } from "@/features/admin/master-data-primary-action";
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -61,7 +61,11 @@ function filterGroups(groups: MasterHubGroup[], query: string): MasterHubGroup[]
     .filter((group) => group.tiles.length > 0);
 }
 
-export function MasterCatalogView() {
+export function MasterCatalogView({
+  registerPrimaryAction,
+}: {
+  registerPrimaryAction?: RegisterMasterDataPrimaryAction;
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -184,30 +188,40 @@ export function MasterCatalogView() {
     });
   }, [catalogQuery.data, rowSearch, statusFilter]);
 
+  useEffect(() => {
+    if (!registerPrimaryAction) return;
+    if (selectedType) {
+      registerPrimaryAction({
+        label: "Add item",
+        onClick: () => setCreateOpen(true),
+      });
+    } else {
+      registerPrimaryAction(null);
+    }
+    return () => registerPrimaryAction(null);
+  }, [registerPrimaryAction, selectedType]);
+
   if (!selectedType) {
     return (
-      <div className="vstack vstack--loose">
-        <AppCard
-          title="Master Catalog"
-          description="Configure flat lookup values used across design, materials, quality, and production."
-          headerAction={
-            <div className="relative w-full min-w-[12rem] sm:w-64">
-              <IconSearch
-                size={16}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
-              />
-              <Input
-                type="search"
-                value={hubSearch}
-                onChange={(e) => setHubSearch(e.target.value)}
-                placeholder="Search masters…"
-                className="pl-8"
-                aria-label="Search master types"
-              />
-            </div>
-          }
-        >
+      <div className="vstack vstack--tight">
+        <PageToolbar className="!mb-0">
+          <div className="relative w-full min-w-[12rem] sm:w-64 sm:ml-auto">
+            <IconSearch
+              size={16}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={hubSearch}
+              onChange={(e) => setHubSearch(e.target.value)}
+              placeholder="Search masters…"
+              className="pl-8"
+              aria-label="Search master types"
+            />
+          </div>
+        </PageToolbar>
+
           {countsQuery.isError ? (
             <p className="mb-4 text-sm text-destructive">
               Could not load record counts.{" "}
@@ -302,75 +316,60 @@ export function MasterCatalogView() {
               ))}
             </div>
           )}
-        </AppCard>
       </div>
     );
   }
 
   return (
-    <div className="vstack vstack--loose">
-      <AppCard
-        title={MASTER_TYPE_LABELS[selectedType]}
-        description="Create, edit, and activate or deactivate lookup values."
-        flush
-        headerAction={
-          <div className="flex flex-wrap items-center gap-2">
+    <div className="vstack vstack--tight">
+      <PageToolbar className="!mb-0">
+        <AppButton
+          type="button"
+          appVariant="outline"
+          size="sm"
+          onClick={() => setSelectedType(null)}
+        >
+          <IconChevronLeft size={14} aria-hidden />
+          All masters
+        </AppButton>
+        <span className="text-sm font-medium text-foreground">
+          {MASTER_TYPE_LABELS[selectedType]}
+        </span>
+        <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
+          <IconSearch
+            size={16}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={rowSearch}
+            onChange={(e) => setRowSearch(e.target.value)}
+            placeholder="Filter by code or name…"
+            className="pl-8"
+            aria-label="Filter catalog items"
+          />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {(
+            [
+              { id: "all", label: "All" },
+              { id: "active", label: "Active" },
+              { id: "inactive", label: "Inactive" },
+            ] as const
+          ).map((opt) => (
             <AppButton
+              key={opt.id}
               type="button"
-              appVariant="outline"
               size="sm"
-              onClick={() => setSelectedType(null)}
+              appVariant={statusFilter === opt.id ? "primary" : "secondary"}
+              onClick={() => setStatusFilter(opt.id)}
             >
-              <IconChevronLeft size={14} aria-hidden />
-              All masters
+              {opt.label}
             </AppButton>
-            <AppButton
-              type="button"
-              appVariant="primary"
-              size="sm"
-              onClick={() => setCreateOpen(true)}
-            >
-              Add item
-            </AppButton>
-          </div>
-        }
-      >
-        <PageToolbar className="mb-3">
-          <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-            <IconSearch
-              size={16}
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              value={rowSearch}
-              onChange={(e) => setRowSearch(e.target.value)}
-              placeholder="Filter by code or name…"
-              className="pl-8"
-              aria-label="Filter catalog items"
-            />
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {(
-              [
-                { id: "all", label: "All" },
-                { id: "active", label: "Active" },
-                { id: "inactive", label: "Inactive" },
-              ] as const
-            ).map((opt) => (
-              <AppButton
-                key={opt.id}
-                type="button"
-                size="sm"
-                appVariant={statusFilter === opt.id ? "primary" : "secondary"}
-                onClick={() => setStatusFilter(opt.id)}
-              >
-                {opt.label}
-              </AppButton>
-            ))}
-          </div>
-        </PageToolbar>
+          ))}
+        </div>
+      </PageToolbar>
 
         <QueryState
           isLoading={catalogQuery.isLoading}
@@ -445,7 +444,6 @@ export function MasterCatalogView() {
             }
           />
         </QueryState>
-      </AppCard>
 
       <Modal
         open={createOpen}

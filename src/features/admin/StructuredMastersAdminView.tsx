@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppButton } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
 import { DataTable } from "@/components/DataTable";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { FormSelect } from "@/components/ui/form-select";
@@ -22,6 +21,7 @@ import { useApiToast } from "@/components/ui/ToastProvider";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useProcessMasters } from "@/hooks/use-masters";
+import type { RegisterMasterDataPrimaryAction } from "@/features/admin/master-data-primary-action";
 
 const SECTIONS = [
   { id: "holds", label: "Hold reasons" },
@@ -70,7 +70,11 @@ type ApprovalRow = {
   active: boolean;
 };
 
-export function StructuredMastersAdminView() {
+export function StructuredMastersAdminView({
+  registerPrimaryAction,
+}: {
+  registerPrimaryAction?: RegisterMasterDataPrimaryAction;
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useApiToast();
@@ -282,9 +286,21 @@ export function StructuredMastersAdminView() {
           ? checklistQuery
           : approvalsQuery;
 
+  useEffect(() => {
+    if (!registerPrimaryAction) return;
+    registerPrimaryAction({
+      label: "Add item",
+      onClick: () => {
+        setEditItem(null);
+        setCreateOpen(true);
+      },
+    });
+    return () => registerPrimaryAction(null);
+  }, [registerPrimaryAction]);
+
   return (
-    <div className="vstack vstack--loose">
-      <PageToolbar panel className="mb-2" role="tablist" aria-label="Structured masters">
+    <div className="vstack vstack--tight">
+      <PageToolbar panel className="!mb-0" role="tablist" aria-label="Structured masters">
         {SECTIONS.map((item) => (
           <AppButton
             key={item.id}
@@ -300,24 +316,6 @@ export function StructuredMastersAdminView() {
         ))}
       </PageToolbar>
 
-      <AppCard
-        title={SECTIONS.find((s) => s.id === section)?.label ?? "Structured"}
-        description="Create, edit, and activate or deactivate structured masters used by tasks and quality."
-        flush
-        headerAction={
-          <AppButton
-            type="button"
-            appVariant="primary"
-            size="sm"
-            onClick={() => {
-              setEditItem(null);
-              setCreateOpen(true);
-            }}
-          >
-            Add item
-          </AppButton>
-        }
-      >
         <QueryState
           isLoading={activeQuery.isLoading}
           isError={activeQuery.isError}
@@ -474,7 +472,6 @@ export function StructuredMastersAdminView() {
             />
           ) : null}
         </QueryState>
-      </AppCard>
 
       <Modal
         open={createOpen}

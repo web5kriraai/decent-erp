@@ -1,6 +1,6 @@
 import type { Priority } from "@prisma/client";
 
-export const TASK_DATE_MODES = ["SEQUENTIAL", "SAME_DAY", "SEQUENTIAL_BY_INDEX"] as const;
+export const TASK_DATE_MODES = ["SEQUENTIAL", "SAME_DAY"] as const;
 export type TaskDateMode = (typeof TASK_DATE_MODES)[number];
 
 export function isTaskDateMode(value: string): value is TaskDateMode {
@@ -11,18 +11,15 @@ export function isTaskDateMode(value: string): value is TaskDateMode {
  * Resolve calendar day offset for a pattern step.
  * - SEQUENTIAL: use pattern dayOffset (default)
  * - SAME_DAY: all stages share the create day
- * - SEQUENTIAL_BY_INDEX: one calendar day per stage index (0,1,2…)
  */
 export function effectiveDayOffset(
   mode: TaskDateMode,
   patternDayOffset: number,
-  index: number,
+  _index: number,
 ): number {
   switch (mode) {
     case "SAME_DAY":
       return 0;
-    case "SEQUENTIAL_BY_INDEX":
-      return index;
     case "SEQUENTIAL":
     default:
       return patternDayOffset;

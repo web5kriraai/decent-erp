@@ -11,7 +11,6 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -138,7 +137,7 @@ export function EmployeesAdminView() {
       <PageHeader
         title="Employees"
         actions={
-          <AppButton type="button" appVariant="primary" onClick={openCreateModal}>
+          <AppButton type="button" appVariant="primary" size="sm" onClick={openCreateModal}>
             Add Employee
           </AppButton>
         }
@@ -154,7 +153,6 @@ export function EmployeesAdminView() {
         }}
         skeletonVariant="table"
       >
-        <AppCard>
           <DataTable
             columns={[
               { key: "name", header: "Name" },
@@ -246,7 +244,6 @@ export function EmployeesAdminView() {
               </AppButton>
             }
           />
-        </AppCard>
       </QueryState>
 
       <EmployeeFormModal

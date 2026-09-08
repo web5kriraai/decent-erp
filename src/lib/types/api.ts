@@ -726,14 +726,14 @@ export type CreateDesignPayload = {
   componentSpecs?: Record<string, string>;
   assignmentMode: "AUTOMATIC" | "MANUAL";
   workflowPatternId?: number;
-  taskDateMode?: "SEQUENTIAL" | "SAME_DAY" | "SEQUENTIAL_BY_INDEX";
+  taskDateMode?: "SEQUENTIAL" | "SAME_DAY";
   manualTasks?: ManualDesignTask[];
 };
 
 export type WorkflowPatternPreview = {
   patternId: number;
   patternName: string;
-  taskDateMode: "SEQUENTIAL" | "SAME_DAY" | "SEQUENTIAL_BY_INDEX";
+  taskDateMode: "SEQUENTIAL" | "SAME_DAY";
   tasks: Array<{
     sequence: number;
     processId: number;

@@ -140,6 +140,7 @@ export function DesignCreateForm() {
   if (!designHeadEmployeeId) {
     validationErrors.designHeadEmployeeId = "Design Head is required";
   }
+  if (!conceptNote.trim()) validationErrors.conceptNote = "Concept note is required";
   if (!priority) validationErrors.priority = "Priority is required";
   if (!assignmentMode) validationErrors.assignmentMode = "Task assignment is required";
   if (!hasPendingProductImage(pendingMedia)) {
@@ -193,7 +194,7 @@ export function DesignCreateForm() {
         seasonId: Number(seasonId),
         collectionName: collectionName.trim(),
         designHeadEmployeeId: Number(designHeadEmployeeId),
-        conceptNote: conceptNote.trim() || undefined,
+        conceptNote: conceptNote.trim(),
         priority,
         assignmentMode,
         taskDateMode: assignmentMode === "AUTOMATIC" ? taskDateMode : undefined,
@@ -399,10 +400,12 @@ export function DesignCreateForm() {
                 <FormTextArea
                   id="concept"
                   label="Concept Note"
+                  required
                   rows={3}
                   value={conceptNote}
                   onChange={(e) => setConceptNote(e.target.value)}
-                  placeholder="Optional short note about the idea"
+                  placeholder="Short note about the idea"
+                  error={showErrors ? validationErrors.conceptNote : undefined}
                   onEnterSubmit={
                     createDesign.isPending || mediaUploading
                       ? undefined

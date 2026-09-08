@@ -16,6 +16,7 @@ type Column<T> = {
   header: string;
   render?: (row: T) => ReactNode;
   align?: "left" | "center" | "right";
+  className?: string;
 };
 
 type DataTableProps<T extends Record<string, unknown>> = {
@@ -69,6 +70,7 @@ export function DataTable<T extends Record<string, unknown>>({
                     className={cn(
                       col.align === "center" && "text-center",
                       col.align === "right" && "text-right",
+                      col.className,
                     )}
                   >
                     {col.header}
@@ -83,7 +85,11 @@ export function DataTable<T extends Record<string, unknown>>({
                   <Fragment key={getRowKey(row)}>
                     <TableRow
                       onClick={onRowClick ? () => onRowClick(row) : undefined}
-                      className={cn(onRowClick && "cursor-pointer")}
+                      className={cn(
+                        onRowClick && "cursor-pointer",
+                        "has-aria-expanded:bg-transparent",
+                        expanded && "app-table-parent-expanded",
+                      )}
                     >
                       {columns.map((col) => (
                         <TableCell
@@ -92,6 +98,7 @@ export function DataTable<T extends Record<string, unknown>>({
                             "whitespace-normal",
                             col.align === "center" && "text-center",
                             col.align === "right" && "text-right",
+                            col.className,
                           )}
                         >
                           {col.render
@@ -101,8 +108,11 @@ export function DataTable<T extends Record<string, unknown>>({
                       ))}
                     </TableRow>
                     {expanded ? (
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={columns.length} className="whitespace-normal p-3">
+                      <TableRow className="app-table-expanded-row hover:bg-transparent">
+                        <TableCell
+                          colSpan={columns.length}
+                          className="app-table-expanded-cell whitespace-normal p-0"
+                        >
                           {expanded}
                         </TableCell>
                       </TableRow>

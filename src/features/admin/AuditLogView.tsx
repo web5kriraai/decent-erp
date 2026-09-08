@@ -6,7 +6,6 @@ import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
-import { AppCard } from "@/components/ui/AppCard";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -82,25 +81,23 @@ export function AuditLogView() {
         onRetry={() => auditQuery.refetch()}
         skeletonVariant="table"
       >
-        <AppCard>
-          <DataTable
-            columns={[
-              {
-                key: "atUtc",
-                header: "Time",
-                render: (r) => new Date(r.atUtc).toLocaleString(),
-              },
-              { key: "entityType", header: "Entity" },
-              { key: "entityId", header: "Entity ID" },
-              { key: "action", header: "Action" },
-              { key: "user", header: "User", render: (r) => r.user.name },
-            ]}
-            rows={auditQuery.data ?? []}
-            getRowKey={(r) => r.id}
-            emptyTitle="No audit records"
-            emptyDescription="System actions will appear here as they occur."
-          />
-        </AppCard>
+        <DataTable
+          columns={[
+            {
+              key: "atUtc",
+              header: "Time",
+              render: (r) => new Date(r.atUtc).toLocaleString(),
+            },
+            { key: "entityType", header: "Entity" },
+            { key: "entityId", header: "Entity ID" },
+            { key: "action", header: "Action" },
+            { key: "user", header: "User", render: (r) => r.user.name },
+          ]}
+          rows={auditQuery.data ?? []}
+          getRowKey={(r) => r.id}
+          emptyTitle="No audit records"
+          emptyDescription="System actions will appear here as they occur."
+        />
       </QueryState>
     </div>
   );

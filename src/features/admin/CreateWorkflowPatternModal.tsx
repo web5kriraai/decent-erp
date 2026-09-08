@@ -7,11 +7,12 @@ import {
   ModalFooterActions,
   ModalForm,
   ModalFormGrid,
-  ModalSection,
 } from "@/components/ui/Modal";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { Button } from "@/components/ui/button";
+import { AppButton } from "@/components/ui/AppButton";
+import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { useProcessMasters, useProductTypes, useSkills } from "@/hooks/use-masters";
 import type { CreateWorkflowPatternPayload, Priority, WorkflowPattern } from "@/lib/types/api";
@@ -25,7 +26,8 @@ type TaskDraft = {
   defaultRoleId: number | "";
   defaultSkillId: number | "";
   expectedMinutes: string;
-  dayOffset: string;
+  /** YYYY-MM-DD deadline; stored as relative dayOffset on save. */
+  deadline: string;
   priority: Priority | "";
   dependencySequence: string;
 };
@@ -37,6 +39,37 @@ const PRIORITY_OPTIONS: Array<{ value: Priority; label: string }> = [
   { value: "URGENT", label: "Urgent" },
 ];
 
+const NO_SPINNER_CLASS =
+  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+function toLocalDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function addLocalDays(base: Date, days: number): Date {
+  const next = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function dayOffsetToDeadline(dayOffset: number): string {
+  return toLocalDateString(addLocalDays(new Date(), Math.max(0, dayOffset)));
+}
+
+function deadlineToDayOffset(deadline: string): number {
+  if (!deadline.trim()) return 0;
+  const [year, month, day] = deadline.split("-").map(Number);
+  if (!year || !month || !day) return 0;
+  const target = new Date(year, month - 1, day);
+  const today = new Date();
+  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const end = Date.UTC(target.getFullYear(), target.getMonth(), target.getDate());
+  return Math.max(0, Math.round((end - start) / 86_400_000));
+}
+
 function emptyTask(index: number): TaskDraft {
   return {
     id: `task-${index}-${Date.now()}`,
@@ -45,7 +78,7 @@ function emptyTask(index: number): TaskDraft {
     defaultRoleId: "",
     defaultSkillId: "",
     expectedMinutes: "60",
-    dayOffset: "0",
+    deadline: dayOffsetToDeadline(0),
     priority: "MEDIUM",
     dependencySequence: "",
   };
@@ -89,6 +122,19 @@ export function CreateWorkflowPatternModal({
   const roles = rolesQuery.data ?? [];
   const skills = skillsQuery.data ?? [];
 
+  const stageOptions = useMemo(
+    () =>
+      processes.flatMap((process) =>
+        (process.subProcesses ?? []).map((sub) => ({
+          value: `${process.id}:${sub.id}`,
+          label: `${sub.name} · ${process.name}`,
+          processId: process.id,
+          subProcessId: sub.id,
+        })),
+      ),
+    [processes],
+  );
+
   function resetForm() {
     setName("");
     setProductTypeId("");
@@ -115,7 +161,7 @@ export function CreateWorkflowPatternModal({
           defaultRoleId: task.defaultRoleId,
           defaultSkillId: task.defaultSkillId ?? "",
           expectedMinutes: String(task.expectedMinutes),
-          dayOffset: String(task.dayOffset ?? 0),
+          deadline: dayOffsetToDeadline(task.dayOffset ?? 0),
           priority: task.priority ?? "MEDIUM",
           dependencySequence:
             task.dependencySequence != null ? String(task.dependencySequence) : "",
@@ -130,18 +176,7 @@ export function CreateWorkflowPatternModal({
   }
 
   const canSubmit = useMemo(() => {
-    if (editPattern) {
-      if (!name.trim() || tasks.length === 0) return false;
-      return tasks.every(
-        (task) =>
-          task.processId &&
-          task.subProcessId &&
-          task.defaultRoleId &&
-          Number(task.expectedMinutes) > 0,
-      );
-    }
-    if (!name.trim()) return false;
-    if (tasks.length === 0) return false;
+    if (!name.trim() || tasks.length === 0) return false;
     return tasks.every(
       (task) =>
         task.processId &&
@@ -149,7 +184,7 @@ export function CreateWorkflowPatternModal({
         task.defaultRoleId &&
         Number(task.expectedMinutes) > 0,
     );
-  }, [name, tasks, editPattern]);
+  }, [name, tasks]);
 
   const capabilitySummary = useMemo(() => {
     const lines: string[] = [];
@@ -203,28 +238,57 @@ export function CreateWorkflowPatternModal({
     setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, ...patch } : task)));
   }
 
-  function handleProcessChange(task: TaskDraft, processId: number | "") {
-    updateTask(task.id, { processId, subProcessId: "", defaultRoleId: "", defaultSkillId: "" });
-  }
-
-  function handleSubProcessChange(task: TaskDraft, subProcessId: number | "") {
-    if (!task.processId || !subProcessId) {
-      updateTask(task.id, { subProcessId, defaultRoleId: "", defaultSkillId: "" });
+  function handleStageChange(task: TaskDraft, stageValue: string | null) {
+    if (!stageValue) {
+      updateTask(task.id, {
+        processId: "",
+        subProcessId: "",
+        defaultRoleId: "",
+        defaultSkillId: "",
+      });
       return;
     }
 
-    const process = processes.find((p) => p.id === task.processId);
-    const subProcess = process?.subProcesses.find((sp) => sp.id === subProcessId);
-    const roleId = subProcess?.defaultRoleId ?? task.defaultRoleId;
+    const option = stageOptions.find((row) => row.value === stageValue);
+    if (!option) return;
+
+    const process = processes.find((p) => p.id === option.processId);
+    const subProcess = process?.subProcesses.find((sp) => sp.id === option.subProcessId);
+    const roleId = subProcess?.defaultRoleId ?? "";
     const matchingSkill =
-      roleId !== ""
-        ? skills.find((s) => s.defaultRoleId === roleId)
-        : undefined;
+      roleId !== "" ? skills.find((s) => s.defaultRoleId === roleId) : undefined;
+
     updateTask(task.id, {
-      subProcessId,
+      processId: option.processId,
+      subProcessId: option.subProcessId,
       defaultRoleId: roleId,
       defaultSkillId: matchingSkill?.id ?? "",
     });
+  }
+
+  function handleRoleChange(task: TaskDraft, roleValue: string | null) {
+    const roleId = roleValue ? Number(roleValue) : "";
+    if (roleId === "") {
+      updateTask(task.id, { defaultRoleId: "", defaultSkillId: "" });
+      return;
+    }
+
+    const matchingSkill = skills.find((s) => s.defaultRoleId === roleId);
+    const currentSkillStillValid =
+      task.defaultSkillId !== "" &&
+      skills.some((s) => s.id === task.defaultSkillId && s.defaultRoleId === roleId);
+
+    updateTask(task.id, {
+      defaultRoleId: roleId,
+      defaultSkillId: currentSkillStillValid
+        ? task.defaultSkillId
+        : (matchingSkill?.id ?? ""),
+    });
+  }
+
+  function skillsForRole(roleId: number | "") {
+    if (roleId === "") return [];
+    return skills.filter((skill) => skill.defaultRoleId === roleId);
   }
 
   function addTaskRow() {
@@ -233,6 +297,29 @@ export function CreateWorkflowPatternModal({
 
   function removeTaskRow(id: string) {
     setTasks((prev) => (prev.length <= 1 ? prev : prev.filter((task) => task.id !== id)));
+  }
+
+  function moveTask(id: string, direction: "up" | "down") {
+    setTasks((prev) => {
+      const index = prev.findIndex((task) => task.id === id);
+      if (index < 0) return prev;
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= prev.length) return prev;
+
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+
+      const seqMap = new Map([
+        [String(index + 1), String(target + 1)],
+        [String(target + 1), String(index + 1)],
+      ]);
+
+      return next.map((task) => {
+        if (!task.dependencySequence) return task;
+        const remapped = seqMap.get(task.dependencySequence);
+        return remapped ? { ...task, dependencySequence: remapped } : task;
+      });
+    });
   }
 
   function handleSubmit() {
@@ -263,7 +350,7 @@ export function CreateWorkflowPatternModal({
           defaultSkillId: task.defaultSkillId === "" ? null : Number(task.defaultSkillId),
           expectedMinutes: Number(task.expectedMinutes),
           sequence,
-          dayOffset: Number(task.dayOffset) || 0,
+          dayOffset: deadlineToDayOffset(task.deadline),
           priority: (task.priority || "MEDIUM") as Priority,
           dependencySequence,
         };
@@ -364,180 +451,146 @@ export function CreateWorkflowPatternModal({
           </>
         )}
 
-        <ModalSection
-          title="Task Steps"
-          action={
-            <Button type="button" variant="outline" size="sm" onClick={addTaskRow}>
-              Add Step
-            </Button>
-          }
-        >
-          <div className="space-y-3">
+        <div>
+          <div className="form-row-header">
+            <h3 className="pattern-task-list__title">Task Steps</h3>
+            <AppButton type="button" appVariant="outline" size="sm" onClick={addTaskRow}>
+              + Add Step
+            </AppButton>
+          </div>
+
+          <div className="pattern-task-list">
             {tasks.map((task, index) => {
-              const process = processes.find((p) => p.id === task.processId);
-              const subProcesses = process?.subProcesses ?? [];
+              const stageValue =
+                task.processId && task.subProcessId
+                  ? `${task.processId}:${task.subProcessId}`
+                  : null;
 
               return (
-                <div
-                  key={task.id}
-                  className="space-y-3 rounded-lg border border-border bg-muted/20 p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-foreground">Step {index + 1}</p>
-                    {tasks.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                        onClick={() => removeTaskRow(task.id)}
-                      >
-                        Remove
-                      </Button>
-                    )}
+                <div key={task.id} className="pattern-task-row">
+                  <FormSelect
+                    id={`task-${task.id}-stage`}
+                    label="Stage"
+                    required
+                    value={stageValue}
+                    onValueChange={(v) => handleStageChange(task, v)}
+                    options={stageOptions.map((opt) => ({
+                      value: opt.value,
+                      label: opt.label,
+                    }))}
+                    placeholder="Select stage…"
+                    error={
+                      attemptedSubmit && (!task.processId || !task.subProcessId)
+                        ? "Stage is required"
+                        : undefined
+                    }
+                  />
+                  <FormSelect
+                    id={`task-${task.id}-role`}
+                    label="Role"
+                    required
+                    value={task.defaultRoleId === "" ? null : String(task.defaultRoleId)}
+                    onValueChange={(v) => handleRoleChange(task, v)}
+                    options={roles.map((role) => ({
+                      value: String(role.id),
+                      label: role.displayName,
+                    }))}
+                    placeholder="Select…"
+                    error={
+                      attemptedSubmit && !task.defaultRoleId ? "Role is required" : undefined
+                    }
+                  />
+                  <FormSelect
+                    id={`task-${task.id}-skill`}
+                    label="Skill"
+                    value={task.defaultSkillId === "" ? null : String(task.defaultSkillId)}
+                    onValueChange={(v) =>
+                      updateTask(task.id, {
+                        defaultSkillId: v ? Number(v) : "",
+                      })
+                    }
+                    options={skillsForRole(task.defaultRoleId).map((skill) => ({
+                      value: String(skill.id),
+                      label: skill.name,
+                    }))}
+                    placeholder={task.defaultRoleId ? "Any" : "Select role first"}
+                    disabled={!task.defaultRoleId}
+                  />
+                  <FormTextField
+                    id={`task-${task.id}-minutes`}
+                    label="Mins"
+                    required
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    className={NO_SPINNER_CLASS}
+                    value={task.expectedMinutes}
+                    onChange={(e) => updateTask(task.id, { expectedMinutes: e.target.value })}
+                    error={
+                      attemptedSubmit &&
+                      (!Number(task.expectedMinutes) || Number(task.expectedMinutes) <= 0)
+                        ? "Required"
+                        : undefined
+                    }
+                  />
+                  <FormTextField
+                    id={`task-${task.id}-deadline`}
+                    label="Deadline"
+                    type="date"
+                    value={task.deadline}
+                    onChange={(e) => updateTask(task.id, { deadline: e.target.value })}
+                  />
+                  <FormSelect
+                    id={`task-${task.id}-priority`}
+                    label="Priority"
+                    value={task.priority || "MEDIUM"}
+                    onValueChange={(v) =>
+                      updateTask(task.id, { priority: (v as Priority) || "MEDIUM" })
+                    }
+                    options={PRIORITY_OPTIONS.map((p) => ({
+                      value: p.value,
+                      label: p.label,
+                    }))}
+                  />
+                  <FormSelect
+                    id={`task-${task.id}-dependency`}
+                    label="Depends"
+                    value={task.dependencySequence === "" ? null : task.dependencySequence}
+                    onValueChange={(v) => updateTask(task.id, { dependencySequence: v ?? "" })}
+                    options={Array.from({ length: index }, (_, i) => ({
+                      value: String(i + 1),
+                      label: `Step ${i + 1}`,
+                    }))}
+                    placeholder="None"
+                  />
+                  <div className="pattern-task-row__actions">
+                    <TableIconActionGroup>
+                      <TableIconAction
+                        action="moveUp"
+                        disabled={index === 0}
+                        onClick={() => moveTask(task.id, "up")}
+                        label={`Move step ${index + 1} up`}
+                      />
+                      <TableIconAction
+                        action="moveDown"
+                        disabled={index === tasks.length - 1}
+                        onClick={() => moveTask(task.id, "down")}
+                        label={`Move step ${index + 1} down`}
+                      />
+                      {tasks.length > 1 && (
+                        <TableIconAction
+                          action="remove"
+                          onClick={() => removeTaskRow(task.id)}
+                          label={`Remove step ${index + 1}`}
+                        />
+                      )}
+                    </TableIconActionGroup>
                   </div>
-
-                  <ModalFormGrid>
-                    <FormSelect
-                      id={`task-${task.id}-process`}
-                      label="Process"
-                      required
-                      value={task.processId === "" ? null : String(task.processId)}
-                      onValueChange={(v) =>
-                        handleProcessChange(task, v ? Number(v) : "")
-                      }
-                      options={processes.map((p) => ({
-                        value: String(p.id),
-                        label: p.name,
-                      }))}
-                      placeholder="Select process"
-                      error={
-                        attemptedSubmit && !task.processId
-                          ? "Process is required"
-                          : undefined
-                      }
-                    />
-                    <FormSelect
-                      id={`task-${task.id}-subprocess`}
-                      label="Sub-process"
-                      required
-                      value={task.subProcessId === "" ? null : String(task.subProcessId)}
-                      onValueChange={(v) =>
-                        handleSubProcessChange(task, v ? Number(v) : "")
-                      }
-                      options={subProcesses.map((sp) => ({
-                        value: String(sp.id),
-                        label: sp.name,
-                      }))}
-                      placeholder="Select sub-process"
-                      disabled={!task.processId}
-                      error={
-                        attemptedSubmit && !task.subProcessId
-                          ? "Sub-process is required"
-                          : undefined
-                      }
-                    />
-                  </ModalFormGrid>
-
-                  <ModalFormGrid>
-                    <FormSelect
-                      id={`task-${task.id}-role`}
-                      label="Default Role"
-                      required
-                      value={task.defaultRoleId === "" ? null : String(task.defaultRoleId)}
-                      onValueChange={(v) =>
-                        updateTask(task.id, {
-                          defaultRoleId: v ? Number(v) : "",
-                        })
-                      }
-                      options={roles.map((role) => ({
-                        value: String(role.id),
-                        label: role.displayName,
-                      }))}
-                      placeholder="Select role"
-                      error={
-                        attemptedSubmit && !task.defaultRoleId
-                          ? "Default role is required"
-                          : undefined
-                      }
-                    />
-                    <FormSelect
-                      id={`task-${task.id}-skill`}
-                      label="Default Skill (optional)"
-                      value={task.defaultSkillId === "" ? null : String(task.defaultSkillId)}
-                      onValueChange={(v) =>
-                        updateTask(task.id, {
-                          defaultSkillId: v ? Number(v) : "",
-                        })
-                      }
-                      options={skills.map((skill) => ({
-                        value: String(skill.id),
-                        label: `${skill.name} (${skill.code})`,
-                      }))}
-                      placeholder="Any skill for role"
-                    />
-                  </ModalFormGrid>
-
-                  <ModalFormGrid>
-                    <FormTextField
-                      id={`task-${task.id}-minutes`}
-                      label="Minutes"
-                      required
-                      type="number"
-                      min={1}
-                      value={task.expectedMinutes}
-                      onChange={(e) =>
-                        updateTask(task.id, { expectedMinutes: e.target.value })
-                      }
-                      error={
-                        attemptedSubmit &&
-                        (!Number(task.expectedMinutes) || Number(task.expectedMinutes) <= 0)
-                          ? "Minutes must be greater than zero"
-                          : undefined
-                      }
-                    />
-                    <FormTextField
-                      id={`task-${task.id}-dayOffset`}
-                      label="Day Offset"
-                      type="number"
-                      min={0}
-                      value={task.dayOffset}
-                      onChange={(e) => updateTask(task.id, { dayOffset: e.target.value })}
-                    />
-                  </ModalFormGrid>
-
-                  <ModalFormGrid>
-                    <FormSelect
-                      id={`task-${task.id}-priority`}
-                      label="Priority"
-                      value={task.priority || "MEDIUM"}
-                      onValueChange={(v) =>
-                        updateTask(task.id, { priority: (v as Priority) || "MEDIUM" })
-                      }
-                      options={PRIORITY_OPTIONS.map((p) => ({
-                        value: p.value,
-                        label: p.label,
-                      }))}
-                    />
-                    <FormSelect
-                      id={`task-${task.id}-dependency`}
-                      label="Depends On Step"
-                      value={task.dependencySequence === "" ? null : task.dependencySequence}
-                      onValueChange={(v) =>
-                        updateTask(task.id, { dependencySequence: v ?? "" })
-                      }
-                      options={Array.from({ length: index }, (_, i) => ({
-                        value: String(i + 1),
-                        label: `Step ${i + 1}`,
-                      }))}
-                      placeholder="None"
-                    />
-                  </ModalFormGrid>
                 </div>
               );
             })}
           </div>
-        </ModalSection>
+        </div>
       </ModalForm>
     </Modal>
   );
