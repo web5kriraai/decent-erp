@@ -1,6 +1,18 @@
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
-export type WorkType = "NEW_DESIGN" | "REPEAT" | "REVIVAL" | "CUSTOM";
+export const WORK_TYPE_CODES = ["NEW_DESIGN", "REPEAT", "REVIVAL", "CUSTOM"] as const;
+export type WorkType = (typeof WORK_TYPE_CODES)[number];
+
+export const WORK_TYPE_OPTIONS: { value: WorkType; label: string }[] = [
+  { value: "NEW_DESIGN", label: "New Design" },
+  { value: "REPEAT", label: "Repeat" },
+  { value: "REVIVAL", label: "Revival" },
+  { value: "CUSTOM", label: "Custom" },
+];
+
+export function isWorkTypeCode(value: string): value is WorkType {
+  return (WORK_TYPE_CODES as readonly string[]).includes(value);
+}
 
 export type DesignSummary = {
   id: string;
@@ -15,19 +27,20 @@ export type DesignSummary = {
   trendReference?: string | null;
   celebrityReference?: string | null;
   targetGrade?: string | null;
-  currentStage?: string | null;
-  version?: number;
+  designGradeId?: number | null;
   fabricId?: number | null;
   machineId?: number | null;
   stitchingTypeId?: number | null;
-  designGradeId?: number | null;
+  estimatedCost?: number | null;
+  currentStage?: string | null;
+  version?: number;
   productType?: { id: number; name: string; code: string };
   season?: { id: number; name: string; code: string };
-  fabric?: { id: number; name: string; code: string } | null;
-  machine?: { id: number; name: string; code: string } | null;
-  stitchingType?: { id: number; name: string; code: string } | null;
-  designGrade?: { id: number; name: string; code: string } | null;
   designHead?: { id: number; name: string };
+  fabric?: { id: number; name: string; code: string };
+  machine?: { id: number; name: string; code: string };
+  stitchingType?: { id: number; name: string; code: string };
+  designGrade?: { id: number; name: string; code: string };
   components?: Array<{
     id: string;
     componentTypeId?: number;
@@ -70,9 +83,34 @@ export type KanbanDesignItem = {
   currentStage?: string | null;
   priority: Priority;
   version: number;
-  productType: { name: string };
+  productType: { name: string; code?: string };
   designHead: { name: string };
+  season?: { id: number; name: string } | null;
+  estimatedCost?: number | null;
+  createdAtUtc?: string;
+  dueAt?: string | null;
+  primaryImageUrl?: string | null;
+  openCorrectionCount?: number;
   workflow: KanbanWorkflowInfo;
+};
+
+export type DesignWorkflowDashboardSummary = {
+  totalIdeas: number;
+  createdThisMonth: number;
+  underDevelopment: number;
+  highPriorityInDev: number;
+  correctionPending: number;
+  delayedCount: number;
+  approvedCount: number;
+  approvalRate: number;
+  releasedCount: number;
+  estimatedCostSum: number;
+  avgDevelopmentDays: number | null;
+};
+
+export type DesignWorkflowDashboardResponse = {
+  items: KanbanDesignItem[];
+  summary: DesignWorkflowDashboardSummary;
 };
 
 export type DesignTask = {
@@ -441,6 +479,9 @@ export type ManualDesignTask = {
   expectedMinutes: number;
   sequence?: number;
   assignedEmployeeId?: number;
+  /** ISO date or datetime; stored as task dueAt */
+  dueAt?: string;
+  priority?: Priority;
 };
 
 export type DesignCompletionSummary = {
@@ -524,7 +565,39 @@ export type CreateDesignPayload = {
   componentSpecs?: Record<string, string>;
   assignmentMode: "AUTOMATIC" | "MANUAL";
   workflowPatternId?: number;
+  taskDateMode?: "SEQUENTIAL" | "SAME_DAY" | "SEQUENTIAL_BY_INDEX";
   manualTasks?: ManualDesignTask[];
+};
+
+export type WorkflowPatternPreview = {
+  patternId: number;
+  patternName: string;
+  taskDateMode: "SEQUENTIAL" | "SAME_DAY" | "SEQUENTIAL_BY_INDEX";
+  tasks: Array<{
+    sequence: number;
+    processId: number;
+    subProcessId: number;
+    stage: string;
+    assigneeName: string;
+    assignedEmployeeId: number | null;
+    roleName: string | null;
+    hours: string;
+    expectedMinutes: number;
+    plannedDate: string;
+    plannedStart: string;
+    dueAt: string;
+    priority: Priority;
+  }>;
+};
+
+export type DesignTaskScheduleUpdatePayload = {
+  tasks: Array<{
+    taskId: string;
+    dueAt?: string | null;
+    priority?: Priority;
+    assignedEmployeeId?: number | null;
+    expectedMinutes?: number;
+  }>;
 };
 
 export function computeElapsedSeconds(events: TaskTimeEvent[]): number {

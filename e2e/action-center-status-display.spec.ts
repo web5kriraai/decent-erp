@@ -45,9 +45,7 @@ test.describe("Action Center status display", () => {
 
   test("sketch CHECKING lands on Upcoming with waiting badge and hint", async ({ page }) => {
     await login(page, USERS.admin.email, USERS.admin.password);
-    const design = await createDesignViaApi(page, `AC Display ${Date.now()}`, {
-      conceptNote: "Action center status display",
-    });
+    const design = await createDesignViaApi(page, `AC Display ${Date.now()}`);
 
     await login(page, USERS.sketch.email, USERS.sketch.password);
     const mine = await listMyTasks(page);

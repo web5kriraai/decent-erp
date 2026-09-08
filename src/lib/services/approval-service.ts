@@ -23,6 +23,7 @@ import {
   designRequiresCosting,
   evaluateTransition,
 } from "@/lib/workflow/transition-policies";
+import { designImagesRejectWhere } from "@/lib/services/design-image-reject";
 
 export type { PendingApprovalQueueItem, ReadyForSignOffItem } from "@/lib/types/api";
 
@@ -694,7 +695,7 @@ async function submitApprovalChain(
       }
 
       await tx.designImage.updateMany({
-        where: { designId: input.designId, isPrimary: false },
+        where: designImagesRejectWhere(input.designId),
         data: {
           reviewStatus: "REJECTED",
           reviewNote: input.remark ?? "Returned during approval",

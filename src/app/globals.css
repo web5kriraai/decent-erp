@@ -557,6 +557,154 @@ h3 {
   gap: 0.75rem;
 }
 
+.form-section-label {
+  margin: 0.75rem 0 0.35rem;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-neutral-700);
+}
+
+.assignment-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.assignment-mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.assignment-mode-card:hover {
+  border-color: var(--color-primary);
+}
+
+.assignment-mode-card--active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--card));
+}
+
+.assignment-mode-card__title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.assignment-mode-card__desc {
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-600);
+  line-height: 1.35;
+}
+
+.workflow-preview {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.workflow-preview__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.workflow-preview__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.workflow-preview__table th,
+.workflow-preview__table td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.workflow-preview__table th {
+  background: var(--color-neutral-50, #f8fafc);
+  font-weight: 600;
+  color: var(--color-neutral-700);
+}
+
+.workflow-preview__table tr:last-child td {
+  border-bottom: none;
+}
+
+.workflow-preview__note {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-600);
+}
+
+.manual-task-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.manual-task-list__title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary, #1a2b48);
+}
+
+.manual-task-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.4fr) minmax(9rem, 1.1fr) 5.5rem 8.5rem 7.5rem auto;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.manual-task-row--edit {
+  grid-template-columns: minmax(10rem, 1.5fr) minmax(9rem, 1.1fr) 5.5rem 8.5rem 7.5rem;
+}
+
+.manual-task-row__actions {
+  display: flex;
+  align-items: flex-end;
+  min-height: 2.25rem;
+  padding-bottom: 0.15rem;
+  gap: 0.25rem;
+}
+
+@media (max-width: 1100px) {
+  .assignment-mode-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-task-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .manual-task-row__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 640px) {
+  .manual-task-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .inline-actions {
   display: flex;
   gap: 0.5rem;
@@ -1051,9 +1199,14 @@ button[data-slot="button"][data-app-variant="warning"]:hover:not(:disabled) {
 }
 
 /* Toolbar above a table keeps a small inset; the grid itself stays edge-to-edge */
+[data-slot="card-content"] > div:has(> .app-table-wrap) > .page-toolbar:first-child,
+[data-slot="card-content"] > div:has(> .data-table-wrap) > .page-toolbar:first-child,
+[data-slot="card-content"] > div:has(> .app-table-wrap) > .toolbar:first-child,
+[data-slot="card-content"] > div:has(> .data-table-wrap) > .toolbar:first-child,
 [data-slot="card-content"] > div:has(> .app-table-wrap) > .flex:first-child,
 [data-slot="card-content"] > div:has(> .data-table-wrap) > .flex:first-child {
   padding: 0.75rem 1rem 0.5rem;
+  margin-bottom: 0;
 }
 
 .app-table-wrap::-webkit-scrollbar,
@@ -1234,9 +1387,20 @@ button[data-slot="button"][data-app-variant="warning"]:hover:not(:disabled) {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 1.5rem;
   padding: 0.875rem 1rem;
   background: var(--color-neutral-50);
-  border-bottom: 1px solid var(--color-border);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.toolbar .form-input,
+.toolbar .form-select {
+  width: auto;
+  min-width: min(100%, 10rem);
+  max-width: 100%;
 }
 
 .toolbar-search {
@@ -1343,6 +1507,253 @@ button[data-slot="button"][data-app-variant="warning"]:hover:not(:disabled) {
 
 .stat-card--success {
   border-left-color: var(--color-success);
+}
+
+/* ---- Board / scorecard patterns (offline-preview layout, current tokens) ---- */
+
+.board-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.board-action-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 6.5rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  width: 100%;
+  color: inherit;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.board-action-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  box-shadow: var(--shadow-md);
+}
+
+.board-action-card-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.board-action-card-desc {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  line-height: 1.4;
+}
+
+.panel-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  width: 100%;
+}
+
+@media (min-width: 1100px) {
+  .panel-grid-2 {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.employee-score-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.employee-score-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-primary-light) 25%, var(--card));
+}
+
+.employee-score-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  flex-shrink: 0;
+}
+
+.employee-score-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.employee-score-name {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+.employee-score-sub {
+  margin: 0.125rem 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+.employee-score-value {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.employee-score-value--high {
+  color: var(--color-success);
+}
+
+.employee-score-value--mid {
+  color: var(--color-warning);
+}
+
+.employee-score-value--low {
+  color: var(--color-danger);
+}
+
+.kpi-metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kpi-metric-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.kpi-metric-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.kpi-metric-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.kpi-metric-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.event-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.event-timeline-item {
+  position: relative;
+  padding: 0 0 1rem 1.25rem;
+  border-left: 2px solid var(--border);
+  margin-left: 0.35rem;
+}
+
+.event-timeline-item:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+
+.event-timeline-dot {
+  position: absolute;
+  left: -0.4rem;
+  top: 0.2rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid var(--card);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.event-timeline-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.event-timeline-meta {
+  margin: 0.2rem 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+.pipeline-card-progress {
+  margin-top: 0.5rem;
+}
+
+.pipeline-card-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--color-neutral-500);
+  margin-bottom: 0.25rem;
+}
+
+.pipeline-card-progress-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.pipeline-card-progress-fill {
+  height: 100%;
+  background: var(--primary);
+}
+
+.pipeline-card-meta {
+  margin: 0.25rem 0 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+}
+
+.kpi-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 /* ---- Alerts ---- */
@@ -7171,4 +7582,254 @@ a.sidebar-link--active:hover {
 
 .erp-chain-task-panel {
   margin-top: 0.25rem;
+}
+
+/* ---- Design Workflow Dashboard (Pipeline Board) ---- */
+
+.workflow-dash-stats {
+  margin-bottom: 1rem;
+}
+
+.workflow-dash-filters {
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.workflow-dash-filters__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 2.5rem;
+}
+
+.workflow-dash-board-scroll {
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kanban--workflow-dash {
+  --kanban-column-width: 17.5rem;
+  --kanban-board-gap: 0.75rem;
+  min-height: 28rem;
+}
+
+.workflow-dash-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--color-neutral-400);
+}
+
+.workflow-dash-dot--new_idea {
+  background: var(--color-neutral-500);
+}
+
+.workflow-dash-dot--sketch {
+  background: var(--color-primary);
+}
+
+.workflow-dash-dot--punching {
+  background: var(--color-primary-hover);
+}
+
+.workflow-dash-dot--machine_sample {
+  background: var(--color-warning, #b45309);
+}
+
+.workflow-dash-dot--correction {
+  background: var(--color-danger, #dc2626);
+}
+
+.workflow-dash-dot--final_approval {
+  background: var(--color-success, #15803d);
+}
+
+.workflow-dash-dot--production_release {
+  background: color-mix(in srgb, var(--color-primary) 70%, var(--color-success, #15803d));
+}
+
+.workflow-dash-empty {
+  margin: 0.5rem 0.25rem;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  text-align: center;
+}
+
+.workflow-dash-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.workflow-dash-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--border));
+}
+
+.workflow-dash-card__visual {
+  position: relative;
+  height: 7.5rem;
+  background: linear-gradient(
+    145deg,
+    var(--color-primary-light) 0%,
+    color-mix(in srgb, var(--color-primary) 12%, var(--color-neutral-100)) 55%,
+    var(--color-neutral-100) 100%
+  );
+  overflow: hidden;
+}
+
+.workflow-dash-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.workflow-dash-card__fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  opacity: 0.55;
+}
+
+.workflow-dash-card__badges {
+  position: absolute;
+  inset: 0.5rem 0.5rem auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.35rem;
+  pointer-events: none;
+}
+
+.workflow-dash-card__stage {
+  display: inline-flex;
+  align-items: center;
+  max-width: 60%;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm, 4px);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  border: 1px solid var(--border);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-neutral-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workflow-dash-card__body {
+  padding: 0.65rem 0.75rem 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.workflow-dash-card__ref {
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+
+.workflow-dash-card__ref:hover {
+  text-decoration: underline;
+}
+
+.workflow-dash-card__title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.workflow-dash-card__meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 0.5rem;
+}
+
+.workflow-dash-card__meta dt {
+  margin: 0;
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-neutral-500);
+}
+
+.workflow-dash-card__meta dd {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  font-weight: 500;
+  color: var(--color-neutral-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workflow-dash-card__progress {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.workflow-dash-card__progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--color-neutral-600);
+}
+
+.workflow-dash-card__progress-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--color-neutral-200);
+  overflow: hidden;
+}
+
+.workflow-dash-card__progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+.workflow-dash-card__cost {
+  margin: 0;
+  text-align: right;
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  color: var(--color-neutral-700);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 767px) {
+  .workflow-dash-filters__actions {
+    justify-content: flex-start;
+    grid-column: 1 / -1;
+  }
+
+  .kanban--workflow-dash {
+    --kanban-column-width: 15.5rem;
+  }
 }

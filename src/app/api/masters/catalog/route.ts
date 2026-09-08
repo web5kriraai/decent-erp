@@ -3,6 +3,7 @@ import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-ut
 import { PERMISSIONS } from "@/lib/permissions";
 import { writeAuditLogDirect } from "@/lib/audit";
 import {
+  countMasterCatalogByType,
   createMasterCatalog,
   listMasterCatalog,
   toLegacyActiveShape,
@@ -23,6 +24,12 @@ export async function GET(request: Request) {
     const includeInactive =
       ctx.permissions.includes(PERMISSIONS.MASTER_ADMIN) &&
       url.searchParams.get("includeInactive") === "1";
+
+    if (url.searchParams.get("summary") === "1") {
+      const counts = await countMasterCatalogByType({ includeInactive });
+      return jsonOk(counts, ctx.correlationId);
+    }
+
     const masterType = url.searchParams.get("masterType") ?? undefined;
     const rows = await listMasterCatalog({ masterType, includeInactive });
     return jsonOk(

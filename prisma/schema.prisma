@@ -285,12 +285,11 @@ model MasterCatalog {
 
   designsAsProductType   DesignConcept[]          @relation("DesignProductType")
   designsAsSeason        DesignConcept[]          @relation("DesignSeason")
+  designsAsGrade         DesignConcept[]          @relation("DesignGrade")
   designsAsFabric        DesignConcept[]          @relation("DesignFabric")
   designsAsMachine       DesignConcept[]          @relation("DesignMachine")
   designsAsStitching     DesignConcept[]          @relation("DesignStitching")
-  designsAsGrade         DesignConcept[]          @relation("DesignGrade")
   designComponents       DesignComponent[]        @relation("DesignComponentType")
-  processMappings        ProductProcessMapping[]
   workflowPatterns       WorkflowPattern[]
   conceptTargetsAsSeason ConceptTarget[]          @relation("TargetSeason")
   conceptTargetsAsProduct ConceptTarget[]         @relation("TargetProductType")
@@ -314,7 +313,6 @@ model DesignProcessMaster {
   designProcesses       DesignProcess[]
   workflowPatternTasks  WorkflowPatternTask[]
   designTasks           DesignTask[]
-  productMappings       ProductProcessMapping[]
 
   @@map("design_process_master")
 }
@@ -343,19 +341,6 @@ model DesignSubProcessMaster {
 
   @@unique([processId, code])
   @@map("design_sub_process_master")
-}
-
-model ProductProcessMapping {
-  id            Int @id @default(autoincrement())
-  productTypeId Int @map("product_type_id")
-  processId     Int @map("process_id")
-  required      Boolean @default(true)
-
-  productType MasterCatalog       @relation(fields: [productTypeId], references: [id])
-  process     DesignProcessMaster @relation(fields: [processId], references: [id])
-
-  @@unique([productTypeId, processId])
-  @@map("product_process_mapping")
 }
 
 model WorkflowPattern {
@@ -443,13 +428,13 @@ model DesignConcept {
   workType             WorkType?    @map("work_type")
   trendReference       String?      @map("trend_reference")
   celebrityReference   String?      @map("celebrity_reference")
-  assignmentMode       AssignmentMode @default(AUTOMATIC) @map("assignment_mode")
   targetGrade          String?      @map("target_grade")
   /** Normalized design grade master (preferred over free-text targetGrade). */
   designGradeId        Int?         @map("design_grade_id")
   fabricId             Int?         @map("fabric_id")
   machineId            Int?         @map("machine_id")
   stitchingTypeId      Int?         @map("stitching_type_id")
+  assignmentMode       AssignmentMode @default(AUTOMATIC) @map("assignment_mode")
   estimatedCost        Decimal?     @map("estimated_cost") @db.Decimal(18, 2)
   standardCost         Decimal?     @map("standard_cost") @db.Decimal(18, 2)
   /** Planned retail MRP for R&D cost sheet vs Expected MRP. */
@@ -471,12 +456,12 @@ model DesignConcept {
   productType    MasterCatalog    @relation("DesignProductType", fields: [productTypeId], references: [id])
   season         MasterCatalog    @relation("DesignSeason", fields: [seasonId], references: [id])
   designHead     Employee         @relation("DesignHead", fields: [designHeadEmployeeId], references: [id])
-  createdBy      Employee         @relation("CreatedBy", fields: [createdById], references: [id])
-  workflowPattern WorkflowPattern? @relation(fields: [workflowPatternId], references: [id])
   designGrade    MasterCatalog?   @relation("DesignGrade", fields: [designGradeId], references: [id])
   fabric         MasterCatalog?   @relation("DesignFabric", fields: [fabricId], references: [id])
   machine        MasterCatalog?   @relation("DesignMachine", fields: [machineId], references: [id])
   stitchingType  MasterCatalog?   @relation("DesignStitching", fields: [stitchingTypeId], references: [id])
+  createdBy      Employee         @relation("CreatedBy", fields: [createdById], references: [id])
+  workflowPattern WorkflowPattern? @relation(fields: [workflowPatternId], references: [id])
 
   components       DesignComponent[]
   images           DesignImage[]

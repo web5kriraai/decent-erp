@@ -13,7 +13,6 @@ import {
   seedComponentTypes,
   seedKpiDefinitions,
   seedProcessMasters,
-  seedProductProcessMappings,
   seedRdCatalogMasters,
 } from "./seed/masters-data";
 import {
@@ -149,7 +148,6 @@ export async function seedDatabase() {
   ) as Record<string, { id: number }>;
 
   const subIndex = await seedProcessMasters(prisma, roles);
-  await seedProductProcessMappings(prisma);
   await seedChecklistItems(prisma, subIndex);
   await seedKpiDefinitions(prisma, roles);
 

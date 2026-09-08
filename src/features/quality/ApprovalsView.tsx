@@ -284,7 +284,11 @@ export function ApprovalsView() {
     if (!items.length) return;
     setBulkPending(true);
     try {
-      await apiPost("/api/approvals/bulk", {
+      const response = await apiPost<{
+        count: number;
+        failedCount: number;
+        failures?: Array<{ designId: string; error: string }>;
+      }>("/api/approvals/bulk", {
         decision: "APPROVED",
         remark: "Bulk approved",
         items: items.map((row) => ({
@@ -293,8 +297,24 @@ export function ApprovalsView() {
           approvalLevelId: row.currentLevel.id,
         })),
       });
-      toast.success(`Approved ${items.length} item(s)`);
-      setSelectedIds(new Set());
+      const failedCount = response.failedCount ?? 0;
+      const okCount = response.count ?? 0;
+      if (failedCount === 0) {
+        toast.success(`Approved ${okCount} item(s)`);
+        setSelectedIds(new Set());
+      } else if (okCount === 0) {
+        const first = response.failures?.[0]?.error;
+        toast.error(
+          first
+            ? `Bulk approve failed: ${first}`
+            : `Bulk approve failed for ${failedCount} item(s)`,
+        );
+      } else {
+        toast.error(
+          `Approved ${okCount} of ${okCount + failedCount}; ${failedCount} failed`,
+        );
+        setSelectedIds(new Set());
+      }
       await hubQuery.refetch();
     } catch (e) {
       toast.errorFromApi(e, "Bulk approve failed");

@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QueryState } from "@/components/ui/QueryState";
 import { DataTable } from "@/components/DataTable";
@@ -10,36 +12,66 @@ import {
   ModalFooterActions,
   ModalForm,
 } from "@/components/ui/Modal";
-import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
+import { FormSelect } from "@/components/ui/form-select";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { Input } from "@/components/ui/input";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
+import { IconChevronLeft, IconChevronRight, IconSearch } from "@/components/icons";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
-import { useProcessMasters, type CatalogMaster } from "@/hooks/use-masters";
+import type { CatalogMaster } from "@/hooks/use-masters";
 import {
-  MASTER_HUB_TILES,
+  isMasterType,
+  MASTER_HUB_GROUPS,
   MASTER_TYPE_LABELS,
+  MASTER_TYPES,
+  type MasterHubGroup,
+  type MasterHubTile,
   type MasterType,
 } from "@/lib/master-catalog-types";
-import Link from "next/link";
+import { WORK_TYPE_OPTIONS } from "@/lib/types/api";
+import { PageToolbar } from "@/components/ui/PageToolbar";
+import { cn } from "@/lib/utils";
 
-type ProductProcessMapping = {
-  id: number;
-  productTypeId: number;
-  processId: number;
-  required: boolean;
-  productType?: { id: number; code: string; name: string };
-  process?: { id: number; code: string; name: string };
-};
+type StatusFilter = "all" | "active" | "inactive";
+
+function tileMatchesQuery(tile: MasterHubTile, query: string) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  if (tile.label.toLowerCase().includes(q)) return true;
+  if (tile.kind === "catalog") {
+    return tile.masterType.toLowerCase().includes(q);
+  }
+  return (
+    tile.description.toLowerCase().includes(q) ||
+    tile.id.toLowerCase().includes(q)
+  );
+}
+
+function filterGroups(groups: MasterHubGroup[], query: string): MasterHubGroup[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      tiles: group.tiles.filter((tile) => tileMatchesQuery(tile, query)),
+    }))
+    .filter((group) => group.tiles.length > 0);
+}
 
 export function MasterCatalogView() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const toast = useApiToast();
-  const processesQuery = useProcessMasters(true);
-  const [selectedType, setSelectedType] = useState<MasterType | null>(null);
+
+  const typeParam = searchParams.get("type");
+  const selectedType: MasterType | null = isMasterType(typeParam) ? typeParam : null;
+
+  const [hubSearch, setHubSearch] = useState("");
+  const [rowSearch, setRowSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [editItem, setEditItem] = useState<CatalogMaster | null>(null);
   const [code, setCode] = useState("");
@@ -49,9 +81,18 @@ export function MasterCatalogView() {
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editSortOrder, setEditSortOrder] = useState("0");
-  const [mappingOpen, setMappingOpen] = useState(false);
-  const [mapProductTypeId, setMapProductTypeId] = useState<number | "">("");
-  const [mapProcessId, setMapProcessId] = useState<number | "">("");
+
+  function setSelectedType(next: MasterType | null) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "catalog");
+    if (next) params.set("type", next);
+    else params.delete("type");
+    router.replace(`/admin/masters?${params.toString()}`, { scroll: false });
+    setRowSearch("");
+    setStatusFilter("all");
+    setCreateOpen(false);
+    setEditItem(null);
+  }
 
   const catalogQuery = useQuery({
     queryKey: queryKeys.masters.catalog(selectedType ?? undefined, true),
@@ -63,28 +104,14 @@ export function MasterCatalogView() {
   });
 
   const countsQuery = useQuery({
-    queryKey: queryKeys.masters.catalog(undefined, true),
-    queryFn: () => apiGet<CatalogMaster[]>("/api/masters/catalog?includeInactive=1"),
+    queryKey: queryKeys.masters.catalogSummary(true),
+    queryFn: () =>
+      apiGet<Record<string, number>>(
+        "/api/masters/catalog?summary=1&includeInactive=1",
+      ),
   });
 
-  const countsByType = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const row of countsQuery.data ?? []) {
-      if (!row.masterType) continue;
-      map.set(row.masterType, (map.get(row.masterType) ?? 0) + 1);
-    }
-    return map;
-  }, [countsQuery.data]);
-
-  const productTypes = useMemo(
-    () => (countsQuery.data ?? []).filter((r) => r.masterType === "PRODUCT_CATEGORY"),
-    [countsQuery.data],
-  );
-
-  const mappingsQuery = useQuery({
-    queryKey: queryKeys.masters.productProcessMappings(),
-    queryFn: () => apiGet<ProductProcessMapping[]>("/api/masters/product-process-mappings"),
-  });
+  const countsByType = countsQuery.data ?? {};
 
   const createItem = useMutation({
     mutationFn: () =>
@@ -123,189 +150,213 @@ export function MasterCatalogView() {
     onError: (e) => toast.errorFromApi(e, "Could not update master item"),
   });
 
-  const createMapping = useMutation({
-    mutationFn: () =>
-      apiPost("/api/masters/product-process-mappings", {
-        productTypeId: Number(mapProductTypeId),
-        processId: Number(mapProcessId),
-        required: true,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.masters.productProcessMappings() });
-      toast.success("Product–process mapping created");
-      setMappingOpen(false);
-      setMapProductTypeId("");
-      setMapProcessId("");
-    },
-    onError: (e) => toast.errorFromApi(e, "Could not create mapping"),
-  });
+  const filteredGroups = useMemo(
+    () => filterGroups(MASTER_HUB_GROUPS, hubSearch.trim()),
+    [hubSearch],
+  );
 
-  const rows = catalogQuery.data ?? [];
+  const rows = useMemo(() => {
+    const all = catalogQuery.data ?? [];
+    const q = rowSearch.trim().toLowerCase();
+    return all.filter((row) => {
+      const active = (row.active ?? row.isActive) !== false;
+      if (statusFilter === "active" && !active) return false;
+      if (statusFilter === "inactive" && active) return false;
+      if (!q) return true;
+      return (
+        row.code.toLowerCase().includes(q) ||
+        row.name.toLowerCase().includes(q) ||
+        (row.description ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [catalogQuery.data, rowSearch, statusFilter]);
 
   if (!selectedType) {
     return (
       <div className="vstack vstack--loose">
-        <AppCard title="Master Setup" description="Configure design management masters">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {MASTER_HUB_TILES.map((tile) => {
-              if (tile.kind === "link") {
-                return (
-                  <Link
-                    key={tile.id}
-                    href={tile.href}
-                    className="panel"
-                    style={{
-                      display: "block",
-                      padding: 16,
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      textDecoration: "none",
-                      color: "inherit",
-                    }}
-                  >
-                    <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>{tile.label}</h3>
-                    <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
-                      Open structured master
-                    </p>
-                  </Link>
-                );
-              }
-              const count = countsByType.get(tile.masterType) ?? 0;
-              return (
-                <button
-                  key={tile.masterType}
-                  type="button"
-                  onClick={() => setSelectedType(tile.masterType)}
-                  style={{
-                    textAlign: "left",
-                    padding: 16,
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    background: "var(--surface)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>{tile.label}</h3>
-                  <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
-                    {count} records
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </AppCard>
-
         <AppCard
-          title="Product–Process Mappings"
+          title="Master Catalog"
+          description="Configure flat lookup values used across design, materials, quality, and production."
           headerAction={
-            <AppButton type="button" appVariant="primary" size="sm" onClick={() => setMappingOpen(true)}>
-              Add Mapping
-            </AppButton>
+            <div className="relative w-full min-w-[12rem] sm:w-64">
+              <IconSearch
+                size={16}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                value={hubSearch}
+                onChange={(e) => setHubSearch(e.target.value)}
+                placeholder="Search masters…"
+                className="pl-8"
+                aria-label="Search master types"
+              />
+            </div>
           }
         >
-          <QueryState
-            isLoading={mappingsQuery.isLoading}
-            isError={mappingsQuery.isError}
-            error={mappingsQuery.error}
-            onRetry={() => mappingsQuery.refetch()}
-            skeletonVariant="table"
-          >
-            <DataTable
-              columns={[
-                {
-                  key: "product",
-                  header: "Product",
-                  render: (row) => row.productType?.name ?? row.productTypeId,
-                },
-                {
-                  key: "process",
-                  header: "Process",
-                  render: (row) => row.process?.name ?? row.processId,
-                },
-                {
-                  key: "required",
-                  header: "Required",
-                  render: (row) => (row.required ? "Yes" : "No"),
-                },
-              ]}
-              rows={mappingsQuery.data ?? []}
-              getRowKey={(row) => String(row.id)}
-              emptyTitle="No product–process mappings"
-            />
-          </QueryState>
-        </AppCard>
-
-        <Modal
-          open={mappingOpen}
-          title="Add Product–Process Mapping"
-          onClose={() => setMappingOpen(false)}
-          footer={
-            <ModalFooterActions>
-              <AppButton appVariant="outline" onClick={() => setMappingOpen(false)}>
-                Cancel
-              </AppButton>
-              <AppButton
-                disabled={!mapProductTypeId || !mapProcessId || createMapping.isPending}
-                onClick={() => createMapping.mutate()}
+          {countsQuery.isError ? (
+            <p className="mb-4 text-sm text-destructive">
+              Could not load record counts.{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => countsQuery.refetch()}
               >
-                Create
-              </AppButton>
-            </ModalFooterActions>
-          }
-        >
-          <ModalForm>
-            <FormSelect
-              id="map-product"
-              label="Product category"
-              required
-              value={mapProductTypeId === "" ? null : String(mapProductTypeId)}
-              onValueChange={(v) => setMapProductTypeId(v ? Number(v) : "")}
-              options={productTypes.map((pt) => ({
-                value: String(pt.id),
-                label: pt.name,
-              }))}
-              placeholder="Select…"
-            />
-            <FormSelect
-              id="map-process"
-              label="Process"
-              required
-              value={mapProcessId === "" ? null : String(mapProcessId)}
-              onValueChange={(v) => setMapProcessId(v ? Number(v) : "")}
-              options={(processesQuery.data ?? []).map((p) => ({
-                value: String(p.id),
-                label: p.name,
-              }))}
-              placeholder="Select…"
-            />
-          </ModalForm>
-        </Modal>
+                Retry
+              </button>
+            </p>
+          ) : null}
+
+          {filteredGroups.length === 0 ? (
+            <p className="m-0 text-sm text-muted-foreground">
+              No masters match “{hubSearch.trim()}”.
+            </p>
+          ) : (
+            <div className="vstack vstack--loose">
+              {filteredGroups.map((group) => (
+                <section key={group.id} className="vstack vstack--tight">
+                  <div>
+                    <h3 className="m-0 text-sm font-semibold text-foreground">
+                      {group.title}
+                    </h3>
+                    <p className="m-0 mt-0.5 text-xs text-muted-foreground">
+                      {group.description}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                    {group.tiles.map((tile) => {
+                      if (tile.kind === "link") {
+                        return (
+                          <Link
+                            key={tile.id}
+                            href={tile.href}
+                            className={cn(
+                              "group flex items-start justify-between gap-3 rounded-lg border border-border bg-background px-3.5 py-3",
+                              "no-underline text-inherit transition-colors hover:border-primary/40 hover:bg-muted/40",
+                            )}
+                          >
+                            <div className="min-w-0">
+                              <p className="m-0 text-sm font-medium text-foreground">
+                                {tile.label}
+                              </p>
+                              <p className="m-0 mt-1 text-xs text-muted-foreground">
+                                {tile.description}
+                              </p>
+                            </div>
+                            <IconChevronRight
+                              size={16}
+                              className="mt-0.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                              aria-hidden
+                            />
+                          </Link>
+                        );
+                      }
+
+                      const count = countsByType[tile.masterType] ?? 0;
+                      return (
+                        <button
+                          key={tile.masterType}
+                          type="button"
+                          onClick={() => setSelectedType(tile.masterType)}
+                          className={cn(
+                            "group flex items-start justify-between gap-3 rounded-lg border border-border bg-background px-3.5 py-3 text-left",
+                            "transition-colors hover:border-primary/40 hover:bg-muted/40",
+                          )}
+                        >
+                          <div className="min-w-0">
+                            <p className="m-0 text-sm font-medium text-foreground">
+                              {tile.label}
+                            </p>
+                            <p className="m-0 mt-1 text-xs text-muted-foreground">
+                              {countsQuery.isLoading
+                                ? "Loading…"
+                                : `${count} record${count === 1 ? "" : "s"}`}
+                            </p>
+                          </div>
+                          <IconChevronRight
+                            size={16}
+                            className="mt-0.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                            aria-hidden
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </AppCard>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="vstack vstack--loose">
       <AppCard
         title={MASTER_TYPE_LABELS[selectedType]}
-        description={`master_type = ${selectedType}`}
+        description="Create, edit, and activate or deactivate lookup values."
+        flush
         headerAction={
-          <div style={{ display: "flex", gap: 8 }}>
-            <AppButton type="button" appVariant="outline" size="sm" onClick={() => setSelectedType(null)}>
-              Back
+          <div className="flex flex-wrap items-center gap-2">
+            <AppButton
+              type="button"
+              appVariant="outline"
+              size="sm"
+              onClick={() => setSelectedType(null)}
+            >
+              <IconChevronLeft size={14} aria-hidden />
+              All masters
             </AppButton>
-            <AppButton type="button" appVariant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-              Add Item
+            <AppButton
+              type="button"
+              appVariant="primary"
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+            >
+              Add item
             </AppButton>
           </div>
         }
       >
+        <PageToolbar className="mb-3">
+          <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
+            <IconSearch
+              size={16}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={rowSearch}
+              onChange={(e) => setRowSearch(e.target.value)}
+              placeholder="Filter by code or name…"
+              className="pl-8"
+              aria-label="Filter catalog items"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                { id: "all", label: "All" },
+                { id: "active", label: "Active" },
+                { id: "inactive", label: "Inactive" },
+              ] as const
+            ).map((opt) => (
+              <AppButton
+                key={opt.id}
+                type="button"
+                size="sm"
+                appVariant={statusFilter === opt.id ? "primary" : "secondary"}
+                onClick={() => setStatusFilter(opt.id)}
+              >
+                {opt.label}
+              </AppButton>
+            ))}
+          </div>
+        </PageToolbar>
+
         <QueryState
           isLoading={catalogQuery.isLoading}
           isError={catalogQuery.isError}
@@ -353,8 +404,12 @@ export function MasterCatalogView() {
                       }}
                     />
                     <TableIconAction
-                      action={(row.active ?? row.isActive) === false ? "activate" : "deactivate"}
-                      label={(row.active ?? row.isActive) === false ? "Activate" : "Deactivate"}
+                      action={
+                        (row.active ?? row.isActive) === false ? "activate" : "deactivate"
+                      }
+                      label={
+                        (row.active ?? row.isActive) === false ? "Activate" : "Deactivate"
+                      }
                       onClick={() =>
                         patchItem.mutate({
                           id: row.id,
@@ -368,7 +423,11 @@ export function MasterCatalogView() {
             ]}
             rows={rows}
             getRowKey={(row) => String(row.id)}
-            emptyTitle="No catalog items"
+            emptyTitle={
+              rowSearch || statusFilter !== "all"
+                ? "No items match this filter"
+                : "No catalog items"
+            }
           />
         </QueryState>
       </AppCard>
@@ -392,13 +451,33 @@ export function MasterCatalogView() {
         }
       >
         <ModalForm>
-          <FormTextField
-            id="mc-code"
-            label="Code"
-            required
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
+          {selectedType === MASTER_TYPES.WORK_TYPE ? (
+            <FormSelect
+              id="mc-code"
+              label="Code"
+              required
+              value={code || null}
+              onValueChange={(v) => {
+                const next = v ?? "";
+                setCode(next);
+                const match = WORK_TYPE_OPTIONS.find((o) => o.value === next);
+                if (match && !name) setName(match.label);
+              }}
+              options={WORK_TYPE_OPTIONS.map((o) => ({
+                value: o.value,
+                label: `${o.value} — ${o.label}`,
+              }))}
+              placeholder="Select work type code…"
+            />
+          ) : (
+            <FormTextField
+              id="mc-code"
+              label="Code"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+          )}
           <FormTextField
             id="mc-name"
             label="Name"

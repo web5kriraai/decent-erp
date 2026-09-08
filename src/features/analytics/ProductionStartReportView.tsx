@@ -10,6 +10,7 @@ import { AppCard } from "@/components/ui/AppCard";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FormTextField } from "@/components/ui/form-text-field";
+import { PageToolbar } from "@/components/ui/PageToolbar";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useProductionStartReport } from "@/hooks/use-reports";
 
@@ -41,7 +42,7 @@ export function ProductionStartReportView() {
         subtitle="Designs that reached production accepted or released in the selected month."
       />
 
-      <div className="toolbar stack-section">
+      <PageToolbar panel className="stack-section">
         <FormTextField
           id="psYear"
           label="Year"
@@ -58,7 +59,7 @@ export function ProductionStartReportView() {
           value={String(month)}
           onChange={(e) => setMonth(Number(e.target.value) || month)}
         />
-      </div>
+      </PageToolbar>
 
       <QueryState
         isLoading={reportQuery.isLoading}

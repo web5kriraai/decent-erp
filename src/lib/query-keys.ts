@@ -23,16 +23,18 @@ export const queryKeys = {
   masters: {
     processes: ["masters", "processes"] as const,
     workflowPatterns: ["masters", "workflow-patterns"] as const,
+    workflowPatternPreview: (id: number, taskDateMode: string, priority: string) =>
+      ["masters", "workflow-patterns", id, "preview", taskDateMode, priority] as const,
     holdReasons: ["masters", "hold-reasons"] as const,
     skills: ["masters", "skills"] as const,
     catalog: (masterType?: string, includeInactive?: boolean) =>
       ["masters", "catalog", masterType ?? "all", includeInactive ? "all" : "active"] as const,
+    catalogSummary: (includeInactive?: boolean) =>
+      ["masters", "catalog", "summary", includeInactive ? "all" : "active"] as const,
     productTypes: ["masters", "product-types"] as const,
     productTypesAdmin: ["masters", "product-types", "all"] as const,
     seasons: ["masters", "seasons"] as const,
     seasonsAdmin: ["masters", "seasons", "all"] as const,
-    productProcessMappings: (productTypeId?: number) =>
-      ["masters", "product-process-mappings", productTypeId] as const,
     componentTypes: ["masters", "component-types"] as const,
     checklistItems: ["masters", "checklist-items"] as const,
     employees: ["masters", "employees"] as const,

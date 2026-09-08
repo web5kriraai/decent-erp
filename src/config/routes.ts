@@ -4,7 +4,6 @@ import { canRoleAccessApprovalsHub } from "@/lib/stage-approval-rbac";
 import {
   IconDashboard,
   IconDesigns,
-  IconKanban,
   IconTasks,
   IconCorrections,
   IconApprovals,
@@ -114,7 +113,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       {
         id: "dashboard",
-        label: "Overview",
+        label: "Dashboard",
         href: ROUTES.dashboard,
         icon: IconDashboard,
         exact: true,
@@ -130,13 +129,6 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "All Designs",
         href: ROUTES.designs.list,
         icon: IconDesigns,
-        permission: PERMISSIONS.DESIGN_CREATE,
-      },
-      {
-        id: "designs-kanban",
-        label: "Pipeline Board",
-        href: ROUTES.designs.kanban,
-        icon: IconKanban,
         permission: PERMISSIONS.DESIGN_CREATE,
       },
     ],
@@ -157,34 +149,6 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "My Time Today",
         href: ROUTES.work.myTime,
         icon: IconClock,
-        permission: PERMISSIONS.TASK_EXECUTE,
-      },
-      {
-        id: "work-materials",
-        label: "Materials",
-        href: ROUTES.work.materials,
-        icon: IconDesigns,
-        anyPermission: [PERMISSIONS.DESIGN_CREATE, PERMISSIONS.TASK_EXECUTE, PERMISSIONS.PRODUCTION_RELEASE],
-      },
-      {
-        id: "work-sketch",
-        label: "Sketch Board",
-        href: ROUTES.work.sketch,
-        icon: IconDesigns,
-        permission: PERMISSIONS.TASK_EXECUTE,
-      },
-      {
-        id: "work-punching",
-        label: "Punching Board",
-        href: ROUTES.work.punching,
-        icon: IconTasks,
-        permission: PERMISSIONS.TASK_EXECUTE,
-      },
-      {
-        id: "work-samples",
-        label: "Sample Board",
-        href: ROUTES.work.samples,
-        icon: IconProduction,
         permission: PERMISSIONS.TASK_EXECUTE,
       },
     ],
@@ -327,114 +291,132 @@ export const NAV_SECTIONS: NavSection[] = [
 export type BreadcrumbItem = { label: string; href?: string };
 
 const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
-  [ROUTES.dashboard]: [{ label: "Overview" }],
+  [ROUTES.dashboard]: [{ label: "Dashboard" }],
   [ROUTES.designs.list]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Designs" },
   ],
   [ROUTES.designs.kanban]: [
-    { label: "Overview", href: ROUTES.dashboard },
-    { label: "Designs", href: ROUTES.designs.list },
-    { label: "Pipeline Board" },
+    { label: "Dashboard", href: ROUTES.dashboard },
   ],
   [ROUTES.designs.new]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Designs", href: ROUTES.designs.list },
     { label: "New Concept" },
   ],
   [ROUTES.work.tasks]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "My Tasks" },
   ],
   [ROUTES.work.myTime]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "My Time Today" },
   ],
+  [ROUTES.work.materials]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "My Tasks", href: ROUTES.work.tasks },
+    { label: "Materials" },
+  ],
+  [ROUTES.work.sketch]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "My Tasks", href: ROUTES.work.tasks },
+    { label: "Sketch Board" },
+  ],
+  [ROUTES.work.punching]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "My Tasks", href: ROUTES.work.tasks },
+    { label: "Punching Board" },
+  ],
+  [ROUTES.work.samples]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "My Tasks", href: ROUTES.work.tasks },
+    { label: "Sample Board" },
+  ],
   [ROUTES.quality.corrections]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Corrections" },
   ],
   [ROUTES.quality.approvals]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Approvals" },
   ],
   [ROUTES.finance.costing]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Costing" },
   ],
   [ROUTES.analytics.kpi]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Performance KPI" },
   ],
   [ROUTES.analytics.kpiEmployees]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Employee KPI" },
   ],
   [ROUTES.analytics.kpiDesignHead]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Design Head KPI" },
   ],
   [ROUTES.analytics.timeReport]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Time Report" },
   ],
   [ROUTES.analytics.reportsHub]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Reports Hub" },
   ],
   [ROUTES.analytics.reportsCorrections]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Correction Analysis" },
   ],
   [ROUTES.analytics.reportsDesignSuccess]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Design Success" },
   ],
   [ROUTES.analytics.reportsSampleStatus]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Sample Status" },
   ],
   [ROUTES.analytics.reportsProductionStart]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Production Start" },
   ],
   [ROUTES.admin.masters]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Process Masters" },
   ],
   [ROUTES.admin.workflowPatterns]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Workflow Patterns" },
   ],
   [ROUTES.admin.timeLive]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Live Team Time" },
   ],
   [ROUTES.admin.roles]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Roles & Access" },
   ],
   [ROUTES.admin.employees]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Employees" },
   ],
   [ROUTES.admin.audit]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Audit Log" },
   ],
   [ROUTES.production.release]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Production Release" },
   ],
   [ROUTES.production.erpChain]: [
-    { label: "Overview", href: ROUTES.dashboard },
+    { label: "Dashboard", href: ROUTES.dashboard },
     { label: "ERP Chain" },
   ],
 };
@@ -509,7 +491,7 @@ export function getBreadcrumbsForPath(pathname: string): BreadcrumbItem[] {
   const designDetail = pathname.match(/^\/designs\/([^/]+)$/);
   if (designDetail && designDetail[1] !== "new") {
     return [
-      { label: "Overview", href: ROUTES.dashboard },
+      { label: "Dashboard", href: ROUTES.dashboard },
       { label: "Designs", href: ROUTES.designs.list },
       { label: designDetail[1] },
     ];
@@ -518,7 +500,7 @@ export function getBreadcrumbsForPath(pathname: string): BreadcrumbItem[] {
   const designTask = pathname.match(/^\/designs\/([^/]+)\/tasks\/([^/]+)$/);
   if (designTask) {
     return [
-      { label: "Overview", href: ROUTES.dashboard },
+      { label: "Dashboard", href: ROUTES.dashboard },
       { label: "Designs", href: ROUTES.designs.list },
       { label: designTask[1], href: ROUTES.designs.detail(designTask[1]) },
       { label: "Task" },
@@ -528,7 +510,7 @@ export function getBreadcrumbsForPath(pathname: string): BreadcrumbItem[] {
   const workTask = pathname.match(/^\/work\/tasks\/([^/]+)$/);
   if (workTask) {
     return [
-      { label: "Overview", href: ROUTES.dashboard },
+      { label: "Dashboard", href: ROUTES.dashboard },
       { label: "My Tasks", href: ROUTES.work.tasks },
       { label: workTask[1] },
     ];
@@ -539,14 +521,14 @@ export function getBreadcrumbsForPath(pathname: string): BreadcrumbItem[] {
   );
   if (requestSignOff) {
     return [
-      { label: "Overview", href: ROUTES.dashboard },
+      { label: "Dashboard", href: ROUTES.dashboard },
       { label: "Approvals", href: `${ROUTES.quality.approvals}?tab=ready` },
       { label: requestSignOff[1] },
       { label: "Request Sign-off" },
     ];
   }
 
-  return [{ label: "Overview", href: ROUTES.dashboard }];
+  return [{ label: "Dashboard", href: ROUTES.dashboard }];
 }
 
 export function getPageTitle(pathname: string): string {

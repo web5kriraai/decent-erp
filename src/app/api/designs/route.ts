@@ -27,6 +27,9 @@ const createDesignSchema = z
     estimatedCost: z.number().nonnegative().optional(),
     assignmentMode: z.enum(["AUTOMATIC", "MANUAL"]),
     workflowPatternId: z.number().int().optional(),
+    taskDateMode: z
+      .enum(["SEQUENTIAL", "SAME_DAY", "SEQUENTIAL_BY_INDEX"])
+      .optional(),
     componentTypeIds: z.array(z.number().int().positive()).optional(),
     componentSpecs: z.record(z.string(), z.string()).optional(),
     manualTasks: z
@@ -37,6 +40,8 @@ const createDesignSchema = z
           expectedMinutes: z.number().int().positive(),
           assignedEmployeeId: z.number().int().optional(),
           sequence: z.number().int().optional(),
+          dueAt: z.string().min(1).optional(),
+          priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
         }),
       )
       .optional(),
@@ -80,6 +85,29 @@ const createDesignSchema = z
             code: "custom",
             path: ["manualTasks", index, "expectedMinutes"],
             message: "Expected minutes must be greater than zero",
+          });
+        }
+        if (!task.dueAt) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["manualTasks", index, "dueAt"],
+            message: "Due date is required",
+          });
+        } else {
+          const parsed = new Date(task.dueAt);
+          if (Number.isNaN(parsed.getTime())) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["manualTasks", index, "dueAt"],
+              message: "Due date is invalid",
+            });
+          }
+        }
+        if (!task.priority) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["manualTasks", index, "priority"],
+            message: "Priority is required",
           });
         }
       });

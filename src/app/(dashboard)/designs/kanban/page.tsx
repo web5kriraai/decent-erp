@@ -1,8 +1,10 @@
-import { DesignKanbanView } from "@/features/designs/DesignKanbanView";
-import { pageMetadata } from "@/config/page-metadata";
+import { redirect } from "next/navigation";
+import { ROUTES } from "@/config/routes";
 
-export const metadata = pageMetadata("designsKanban");
-
+/**
+ * Legacy Pipeline Board URL — redirects to Dashboard.
+ * DesignKanbanView stays the source of truth (rendered on /dashboard for Design Head / Admin).
+ */
 export default function DesignKanbanPage() {
-  return <DesignKanbanView />;
+  redirect(ROUTES.dashboard);
 }

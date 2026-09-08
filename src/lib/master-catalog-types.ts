@@ -49,19 +49,139 @@ export const MASTER_TYPE_LABELS: Record<MasterType, string> = {
   PHYSICAL_SAMPLE_LOCATION: "Physical Sample Location",
 };
 
-/** Admin tiles: catalog types + links to structured masters. */
-export const MASTER_HUB_TILES: Array<
-  | { kind: "catalog"; masterType: MasterType; label: string }
-  | { kind: "link"; id: string; label: string; href: string }
-> = [
-  ...Object.entries(MASTER_TYPE_LABELS).map(([masterType, label]) => ({
-    kind: "catalog" as const,
-    masterType: masterType as MasterType,
-    label,
-  })),
-  { kind: "link", id: "approval-levels", label: "Approval Level", href: "/admin/masters?tab=processes" },
-  { kind: "link", id: "skills", label: "Employee Skill", href: "/admin/masters?tab=processes" },
-  { kind: "link", id: "targets", label: "Concept Targets", href: "/admin/masters?tab=targets" },
-  { kind: "link", id: "kpi", label: "KRA / KPI", href: "/admin/masters?tab=kpi" },
-  { kind: "link", id: "checklist", label: "Checklist", href: "/admin/masters?tab=processes" },
+const MASTER_TYPE_SET = new Set<string>(Object.values(MASTER_TYPES));
+
+export function isMasterType(value: string | null | undefined): value is MasterType {
+  return !!value && MASTER_TYPE_SET.has(value);
+}
+
+export type MasterHubCatalogTile = {
+  kind: "catalog";
+  masterType: MasterType;
+  label: string;
+};
+
+export type MasterHubLinkTile = {
+  kind: "link";
+  id: string;
+  label: string;
+  href: string;
+  description: string;
+};
+
+export type MasterHubTile = MasterHubCatalogTile | MasterHubLinkTile;
+
+export type MasterHubGroup = {
+  id: string;
+  title: string;
+  description: string;
+  tiles: MasterHubTile[];
+};
+
+function catalogTile(masterType: MasterType): MasterHubCatalogTile {
+  return {
+    kind: "catalog",
+    masterType,
+    label: MASTER_TYPE_LABELS[masterType],
+  };
+}
+
+/** Admin hub: domain groups for catalog types + links to structured masters. */
+export const MASTER_HUB_GROUPS: MasterHubGroup[] = [
+  {
+    id: "product",
+    title: "Product & concept",
+    description: "Attributes used when creating and classifying design concepts.",
+    tiles: [
+      catalogTile(MASTER_TYPES.PRODUCT_CATEGORY),
+      catalogTile(MASTER_TYPES.PRODUCT_COMPONENT),
+      catalogTile(MASTER_TYPES.SEASON),
+      catalogTile(MASTER_TYPES.FESTIVAL),
+      catalogTile(MASTER_TYPES.STYLE),
+      catalogTile(MASTER_TYPES.THEME),
+      catalogTile(MASTER_TYPES.CELEBRITY),
+      catalogTile(MASTER_TYPES.WORK_TYPE),
+    ],
+  },
+  {
+    id: "materials",
+    title: "Materials & tools",
+    description: "Fabrics, colour, thread, accessories, machines, and software.",
+    tiles: [
+      catalogTile(MASTER_TYPES.FABRIC_QUALITY),
+      catalogTile(MASTER_TYPES.COLOUR_TONE),
+      catalogTile(MASTER_TYPES.THREAD),
+      catalogTile(MASTER_TYPES.ACCESSORIES),
+      catalogTile(MASTER_TYPES.MACHINE),
+      catalogTile(MASTER_TYPES.SOFTWARE),
+    ],
+  },
+  {
+    id: "specs",
+    title: "Design specifications",
+    description: "Pattern, stitching, grade, complexity, and sample location.",
+    tiles: [
+      catalogTile(MASTER_TYPES.COMPLEXITY_LEVEL),
+      catalogTile(MASTER_TYPES.DESIGN_PATTERN),
+      catalogTile(MASTER_TYPES.STITCHING_TYPE),
+      catalogTile(MASTER_TYPES.DESIGN_GRADE),
+      catalogTile(MASTER_TYPES.PHYSICAL_SAMPLE_LOCATION),
+    ],
+  },
+  {
+    id: "quality",
+    title: "Quality & corrections",
+    description: "Mistake categories and correction types used on the floor.",
+    tiles: [
+      catalogTile(MASTER_TYPES.MISTAKE_CATEGORY),
+      catalogTile(MASTER_TYPES.CORRECTION_TYPE),
+    ],
+  },
+  {
+    id: "related",
+    title: "Related setup",
+    description: "Structured masters that live outside the flat catalog table.",
+    tiles: [
+      {
+        kind: "link",
+        id: "approval-levels",
+        label: "Approval Level",
+        href: "/admin/masters?tab=processes",
+        description: "Process & role setup",
+      },
+      {
+        kind: "link",
+        id: "skills",
+        label: "Employee Skill",
+        href: "/admin/masters?tab=processes",
+        description: "Process & role setup",
+      },
+      {
+        kind: "link",
+        id: "checklist",
+        label: "Checklist",
+        href: "/admin/masters?tab=processes",
+        description: "Process & role setup",
+      },
+      {
+        kind: "link",
+        id: "targets",
+        label: "Concept Targets",
+        href: "/admin/masters?tab=targets",
+        description: "Monthly idea targets",
+      },
+      {
+        kind: "link",
+        id: "kpi",
+        label: "KRA / KPI",
+        href: "/admin/masters?tab=kpi",
+        description: "Weight configuration",
+      },
+    ],
+  },
 ];
+
+/** Flat tile list (catalog + links) for search / legacy consumers. */
+export const MASTER_HUB_TILES: MasterHubTile[] = MASTER_HUB_GROUPS.flatMap(
+  (group) => group.tiles,
+);

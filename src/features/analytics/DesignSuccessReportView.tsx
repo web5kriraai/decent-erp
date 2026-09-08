@@ -10,6 +10,7 @@ import { DataTable } from "@/components/DataTable";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AppCard } from "@/components/ui/AppCard";
+import { PageToolbar } from "@/components/ui/PageToolbar";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useDesignSuccessReport } from "@/hooks/use-reports";
 import { useErpIntegrationStatus } from "@/hooks/use-production";
@@ -181,7 +182,7 @@ export function DesignSuccessReportView() {
         ) : null}
       </AppCard>
 
-      <div className="toolbar stack-section">
+      <PageToolbar panel className="stack-section">
         <FormTextField
           id="dsYear"
           label="Year"
@@ -198,7 +199,7 @@ export function DesignSuccessReportView() {
           value={String(month)}
           onChange={(e) => setMonth(Number(e.target.value) || month)}
         />
-      </div>
+      </PageToolbar>
 
       <QueryState
         isLoading={reportQuery.isLoading}

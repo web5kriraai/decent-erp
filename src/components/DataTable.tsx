@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageToolbar } from "@/components/ui/PageToolbar";
 import {
   Table,
   TableBody,
@@ -29,6 +30,8 @@ type DataTableProps<T extends Record<string, unknown>> = {
   className?: string;
   /** Drop inner wrap border/shadow when the table already sits inside a card. */
   flush?: boolean;
+  /** Optional expanded content under a row (e.g. nested sub-tables). */
+  renderExpandedRow?: (row: T) => ReactNode | null | undefined;
 };
 
 /** Canonical data grid - same font, header bg, zebra, and borders on every page. */
@@ -43,12 +46,11 @@ export function DataTable<T extends Record<string, unknown>>({
   onRowClick,
   className,
   flush = false,
+  renderExpandedRow,
 }: DataTableProps<T>) {
   return (
     <div className={cn(!flush && "space-y-3", className)}>
-      {toolbar ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">{toolbar}</div>
-      ) : null}
+      {toolbar ? <PageToolbar className="mb-0">{toolbar}</PageToolbar> : null}
       {rows.length === 0 ? (
         <EmptyState
           bare
@@ -60,12 +62,11 @@ export function DataTable<T extends Record<string, unknown>>({
         <div className={cn("app-table-wrap", flush && "app-table-wrap--flush")}>
           <Table className="app-table">
             <TableHeader>
-              <TableRow className="hover:bg-transparent border-0">
+              <TableRow>
                 {columns.map((col) => (
                   <TableHead
                     key={String(col.key)}
                     className={cn(
-                      "h-auto bg-[var(--color-neutral-100)] px-3 py-2 text-xs font-semibold text-[var(--color-neutral-700)]",
                       col.align === "center" && "text-center",
                       col.align === "right" && "text-right",
                     )}
@@ -76,33 +77,39 @@ export function DataTable<T extends Record<string, unknown>>({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row, index) => (
-                <TableRow
-                  key={getRowKey(row)}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={cn(
-                    "border-[var(--color-border)] text-sm text-[var(--color-neutral-900)]",
-                    index % 2 === 1 && "bg-[var(--color-neutral-50)]",
-                    "hover:bg-[var(--color-primary-light)]",
-                    onRowClick && "cursor-pointer",
-                  )}
-                >
-                  {columns.map((col) => (
-                    <TableCell
-                      key={String(col.key)}
-                      className={cn(
-                        "px-3 py-2 whitespace-normal",
-                        col.align === "center" && "text-center",
-                        col.align === "right" && "text-right",
-                      )}
+              {rows.map((row) => {
+                const expanded = renderExpandedRow?.(row);
+                return (
+                  <Fragment key={getRowKey(row)}>
+                    <TableRow
+                      onClick={onRowClick ? () => onRowClick(row) : undefined}
+                      className={cn(onRowClick && "cursor-pointer")}
                     >
-                      {col.render
-                        ? col.render(row)
-                        : String(row[col.key as keyof T] ?? "-")}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
+                      {columns.map((col) => (
+                        <TableCell
+                          key={String(col.key)}
+                          className={cn(
+                            "whitespace-normal",
+                            col.align === "center" && "text-center",
+                            col.align === "right" && "text-right",
+                          )}
+                        >
+                          {col.render
+                            ? col.render(row)
+                            : String(row[col.key as keyof T] ?? "-")}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {expanded ? (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={columns.length} className="whitespace-normal p-3">
+                          {expanded}
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

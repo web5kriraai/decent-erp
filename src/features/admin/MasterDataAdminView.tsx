@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AppButton } from "@/components/ui/AppButton";
+import { PageToolbar } from "@/components/ui/PageToolbar";
 import { MastersView } from "@/features/admin/MastersView";
 import { MasterCatalogView } from "@/features/admin/MasterCatalogView";
 import { KpiWeightsAdminView } from "@/features/admin/KpiWeightsAdminView";
@@ -36,22 +37,27 @@ export function MasterDataAdminView() {
   }
 
   return (
-    <div className="page-shell">
-      <PageHeader title="Master Data" />
+    <div className="page-shell page-shell--wide">
+      <PageHeader
+        title="Master Data"
+        subtitle="Processes, flat catalog lookups, concept targets, and KPI weights."
+      />
 
-      <div className="toolbar mb-4">
+      <PageToolbar panel className="mb-4" role="tablist" aria-label="Master data sections">
         {TABS.map((item) => (
           <AppButton
             key={item.id}
             type="button"
             size="sm"
+            role="tab"
+            aria-selected={tab === item.id}
             appVariant={tab === item.id ? "primary" : "secondary"}
             onClick={() => setTab(item.id)}
           >
             {item.label}
           </AppButton>
         ))}
-      </div>
+      </PageToolbar>
 
       {tab === "processes" ? (
         <MastersView embedded />

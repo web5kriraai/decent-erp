@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
-import type { HoldReason, WorkflowPattern } from "@/lib/types/api";
+import type { HoldReason, WorkflowPattern, WorkflowPatternPreview, Priority } from "@/lib/types/api";
 
 export function useWorkflowPatterns(enabled = true, includeInactive = false) {
   return useQuery({
@@ -14,6 +14,24 @@ export function useWorkflowPatterns(enabled = true, includeInactive = false) {
       ),
     enabled,
     staleTime: 5 * 60_000,
+  });
+}
+
+export function useWorkflowPatternPreview(
+  patternId: number | "" | null | undefined,
+  taskDateMode: string,
+  priority: Priority,
+  enabled = true,
+) {
+  const id = typeof patternId === "number" ? patternId : 0;
+  return useQuery({
+    queryKey: queryKeys.masters.workflowPatternPreview(id, taskDateMode, priority),
+    queryFn: () =>
+      apiGet<WorkflowPatternPreview>(
+        `/api/workflow-patterns/${id}/preview?taskDateMode=${encodeURIComponent(taskDateMode)}&priority=${encodeURIComponent(priority)}`,
+      ),
+    enabled: enabled && id > 0,
+    staleTime: 30_000,
   });
 }
 

@@ -238,8 +238,8 @@ export function DesignHeadDashboard() {
 
           <WorkbenchQueueCard
             title="Blocked designs"
-            href={ROUTES.designs.kanban}
-            linkLabel="Pipeline"
+            href={ROUTES.dashboard}
+            linkLabel="Dashboard"
             emptyMessage="No blocked designs in your portfolio."
           >
             {!summary?.blockedDesigns?.length ? (

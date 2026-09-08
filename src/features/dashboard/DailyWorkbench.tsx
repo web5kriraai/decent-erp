@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { ROLE_CODES } from "@/lib/permissions";
-import { DesignHeadDashboard } from "@/features/dashboard/DesignHeadDashboard";
+import { DesignKanbanView } from "@/features/designs/DesignKanbanView";
 import { ProductionHeadDashboard } from "@/features/dashboard/ProductionHeadDashboard";
 import { ManagementDashboard } from "@/features/dashboard/ManagementDashboard";
 import { CheckerWorkbench } from "@/features/dashboard/CheckerWorkbench";
@@ -10,12 +10,17 @@ import { MachineOperatorWorkbench } from "@/features/dashboard/MachineOperatorWo
 import { ExecutorWorkbench } from "@/features/dashboard/ExecutorWorkbench";
 import { CostingTeamDashboard } from "@/features/dashboard/CostingTeamDashboard";
 
+/**
+ * Home dashboard by role.
+ * Design Head + Admin: Design Workflow Dashboard (kanban) — same UI as former Pipeline Board.
+ * Other roles keep their role workbenches. DesignHeadDashboard.tsx remains in the repo unused here.
+ */
 export function DailyWorkbench() {
   const { data: session } = useSession();
   const roleCode = session?.user?.roleCode;
 
-  if (roleCode === ROLE_CODES.DESIGN_HEAD) {
-    return <DesignHeadDashboard />;
+  if (roleCode === ROLE_CODES.DESIGN_HEAD || roleCode === ROLE_CODES.ADMIN) {
+    return <DesignKanbanView />;
   }
   if (roleCode === ROLE_CODES.PRODUCTION_HEAD) {
     return <ProductionHeadDashboard />;

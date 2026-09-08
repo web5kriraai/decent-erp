@@ -20,6 +20,11 @@ import {
 } from "@/lib/services/task-dependency";
 import { unlockNextDependentTasks } from "@/lib/services/task-dependency-unlock";
 import { buildCorrectionScopeForEmployee } from "@/lib/services/correction-queue-utils";
+import {
+  resolveManualDueAt,
+  type TaskDateMode,
+} from "@/lib/services/task-date-mode";
+import { resolveAssigneesForPatternTasks } from "@/lib/services/assignment-service";
 
 export type CreateDesignInput = {
   productTypeId: number;
@@ -43,12 +48,15 @@ export type CreateDesignInput = {
   subProcessId?: number;
   assignmentMode: AssignmentMode;
   workflowPatternId?: number;
+  taskDateMode?: TaskDateMode;
   manualTasks?: Array<{
     processId: number;
     subProcessId: number;
     assignedEmployeeId?: number;
     expectedMinutes: number;
     sequence?: number;
+    dueAt?: string | Date;
+    priority?: Priority;
   }>;
   componentTypeIds?: number[];
   componentSpecs?: Record<string, string>;
@@ -123,29 +131,54 @@ export async function createDesignWithTasks(
       tasksToCreate = await buildTasksFromPatternTasks(design.id, patternTasks, {
         firstAssigneeId: input.designHeadEmployeeId,
         designPriority: input.priority,
+        taskDateMode: input.taskDateMode ?? "SEQUENTIAL",
       });
     }
 
     if (input.manualTasks?.length) {
       const base = new Date();
+      const subProcesses = await Promise.all(
+        input.manualTasks.map((mt) =>
+          tx.designSubProcessMaster.findUniqueOrThrow({
+            where: { id: mt.subProcessId },
+          }),
+        ),
+      );
+
+      const autoAssigneeInputs = input.manualTasks
+        .map((mt, index) => ({ mt, subProcess: subProcesses[index] }))
+        .filter(({ mt }) => mt.assignedEmployeeId == null)
+        .map(({ subProcess }) => ({
+          defaultRoleId: subProcess.defaultRoleId ?? 1,
+          defaultSkillId: null as number | null,
+        }));
+
+      const autoAssignees =
+        autoAssigneeInputs.length > 0
+          ? await resolveAssigneesForPatternTasks(autoAssigneeInputs, { tx })
+          : [];
+
+      let autoIndex = 0;
       for (let i = 0; i < input.manualTasks.length; i++) {
         const mt = input.manualTasks[i];
-        const subProcess = await tx.designSubProcessMaster.findUniqueOrThrow({
-          where: { id: mt.subProcessId },
-        });
+        const subProcess = subProcesses[i];
         const seq = mt.sequence ?? i + 1;
+        const dueAt = resolveManualDueAt(mt.dueAt, base, mt.expectedMinutes);
+        const assignedEmployeeId = mt.assignedEmployeeId
+          ? mt.assignedEmployeeId
+          : (autoAssignees[autoIndex++] ?? undefined);
         tasksToCreate.push({
           designId: design.id,
           processId: mt.processId,
           subProcessId: mt.subProcessId,
-          assignedEmployeeId: mt.assignedEmployeeId,
+          assignedEmployeeId,
           assignedRoleId: subProcess.defaultRoleId ?? 1,
           expectedMinutes: mt.expectedMinutes,
-          priority: input.priority,
+          priority: mt.priority ?? input.priority,
           sequence: seq,
           dependencySequence: seq,
           plannedStart: base,
-          dueAt: new Date(base.getTime() + mt.expectedMinutes * 60_000),
+          dueAt,
           status: "PENDING",
           isApproval: subProcess.isApproval,
         });
@@ -448,6 +481,113 @@ export async function updateDesign(
   });
 }
 
+const EDITABLE_TASK_STATUSES = [
+  "PENDING",
+  "ASSIGNED",
+  "RUNNING",
+  "ON_HOLD",
+  "CORRECTION_REQUIRED",
+] as const;
+
+export type DesignTaskScheduleUpdate = {
+  taskId: string | bigint;
+  dueAt?: string | Date | null;
+  priority?: Priority;
+  assignedEmployeeId?: number | null;
+  expectedMinutes?: number;
+};
+
+/** Update due dates / assignees / priority on open workflow tasks for a design. */
+export async function updateDesignTaskSchedule(
+  designId: bigint,
+  updates: DesignTaskScheduleUpdate[],
+  userId: number,
+  correlationId: string,
+) {
+  if (updates.length === 0) {
+    throw new ApiError("At least one task update is required", 422);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const design = await tx.designConcept.findUnique({ where: { id: designId } });
+    if (!design) throw new ApiError("Design not found", 404);
+
+    const changed: Array<{ taskId: string; fields: string[] }> = [];
+
+    for (const update of updates) {
+      const taskId = typeof update.taskId === "bigint" ? update.taskId : BigInt(update.taskId);
+      const existing = await tx.designTask.findFirst({
+        where: { id: taskId, designId },
+      });
+      if (!existing) {
+        throw new ApiError(`Task ${String(taskId)} not found on this design`, 404);
+      }
+      if (!(EDITABLE_TASK_STATUSES as readonly string[]).includes(existing.status)) {
+        throw new ApiError(
+          `Cannot edit schedule for task in status ${existing.status}`,
+          422,
+        );
+      }
+
+      const data: {
+        dueAt?: Date | null;
+        priority?: Priority;
+        assignedEmployeeId?: number | null;
+        expectedMinutes?: number;
+        version?: { increment: number };
+      } = {};
+      const fields: string[] = [];
+
+      if (update.dueAt !== undefined) {
+        data.dueAt =
+          update.dueAt == null || update.dueAt === ""
+            ? null
+            : resolveManualDueAt(
+                update.dueAt,
+                existing.plannedStart ?? new Date(),
+                update.expectedMinutes ?? existing.expectedMinutes,
+              );
+        fields.push("dueAt");
+      }
+      if (update.priority !== undefined) {
+        data.priority = update.priority;
+        fields.push("priority");
+      }
+      if (update.assignedEmployeeId !== undefined) {
+        data.assignedEmployeeId = update.assignedEmployeeId;
+        fields.push("assignedEmployeeId");
+      }
+      if (update.expectedMinutes !== undefined) {
+        if (update.expectedMinutes <= 0) {
+          throw new ApiError("Expected minutes must be greater than zero", 422);
+        }
+        data.expectedMinutes = update.expectedMinutes;
+        fields.push("expectedMinutes");
+      }
+
+      if (fields.length === 0) continue;
+      data.version = { increment: 1 };
+
+      await tx.designTask.update({
+        where: { id: taskId },
+        data,
+      });
+      changed.push({ taskId: taskId.toString(), fields });
+    }
+
+    await writeAuditLog(tx, {
+      entityType: "DesignConcept",
+      entityId: designId.toString(),
+      action: "UPDATE_TASK_SCHEDULE",
+      userId,
+      correlationId,
+      after: { updates: changed },
+    });
+
+    return { updated: changed.length };
+  });
+}
+
 /** Require at least one DesignImage marked primary before ACTIVE workflow work. */
 export async function assertDesignHasPrimaryImage(
   designId: bigint,
@@ -538,8 +678,19 @@ export async function listDesignsForKanban() {
     where: { status: { notIn: ["CLOSED", "REJECTED"] } },
     orderBy: { updatedAtUtc: "desc" },
     include: {
-      productType: { select: { name: true } },
-      designHead: { select: { name: true } },
+      productType: { select: { name: true, code: true } },
+      season: { select: { id: true, name: true } },
+      designHead: { select: { id: true, name: true } },
+      images: {
+        where: { mediaKind: "IMAGE" },
+        orderBy: [{ isPrimary: "desc" }, { uploadedAtUtc: "desc" }],
+        take: 1,
+        select: { storageKey: true, isPrimary: true },
+      },
+      corrections: {
+        where: { status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"] } },
+        select: { id: true },
+      },
       tasks: {
         orderBy: { sequence: "asc" },
         include: {
@@ -560,6 +711,167 @@ export async function listDesignsForKanban() {
       },
     },
   });
+}
+
+function toNumberCost(value: unknown): number | null {
+  if (value == null) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function nearestOpenDueAt(
+  tasks: Array<{ status: string; dueAt: Date | null }>,
+): Date | null {
+  const dates = tasks
+    .filter(
+      (t) =>
+        t.dueAt != null &&
+        !["COMPLETED", "CANCELLED", "SKIPPED"].includes(t.status),
+    )
+    .map((t) => t.dueAt as Date);
+  if (dates.length === 0) return null;
+  return dates.reduce((soonest, d) => (d < soonest ? d : soonest));
+}
+
+/**
+ * Enriched kanban payload for the Design Workflow Dashboard:
+ * cards + KPI summary (presigned primary image URLs included).
+ */
+export async function getDesignWorkflowDashboard(): Promise<{
+  items: Array<Record<string, unknown>>;
+  summary: {
+    totalIdeas: number;
+    createdThisMonth: number;
+    underDevelopment: number;
+    highPriorityInDev: number;
+    correctionPending: number;
+    delayedCount: number;
+    approvedCount: number;
+    approvalRate: number;
+    releasedCount: number;
+    estimatedCostSum: number;
+    avgDevelopmentDays: number | null;
+  };
+}> {
+  const { getPresignedDownloadUrl } = await import("@/lib/storage");
+  const designs = await listDesignsForKanban();
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  const items = await Promise.all(
+    designs.map(async (design) => {
+      const primary = design.images[0];
+      let primaryImageUrl: string | null = null;
+      if (primary?.storageKey) {
+        try {
+          primaryImageUrl = await getPresignedDownloadUrl(primary.storageKey);
+        } catch {
+          primaryImageUrl = null;
+        }
+      }
+      const dueAt = nearestOpenDueAt(design.tasks);
+      const estimatedCost = toNumberCost(design.estimatedCost);
+      const openCorrectionCount =
+        design.corrections.length +
+        design.tasks.filter((t) => t.status === "CORRECTION_REQUIRED").length;
+
+      return {
+        id: design.id.toString(),
+        ideaRef: design.ideaRef,
+        collectionName: design.collectionName,
+        status: design.status,
+        currentStage: design.currentStage,
+        priority: design.priority,
+        version: design.version,
+        productType: {
+          name: design.productType.name,
+          code: design.productType.code,
+        },
+        designHead: { name: design.designHead.name },
+        season: design.season
+          ? { id: design.season.id, name: design.season.name }
+          : null,
+        estimatedCost,
+        createdAtUtc: design.createdAtUtc.toISOString(),
+        dueAt: dueAt ? dueAt.toISOString() : null,
+        primaryImageUrl,
+        openCorrectionCount,
+        tasks: design.tasks,
+      };
+    }),
+  );
+
+  const totalIdeas = items.length;
+  const createdThisMonth = items.filter(
+    (d) => d.createdAtUtc && new Date(d.createdAtUtc) >= monthStart,
+  ).length;
+  const underDevelopment = items.filter((d) =>
+    ["DRAFT", "ACTIVE", "APPROVAL_PENDING", "ON_HOLD"].includes(d.status),
+  ).length;
+  const highPriorityInDev = items.filter(
+    (d) =>
+      ["DRAFT", "ACTIVE", "APPROVAL_PENDING"].includes(d.status) &&
+      (d.priority === "HIGH" || d.priority === "URGENT"),
+  ).length;
+  const correctionPending = items.filter(
+    (d) =>
+      (d.openCorrectionCount ?? 0) > 0 ||
+      d.status === "ON_HOLD" ||
+      String(d.currentStage ?? "").includes("CORRECTION"),
+  ).length;
+  const delayedCount = items.filter((d) => {
+    if (!d.dueAt) return false;
+    if (["APPROVED", "PRODUCTION_ACCEPTED", "PRODUCTION_RELEASED", "LIVE"].includes(d.status)) {
+      return false;
+    }
+    return new Date(d.dueAt) < now;
+  }).length;
+  const approvedStatuses = [
+    "APPROVED",
+    "PRODUCTION_ACCEPTED",
+    "PRODUCTION_RELEASED",
+    "LIVE",
+  ];
+  const approvedCount = items.filter((d) => approvedStatuses.includes(d.status)).length;
+  const releasedCount = items.filter((d) =>
+    ["PRODUCTION_RELEASED", "LIVE"].includes(d.status),
+  ).length;
+  const approvalRate =
+    totalIdeas > 0 ? Math.round((approvedCount / totalIdeas) * 100) : 0;
+  const estimatedCostSum = items
+    .filter((d) => ["PRODUCTION_RELEASED", "LIVE"].includes(d.status))
+    .reduce((sum, d) => sum + (d.estimatedCost ?? 0), 0);
+
+  const finished = designs.filter((d) =>
+    ["APPROVED", "PRODUCTION_ACCEPTED", "PRODUCTION_RELEASED", "LIVE"].includes(d.status),
+  );
+  let avgDevelopmentDays: number | null = null;
+  if (finished.length > 0) {
+    const days = finished.map((d) => {
+      const end = d.updatedAtUtc.getTime();
+      const start = d.createdAtUtc.getTime();
+      return Math.max(0, (end - start) / (1000 * 60 * 60 * 24));
+    });
+    avgDevelopmentDays =
+      Math.round((days.reduce((a, b) => a + b, 0) / days.length) * 10) / 10;
+  }
+
+  return {
+    items,
+    summary: {
+      totalIdeas,
+      createdThisMonth,
+      underDevelopment,
+      highPriorityInDev,
+      correctionPending,
+      delayedCount,
+      approvedCount,
+      approvalRate,
+      releasedCount,
+      estimatedCostSum,
+      avgDevelopmentDays,
+    },
+  };
 }
 
 export async function generateTasksFromPattern(
@@ -607,6 +919,7 @@ export async function generateTasksFromPattern(
     const tasksToCreate = await buildTasksFromPatternTasks(designId, patternTasks, {
       firstAssigneeId: design.designHeadEmployeeId,
       designPriority: design.priority,
+      taskDateMode: "SEQUENTIAL",
     });
 
     await createDesignProcessInstances(tx, designId, tasksToCreate);

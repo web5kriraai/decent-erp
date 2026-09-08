@@ -10,6 +10,7 @@ import { AppCard } from "@/components/ui/AppCard";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FormTextField } from "@/components/ui/form-text-field";
+import { PageToolbar } from "@/components/ui/PageToolbar";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useSampleStatusReport } from "@/hooks/use-reports";
 
@@ -42,7 +43,7 @@ export function SampleStatusReportView() {
         subtitle="Sample decisions and current stage for the selected month."
       />
 
-      <div className="toolbar stack-section">
+      <PageToolbar panel className="stack-section">
         <FormTextField
           id="ssYear"
           label="Year"
@@ -59,7 +60,7 @@ export function SampleStatusReportView() {
           value={String(month)}
           onChange={(e) => setMonth(Number(e.target.value) || month)}
         />
-      </div>
+      </PageToolbar>
 
       <QueryState
         isLoading={reportQuery.isLoading}

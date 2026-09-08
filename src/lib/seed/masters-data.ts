@@ -239,11 +239,6 @@ export async function seedComponentTypes(prisma: PrismaClient) {
   await seed(prisma);
 }
 
-export async function seedProductProcessMappings(prisma: PrismaClient) {
-  const { seedProductProcessMappings: seed } = await import("./master-catalog-seed");
-  await seed(prisma);
-}
-
 export async function seedChecklistItems(
   prisma: PrismaClient,
   subIndex: Record<string, { id: number; processId: number }>,

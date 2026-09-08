@@ -43,9 +43,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
     page,
   }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
-    const design = await createDesignViaApi(page, `UI Workday ${Date.now()}`, {
-      conceptNote: "Playwright workday UI flow",
-    });
+    const design = await createDesignViaApi(page, `UI Workday ${Date.now()}`);
     expect(design.id).toBeTruthy();
 
     // Concept Review stays PENDING on create - Sketch is ready for sketch designer

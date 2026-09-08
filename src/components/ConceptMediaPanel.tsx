@@ -19,6 +19,9 @@ type ConceptMediaPanelProps = {
   showIntro?: boolean;
   /** Compact layout for side column on create form. */
   compact?: boolean;
+  /** When true, intro copy stresses that a product image is required. */
+  requiredImage?: boolean;
+  error?: string;
 };
 
 type PanelTab = "upload" | "record";
@@ -33,6 +36,8 @@ export function ConceptMediaPanel({
   onPendingChange,
   showIntro = true,
   compact = false,
+  requiredImage = false,
+  error,
 }: ConceptMediaPanelProps) {
   const [tab, setTab] = useState<PanelTab>("upload");
 
@@ -42,7 +47,9 @@ export function ConceptMediaPanel({
     <div className={compact ? "vstack vstack--tight" : "vstack vstack--loose"}>
       {showIntro ? (
         <p className="m-0 text-sm text-[var(--color-neutral-600)]">
-          Attach files or record a voice note. Type is detected automatically.
+          {requiredImage
+            ? "Upload at least one product image (required). You can also add other files or a voice note."
+            : "Attach files or record a voice note. Type is detected automatically."}
         </p>
       ) : null}
 
@@ -88,6 +95,12 @@ export function ConceptMediaPanel({
           }}
         />
       )}
+
+      {error ? (
+        <span className="form-error text-xs text-destructive" role="alert">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }

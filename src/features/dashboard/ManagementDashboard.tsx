@@ -126,8 +126,8 @@ export function ManagementDashboard() {
               {summary?.underDevelopment ?? 0} design(s) actively moving through development
               stages before Design Head final approve.
             </p>
-            <AppButtonLink href={ROUTES.designs.kanban} appVariant="ghost" size="sm">
-              Open pipeline
+            <AppButtonLink href={ROUTES.dashboard} appVariant="ghost" size="sm">
+              Open dashboard
             </AppButtonLink>
           </WorkbenchQueueCard>
         </div>

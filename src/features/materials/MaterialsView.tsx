@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AppCard } from "@/components/ui/AppCard";
@@ -34,6 +34,15 @@ type MaterialLine = {
 
 type DesignOption = { id: string; ideaRef: string; collectionName: string };
 
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export function MaterialsView() {
   const toast = useApiToast();
   const queryClient = useQueryClient();
@@ -42,10 +51,14 @@ export function MaterialsView() {
   const accessories = useMasterCatalog("ACCESSORIES");
   const [open, setOpen] = useState(false);
   const [designId, setDesignId] = useState("");
+  const [designSearch, setDesignSearch] = useState("");
+  const [selectedDesign, setSelectedDesign] = useState<DesignOption | null>(null);
   const [catalogItemId, setCatalogItemId] = useState("");
   const [unit, setUnit] = useState("mtr");
   const [quantity, setQuantity] = useState("1");
   const [source, setSource] = useState<"STOCK" | "PURCHASE_INDENT">("STOCK");
+
+  const debouncedDesignSearch = useDebouncedValue(designSearch.trim(), 250);
 
   const listQuery = useQuery({
     queryKey: queryKeys.masters.materials(),
@@ -53,14 +66,27 @@ export function MaterialsView() {
   });
 
   const designsQuery = useQuery({
-    queryKey: queryKeys.designs.list(),
-    queryFn: () => apiGet<{ items: DesignOption[] }>("/api/designs?limit=50"),
+    queryKey: queryKeys.designs.list({ search: debouncedDesignSearch || undefined }),
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: "100" });
+      if (debouncedDesignSearch) params.set("search", debouncedDesignSearch);
+      return apiGet<{ items: DesignOption[] }>(`/api/designs?${params.toString()}`);
+    },
+    enabled: open,
   });
 
   const catalogOptions = useMemo(
     () => [...(fabrics.data ?? []), ...(threads.data ?? []), ...(accessories.data ?? [])],
     [fabrics.data, threads.data, accessories.data],
   );
+
+  const designOptions = useMemo(() => {
+    const items = designsQuery.data?.items ?? [];
+    if (selectedDesign && !items.some((d) => String(d.id) === String(selectedDesign.id))) {
+      return [selectedDesign, ...items];
+    }
+    return items;
+  }, [designsQuery.data?.items, selectedDesign]);
 
   const create = useMutation({
     mutationFn: () =>
@@ -75,6 +101,10 @@ export function MaterialsView() {
       queryClient.invalidateQueries({ queryKey: queryKeys.masters.materials() });
       toast.success("Material request created");
       setOpen(false);
+      setDesignId("");
+      setDesignSearch("");
+      setSelectedDesign(null);
+      setCatalogItemId("");
     },
     onError: (e) => toast.errorFromApi(e, "Could not create material request"),
   });
@@ -111,7 +141,7 @@ export function MaterialsView() {
         <AppCard title="Issued"><p className="text-2xl font-semibold m-0">{issued}</p></AppCard>
       </div>
 
-      <AppCard title="Material requirements">
+      <AppCard title="Material requirements" flush>
         <QueryState
           isLoading={listQuery.isLoading}
           isError={listQuery.isError}
@@ -146,7 +176,7 @@ export function MaterialsView() {
                 key: "actions",
                 header: "Actions",
                 render: (row) => (
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div className="flex gap-1.5">
                     {row.status !== "AVAILABLE" && row.status !== "ISSUED" ? (
                       <AppButton
                         size="sm"
@@ -195,17 +225,35 @@ export function MaterialsView() {
         }
       >
         <ModalForm>
+          <FormTextField
+            id="mat-design-search"
+            label="Find design"
+            value={designSearch}
+            onChange={(e) => setDesignSearch(e.target.value)}
+            placeholder="Search by idea ref, collection, or design #…"
+            hint="Type to search beyond the newest designs"
+          />
           <FormSelect
             id="mat-design"
             label="Design"
             required
             value={designId || null}
-            onValueChange={setDesignId}
-            options={(designsQuery.data?.items ?? []).map((d) => ({
+            onValueChange={(id) => {
+              setDesignId(id);
+              const match = designOptions.find((d) => String(d.id) === id) ?? null;
+              setSelectedDesign(match);
+            }}
+            options={designOptions.map((d) => ({
               value: String(d.id),
               label: `${d.ideaRef} — ${d.collectionName}`,
             }))}
-            placeholder="Select…"
+            placeholder={
+              designsQuery.isLoading
+                ? "Loading designs…"
+                : designOptions.length === 0
+                  ? "No designs match"
+                  : "Select…"
+            }
           />
           <FormSelect
             id="mat-item"

@@ -16,6 +16,7 @@ import {
   normalizeCorrectionStatus,
   OPEN_CORRECTION_STATUSES,
 } from "@/lib/services/correction-queue-utils";
+import { designImagesRejectWhere } from "@/lib/services/design-image-reject";
 
 function ratingImpactForType(type: CorrectionType): number {
   return MISTAKE_CORRECTION_TYPES.includes(type as (typeof MISTAKE_CORRECTION_TYPES)[number])
@@ -322,7 +323,7 @@ export async function raiseCorrectionInTransaction(
   const qualityCodes = new Set(["SKETCH", "PUNCH", "MACHINE_SAMPLE", "SAMPLE_CHECK", "PUNCH_CHECK"]);
   if (sourceTask && qualityCodes.has(sourceTask.subProcess.code)) {
     await tx.designImage.updateMany({
-      where: { designId: input.designId, isPrimary: false },
+      where: designImagesRejectWhere(input.designId),
       data: {
         reviewStatus: "REJECTED",
         reviewNote: input.rootCause ?? "Returned for correction",

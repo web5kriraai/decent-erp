@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api-utils";
 import { MASTER_TYPES, type MasterType } from "@/lib/master-catalog-types";
+import { isWorkTypeCode } from "@/lib/types/api";
 
 const MASTER_TYPE_SET = new Set<string>(Object.values(MASTER_TYPES));
 
@@ -23,6 +24,22 @@ export async function listMasterCatalog(opts: {
     },
     orderBy: [{ masterType: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
   });
+}
+
+/** Per-type counts for the admin hub (avoids downloading every row). */
+export async function countMasterCatalogByType(opts: {
+  includeInactive?: boolean;
+}): Promise<Record<string, number>> {
+  const groups = await prisma.masterCatalog.groupBy({
+    by: ["masterType"],
+    where: opts.includeInactive ? {} : { isActive: true },
+    _count: { _all: true },
+  });
+  const map: Record<string, number> = {};
+  for (const row of groups) {
+    map[row.masterType] = row._count._all;
+  }
+  return map;
 }
 
 export async function getMasterCatalogById(id: number) {
@@ -51,10 +68,17 @@ export async function createMasterCatalog(input: {
   isActive?: boolean;
 }) {
   const masterType = assertMasterType(input.masterType);
+  const code = input.code.trim().toUpperCase();
+  if (masterType === MASTER_TYPES.WORK_TYPE && !isWorkTypeCode(code)) {
+    throw new ApiError(
+      "WORK_TYPE code must be one of: NEW_DESIGN, REPEAT, REVIVAL, CUSTOM",
+      400,
+    );
+  }
   return prisma.masterCatalog.create({
     data: {
       masterType,
-      code: input.code.trim().toUpperCase(),
+      code,
       name: input.name.trim(),
       description: input.description?.trim() || null,
       sortOrder: input.sortOrder ?? 0,

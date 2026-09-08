@@ -16,10 +16,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROUTES } from "@/config/routes";
-import {
-  getDemoQuickLoginOptions,
-  isDemoQuickLoginEnabled,
-} from "@/lib/demo-quick-login";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,8 +23,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const showDemoQuickLogin = isDemoQuickLoginEnabled();
-  const demoOptions = showDemoQuickLogin ? getDemoQuickLoginOptions() : [];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -111,28 +105,6 @@ export default function LoginPage() {
             ) : null}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {showDemoQuickLogin ? (
-                <div className="space-y-2">
-                  <Label htmlFor="demo-role">Demo quick login</Label>
-                  <select
-                    id="demo-role"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    defaultValue=""
-                    onChange={(e) => applyDemoRole(e.target.value)}
-                  >
-                    <option value="">Select a demo role…</option>
-                    {demoOptions.map((option) => (
-                      <option key={option.email} value={option.email}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="m-0 text-xs text-muted-foreground">
-                    Fills seeded *@decent-erp.local credentials (non-prod / demo flag only).
-                  </p>
-                </div>
-              ) : null}
-
               <div className="space-y-2">
                 <Label htmlFor="email">Email address</Label>
                 <Input

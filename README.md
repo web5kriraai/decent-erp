@@ -182,7 +182,7 @@ Change all passwords before production. After an admin changes a user's role, th
 - **Process Masters** - create processes; hold reasons and approval levels via API
 - **Master Catalog** - unified `master_catalog` table (product category, season, fabric, machine, correction type, and all prototype master types) with tile admin UI at `/admin/masters`
 - **Materials** - design material request / stock / indent / issue at `/work/materials` (bound to MAT_REQ / FABRIC_ISSUE stage completion)
-- **Ops workbenches** - Sketch / Punching / Sample boards under My Work
+- **Ops workbenches** - Sketch / Punching / Sample boards at `/work/sketch`, `/work/punching`, `/work/samples` (reachable from tasks; not primary sidebar links)
 - **Reports CSV export** - Design Performance, Cost, Material, Delay, Ranking via `/api/reports/export`
 - **Bulk approvals** - approve selected management sign-offs
 - **Concept Targets** - monthly idea targets by season/product category under Master Data → Concept Targets (`?tab=targets`)

@@ -39,9 +39,7 @@ test.describe("Task readiness matrix (all employees)", () => {
     page,
   }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
-    const design = await createDesignViaApi(page, `Readiness ${Date.now()}`, {
-      conceptNote: "Task readiness matrix",
-    });
+    const design = await createDesignViaApi(page, `Readiness ${Date.now()}`);
 
     const dhAssigned = await apiGetJson<MyTask[]>(page, "/api/tasks/my");
     const dhForDesign = dhAssigned.filter((t) => t.design.id === design.id);

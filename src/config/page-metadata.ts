@@ -16,16 +16,16 @@ export const PAGE_META = {
     description: "Sign in to Decent ERP",
   },
   dashboard: {
-    title: "Overview",
-    description: "Operations overview",
+    title: "Dashboard",
+    description: "Design workflow dashboard",
   },
   designs: {
     title: "All Designs",
     description: "All designs",
   },
   designsKanban: {
-    title: "Pipeline Board",
-    description: "Designs by stage",
+    title: "Dashboard",
+    description: "Design workflow dashboard (redirects to home)",
   },
   designsNew: {
     title: "New Concept",

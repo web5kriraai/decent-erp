@@ -2,6 +2,7 @@
 
 import { IconChevronLeft, IconChevronRight } from "@/components/icons";
 import { AppButton } from "@/components/ui/AppButton";
+import { FormSelect } from "@/components/ui/form-select";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
@@ -39,21 +40,18 @@ export function PaginationBar({
 
       <div className="pagination-bar__controls">
         {showPageSize && onPageSizeChange ? (
-          <label className="pagination-bar__size">
-            <span className="sr-only">Rows per page</span>
-            <select
-              className="form-select form-select--compact"
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              aria-label="Rows per page"
-            >
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <option key={size} value={size}>
-                  {size} / page
-                </option>
-              ))}
-            </select>
-          </label>
+          <FormSelect
+            id="pagination-page-size"
+            label=""
+            value={String(pageSize)}
+            onValueChange={(v) => onPageSizeChange(Number(v))}
+            options={PAGE_SIZE_OPTIONS.map((size) => ({
+              value: String(size),
+              label: `${size} / page`,
+            }))}
+            triggerClassName="form-select--compact w-auto min-w-[7rem]"
+            className="pagination-bar__size"
+          />
         ) : null}
 
         <div className="pagination-bar__pages">

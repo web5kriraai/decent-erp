@@ -26,7 +26,7 @@ export default function DashboardError({
             Try again
           </AppButton>
           <AppButtonLink href="/dashboard" appVariant="secondary">
-            Go to Overview
+            Go to Dashboard
           </AppButtonLink>
         </div>
       </AppCard>

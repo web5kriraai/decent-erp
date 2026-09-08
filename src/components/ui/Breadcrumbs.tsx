@@ -27,7 +27,7 @@ export function Breadcrumbs({ items, variant = "page", className }: BreadcrumbsP
       <ol className="breadcrumb-list">
         {items.map((crumb, index) => {
           const isLast = index === items.length - 1;
-          const isOverview = index === 0 && crumb.label === "Overview";
+          const isHome = index === 0 && (crumb.label === "Dashboard" || crumb.label === "Overview");
           const showLink = !isLast && crumb.href;
 
           return (
@@ -37,7 +37,7 @@ export function Breadcrumbs({ items, variant = "page", className }: BreadcrumbsP
               ) : null}
               {showLink ? (
                 <Link href={crumb.href!} className="breadcrumb-link">
-                  {isOverview ? <IconHome className="breadcrumb-icon" aria-hidden /> : null}
+                  {isHome ? <IconHome className="breadcrumb-icon" aria-hidden /> : null}
                   <span className="breadcrumb-label">{crumb.label}</span>
                 </Link>
               ) : (
@@ -45,7 +45,7 @@ export function Breadcrumbs({ items, variant = "page", className }: BreadcrumbsP
                   className={cn("breadcrumb-current", isLast && "breadcrumb-current--active")}
                   aria-current={isLast ? "page" : undefined}
                 >
-                  {isOverview ? <IconHome className="breadcrumb-icon" aria-hidden /> : null}
+                  {isHome ? <IconHome className="breadcrumb-icon" aria-hidden /> : null}
                   <span className="breadcrumb-label">{crumb.label}</span>
                 </span>
               )}

@@ -207,28 +207,3 @@ export async function seedRdCatalogMasters(prisma: PrismaClient) {
     ...CORRECTION_TYPE_SEED,
   ], "rd catalogs");
 }
-
-export async function seedProductProcessMappings(prisma: PrismaClient) {
-  const saree = await prisma.masterCatalog.findUnique({
-    where: {
-      masterType_code: {
-        masterType: MASTER_TYPES.PRODUCT_CATEGORY,
-        code: "SAREE",
-      },
-    },
-  });
-  if (!saree) return;
-  const processes = await prisma.designProcessMaster.findMany({
-    where: { code: { in: ["DESIGN_DEV", "SAMPLE_DEV", "DESIGN_DEVELOPMENT", "SAMPLE_DEVELOPMENT"] } },
-  });
-  const fallback = processes.length
-    ? processes
-    : await prisma.designProcessMaster.findMany({ take: 2, orderBy: { sequence: "asc" } });
-  for (const proc of fallback) {
-    await prisma.productProcessMapping.upsert({
-      where: { productTypeId_processId: { productTypeId: saree.id, processId: proc.id } },
-      update: { required: true },
-      create: { productTypeId: saree.id, processId: proc.id, required: true },
-    });
-  }
-}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -17,6 +17,7 @@ import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -465,6 +466,9 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
   );
 
   function renderContent() {
+    type ProcessRow = (typeof processes)[number] & Record<string, unknown>;
+    type SubRow = NonNullable<ProcessRow["subProcesses"]>[number] & Record<string, unknown>;
+
     return (
       <QueryState
         isLoading={processesQuery.isLoading}
@@ -473,208 +477,222 @@ export function MastersView({ embedded = false }: { embedded?: boolean }) {
         onRetry={() => processesQuery.refetch()}
         skeletonVariant="table"
       >
-        <AppCard>
-          <div className="data-table-wrap">
-            {processes.length === 0 ? (
-              <p className="text-muted-inline">No processes yet.</p>
-            ) : (
-              <div className="scroll-x-region">
-                <table className="data-table app-table">
-                  <thead>
-                    <tr>
-                      <th className="w-10" aria-label="Expand" />
-                      <th className="text-center">#</th>
-                      <th>Code</th>
-                      <th>Process Name</th>
-                      <th>Sub-processes</th>
-                      <th>Status</th>
-                      <th className="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {processes.map((process) => {
-                      const isExpanded = expandedProcessId === process.id;
-                      const subProcesses = process.subProcesses ?? [];
-                      const isActive = (process as { active?: boolean }).active !== false;
-
-                      return (
-                        <Fragment key={process.id}>
-                          <tr>
-                            <td>
-                              <AppButton
-                                type="button"
-                                appVariant="ghost"
-                                size="sm"
-                                aria-expanded={isExpanded}
-                                aria-label={isExpanded ? "Collapse sub-processes" : "Expand sub-processes"}
-                                onClick={() => toggleExpanded(process.id)}
-                              >
-                                {isExpanded ? "▾" : "▸"}
-                              </AppButton>
-                            </td>
-                            <td className="text-center">{process.sequence}</td>
-                            <td>{process.code}</td>
-                            <td>{process.name}</td>
-                            <td>{subProcesses.length}</td>
-                            <td>
-                              <StatusBadge
-                                status={isActive ? "ACTIVE" : "CLOSED"}
-                                label={isActive ? "Active" : "Inactive"}
+        <AppCard flush>
+          <DataTable<ProcessRow>
+            rows={processes as ProcessRow[]}
+            getRowKey={(row) => String(row.id)}
+            emptyTitle="No processes yet"
+            columns={[
+              {
+                key: "expand",
+                header: "",
+                render: (process) => {
+                  const isExpanded = expandedProcessId === process.id;
+                  return (
+                    <AppButton
+                      type="button"
+                      appVariant="ghost"
+                      size="sm"
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? "Collapse sub-processes" : "Expand sub-processes"}
+                      onClick={() => toggleExpanded(process.id)}
+                    >
+                      {isExpanded ? "▾" : "▸"}
+                    </AppButton>
+                  );
+                },
+              },
+              {
+                key: "sequence",
+                header: "#",
+                align: "center",
+                render: (process) => process.sequence,
+              },
+              { key: "code", header: "Code" },
+              { key: "name", header: "Process Name" },
+              {
+                key: "subCount",
+                header: "Sub-processes",
+                render: (process) => (process.subProcesses ?? []).length,
+              },
+              {
+                key: "status",
+                header: "Status",
+                render: (process) => {
+                  const isActive = (process as { active?: boolean }).active !== false;
+                  return (
+                    <StatusBadge
+                      status={isActive ? "ACTIVE" : "CLOSED"}
+                      label={isActive ? "Active" : "Inactive"}
+                    />
+                  );
+                },
+              },
+              {
+                key: "actions",
+                header: "Actions",
+                align: "right",
+                render: (process) => {
+                  const subProcesses = process.subProcesses ?? [];
+                  const isActive = (process as { active?: boolean }).active !== false;
+                  return (
+                    <TableIconActionGroup>
+                      <TableIconAction
+                        action="edit"
+                        onClick={() =>
+                          setEditProcess({
+                            id: process.id,
+                            name: process.name,
+                            sequence: String(process.sequence),
+                            active: isActive,
+                          })
+                        }
+                      />
+                      {isActive ? (
+                        <>
+                          <TableIconAction
+                            action="add"
+                            label="Add sub-process"
+                            onClick={() =>
+                              openSubProcessModal(process.id, subProcesses.length + 1)
+                            }
+                          />
+                          <TableIconAction
+                            action="deactivate"
+                            disabled={setProcessActive.isPending}
+                            onClick={() =>
+                              confirmDeactivateProcess({
+                                id: process.id,
+                                name: process.name,
+                                sequence: process.sequence,
+                                subProcesses,
+                              })
+                            }
+                          />
+                        </>
+                      ) : (
+                        <TableIconAction
+                          action="reactivate"
+                          disabled={setProcessActive.isPending}
+                          onClick={() =>
+                            setProcessActive.mutate({
+                              id: process.id,
+                              active: true,
+                              name: process.name,
+                              sequence: process.sequence,
+                            })
+                          }
+                        />
+                      )}
+                    </TableIconActionGroup>
+                  );
+                },
+              },
+            ]}
+            renderExpandedRow={(process) => {
+              if (expandedProcessId !== process.id) return null;
+              const subProcesses = (process.subProcesses ?? []) as SubRow[];
+              if (subProcesses.length === 0) {
+                return (
+                  <p className="text-muted-inline m-0">
+                    No sub-processes configured for this process.
+                  </p>
+                );
+              }
+              return (
+                <DataTable<SubRow>
+                  flush
+                  rows={subProcesses}
+                  getRowKey={(sub) => String(sub.id)}
+                  emptyTitle="No sub-processes"
+                  columns={[
+                    {
+                      key: "sequence",
+                      header: "#",
+                      align: "center",
+                      render: (sub) => sub.sequence,
+                    },
+                    { key: "code", header: "Code" },
+                    { key: "name", header: "Name" },
+                    {
+                      key: "defaultRole",
+                      header: "Default Role",
+                      render: (sub) =>
+                        sub.defaultRoleId
+                          ? (roleNameById.get(sub.defaultRoleId) ?? `Role #${sub.defaultRoleId}`)
+                          : "-",
+                    },
+                    {
+                      key: "status",
+                      header: "Status",
+                      render: (sub) => {
+                        const subActive = (sub as { active?: boolean }).active !== false;
+                        return (
+                          <StatusBadge
+                            status={subActive ? "ACTIVE" : "CLOSED"}
+                            label={subActive ? "Active" : "Inactive"}
+                          />
+                        );
+                      },
+                    },
+                    {
+                      key: "actions",
+                      header: "Actions",
+                      align: "right",
+                      render: (sub) => {
+                        const subActive = (sub as { active?: boolean }).active !== false;
+                        return (
+                          <TableIconActionGroup>
+                            <TableIconAction
+                              action="edit"
+                              onClick={() =>
+                                setEditSubProcess({
+                                  id: sub.id,
+                                  name: sub.name,
+                                  sequence: String(sub.sequence),
+                                  defaultRoleId: sub.defaultRoleId ?? "",
+                                  active: subActive,
+                                  capabilities: capabilitiesFromSub(sub),
+                                })
+                              }
+                            />
+                            {subActive ? (
+                              <TableIconAction
+                                action="deactivate"
+                                disabled={setSubProcessActive.isPending}
+                                onClick={() =>
+                                  confirmDeactivateSubProcess({
+                                    id: sub.id,
+                                    name: sub.name,
+                                    sequence: sub.sequence,
+                                    defaultRoleId: sub.defaultRoleId,
+                                  })
+                                }
                               />
-                            </td>
-                            <td className="text-right">
-                              <TableIconActionGroup>
-                                <TableIconAction
-                                  action="edit"
-                                  onClick={() =>
-                                    setEditProcess({
-                                      id: process.id,
-                                      name: process.name,
-                                      sequence: String(process.sequence),
-                                      active: isActive,
-                                    })
-                                  }
-                                />
-                                {isActive ? (
-                                  <>
-                                    <TableIconAction
-                                      action="add"
-                                      label="Add sub-process"
-                                      onClick={() =>
-                                        openSubProcessModal(process.id, subProcesses.length + 1)
-                                      }
-                                    />
-                                    <TableIconAction
-                                      action="deactivate"
-                                      disabled={setProcessActive.isPending}
-                                      onClick={() =>
-                                        confirmDeactivateProcess({
-                                          id: process.id,
-                                          name: process.name,
-                                          sequence: process.sequence,
-                                          subProcesses,
-                                        })
-                                      }
-                                    />
-                                  </>
-                                ) : (
-                                  <TableIconAction
-                                    action="reactivate"
-                                    disabled={setProcessActive.isPending}
-                                    onClick={() =>
-                                      setProcessActive.mutate({
-                                        id: process.id,
-                                        active: true,
-                                        name: process.name,
-                                        sequence: process.sequence,
-                                      })
-                                    }
-                                  />
-                                )}
-                              </TableIconActionGroup>
-                            </td>
-                          </tr>
-                          {isExpanded && (
-                            <tr>
-                              <td colSpan={7} className="bg-[var(--color-neutral-50)] px-4 py-3">
-                                {subProcesses.length === 0 ? (
-                                  <p className="text-muted-inline">
-                                    No sub-processes configured for this process.
-                                  </p>
-                                ) : (
-                                  <table className="data-table app-table m-0">
-                                    <thead>
-                                      <tr>
-                                        <th className="text-center">#</th>
-                                        <th>Code</th>
-                                        <th>Name</th>
-                                        <th>Default Role</th>
-                                        <th>Status</th>
-                                        <th className="text-right">Actions</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {subProcesses.map((sub) => {
-                                        const subActive = (sub as { active?: boolean }).active !== false;
-                                        return (
-                                        <tr key={sub.id}>
-                                          <td className="text-center">{sub.sequence}</td>
-                                          <td>{sub.code}</td>
-                                          <td>{sub.name}</td>
-                                          <td>
-                                            {sub.defaultRoleId
-                                              ? (roleNameById.get(sub.defaultRoleId) ??
-                                                `Role #${sub.defaultRoleId}`)
-                                              : "-"}
-                                          </td>
-                                          <td>
-                                            <StatusBadge
-                                              status={subActive ? "ACTIVE" : "CLOSED"}
-                                              label={subActive ? "Active" : "Inactive"}
-                                            />
-                                          </td>
-                                          <td className="text-right">
-                                            <TableIconActionGroup>
-                                              <TableIconAction
-                                                action="edit"
-                                                onClick={() =>
-                                                  setEditSubProcess({
-                                                    id: sub.id,
-                                                    name: sub.name,
-                                                    sequence: String(sub.sequence),
-                                                    defaultRoleId: sub.defaultRoleId ?? "",
-                                                    active: subActive,
-                                                    capabilities: capabilitiesFromSub(sub),
-                                                  })
-                                                }
-                                              />
-                                              {subActive ? (
-                                                <TableIconAction
-                                                  action="deactivate"
-                                                  disabled={setSubProcessActive.isPending}
-                                                  onClick={() =>
-                                                    confirmDeactivateSubProcess({
-                                                      id: sub.id,
-                                                      name: sub.name,
-                                                      sequence: sub.sequence,
-                                                      defaultRoleId: sub.defaultRoleId,
-                                                    })
-                                                  }
-                                                />
-                                              ) : (
-                                                <TableIconAction
-                                                  action="reactivate"
-                                                  disabled={setSubProcessActive.isPending}
-                                                  onClick={() =>
-                                                    setSubProcessActive.mutate({
-                                                      id: sub.id,
-                                                      active: true,
-                                                      name: sub.name,
-                                                      sequence: sub.sequence,
-                                                      defaultRoleId: sub.defaultRoleId ?? null,
-                                                    })
-                                                  }
-                                                />
-                                              )}
-                                            </TableIconActionGroup>
-                                          </td>
-                                        </tr>
-                                      );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                            ) : (
+                              <TableIconAction
+                                action="reactivate"
+                                disabled={setSubProcessActive.isPending}
+                                onClick={() =>
+                                  setSubProcessActive.mutate({
+                                    id: sub.id,
+                                    active: true,
+                                    name: sub.name,
+                                    sequence: sub.sequence,
+                                    defaultRoleId: sub.defaultRoleId ?? null,
+                                  })
+                                }
+                              />
+                            )}
+                          </TableIconActionGroup>
+                        );
+                      },
+                    },
+                  ]}
+                />
+              );
+            }}
+          />
         </AppCard>
       </QueryState>
     );

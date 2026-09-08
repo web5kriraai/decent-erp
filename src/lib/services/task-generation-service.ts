@@ -5,6 +5,12 @@ import {
   initialStatusForCreate,
   minReadyDependencySequence,
 } from "@/lib/services/task-dependency";
+import {
+  addUtcDays,
+  effectiveDayOffset,
+  plannedDueAt,
+  type TaskDateMode,
+} from "@/lib/services/task-date-mode";
 
 type PatternTaskRow = {
   processId: number;
@@ -45,12 +51,6 @@ export function toPrismaTaskCreateRows(tasks: TaskCreateRow[]): Omit<TaskCreateR
   });
 }
 
-function addWorkingDays(base: Date, dayOffset: number): Date {
-  const result = new Date(base);
-  result.setUTCDate(result.getUTCDate() + dayOffset);
-  return result;
-}
-
 /** Only the lowest dep-seq work row(s) with an assignee become ASSIGNED; approvals stay PENDING until work submits. */
 export function applyCreateReadiness(tasks: TaskCreateRow[]): TaskCreateRow[] {
   if (tasks.length === 0) return tasks;
@@ -77,9 +77,15 @@ export function applyCreateReadiness(tasks: TaskCreateRow[]): TaskCreateRow[] {
 export async function buildTasksFromPatternTasks(
   designId: bigint,
   patternTasks: PatternTaskRow[],
-  options?: { baseDate?: Date; firstAssigneeId?: number; designPriority?: Priority },
+  options?: {
+    baseDate?: Date;
+    firstAssigneeId?: number;
+    designPriority?: Priority;
+    taskDateMode?: TaskDateMode;
+  },
 ): Promise<TaskCreateRow[]> {
   const base = options?.baseDate ?? new Date();
+  const mode = options?.taskDateMode ?? "SEQUENTIAL";
   const assignees = await resolveAssigneesForPatternTasks(
     patternTasks.map((pt) => ({
       defaultRoleId: pt.defaultRoleId,
@@ -88,8 +94,9 @@ export async function buildTasksFromPatternTasks(
   );
 
   const rows: TaskCreateRow[] = patternTasks.map((pt, index) => {
-    const plannedStart = addWorkingDays(base, pt.dayOffset);
-    const dueAt = new Date(plannedStart.getTime() + pt.expectedMinutes * 60_000);
+    const dayOffset = effectiveDayOffset(mode, pt.dayOffset, index);
+    const plannedStart = addUtcDays(base, dayOffset);
+    const dueAt = plannedDueAt(plannedStart, pt.expectedMinutes);
     const resolvedEmployee = assignees[index] ?? undefined;
     const isFirst = index === 0;
     const assignee = isFirst && options?.firstAssigneeId ? options.firstAssigneeId : resolvedEmployee;
@@ -100,7 +107,7 @@ export async function buildTasksFromPatternTasks(
       subProcessId: pt.subProcessId,
       assignedRoleId: pt.defaultRoleId,
       requiredSkillId: pt.defaultSkillId ?? null,
-      assignedEmployeeId: assignee,
+      assignedEmployeeId: assignee ?? undefined,
       expectedMinutes: pt.expectedMinutes,
       // Pattern step priority wins; design priority is the fallback default.
       priority: pt.priority ?? options?.designPriority ?? "MEDIUM",

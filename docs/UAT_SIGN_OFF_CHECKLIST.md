@@ -4,16 +4,18 @@ Use after migrate + seed (`npx prisma migrate deploy` && `npx prisma db seed`).
 
 ## Master catalog
 
-- [ ] Admin → Master Data → Master Catalog shows tile grid for all flat master types
+- [ ] Admin → Master Data → Master Catalog shows grouped tile grid (product, materials, specs, quality, related)
+- [ ] Hub search filters master types; record counts load via `?summary=1`
+- [ ] Deep link `?tab=catalog&type=SEASON` (or other type) opens that master list; Back clears `type`
 - [ ] Open Product Category / Season / Fabric / Machine / Correction Type — create + deactivate works
-- [ ] Product–process mapping create uses catalog product categories
+- [ ] Detail view filter by code/name and Active / Inactive works
 - [ ] New Design form: product, season, fabric, machine, stitching, grade, style, theme, celebrity, work type from catalog
 - [ ] Component types selectable with per-component specs saved on create
 - [ ] Edit Design updates fabric/machine/grade/stitching/catalog attributes
 
 ## Materials
 
-- [ ] My Work → Materials: create stock and purchase-indent lines
+- [ ] Materials (`/work/materials`): create stock and purchase-indent lines
 - [ ] Mark Available / Issue updates status
 - [ ] Completing MAT_REQ without material lines is blocked
 - [ ] Completing MAT_REQ marks REQUESTED/INDENT → AVAILABLE
@@ -34,14 +36,14 @@ Use after migrate + seed (`npx prisma migrate deploy` && `npx prisma db seed`).
 
 ## Workbenches
 
-- [ ] Sketch Board / Punching Board / Sample Board list stage queues
+- [ ] Sketch / Punching / Sample boards (`/work/sketch`, `/work/punching`, `/work/samples`) list stage queues
 - [ ] Sample Board: select job → assign MACHINE from catalog
 
 ## Reports / approvals / KPI
 
 - [ ] Master Data → Concept Targets: set monthly target by season/product category
-- [ ] Master Data `?tab=catalog|targets|kpi` deep links open the correct tab
-- [ ] My Work → Materials design picker lists designs (limit query)
+- [ ] Master Data `?tab=catalog|targets|kpi` deep links open the correct tab; `?tab=catalog&type=MACHINE` opens that type
+- [ ] Materials design picker lists designs (limit query)
 - [ ] Reports hub CSV exports (design, cost, material, delay, ranking)
 - [ ] Approvals: select multiple management items → Approve Selected
 - [ ] Master Data → KPI Weights: edit and save weight %

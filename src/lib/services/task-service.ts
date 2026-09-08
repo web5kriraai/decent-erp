@@ -41,6 +41,7 @@ import {
   type CostType,
 } from "@/lib/services/costing-service";
 import type { Prisma } from "@prisma/client";
+import { designImagesRejectWhere } from "@/lib/services/design-image-reject";
 
 async function promoteGatedWorkTasksAfterApproval(
   tx: Prisma.TransactionClient,
@@ -806,7 +807,7 @@ export async function endTask(
       } else if (isRejectSampleOutcome(canonicalOutcome)) {
         nextStatus = "CORRECTION_REQUIRED";
         await tx.designImage.updateMany({
-          where: { designId: task.designId, isPrimary: false },
+          where: designImagesRejectWhere(task.designId),
           data: {
             reviewStatus: "REJECTED",
             reviewNote: input.outputRemark || "Image not approved during sample checking",

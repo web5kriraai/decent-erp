@@ -26,9 +26,7 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
 
   test("TC-03: design head creates design with workflow pattern", async ({ page }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
-    const design = await createDesignViaApi(page, `E2E Collection ${Date.now()}`, {
-      conceptNote: "Playwright TC-03",
-    });
+    const design = await createDesignViaApi(page, `E2E Collection ${Date.now()}`);
     expect(design.id).toBeTruthy();
     expect(design.status).toBe("ACTIVE");
     expect(design.ideaRef).toMatch(/^IDEA-/);
@@ -186,11 +184,15 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
 
   test("TC-13: kanban board loads pipeline columns", async ({ page }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
-    await page.goto("/designs/kanban");
-    await expect(page.getByRole("heading", { name: /Design Pipeline/i })).toBeVisible();
-    await expect(page.locator(".pipeline-accordion-section").first()).toBeVisible();
-    const data = await apiGetJson<unknown[]>(page, "/api/designs/kanban");
-    expect(Array.isArray(data)).toBe(true);
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: /Design Workflow Dashboard/i })).toBeVisible();
+    await expect(page.getByRole("listitem", { name: /New Idea/i }).first()).toBeVisible();
+    const data = await apiGetJson<{ items: unknown[]; summary: { totalIdeas: number } }>(
+      page,
+      "/api/designs/kanban",
+    );
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.summary.totalIdeas).toBe("number");
   });
 
   test("TC-14: admin can read and update role permissions", async ({ page }) => {

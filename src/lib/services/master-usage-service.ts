@@ -23,12 +23,11 @@ function pushIfUsed(
 
 /** Usage counts for soft-deactivate warnings only - never blocks retirement. */
 export async function getProcessUsage(processId: number): Promise<MasterUsageWarning[]> {
-  const [designTasks, patternTasks, designProcesses, mappings, activeChildren] =
+  const [designTasks, patternTasks, designProcesses, activeChildren] =
     await Promise.all([
       prisma.designTask.count({ where: { processId } }),
       prisma.workflowPatternTask.count({ where: { processId } }),
       prisma.designProcess.count({ where: { processId } }),
-      prisma.productProcessMapping.count({ where: { processId } }),
       prisma.designSubProcessMaster.count({ where: { processId, active: true } }),
     ]);
 
@@ -47,13 +46,6 @@ export async function getProcessUsage(processId: number): Promise<MasterUsageWar
     designProcesses,
     "design process instance",
     "design process instances",
-  );
-  pushIfUsed(
-    warnings,
-    "PRODUCT_MAPPINGS",
-    mappings,
-    "product–process mapping",
-    "product–process mappings",
   );
   pushIfUsed(
     warnings,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -52,6 +52,19 @@ type KpiEmployeesResponse = {
 
 const DEFAULT_PAGE_SIZE = 25;
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function scoreTone(score: number): "high" | "mid" | "low" {
+  if (score >= 85) return "high";
+  if (score >= 70) return "mid";
+  return "low";
+}
+
 export function KpiDashboardView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
@@ -92,6 +105,59 @@ export function KpiDashboardView() {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
+  const items = kpiQuery.data?.items ?? [];
+  const summary = kpiQuery.data?.summary;
+  const chartData = summary?.chart ?? [];
+
+  const teamScore = useMemo(() => {
+    if (!chartData.length) return null;
+    const avg = chartData.reduce((sum, row) => sum + row.score, 0) / chartData.length;
+    return Math.round(avg * 10) / 10;
+  }, [chartData]);
+
+  const metricAverages = useMemo(() => {
+    const buckets = new Map<string, { sum: number; count: number }>();
+    for (const row of items) {
+      const score = Number(row.score);
+      if (!Number.isFinite(score)) continue;
+      const current = buckets.get(row.metricCode) ?? { sum: 0, count: 0 };
+      current.sum += score;
+      current.count += 1;
+      buckets.set(row.metricCode, current);
+    }
+    return SPEC_KPI_METRICS.map((metric) => {
+      const bucket = buckets.get(metric.code);
+      const avg = bucket && bucket.count > 0 ? bucket.sum / bucket.count : null;
+      return {
+        ...metric,
+        avg,
+        scored: summary?.metricCounts[metric.code] ?? 0,
+      };
+    });
+  }, [items, summary?.metricCounts]);
+
+  const highlightMetrics = useMemo(() => {
+    const findAvg = (code: string) =>
+      metricAverages.find((m) => m.code === code)?.avg ?? null;
+    return {
+      onTime: findAvg("ON_TIME_COMPLETION"),
+      firstTime: findAvg("FIRST_TIME_RIGHT"),
+      quality: findAvg("QUALITY_APPROVAL"),
+    };
+  }, [metricAverages]);
+
+  const scorecard = useMemo(
+    () =>
+      [...chartData]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8)
+        .map((row) => ({
+          ...row,
+          tone: scoreTone(row.score),
+        })),
+    [chartData],
+  );
+
   if (!enabled) {
     return (
       <div className="page-shell">
@@ -100,25 +166,19 @@ export function KpiDashboardView() {
     );
   }
 
-  const items = kpiQuery.data?.items ?? [];
-  const summary = kpiQuery.data?.summary;
-  const chartData = summary?.chart ?? [];
-  const metricCoverage = SPEC_KPI_METRICS.map((metric) => ({
-    ...metric,
-    scored: summary?.metricCounts[metric.code] ?? 0,
-  }));
-
   return (
     <div className="page-shell">
       <PageHeader
-        title="Performance KPI"
+        title="KRA / KPI Performance"
+        subtitle="Employee productivity, quality and rating across the design pipeline"
         actions={
           <>
-            <AppButtonLink href={ROUTES.analytics.reportsHub} appVariant="secondary" size="sm">
-              Reports
-            </AppButtonLink>
-            <AppButtonLink href={ROUTES.analytics.kpi} appVariant="secondary" size="sm">
-              Employees
+            <AppButtonLink
+              href={`${ROUTES.admin.masters}?tab=kpi`}
+              appVariant="secondary"
+              size="sm"
+            >
+              Configure KPI
             </AppButtonLink>
             <AppButtonLink href={ROUTES.analytics.kpiDesignHead} appVariant="secondary" size="sm">
               Design Head
@@ -130,7 +190,7 @@ export function KpiDashboardView() {
               disabled={recompute.isPending}
               onClick={() => recompute.mutate()}
             >
-              Recompute
+              {recompute.isPending ? "Recalculating…" : "Recalculate Scores"}
             </AppButton>
           </>
         }
@@ -143,18 +203,96 @@ export function KpiDashboardView() {
         onRetry={() => kpiQuery.refetch()}
         skeletonVariant="stats"
       >
-        <div className="stat-grid stack-section">
-          <StatCard label="Score records" value={summary?.scoreRecordCount ?? 0} />
-          <StatCard label="Employees" value={summary?.employeeCount ?? 0} />
-          <StatCard label="Metrics" value={SPEC_KPI_METRICS.length} />
+        <div className="stat-grid">
           <StatCard
-            label="Period"
-            value={new Date().toLocaleString("en", { month: "short", year: "numeric" })}
+            label="Team Score"
+            value={teamScore != null ? String(teamScore) : "—"}
+            trend={`${summary?.employeeCount ?? 0} employees scored`}
+            tone="accent"
+          />
+          <StatCard
+            label="On-time Completion"
+            value={
+              highlightMetrics.onTime != null
+                ? `${Math.round(highlightMetrics.onTime)}%`
+                : "—"
+            }
+            trend={`Weight ${SPEC_KPI_METRICS.find((m) => m.code === "ON_TIME_COMPLETION")?.weight}%`}
+          />
+          <StatCard
+            label="First-time Right"
+            value={
+              highlightMetrics.firstTime != null
+                ? `${Math.round(highlightMetrics.firstTime)}%`
+                : "—"
+            }
+            trend={`Weight ${SPEC_KPI_METRICS.find((m) => m.code === "FIRST_TIME_RIGHT")?.weight}%`}
+          />
+          <StatCard
+            label="Quality Approval"
+            value={
+              highlightMetrics.quality != null
+                ? `${Math.round(highlightMetrics.quality)}%`
+                : "—"
+            }
+            trend={`${summary?.scoreRecordCount ?? 0} score records`}
+            tone="success"
           />
         </div>
 
+        <div className="panel-grid-2">
+          <AppCard title="Employee Scorecard" description="Top weighted scores this period">
+            {scorecard.length > 0 ? (
+              <ul className="employee-score-list">
+                {scorecard.map((row) => (
+                  <li key={row.employeeId} className="employee-score-row">
+                    <span className="employee-score-avatar" aria-hidden>
+                      {initials(row.name)}
+                    </span>
+                    <div className="employee-score-meta">
+                      <p className="employee-score-name">{row.name}</p>
+                      <p className="employee-score-sub">Weighted composite</p>
+                    </div>
+                    <span
+                      className={`employee-score-value employee-score-value--${row.tone}`}
+                    >
+                      {Math.round(row.score * 10) / 10} / 100
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="m-0 text-sm text-muted-foreground">
+                No employee scores yet. Recalculate to populate the scorecard.
+              </p>
+            )}
+          </AppCard>
+
+          <AppCard title="KPI Achievement" description="Average score by metric">
+            <ul className="kpi-metric-list">
+              {metricAverages.map((metric) => {
+                const pct = metric.avg != null ? Math.min(100, Math.max(0, metric.avg)) : 0;
+                return (
+                  <li key={metric.code} className="kpi-metric-row">
+                    <div className="kpi-metric-head">
+                      <span>{metric.label}</span>
+                      <span className="text-muted-foreground">
+                        {metric.avg != null ? `${Math.round(metric.avg)}%` : "—"}
+                        <span className="opacity-70"> · wt {metric.weight}%</span>
+                      </span>
+                    </div>
+                    <div className="kpi-metric-track" aria-hidden>
+                      <div className="kpi-metric-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </AppCard>
+        </div>
+
         {chartData.length > 0 ? (
-          <AppCard className="stack-section kpi-chart-card" title="Weighted score">
+          <AppCard className="kpi-chart-card" title="Monthly performance" description="Weighted score by employee">
             <ResponsiveContainer width="100%" height="85%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -167,7 +305,27 @@ export function KpiDashboardView() {
           </AppCard>
         ) : null}
 
-        <AppCard title="Score detail" className="stack-section" flush>
+        <AppCard title="KPI Actions" flat>
+          <div className="kpi-actions-row">
+            <AppButtonLink href={`${ROUTES.admin.masters}?tab=kpi`} appVariant="outline" size="sm">
+              Edit KPI Weightage
+            </AppButtonLink>
+            <AppButton
+              type="button"
+              appVariant="outline"
+              size="sm"
+              disabled={recompute.isPending}
+              onClick={() => recompute.mutate()}
+            >
+              Recalculate Scores
+            </AppButton>
+            <AppButtonLink href={ROUTES.analytics.reportsHub} appVariant="outline" size="sm">
+              Open Detailed Report
+            </AppButtonLink>
+          </div>
+        </AppCard>
+
+        <AppCard title="Score detail" flush>
           <DataTable<KpiRow & Record<string, unknown>>
             columns={[
               { key: "employee", header: "Employee", render: (r) => r.employee.name },
@@ -188,7 +346,7 @@ export function KpiDashboardView() {
             rows={items}
             getRowKey={(row) => row.id}
             emptyTitle="No KPI scores"
-            emptyDescription="Click Recompute."
+            emptyDescription="Click Recalculate Scores."
           />
           <PaginationBar
             total={total}
@@ -200,20 +358,6 @@ export function KpiDashboardView() {
               setPage(1);
             }}
           />
-        </AppCard>
-
-        <AppCard title="Metric weights" className="stack-section" flat>
-          <ul className="m-0 columns-2 list-none space-y-1 p-0 text-sm leading-relaxed">
-            {metricCoverage.map((metric) => (
-              <li key={metric.code} className="flex justify-between gap-2 border-b border-border/50 py-1">
-                <span>{metric.label}</span>
-                <span className="text-muted-foreground">
-                  {metric.weight}%
-                  {metric.scored > 0 ? ` · ${metric.scored}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
         </AppCard>
       </QueryState>
     </div>

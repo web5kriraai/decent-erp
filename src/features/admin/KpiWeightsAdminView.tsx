@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { QueryState } from "@/components/ui/QueryState";
 import { DataTable } from "@/components/DataTable";
 import { AppCard } from "@/components/ui/AppCard";
@@ -10,6 +10,7 @@ import { FormTextField } from "@/components/ui/form-text-field";
 import { apiGet, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
+import { roleKpiWeightsSumOk } from "@/lib/services/kpi-weight-utils";
 
 type KpiDefinition = {
   id: number;
@@ -43,8 +44,31 @@ export function KpiWeightsAdminView() {
 
   const rows = listQuery.data ?? [];
 
+  const roleSumById = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const row of rows) {
+      const weight = Number(drafts[row.id] ?? row.weightPercent);
+      map.set(row.roleId, (map.get(row.roleId) ?? 0) + (Number.isFinite(weight) ? weight : 0));
+    }
+    return map;
+  }, [rows, drafts]);
+
+  function effectiveWeight(row: KpiDefinition) {
+    return Number(drafts[row.id] ?? row.weightPercent);
+  }
+
+  function canSaveRow(row: KpiDefinition) {
+    const projected = rows
+      .filter((r) => r.roleId === row.roleId)
+      .map((r) => (r.id === row.id ? effectiveWeight(row) : Number(drafts[r.id] ?? r.weightPercent)));
+    return roleKpiWeightsSumOk(projected).ok;
+  }
+
   return (
-    <AppCard title="KPI Weightage" description="Configure role metric weights">
+    <AppCard
+      title="KPI Weightage"
+      description="Configure role metric weights (each role must total 100%)"
+    >
       <QueryState
         isLoading={listQuery.isLoading}
         isError={listQuery.isError}
@@ -61,32 +85,50 @@ export function KpiWeightsAdminView() {
             },
             { key: "metricCode", header: "Metric" },
             {
+              key: "roleTotal",
+              header: "Role total",
+              render: (row) => {
+                const sum = roleSumById.get(row.roleId) ?? 0;
+                const ok = Math.abs(sum - 100) <= 0.01;
+                return (
+                  <span className={ok ? "text-muted-foreground" : "text-destructive"}>
+                    {sum.toFixed(2)}%
+                  </span>
+                );
+              },
+            },
+            {
               key: "weight",
               header: "Weight %",
-              render: (row) => (
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <FormTextField
-                    id={`kpi-w-${row.id}`}
-                    label=""
-                    value={drafts[row.id] ?? String(row.weightPercent)}
-                    onChange={(e) =>
-                      setDrafts((prev) => ({ ...prev, [row.id]: e.target.value }))
-                    }
-                  />
-                  <AppButton
-                    size="sm"
-                    type="button"
-                    onClick={() =>
-                      save.mutate({
-                        id: row.id,
-                        weightPercent: Number(drafts[row.id] ?? row.weightPercent),
-                      })
-                    }
-                  >
-                    Save
-                  </AppButton>
-                </div>
-              ),
+              render: (row) => {
+                const ok = canSaveRow(row);
+                return (
+                  <div className="flex items-center gap-2">
+                    <FormTextField
+                      id={`kpi-w-${row.id}`}
+                      label=""
+                      value={drafts[row.id] ?? String(row.weightPercent)}
+                      onChange={(e) =>
+                        setDrafts((prev) => ({ ...prev, [row.id]: e.target.value }))
+                      }
+                      error={ok ? undefined : "Role weights must total 100%"}
+                    />
+                    <AppButton
+                      size="sm"
+                      type="button"
+                      disabled={!ok || save.isPending}
+                      onClick={() =>
+                        save.mutate({
+                          id: row.id,
+                          weightPercent: effectiveWeight(row),
+                        })
+                      }
+                    >
+                      Save
+                    </AppButton>
+                  </div>
+                );
+              },
             },
           ]}
           rows={rows}

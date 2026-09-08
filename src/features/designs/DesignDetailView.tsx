@@ -90,8 +90,6 @@ export function DesignDetailView({
     return sampleCheck.status;
   }, [designQuery.data?.tasks, isFinalApproval]);
 
-  const showDesignFiles = !pendingStageApproval;
-
   return (
     <div className="page-shell">
       <QueryState
@@ -217,33 +215,31 @@ export function DesignDetailView({
               enabled={canViewCompletion}
             />
 
-            {showDesignFiles ? (
-              <AppCard title="Design Files" id="design-files">
-                <div className="vstack vstack--loose">
-                  {canUploadFiles ? (
-                    <ConceptMediaPanel
-                      designId={designId}
-                      canUpload={canUploadFiles}
-                      components={(designQuery.data?.components ?? []).map((c) => ({
-                        id: c.id,
-                        label: c.componentType?.name ?? c.id,
-                      }))}
-                      onUploaded={() => imagesQuery.refetch()}
-                    />
-                  ) : null}
-                  <ImageGallery
+            <AppCard title="Design Files" id="design-files">
+              <div className="vstack vstack--loose">
+                {canUploadFiles ? (
+                  <ConceptMediaPanel
                     designId={designId}
                     canUpload={canUploadFiles}
-                    highlightImageId={highlightImageId}
                     components={(designQuery.data?.components ?? []).map((c) => ({
                       id: c.id,
                       label: c.componentType?.name ?? c.id,
                     }))}
-                    showUploader={false}
+                    onUploaded={() => imagesQuery.refetch()}
                   />
-                </div>
-              </AppCard>
-            ) : null}
+                ) : null}
+                <ImageGallery
+                  designId={designId}
+                  canUpload={canUploadFiles}
+                  highlightImageId={highlightImageId}
+                  components={(designQuery.data?.components ?? []).map((c) => ({
+                    id: c.id,
+                    label: c.componentType?.name ?? c.id,
+                  }))}
+                  showUploader={false}
+                />
+              </div>
+            </AppCard>
 
             <AssignTaskModal
               open={!!assignTask}
