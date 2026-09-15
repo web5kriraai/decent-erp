@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { RightDrawer } from "@/components/ui/RightDrawer";
 import { AppButton } from "@/components/ui/AppButton";
 import { QueryState } from "@/components/ui/QueryState";
+import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useDesign } from "@/hooks/use-designs";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
@@ -58,6 +59,7 @@ export function DesignDetailTabsBody({
   const [assignTask, setAssignTask] = useState<DesignTask | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [imageLightboxOpen, setImageLightboxOpen] = useState(false);
 
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
@@ -104,7 +106,25 @@ export function DesignDetailTabsBody({
           >
             {!compactHero ? (
               <div className="flex size-28 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 text-xs text-muted-foreground">
-                {primaryImage?.fileName ?? "No image"}
+                {primaryImage?.downloadUrl &&
+                (!primaryImage.mediaKind || primaryImage.mediaKind === "IMAGE") ? (
+                  <button
+                    type="button"
+                    className="workflow-dash-card__img-btn size-full"
+                    title="View full image"
+                    aria-label={`View image for ${design.ideaRef}`}
+                    onClick={() => setImageLightboxOpen(true)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={primaryImage.downloadUrl}
+                      alt={primaryImage.fileName ?? design.collectionName}
+                      className="size-full object-contain"
+                    />
+                  </button>
+                ) : (
+                  (primaryImage?.fileName ?? "No image")
+                )}
               </div>
             ) : null}
             <div className="min-w-0 space-y-2">
@@ -251,6 +271,13 @@ export function DesignDetailTabsBody({
               design={design}
             />
           ) : null}
+          <ImageLightboxModal
+            open={imageLightboxOpen}
+            onClose={() => setImageLightboxOpen(false)}
+            imageUrl={primaryImage?.downloadUrl}
+            title={design.ideaRef}
+            description={design.collectionName}
+          />
         </div>
       ) : null}
     </QueryState>

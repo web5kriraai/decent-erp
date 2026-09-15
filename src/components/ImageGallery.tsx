@@ -9,6 +9,7 @@ import type { DesignImageRecord } from "@/lib/types/api";
 import { ConceptMediaPanel } from "@/components/ConceptMediaPanel";
 import { AppButton } from "@/components/ui/AppButton";
 import { useApiToast } from "@/components/ui/ToastProvider";
+import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
 
 type ImageGalleryProps = {
   designId: string;
@@ -40,6 +41,10 @@ export function ImageGallery({
   const queryClient = useQueryClient();
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [filter, setFilter] = useState<MediaFilter>("ALL");
+  const [lightbox, setLightbox] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
 
   const imagesQuery = useQuery({
     queryKey: queryKeys.designs.images(designId),
@@ -115,6 +120,11 @@ export function ImageGallery({
           const isRejected = image.reviewStatus === "REJECTED";
           const isHighlighted = highlightImageId === image.id;
           const kind = image.mediaKind ?? "IMAGE";
+          const sizeLabel = formatBytes(image.fileSize);
+          const ext = image.fileName?.includes(".")
+            ? image.fileName.split(".").pop()?.toUpperCase()
+            : "FILE";
+
           return (
             <div
               key={image.id}
@@ -124,63 +134,89 @@ export function ImageGallery({
                 isHighlighted ? " ring-2 ring-primary" : ""
               }`}
             >
-              {isRejected ? (
-                <div className="image-gallery-rejected">
-                  <IconAlertCircle className="image-gallery-rejected-icon" aria-hidden />
-                  <p className="image-gallery-rejected-name">{image.fileName}</p>
-                  <p className="image-gallery-rejected-label">Not approved</p>
-                  <p className="image-gallery-rejected-hint">
-                    {image.reviewNote ?? "Click to view error"}
-                  </p>
-                </div>
-              ) : kind === "IMAGE" && image.contentType.startsWith("image/") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={image.downloadUrl} alt={image.fileName} className="image-gallery-thumb" />
-              ) : kind === "AUDIO" ? (
-                <audio controls src={image.downloadUrl} className="w-full" />
-              ) : kind === "VIDEO" ? (
-                <video controls src={image.downloadUrl} className="w-full" style={{ maxHeight: 180 }} />
-              ) : (
-                <div className="image-gallery-file">
-                  <p className="m-0 font-medium">{image.fileName}</p>
-                  <p className="m-0 mt-1 text-xs opacity-80">
-                    {formatBytes(image.fileSize)}
-                    {image.contentType ? ` · ${image.contentType}` : ""}
-                  </p>
-                  <a
-                    href={image.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block text-sm font-medium underline underline-offset-2"
+              <div className="image-gallery-preview">
+                {isRejected ? (
+                  <div className="image-gallery-rejected">
+                    <IconAlertCircle className="image-gallery-rejected-icon" aria-hidden />
+                    <p className="image-gallery-rejected-name">{image.fileName}</p>
+                    <p className="image-gallery-rejected-label">Not approved</p>
+                    <p className="image-gallery-rejected-hint">
+                      {image.reviewNote ?? "Click to view error"}
+                    </p>
+                  </div>
+                ) : kind === "IMAGE" && image.contentType.startsWith("image/") ? (
+                  <button
+                    type="button"
+                    className="workflow-dash-card__img-btn"
+                    title="View full image"
+                    aria-label={`View ${image.fileName}`}
+                    onClick={() =>
+                      setLightbox({
+                        url: image.downloadUrl,
+                        title: image.fileName,
+                      })
+                    }
                   >
-                    Download
-                  </a>
-                </div>
-              )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={image.downloadUrl}
+                      alt={image.fileName}
+                      className="image-gallery-thumb"
+                    />
+                  </button>
+                ) : kind === "AUDIO" ? (
+                  <audio controls src={image.downloadUrl} className="image-gallery-audio" />
+                ) : kind === "VIDEO" ? (
+                  <video controls src={image.downloadUrl} className="image-gallery-video" />
+                ) : (
+                  <div className="image-gallery-file" title={image.fileName}>
+                    <span className="image-gallery-file-ext">{ext}</span>
+                    {sizeLabel ? (
+                      <span className="image-gallery-file-size">{sizeLabel}</span>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
               <div className="image-gallery-meta">
-                {!isRejected && kind !== "FILE" ? <span>{image.fileName}</span> : null}
-                <span className="badge">{kind}</span>
-                {image.isPrimary && <span className="badge">Primary</span>}
-                {canUpload && kind === "IMAGE" && !image.isPrimary && !isRejected && (
-                  <AppButton
-                    type="button"
-                    appVariant="ghost"
-                    size="sm"
-                    onClick={() => void handleSetPrimary(image.id)}
-                  >
-                    Set primary
-                  </AppButton>
-                )}
-                {canUpload && (
-                  <AppButton
-                    type="button"
-                    appVariant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(image.id)}
-                  >
-                    Remove
-                  </AppButton>
-                )}
+                <p className="image-gallery-name" title={image.fileName}>
+                  {image.fileName}
+                </p>
+                <div className="image-gallery-footer">
+                  <span className="badge">{kind}</span>
+                  {image.isPrimary && <span className="badge">Primary</span>}
+                  {!isRejected && image.downloadUrl ? (
+                    <a
+                      href={image.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={image.fileName}
+                      className="image-gallery-download"
+                    >
+                      Download
+                    </a>
+                  ) : null}
+                  {canUpload && kind === "IMAGE" && !image.isPrimary && !isRejected && (
+                    <AppButton
+                      type="button"
+                      appVariant="ghost"
+                      size="sm"
+                      onClick={() => void handleSetPrimary(image.id)}
+                    >
+                      Set primary
+                    </AppButton>
+                  )}
+                  {canUpload && (
+                    <AppButton
+                      type="button"
+                      appVariant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(image.id)}
+                    >
+                      Remove
+                    </AppButton>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -189,6 +225,12 @@ export function ImageGallery({
           <p className="m-0 text-sm text-[var(--color-neutral-500)]">No files uploaded yet</p>
         )}
       </div>
+      <ImageLightboxModal
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        imageUrl={lightbox?.url}
+        title={lightbox?.title ?? "Design image"}
+      />
     </div>
   );
 }
