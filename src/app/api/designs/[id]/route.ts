@@ -6,6 +6,7 @@ import {
   withApiHandler,
 } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
+import { assertCanReadDesign } from "@/lib/design-access";
 import { getDesignById, updateDesign } from "@/lib/services/design-service";
 
 const patchSchema = z.object({
@@ -30,7 +31,13 @@ export async function GET(
 ) {
   return withApiHandler(null, async (ctx) => {
     const { id } = await params;
-    const design = await getDesignById(BigInt(id), { viewerEmployeeId: ctx.employeeId });
+    const designId = BigInt(id);
+    await assertCanReadDesign({
+      designId,
+      employeeId: ctx.employeeId,
+      permissions: ctx.permissions,
+    });
+    const design = await getDesignById(designId, { viewerEmployeeId: ctx.employeeId });
     return jsonOk(serializeBigInt(design), ctx.correlationId);
   });
 }

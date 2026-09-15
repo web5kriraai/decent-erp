@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { DataTable } from "@/components/DataTable";
 import { AppButton } from "@/components/ui/AppButton";
@@ -9,16 +8,27 @@ import { AppCard } from "@/components/ui/AppCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
-import { StatCard } from "@/components/ui/StatCard";
 import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
-import { resolveCostingContextActions } from "@/lib/workflow-actions";
+import {
+  Modal,
+  ModalFooterActions,
+  ModalForm,
+  ModalFormGrid,
+} from "@/components/ui/Modal";
+import { resolveCostingContextActions, WORKFLOW_ACTION_CODES } from "@/lib/workflow-actions";
+import type { ResolvedWorkflowAction } from "@/lib/workflow-actions/types";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useAddCostEntry, useDesignCosts } from "@/hooks/use-costing";
-import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
+import { PageToolbar } from "@/components/ui/PageToolbar";
+
+function formatInr(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `₹${value.toFixed(2)}`;
+}
 
 export function CostingView() {
   const { data: session } = useSession();
@@ -30,6 +40,7 @@ export function CostingView() {
   const costsQuery = useDesignCosts(selectedDesignId, canView && !!selectedDesignId);
   const addCost = useAddCostEntry(selectedDesignId);
 
+  const [addOpen, setAddOpen] = useState(false);
   const [costType, setCostType] = useState<"TIME" | "MATERIAL" | "MACHINE" | "CORRECTION">("TIME");
   const [costCategory, setCostCategory] = useState<
     "FABRIC" | "EMBROIDERY" | "STITCHING" | "SALARY" | "OTHER" | ""
@@ -38,11 +49,7 @@ export function CostingView() {
   const [amount, setAmount] = useState("");
   const [expectedMrp, setExpectedMrp] = useState("");
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
-
-  const selectedDesign = useMemo(
-    () => designsQuery.data?.items.find((d) => d.id === selectedDesignId) ?? null,
-    [designsQuery.data?.items, selectedDesignId],
-  );
+  const [savingMrp, setSavingMrp] = useState(false);
 
   if (!canView) {
     return (
@@ -55,6 +62,14 @@ export function CostingView() {
   const amountError =
     !amount.trim() || Number(amount) <= 0 ? "Amount is required" : undefined;
 
+  function resetEntryForm() {
+    setAmount("");
+    setDescription("");
+    setCostCategory("");
+    setCostType("TIME");
+    setAttemptedSubmit(false);
+  }
+
   async function handleAddCost(e: React.FormEvent) {
     e.preventDefault();
     setAttemptedSubmit(true);
@@ -65,10 +80,28 @@ export function CostingView() {
       description: description.trim() || undefined,
       amount: Number(amount),
     });
-    setAmount("");
-    setDescription("");
-    setCostCategory("");
-    setAttemptedSubmit(false);
+    resetEntryForm();
+    setAddOpen(false);
+  }
+
+  async function handleSaveMrp() {
+    if (!selectedDesignId || !expectedMrp.trim()) return;
+    setSavingMrp(true);
+    try {
+      const { apiPatch } = await import("@/lib/api-client");
+      await apiPatch(`/api/designs/${selectedDesignId}/costs`, {
+        expectedMrp: Number(expectedMrp),
+      });
+      await costsQuery.refetch();
+    } finally {
+      setSavingMrp(false);
+    }
+  }
+
+  function handleAction(action: ResolvedWorkflowAction) {
+    if (action.code === WORKFLOW_ACTION_CODES.ADD_COST) {
+      setAddOpen(true);
+    }
   }
 
   const summary = costsQuery.data?.summary;
@@ -78,100 +111,96 @@ export function CostingView() {
     permissions,
   });
   const byTypeEntries = summary ? Object.entries(summary.byType) : [];
+  const marginValue =
+    summary?.mrpMarginAmount != null
+      ? summary.mrpMarginAmount
+      : summary?.marginAmount != null
+        ? summary.marginAmount
+        : null;
+  const marginTrend =
+    summary?.mrpMarginPercent != null
+      ? `${summary.mrpMarginPercent.toFixed(1)}%`
+      : summary?.marginPercent != null
+        ? `${summary.marginPercent.toFixed(1)}%`
+        : null;
 
   return (
-    <div className="page-shell">
-      <PageHeader
-        title="Costing"
-        subtitle={selectedDesign ? selectedDesign.ideaRef : undefined}
-        actions={
-          <div className="form-group m-0 min-w-[14rem]">
-            <label className="form-label" htmlFor="costDesign">
-              Design
-            </label>
-            <select
-              id="costDesign"
-              className="form-select"
-              value={selectedDesignId}
-              onChange={(e) => setSelectedDesignId(e.target.value)}
-            >
-              <option value="">Choose a design…</option>
-              {designsQuery.data?.items.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.ideaRef} - {d.collectionName}
-                </option>
-              ))}
-            </select>
-          </div>
-        }
-      />
+    <div className="page-shell costing-page">
+      <PageHeader title="Costing" subtitle="Development costs by design" />
+
+      <PageToolbar className="!mb-0">
+        <FormSelect
+          id="costDesign"
+          label=""
+          value={selectedDesignId || null}
+          onValueChange={(v) => {
+            setSelectedDesignId(v ?? "");
+            setExpectedMrp("");
+            setAddOpen(false);
+          }}
+          options={(designsQuery.data?.items ?? []).map((d) => ({
+            value: d.id,
+            label: `${d.ideaRef} — ${d.collectionName}`,
+          }))}
+          placeholder="Choose a design…"
+          className="costing-page__design-select form-group--flat"
+          triggerClassName="page-toolbar-select costing-page__design-trigger"
+          contentClassName="min-w-[min(36rem,calc(100vw-2rem))]"
+        />
+      </PageToolbar>
 
       {!selectedDesignId ? (
-        <AppCard className="stack-section">
-          <p className="m-0 text-sm text-muted-foreground">Select a design.</p>
+        <AppCard flat>
+          <p className="m-0 text-sm text-muted-foreground">
+            Select a design to open its cost ledger.
+          </p>
         </AppCard>
       ) : (
-        <>
-          <div className="stat-grid stack-section">
-            <StatCard
-              label="Total"
-              value={summary ? `₹${summary.totalDevCost.toFixed(2)}` : "-"}
-              tone={summary?.hasCosting ? "success" : "warning"}
-              trend={summary?.hasCosting ? "Ready" : "Incomplete"}
-            />
-            <StatCard label="Entries" value={String(summary?.entryCount ?? 0)} />
-            <StatCard
-              label="Expected MRP"
-              value={
-                summary?.expectedMrp != null ? `₹${summary.expectedMrp.toFixed(2)}` : "-"
-              }
-            />
-            <StatCard
-              label="Margin vs MRP"
-              value={
-                summary?.mrpMarginAmount != null
-                  ? `₹${summary.mrpMarginAmount.toFixed(2)}`
-                  : summary?.marginAmount != null
-                    ? `₹${summary.marginAmount.toFixed(2)}`
-                    : "-"
-              }
-              trend={
-                summary?.mrpMarginPercent != null
-                  ? `${summary.mrpMarginPercent.toFixed(1)}%`
-                  : summary?.marginPercent != null
-                    ? `${summary.marginPercent.toFixed(1)}%`
-                    : undefined
-              }
-            />
+        <div className="costing-page__body vstack vstack--tight">
+          <div className="costing-metrics" aria-label="Cost summary">
+            <div className="costing-metric">
+              <span className="costing-metric__label">Total</span>
+              <span className="costing-metric__value">
+                {summary ? formatInr(summary.totalDevCost) : "—"}
+              </span>
+            </div>
+            <div className="costing-metric">
+              <span className="costing-metric__label">Entries</span>
+              <span className="costing-metric__value">{summary?.entryCount ?? 0}</span>
+            </div>
+            <div className="costing-metric">
+              <span className="costing-metric__label">Expected MRP</span>
+              <span className="costing-metric__value">
+                {formatInr(summary?.expectedMrp ?? null)}
+              </span>
+            </div>
+            <div className="costing-metric">
+              <span className="costing-metric__label">Margin vs MRP</span>
+              <span className="costing-metric__value">{formatInr(marginValue)}</span>
+              {marginTrend ? (
+                <span className="costing-metric__meta">{marginTrend}</span>
+              ) : null}
+            </div>
           </div>
 
           {byTypeEntries.length > 0 ? (
-            <AppCard title="By type" className="stack-section" flat>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium">Type</th>
-                      <th className="py-2 pr-4 font-medium">Amount</th>
-                      <th className="py-2 font-medium">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {byTypeEntries.map(([type, typeAmount]) => (
-                      <tr key={type} className="border-b border-border/60 last:border-0">
-                        <td className="py-2 pr-4">{type.replace(/_/g, " ")}</td>
-                        <td className="py-2 pr-4">₹{Number(typeAmount).toFixed(2)}</td>
-                        <td className="py-2 text-muted-foreground">
-                          {summary && summary.totalDevCost > 0
-                            ? `${((Number(typeAmount) / summary.totalDevCost) * 100).toFixed(0)}%`
-                            : "-"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </AppCard>
+            <div className="costing-type-chips" aria-label="Cost by type">
+              {byTypeEntries.map(([type, typeAmount]) => (
+                <span key={type} className="costing-type-chip">
+                  <span className="costing-type-chip__type">
+                    {type.replace(/_/g, " ")}
+                  </span>
+                  <span className="costing-type-chip__amount">
+                    {formatInr(Number(typeAmount))}
+                  </span>
+                  <span className="costing-type-chip__share">
+                    {summary && summary.totalDevCost > 0
+                      ? `${((Number(typeAmount) / summary.totalDevCost) * 100).toFixed(0)}%`
+                      : "—"}
+                  </span>
+                </span>
+              ))}
+            </div>
           ) : null}
 
           <QueryState
@@ -179,158 +208,192 @@ export function CostingView() {
             isError={costsQuery.isError}
             error={costsQuery.error}
             onRetry={() => costsQuery.refetch()}
+            skeletonVariant="table"
           >
             <AppCard
               title="Cost ledger"
-              className="stack-section"
               flush
+              className="costing-page__ledger"
               headerAction={
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="costing-ledger-actions">
                   {summary?.hasCosting ? (
                     <StatusBadge status="COMPLETED" label="Ready" />
                   ) : (
-                    <StatusBadge status="PENDING" label="Needs costs" />
+                    <StatusBadge status="CHECKING" label="Needs costs" />
                   )}
-                  <Link
-                    href={ROUTES.designs.detail(selectedDesignId)}
-                    className="data-table-link text-sm"
-                  >
-                    Open design
-                  </Link>
+                  <ContextualActionsPanel
+                    actions={costingActions}
+                    onAction={handleAction}
+                    showDisabled={false}
+                  />
                 </div>
               }
             >
-              {costingActions.length > 0 ? (
-                <div className="border-b border-border px-4 py-2">
-                  <ContextualActionsPanel actions={costingActions} />
-                </div>
-              ) : null}
-              <DataTable
-                columns={[
-                  { key: "costType", header: "Type" },
-                  {
-                    key: "costCategory",
-                    header: "Category",
-                    render: (r) =>
-                      (r as { costCategory?: string | null }).costCategory?.replace(/_/g, " ") ??
-                      "-",
-                  },
-                  {
-                    key: "description",
-                    header: "Description",
-                    render: (r) => r.description ?? "-",
-                  },
-                  {
-                    key: "amount",
-                    header: "Amount",
-                    render: (r) => `₹${Number(r.amount).toFixed(2)}`,
-                  },
-                  {
-                    key: "enteredBy",
-                    header: "Entered by",
-                    render: (r) => r.enteredBy.name,
-                  },
-                  {
-                    key: "enteredAtUtc",
-                    header: "Date",
-                    render: (r) => new Date(r.enteredAtUtc).toLocaleDateString(),
-                  },
-                ]}
-                rows={costsQuery.data?.costs ?? []}
-                getRowKey={(r) => r.id}
-                emptyTitle="No cost entries"
-                emptyDescription="Add an entry below."
-              />
+              <div
+                className={
+                  (costsQuery.data?.costs?.length ?? 0) > 0
+                    ? "costing-ledger-body costing-ledger-body--scroll"
+                    : "costing-ledger-body"
+                }
+              >
+                <DataTable
+                  flush
+                  columns={[
+                    { key: "costType", header: "Type" },
+                    {
+                      key: "costCategory",
+                      header: "Category",
+                      render: (r) =>
+                        (r as { costCategory?: string | null }).costCategory?.replace(
+                          /_/g,
+                          " ",
+                        ) ?? "—",
+                    },
+                    {
+                      key: "description",
+                      header: "Description",
+                      render: (r) => r.description ?? "—",
+                    },
+                    {
+                      key: "amount",
+                      header: "Amount",
+                      align: "right",
+                      render: (r) => formatInr(Number(r.amount)),
+                    },
+                    {
+                      key: "enteredBy",
+                      header: "By",
+                      render: (r) => r.enteredBy.name,
+                    },
+                    {
+                      key: "enteredAtUtc",
+                      header: "Date",
+                      render: (r) => new Date(r.enteredAtUtc).toLocaleDateString(),
+                    },
+                  ]}
+                  rows={costsQuery.data?.costs ?? []}
+                  getRowKey={(r) => r.id}
+                  emptyTitle="No cost entries"
+                  emptyDescription="Use Add Cost Entry to record the first line."
+                />
+              </div>
             </AppCard>
           </QueryState>
-
-          <AppCard title="Add entry" className="form-card stack-section">
-            <form onSubmit={handleAddCost} noValidate>
-              <div className="form-grid form-grid--2">
-                <FormSelect
-                  id="costType"
-                  label="Type"
-                  required
-                  value={costType}
-                  onValueChange={(v) => setCostType(v as typeof costType)}
-                  options={[
-                    { value: "TIME", label: "Time" },
-                    { value: "MATERIAL", label: "Material" },
-                    { value: "MACHINE", label: "Machine" },
-                    { value: "CORRECTION", label: "Correction" },
-                  ]}
-                />
-                <FormSelect
-                  id="costCategory"
-                  label="R&D category"
-                  value={costCategory || null}
-                  onValueChange={(v) =>
-                    setCostCategory((v || "") as typeof costCategory)
-                  }
-                  options={[
-                    { value: "FABRIC", label: "Fabric" },
-                    { value: "EMBROIDERY", label: "Embroidery" },
-                    { value: "STITCHING", label: "Stitching" },
-                    { value: "SALARY", label: "Salary hours" },
-                    { value: "OTHER", label: "Other" },
-                  ]}
-                  placeholder="Optional category"
-                />
-                <FormTextField
-                  id="costAmount"
-                  label="Amount (₹)"
-                  required
-                  type="number"
-                  min={0.01}
-                  step="0.01"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  error={attemptedSubmit ? amountError : undefined}
-                />
-                <FormTextField
-                  id="expectedMrp"
-                  label="Expected MRP (₹)"
-                  type="number"
-                  min={0.01}
-                  step="0.01"
-                  value={expectedMrp}
-                  onChange={(e) => setExpectedMrp(e.target.value)}
-                  placeholder={
-                    summary?.expectedMrp != null
-                      ? String(summary.expectedMrp)
-                      : "Set planned retail MRP"
-                  }
-                />
-              </div>
-              <FormTextField
-                id="costDesc"
-                label="Description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              <div className="flex flex-wrap gap-2">
-                <AppButton type="submit" appVariant="primary" disabled={addCost.isPending}>
-                  Add entry
-                </AppButton>
-                <AppButton
-                  type="button"
-                  appVariant="secondary"
-                  disabled={!selectedDesignId || !expectedMrp.trim()}
-                  onClick={async () => {
-                    const { apiPatch } = await import("@/lib/api-client");
-                    await apiPatch(`/api/designs/${selectedDesignId}/costs`, {
-                      expectedMrp: Number(expectedMrp),
-                    });
-                    await costsQuery.refetch();
-                  }}
-                >
-                  Save Expected MRP
-                </AppButton>
-              </div>
-            </form>
-          </AppCard>
-        </>
+        </div>
       )}
+
+      <Modal
+        open={addOpen}
+        title="Add cost entry"
+        onClose={() => {
+          if (addCost.isPending || savingMrp) return;
+          setAddOpen(false);
+          resetEntryForm();
+        }}
+        size="md"
+        footer={
+          <ModalFooterActions>
+            <AppButton
+              type="button"
+              appVariant="outline"
+              disabled={addCost.isPending}
+              onClick={() => {
+                setAddOpen(false);
+                resetEntryForm();
+              }}
+            >
+              Cancel
+            </AppButton>
+            <AppButton
+              type="submit"
+              form="costing-add-entry-form"
+              appVariant="primary"
+              disabled={addCost.isPending}
+            >
+              {addCost.isPending ? "Saving…" : "Add entry"}
+            </AppButton>
+          </ModalFooterActions>
+        }
+      >
+        <form id="costing-add-entry-form" onSubmit={handleAddCost} noValidate>
+          <ModalForm>
+            <ModalFormGrid>
+              <FormSelect
+                id="costType"
+                label="Type"
+                required
+                value={costType}
+                onValueChange={(v) => setCostType(v as typeof costType)}
+                options={[
+                  { value: "TIME", label: "Time" },
+                  { value: "MATERIAL", label: "Material" },
+                  { value: "MACHINE", label: "Machine" },
+                  { value: "CORRECTION", label: "Correction" },
+                ]}
+              />
+              <FormSelect
+                id="costCategory"
+                label="R&D category"
+                value={costCategory || null}
+                onValueChange={(v) => setCostCategory((v || "") as typeof costCategory)}
+                options={[
+                  { value: "FABRIC", label: "Fabric" },
+                  { value: "EMBROIDERY", label: "Embroidery" },
+                  { value: "STITCHING", label: "Stitching" },
+                  { value: "SALARY", label: "Salary hours" },
+                  { value: "OTHER", label: "Other" },
+                ]}
+                placeholder="Optional"
+              />
+            </ModalFormGrid>
+            <ModalFormGrid>
+              <FormTextField
+                id="costAmount"
+                label="Amount (₹)"
+                required
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                error={attemptedSubmit ? amountError : undefined}
+              />
+              <FormTextField
+                id="expectedMrp"
+                label="Expected MRP (₹)"
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={expectedMrp}
+                onChange={(e) => setExpectedMrp(e.target.value)}
+                placeholder={
+                  summary?.expectedMrp != null
+                    ? String(summary.expectedMrp)
+                    : "Optional update"
+                }
+              />
+            </ModalFormGrid>
+            <FormTextField
+              id="costDesc"
+              label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Short note"
+            />
+            {expectedMrp.trim() ? (
+              <AppButton
+                type="button"
+                appVariant="secondary"
+                size="sm"
+                disabled={savingMrp || !selectedDesignId}
+                onClick={() => void handleSaveMrp()}
+              >
+                {savingMrp ? "Saving MRP…" : "Save Expected MRP"}
+              </AppButton>
+            ) : null}
+          </ModalForm>
+        </form>
+      </Modal>
     </div>
   );
 }

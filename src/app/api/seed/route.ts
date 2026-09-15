@@ -1,10 +1,14 @@
+import { withApiHandler, jsonOk, jsonError } from "@/lib/api-utils";
+import { PERMISSIONS } from "@/lib/permissions";
 import { seedDatabase } from "@/lib/seed";
 
 export async function POST() {
-  if (process.env.NODE_ENV === "production") {
-    return Response.json({ error: "Not available in production" }, { status: 403 });
-  }
+  return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
+    if (process.env.NODE_ENV === "production") {
+      return jsonError("Not available in production", 403, ctx.correlationId);
+    }
 
-  await seedDatabase();
-  return Response.json({ ok: true, message: "Seed completed" });
+    await seedDatabase();
+    return jsonOk({ ok: true, message: "Seed completed" }, ctx.correlationId);
+  });
 }

@@ -20,18 +20,25 @@ alwaysApply: true
 | Management/Owner | Final approval, analytics and read access to all performance views | Operational edits should be restricted by role |
 
 ## Permission codes
-`DESIGN_CREATE`, `DESIGN_ASSIGN`, `TASK_EXECUTE`, `CORRECTION_RAISE`,
-`DESIGN_APPROVE`, `COST_VIEW`, `KPI_ADMIN`, `MASTER_ADMIN`,
-`PRODUCTION_RELEASE`.
+`DESIGN_CREATE`, `DESIGN_ASSIGN`, `TASK_EXECUTE`, `TIME_VIEW_TEAM`,
+`CORRECTION_RAISE`, `DESIGN_APPROVE`, `COST_VIEW`, `KPI_ADMIN`,
+`MASTER_ADMIN`, `PRODUCTION_RELEASE`, `WORKFLOW_OVERRIDE`,
+`ERP_FLOOR_OPERATE`, `ERP_SALES_OPERATE`, `ERP_ACCOUNTS_OPERATE`.
 
 ## Rules
 - Authenticated identity on every API call; never accept `CreatedBy`/
   `EmployeeId` from the client when it can be derived from the token.
 - Object-level authorization: validate `DesignId`/`TaskId` against the
   caller's role and org/company/location scope on every request.
+- Design list requires pipeline permissions; design detail/files require
+  pipeline access or an assigned task on that design (`design-access.ts`).
+- Approvals hub navigation is role-code SoD (not matrix-only); stage
+  decisions still check `DESIGN_APPROVE` / task ownership where applicable.
 - Sensitive cost/KPI screens require extra permissions beyond basic design access.
 - Audit: design edits, task state changes, reassignment, correction
   responsibility, approval, cost changes, KPI definition changes, file deletion.
 - Never expose physical server file paths in API responses; use signed,
   non-guessable download URLs for confidential design files.
 - Apply anti-malware/file-scanning policy to uploads where infrastructure supports it.
+- After Roles & Access matrix save, the saving admin session refreshes;
+  other users must refresh or re-login for UI nav (APIs always load fresh DB permissions).

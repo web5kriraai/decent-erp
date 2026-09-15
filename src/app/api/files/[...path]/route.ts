@@ -8,7 +8,14 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   return withApiHandler(
-    [PERMISSIONS.DESIGN_CREATE, PERMISSIONS.TASK_EXECUTE],
+    [
+      PERMISSIONS.DESIGN_CREATE,
+      PERMISSIONS.TASK_EXECUTE,
+      PERMISSIONS.COST_VIEW,
+      PERMISSIONS.PRODUCTION_RELEASE,
+      PERMISSIONS.DESIGN_APPROVE,
+      PERMISSIONS.MASTER_ADMIN,
+    ],
     async () => {
       const { path: segments } = await params;
       if (!segments?.length) {

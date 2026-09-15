@@ -36,18 +36,26 @@ export function AppCard({
     <Card
       className={cn(
         flat && "shadow-none",
-        flush && "gap-0 py-0 [--card-spacing:0px]",
+        // Keep header spacing; only collapse card gap/padding so tables can go full-bleed.
+        flush && "gap-0 py-0",
         className,
       )}
       {...props}
     >
       {title || description || headerAction ? (
-        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 border-b pb-3">
+        <CardHeader
+          className={cn(
+            "flex flex-row justify-between gap-3 space-y-0 border-b",
+            description ? "items-start py-3" : "items-center py-3",
+          )}
+        >
           <div className="min-w-0 space-y-1">
             {title ? <CardTitle>{title}</CardTitle> : null}
             {description ? <CardDescription>{description}</CardDescription> : null}
           </div>
-          {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
+          {headerAction ? (
+            <div className="flex shrink-0 items-center">{headerAction}</div>
+          ) : null}
         </CardHeader>
       ) : null}
       <CardContent

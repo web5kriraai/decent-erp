@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppButton } from "@/components/ui/AppButton";
 import { DataTable } from "@/components/DataTable";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PermissionDenied } from "@/components/PermissionDenied";
 import {
   Modal,
   ModalFooterActions,
@@ -19,6 +21,7 @@ import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { useMasterCatalog } from "@/hooks/use-masters";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 type MaterialLine = {
   id: string;
@@ -44,6 +47,15 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 export function MaterialsView() {
+  const { data: session } = useSession();
+  const permissions = session?.user?.permissions ?? [];
+  const canViewMaterials = hasPermission(permissions, [
+    PERMISSIONS.DESIGN_CREATE,
+    PERMISSIONS.PRODUCTION_RELEASE,
+    PERMISSIONS.TASK_EXECUTE,
+    PERMISSIONS.COST_VIEW,
+    PERMISSIONS.MASTER_ADMIN,
+  ]);
   const toast = useApiToast();
   const queryClient = useQueryClient();
   const fabrics = useMasterCatalog("FABRIC_QUALITY");
@@ -63,6 +75,7 @@ export function MaterialsView() {
   const listQuery = useQuery({
     queryKey: queryKeys.masters.materials(),
     queryFn: () => apiGet<MaterialLine[]>("/api/materials"),
+    enabled: canViewMaterials,
   });
 
   const designsQuery = useQuery({
@@ -72,7 +85,7 @@ export function MaterialsView() {
       if (debouncedDesignSearch) params.set("search", debouncedDesignSearch);
       return apiGet<{ items: DesignOption[] }>(`/api/designs?${params.toString()}`);
     },
-    enabled: open,
+    enabled: open && canViewMaterials,
   });
 
   const catalogOptions = useMemo(
@@ -123,6 +136,14 @@ export function MaterialsView() {
   const requested = rows.filter((r) => r.status === "REQUESTED" || r.status === "INDENT").length;
   const available = rows.filter((r) => r.status === "AVAILABLE").length;
   const issued = rows.filter((r) => r.status === "ISSUED").length;
+
+  if (!canViewMaterials) {
+    return (
+      <div className="page-shell">
+        <PermissionDenied permission={PERMISSIONS.TASK_EXECUTE} />
+      </div>
+    );
+  }
 
   return (
     <div className="page-shell">

@@ -1,6 +1,9 @@
-/** Display helpers for Action Center list rows (completed / upcoming). */
+/** Display helpers for Action Center cards and list rows. */
 
-export type ActionCenterListVariant = "active" | "completed" | "upcoming";
+import type { Priority } from "@/lib/types/api";
+import { resolveEffectiveTaskPriority } from "@/lib/task-priority";
+
+export type ActionCenterListVariant = "active" | "completed" | "upcoming" | "blocked";
 
 export type ActionCenterDisplayTask = {
   status: string;
@@ -10,6 +13,47 @@ export type ActionCenterDisplayTask = {
   waitingOnAssignee?: string | null;
   isWaitingOnOthers?: boolean;
 };
+
+export type ActionDesignLabels = {
+  /** Human design title (collection when meaningful, otherwise idea ref). */
+  designTitle: string;
+  /** Always the idea reference for the ID line. */
+  ideaRef: string;
+};
+
+/** Stable labels so every action card keeps the same two top lines. */
+export function resolveActionDesignLabels(design: {
+  collectionName?: string | null;
+  ideaRef?: string | null;
+}): ActionDesignLabels {
+  const ideaRef = design.ideaRef?.trim() || "—";
+  const raw = design.collectionName?.trim() || "";
+  const isNoise = !raw || /^workday\s+\d{10,}/i.test(raw) || raw === ideaRef;
+  return {
+    designTitle: isNoise ? ideaRef : raw,
+    ideaRef,
+  };
+}
+
+export function resolveActionPriority(
+  taskPriority?: string | null,
+  designPriority?: string | null,
+): Priority {
+  return resolveEffectiveTaskPriority(taskPriority || "MEDIUM", designPriority);
+}
+
+export function formatDueHint(dueAt?: string | Date | null): string | null {
+  if (!dueAt) return null;
+  const due = dueAt instanceof Date ? dueAt : new Date(dueAt);
+  if (Number.isNaN(due.getTime())) return null;
+  const now = new Date();
+  const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return `Overdue ${Math.abs(diffDays)}d`;
+  if (diffDays === 0) return "Due today";
+  if (diffDays === 1) return "Due tomorrow";
+  if (diffDays <= 7) return `Due in ${diffDays}d`;
+  return due.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 export function resolveListItemDisplayStatus(task: ActionCenterDisplayTask): string {
   return task.effectiveStatus ?? task.status;
@@ -71,7 +115,7 @@ export function shouldApplyWaitingListStyle(
 }
 
 export function shouldShowPriorityInList(variant: ActionCenterListVariant): boolean {
-  return variant === "active";
+  return variant === "active" || variant === "blocked";
 }
 
 export function shouldShowDueInList(variant: ActionCenterListVariant): boolean {

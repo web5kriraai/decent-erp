@@ -85,3 +85,24 @@ export function hasPermission(
   // Array = any of (OR). Single code = must have that permission.
   return requiredList.some((p) => userPermissions.includes(p));
 }
+
+/**
+ * Who may browse the full design list / pipeline dashboards.
+ * Executors (TASK_EXECUTE only) open designs via assigned tasks instead.
+ */
+export const DESIGN_LIST_VIEW_PERMISSIONS: PermissionCode[] = [
+  PERMISSIONS.DESIGN_CREATE,
+  PERMISSIONS.DESIGN_ASSIGN,
+  PERMISSIONS.TIME_VIEW_TEAM,
+  PERMISSIONS.COST_VIEW,
+  PERMISSIONS.PRODUCTION_RELEASE,
+  PERMISSIONS.DESIGN_APPROVE,
+  PERMISSIONS.KPI_ADMIN,
+  PERMISSIONS.MASTER_ADMIN,
+];
+
+export const DESIGN_PIPELINE_VIEW_PERMISSIONS = DESIGN_LIST_VIEW_PERMISSIONS;
+
+export function canListDesigns(permissions: string[]): boolean {
+  return hasPermission(permissions, DESIGN_LIST_VIEW_PERMISSIONS);
+}

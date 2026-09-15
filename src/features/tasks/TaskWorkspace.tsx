@@ -4,15 +4,14 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { IconEye } from "@/components/icons";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { TimerWidget } from "@/components/TimerWidget";
 import { PermissionDenied } from "@/components/PermissionDenied";
-import { TaskActionCard, TaskActionListItem } from "@/components/tasks/TaskActionCard";
+import { TaskActionCard, TaskActionListItem, BlockedActionCard } from "@/components/tasks/TaskActionCard";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
-import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
@@ -75,25 +74,7 @@ function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
   return (
     <ul className="action-center-list">
       {items.map((item) => (
-        <li key={item.taskId} className="action-center-list-item">
-          <div>
-            <Link href={ROUTES.designs.detail(item.design.id)} className="data-table-link">
-              {item.design.ideaRef}
-            </Link>
-            <p className="action-center-list-meta">{item.stage}</p>
-            <p className="action-center-list-detail">{item.blockedMessage}</p>
-          </div>
-          <AppButtonLink
-            href={ROUTES.work.taskDetail(item.taskId)}
-            appVariant="ghost"
-            size="icon-sm"
-            className="table-icon-action"
-            title="View task"
-            aria-label="View task"
-          >
-            <IconEye aria-hidden />
-          </AppButtonLink>
-        </li>
+        <BlockedActionCard key={item.taskId} item={item} />
       ))}
     </ul>
   );

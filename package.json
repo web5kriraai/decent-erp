@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "npx tsx prisma/seed.ts",
+    "db:seed:tasks": "npx tsx scripts/seed-dummy-tasks.ts",
     "db:fresh": "npx tsx scripts/reset-db-keep-users.mjs",
     "db:fresh:sample": "npx tsx scripts/reset-db-keep-users.mjs --sample",
     "db:reset:users": "npm run db:fresh",

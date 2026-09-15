@@ -12,8 +12,16 @@ const createSchema = z.object({
   remark: z.string().max(2000).optional(),
 });
 
+const MATERIALS_VIEW_PERMISSIONS = [
+  PERMISSIONS.DESIGN_CREATE,
+  PERMISSIONS.PRODUCTION_RELEASE,
+  PERMISSIONS.TASK_EXECUTE,
+  PERMISSIONS.COST_VIEW,
+  PERMISSIONS.MASTER_ADMIN,
+] as const;
+
 export async function GET(request: Request) {
-  return withApiHandler(null, async (ctx) => {
+  return withApiHandler([...MATERIALS_VIEW_PERMISSIONS], async (ctx) => {
     const designIdParam = new URL(request.url).searchParams.get("designId");
     const designId = designIdParam ? BigInt(designIdParam) : undefined;
     const rows = await listMaterialLines(designId);

@@ -5,8 +5,9 @@ import {
   serializeBigInt,
   withApiHandler,
 } from "@/lib/api-utils";
-import { PERMISSIONS } from "@/lib/permissions";
+import { DESIGN_LIST_VIEW_PERMISSIONS } from "@/lib/design-access";
 import { createDesignWithTasks, listDesigns } from "@/lib/services/design-service";
+import { PERMISSIONS } from "@/lib/permissions";
 
 const createDesignSchema = z
   .object({
@@ -131,7 +132,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  return withApiHandler(null, async (ctx) => {
+  return withApiHandler(DESIGN_LIST_VIEW_PERMISSIONS, async (ctx) => {
     const { searchParams } = new URL(request.url);
     const result = await listDesigns({
       status: searchParams.get("status") ?? undefined,

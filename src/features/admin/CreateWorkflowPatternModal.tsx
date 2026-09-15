@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Modal,
   ModalAlert,
@@ -12,9 +12,12 @@ import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { Button } from "@/components/ui/button";
 import { AppButton } from "@/components/ui/AppButton";
+import { DragHandle } from "@/components/ui/DragHandle";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
+import { useRowDragReorder } from "@/hooks/use-row-drag-reorder";
 import { useProcessMasters, useProductTypes, useSkills } from "@/hooks/use-masters";
+import { moveArrayItem } from "@/lib/reorder";
 import type { CreateWorkflowPatternPayload, Priority, WorkflowPattern } from "@/lib/types/api";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import { parseStageCapabilities } from "@/lib/workflow/stage-capabilities";
@@ -299,20 +302,16 @@ export function CreateWorkflowPatternModal({
     setTasks((prev) => (prev.length <= 1 ? prev : prev.filter((task) => task.id !== id)));
   }
 
-  function moveTask(id: string, direction: "up" | "down") {
+  const handleStepReorder = useCallback((fromIndex: number, toIndex: number) => {
     setTasks((prev) => {
-      const index = prev.findIndex((task) => task.id === id);
-      if (index < 0) return prev;
-      const target = direction === "up" ? index - 1 : index + 1;
-      if (target < 0 || target >= prev.length) return prev;
+      const next = moveArrayItem(prev, fromIndex, toIndex);
+      if (next === prev) return prev;
 
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-
-      const seqMap = new Map([
-        [String(index + 1), String(target + 1)],
-        [String(target + 1), String(index + 1)],
-      ]);
+      const seqMap = new Map<string, string>();
+      prev.forEach((task, index) => {
+        const newIndex = next.findIndex((row) => row.id === task.id);
+        if (newIndex >= 0) seqMap.set(String(index + 1), String(newIndex + 1));
+      });
 
       return next.map((task) => {
         if (!task.dependencySequence) return task;
@@ -320,7 +319,12 @@ export function CreateWorkflowPatternModal({
         return remapped ? { ...task, dependencySequence: remapped } : task;
       });
     });
-  }
+  }, []);
+
+  const { getHandleProps, getRowProps } = useRowDragReorder({
+    enabled: tasks.length > 1,
+    onReorder: handleStepReorder,
+  });
 
   function handleSubmit() {
     setFormError(null);
@@ -467,7 +471,14 @@ export function CreateWorkflowPatternModal({
                   : null;
 
               return (
-                <div key={task.id} className="pattern-task-row">
+                <div key={task.id} className="pattern-task-row" {...getRowProps(index)}>
+                  <div className="pattern-task-row__drag">
+                    <DragHandle
+                      disabled={tasks.length <= 1}
+                      label={`Drag to reorder step ${index + 1}`}
+                      {...getHandleProps(index)}
+                    />
+                  </div>
                   <FormSelect
                     id={`task-${task.id}-stage`}
                     label="Stage"
@@ -564,27 +575,15 @@ export function CreateWorkflowPatternModal({
                     placeholder="None"
                   />
                   <div className="pattern-task-row__actions">
-                    <TableIconActionGroup>
-                      <TableIconAction
-                        action="moveUp"
-                        disabled={index === 0}
-                        onClick={() => moveTask(task.id, "up")}
-                        label={`Move step ${index + 1} up`}
-                      />
-                      <TableIconAction
-                        action="moveDown"
-                        disabled={index === tasks.length - 1}
-                        onClick={() => moveTask(task.id, "down")}
-                        label={`Move step ${index + 1} down`}
-                      />
-                      {tasks.length > 1 && (
+                    {tasks.length > 1 ? (
+                      <TableIconActionGroup>
                         <TableIconAction
                           action="remove"
                           onClick={() => removeTaskRow(task.id)}
                           label={`Remove step ${index + 1}`}
                         />
-                      )}
-                    </TableIconActionGroup>
+                      </TableIconActionGroup>
+                    ) : null}
                   </div>
                 </div>
               );

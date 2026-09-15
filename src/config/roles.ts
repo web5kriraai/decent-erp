@@ -1,4 +1,4 @@
-import { PERMISSIONS, ROLE_CODES, type PermissionCode } from "@/lib/permissions";
+import { DEFAULT_ROLE_PERMISSIONS, ROLE_CODES, type PermissionCode } from "@/lib/permissions";
 
 export type RoleCode = (typeof ROLE_CODES)[keyof typeof ROLE_CODES];
 
@@ -29,16 +29,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     restrictions: [
       "Cannot alter server time events directly",
     ],
-    permissions: [
-      PERMISSIONS.DESIGN_CREATE,
-      PERMISSIONS.DESIGN_ASSIGN,
-      PERMISSIONS.DESIGN_APPROVE,
-      PERMISSIONS.TASK_EXECUTE,
-      PERMISSIONS.CORRECTION_RAISE,
-      PERMISSIONS.COST_VIEW,
-      PERMISSIONS.TIME_VIEW_TEAM,
-      PERMISSIONS.WORKFLOW_OVERRIDE,
-    ],
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.DESIGN_HEAD],
     navFocus: ["My Work", "Design Pipeline", "Quality", "Finance", "Team & Reports", "Production"],
   },
   [ROLE_CODES.SKETCH_DESIGNER]: {
@@ -55,7 +46,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "No final design approval or KPI definition editing",
       "Cannot change process masters or workflow patterns",
     ],
-    permissions: [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.CORRECTION_RAISE],
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.SKETCH_DESIGNER],
     navFocus: ["My Work", "Quality"],
   },
   [ROLE_CODES.PUNCHING_DESIGNER]: {
@@ -72,7 +63,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Cannot delete approved concepts",
       "No costing master or approval authority",
     ],
-    permissions: [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.CORRECTION_RAISE],
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.PUNCHING_DESIGNER],
     navFocus: ["My Work", "Quality"],
   },
   [ROLE_CODES.MACHINE_OPERATOR]: {
@@ -88,7 +79,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "No design-level approval or concept changes",
       "No access to costing or admin masters",
     ],
-    permissions: [PERMISSIONS.TASK_EXECUTE],
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MACHINE_OPERATOR],
     navFocus: ["My Work"],
   },
   [ROLE_CODES.SAMPLE_CHECKER]: {
@@ -105,10 +96,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     restrictions: [
       "Cannot change cost masters or workflow configuration",
     ],
-    permissions: [
-      PERMISSIONS.TASK_EXECUTE,
-      PERMISSIONS.CORRECTION_RAISE,
-    ],
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.SAMPLE_CHECKER],
     navFocus: ["My Work", "Quality"],
   },
   [ROLE_CODES.COSTING_TEAM]: {
@@ -125,7 +113,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Cannot mark employee mistakes unless explicitly permitted",
       "No design creation or final approval authority",
     ],
-    permissions: [PERMISSIONS.COST_VIEW, PERMISSIONS.TASK_EXECUTE],
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.COSTING_TEAM],
     navFocus: ["My Work", "Finance"],
   },
   [ROLE_CODES.PRODUCTION_HEAD]: {
@@ -141,13 +129,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Cannot alter prior design history or time events",
       "No admin master configuration",
     ],
-    permissions: [
-      PERMISSIONS.PRODUCTION_RELEASE,
-      PERMISSIONS.COST_VIEW,
-      PERMISSIONS.TASK_EXECUTE,
-      PERMISSIONS.ERP_FLOOR_OPERATE,
-      PERMISSIONS.ERP_SALES_OPERATE,
-    ],
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.PRODUCTION_HEAD],
     navFocus: ["My Work", "Finance", "Production"],
   },
   [ROLE_CODES.ADMIN]: {
@@ -166,7 +148,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "All admin actions are audited",
       "Cannot approve for production - that is Design Head only",
     ],
-    permissions: Object.values(PERMISSIONS),
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.ADMIN],
     navFocus: ["All modules"],
   },
   [ROLE_CODES.MANAGEMENT]: {
@@ -185,13 +167,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "No process master configuration",
       "Does not create designs or approve for production (Design Head does)",
     ],
-    permissions: [
-      PERMISSIONS.TASK_EXECUTE,
-      PERMISSIONS.COST_VIEW,
-      PERMISSIONS.KPI_ADMIN,
-      PERMISSIONS.TIME_VIEW_TEAM,
-      PERMISSIONS.PRODUCTION_RELEASE,
-    ],
+    permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MANAGEMENT],
     navFocus: ["Quality", "Finance", "Team & Reports", "Production"],
   },
 };

@@ -27,6 +27,7 @@ import {
   FolderOpen,
   Gavel,
   GitBranch,
+  GripVertical,
   Handshake,
   Home,
   IndianRupee,
@@ -150,6 +151,7 @@ export const IconBan = createIcon(Ban, "IconBan");
 export const IconPower = createIcon(Power, "IconPower");
 export const IconSend = createIcon(Send, "IconSend");
 export const IconListTree = createIcon(ListTree, "IconListTree");
+export const IconGripVertical = createIcon(GripVertical, "IconGripVertical");
 export const IconEye = createIcon(Eye, "IconEye");
 export const IconArrowRight = createIcon(ArrowRight, "IconArrowRight");
 export const IconRefreshCw = createIcon(RefreshCw, "IconRefreshCw");

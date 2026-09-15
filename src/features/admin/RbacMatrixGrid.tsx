@@ -10,7 +10,7 @@ import {
   useUpdateRolePermissions,
 } from "@/hooks/use-admin-roles";
 import { PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
-import { formatPermissionLabel, sessionPermissionsStaleHint } from "@/lib/user-messages";
+import { formatPermissionLabel } from "@/lib/user-messages";
 
 type MatrixState = Map<string, Set<string>>;
 
@@ -98,14 +98,6 @@ export function RbacMatrixGrid() {
 
   return (
     <div className="rbac-matrix-panel">
-      <div className="rbac-matrix-intro">
-        <p>
-          Toggle access for each role. Changes apply on save - people in that role should sign out
-          and back in to pick them up.
-        </p>
-        <p className="form-hint">{sessionPermissionsStaleHint()}</p>
-      </div>
-
       <QueryState
         isLoading={matrixQuery.isLoading}
         isError={matrixQuery.isError}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatActionCenterCompletedAt,
   formatActionCenterListHint,
+  resolveActionDesignLabels,
   resolveListItemDisplayStatus,
   shouldApplyWaitingListStyle,
   shouldShowDueInList,
@@ -9,6 +10,20 @@ import {
 } from "@/lib/task-action-display";
 
 describe("task-action-display", () => {
+  it("keeps stable design + idea ref labels for every card", () => {
+    expect(
+      resolveActionDesignLabels({ collectionName: "Royal Festive 2026", ideaRef: "IDEA-1" }),
+    ).toEqual({ designTitle: "Royal Festive 2026", ideaRef: "IDEA-1" });
+
+    expect(
+      resolveActionDesignLabels({ collectionName: "", ideaRef: "IDEA-2" }),
+    ).toEqual({ designTitle: "IDEA-2", ideaRef: "IDEA-2" });
+
+    expect(
+      resolveActionDesignLabels({ collectionName: "Workday 1788864058925", ideaRef: "IDEA-3" }),
+    ).toEqual({ designTitle: "IDEA-3", ideaRef: "IDEA-3" });
+  });
+
   it("uses effectiveStatus for list badge when present", () => {
     expect(
       resolveListItemDisplayStatus({ status: "CHECKING", effectiveStatus: "COMPLETED" }),

@@ -21,6 +21,7 @@ import { useApiToast } from "@/components/ui/ToastProvider";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useProcessMasters } from "@/hooks/use-masters";
+import { moveArrayItem } from "@/lib/reorder";
 import type { RegisterMasterDataPrimaryAction } from "@/features/admin/master-data-primary-action";
 
 const SECTIONS = [
@@ -266,6 +267,28 @@ export function StructuredMastersAdminView({
     onError: (error) => toast.errorFromApi(error, "Update failed"),
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: async (payload: {
+      section: "checklist" | "approvals";
+      rows: Array<{ id: number }>;
+    }) => {
+      await Promise.all(
+        payload.rows.map((row, index) => {
+          const order = index + 1;
+          if (payload.section === "checklist") {
+            return apiPatch(`/api/masters/checklist/${row.id}`, { sequence: order });
+          }
+          return apiPatch(`/api/masters/approval-levels/${row.id}`, { sequence: order });
+        }),
+      );
+    },
+    onSuccess: async (_data, variables) => {
+      toast.success("Order updated");
+      await invalidateSection(variables.section);
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not reorder"),
+  });
+
   async function invalidateSection(id: SectionId) {
     const map: Record<SectionId, readonly string[]> = {
       holds: queryKeys.masters.holdReasons,
@@ -285,6 +308,24 @@ export function StructuredMastersAdminView({
         : section === "checklist"
           ? checklistQuery
           : approvalsQuery;
+
+  function handleReorder(fromIndex: number, toIndex: number) {
+    if (reorderMutation.isPending) return;
+    if (section === "checklist") {
+      const current = checklistQuery.data ?? [];
+      const next = moveArrayItem(current, fromIndex, toIndex);
+      if (next === current) return;
+      queryClient.setQueryData(["masters", "checklist", "admin"], next);
+      reorderMutation.mutate({ section: "checklist", rows: next });
+      return;
+    }
+    if (section !== "approvals") return;
+    const current = approvalsQuery.data ?? [];
+    const next = moveArrayItem(current, fromIndex, toIndex);
+    if (next === current) return;
+    queryClient.setQueryData(["masters", "approval-levels", "admin"], next);
+    reorderMutation.mutate({ section: "approvals", rows: next });
+  }
 
   useEffect(() => {
     if (!registerPrimaryAction) return;
@@ -433,6 +474,8 @@ export function StructuredMastersAdminView({
               ]}
               rows={checklistQuery.data ?? []}
               getRowKey={(r) => String(r.id)}
+              onReorder={handleReorder}
+              reorderDisabled={reorderMutation.isPending}
               emptyTitle="No checklist items"
             />
           ) : null}
@@ -468,6 +511,8 @@ export function StructuredMastersAdminView({
               ]}
               rows={approvalsQuery.data ?? []}
               getRowKey={(r) => String(r.id)}
+              onReorder={handleReorder}
+              reorderDisabled={reorderMutation.isPending}
               emptyTitle="No approval levels"
             />
           ) : null}

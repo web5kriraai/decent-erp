@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { writeAuditLog, writeAuditLogDirect } from "@/lib/audit";
 import { jsonOk, serializeBigInt, withApiHandler, ApiError } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
+import { assertCanReadDesign } from "@/lib/design-access";
 import {
   buildStorageKey,
   uploadObject,
@@ -34,7 +35,13 @@ export async function GET(
 ) {
   return withApiHandler(null, async (ctx) => {
     const { id } = await params;
-    const images = await listDesignImages(BigInt(id));
+    const designId = BigInt(id);
+    await assertCanReadDesign({
+      designId,
+      employeeId: ctx.employeeId,
+      permissions: ctx.permissions,
+    });
+    const images = await listDesignImages(designId);
     return jsonOk(serializeBigInt(images), ctx.correlationId);
   });
 }

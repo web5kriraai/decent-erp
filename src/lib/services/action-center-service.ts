@@ -33,6 +33,8 @@ export type ActionCenterBlockedItem = {
   design: { id: string; ideaRef: string; collectionName: string };
   stage: string;
   status: string;
+  priority?: string;
+  designPriority?: string | null;
   blockedBy: string;
   blockedOwner?: string;
   blockedMessage: string;
@@ -159,6 +161,8 @@ export async function getActionCenter(employeeId: number): Promise<ActionCenterR
           design: designRef,
           stage: task.subProcess.name,
           status: task.status,
+          priority: task.priority,
+          designPriority: task.design.priority ?? null,
           blockedBy: ctx.blockedBy,
           blockedOwner: ctx.blockedOwner,
           blockedMessage: ctx.blockedMessage,

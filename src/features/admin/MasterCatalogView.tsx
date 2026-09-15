@@ -34,6 +34,7 @@ import {
 } from "@/lib/master-catalog-types";
 import { WORK_TYPE_OPTIONS } from "@/lib/types/api";
 import { PageToolbar } from "@/components/ui/PageToolbar";
+import { moveArrayItem } from "@/lib/reorder";
 import { cn } from "@/lib/utils";
 import type { RegisterMasterDataPrimaryAction } from "@/features/admin/master-data-primary-action";
 
@@ -167,6 +168,21 @@ export function MasterCatalogView({
     onError: (e) => toast.errorFromApi(e, "Could not update master item"),
   });
 
+  const reorderItems = useMutation({
+    mutationFn: async (ordered: CatalogMaster[]) => {
+      await Promise.all(
+        ordered.map((row, index) =>
+          apiPatch(`/api/masters/catalog/${row.id}`, { sortOrder: index + 1 }),
+        ),
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["masters", "catalog"] });
+      toast.success("Order updated");
+    },
+    onError: (e) => toast.errorFromApi(e, "Could not reorder items"),
+  });
+
   const filteredGroups = useMemo(
     () => filterGroups(MASTER_HUB_GROUPS, hubSearch.trim()),
     [hubSearch],
@@ -187,6 +203,17 @@ export function MasterCatalogView({
       );
     });
   }, [catalogQuery.data, rowSearch, statusFilter]);
+
+  const canReorderRows = !rowSearch.trim() && statusFilter === "all";
+
+  function handleReorder(fromIndex: number, toIndex: number) {
+    if (!canReorderRows || reorderItems.isPending) return;
+    const next = moveArrayItem(rows, fromIndex, toIndex);
+    if (next === rows) return;
+    const queryKey = queryKeys.masters.catalog(selectedType ?? undefined, true);
+    queryClient.setQueryData<CatalogMaster[]>(queryKey, next);
+    reorderItems.mutate(next);
+  }
 
   useEffect(() => {
     if (!registerPrimaryAction) return;
@@ -437,6 +464,8 @@ export function MasterCatalogView({
             ]}
             rows={rows}
             getRowKey={(row) => String(row.id)}
+            onReorder={handleReorder}
+            reorderDisabled={!canReorderRows || reorderItems.isPending}
             emptyTitle={
               rowSearch || statusFilter !== "all"
                 ? "No items match this filter"

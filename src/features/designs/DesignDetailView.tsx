@@ -24,8 +24,9 @@ import { DesignActiveTaskTimer } from "@/components/designs/DesignActiveTaskTime
 import { CompactDesignActions } from "@/components/designs/CompactDesignActions";
 import { InlineStageApprovalCard } from "@/components/designs/InlineStageApprovalCard";
 import { ManagementApprovalCard } from "@/components/designs/ManagementApprovalCard";
+import { PermissionDenied } from "@/components/PermissionDenied";
 import { getPendingStageApproval } from "@/lib/design-workflow";
-import { PERMISSIONS } from "@/lib/permissions";
+import { canListDesigns, hasPermission, PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
 
 export function DesignDetailView({
@@ -56,6 +57,9 @@ export function DesignDetailView({
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
   const canOverrideWorkflow = permissions.includes(PERMISSIONS.WORKFLOW_OVERRIDE);
   const canViewCompletion = canViewDesignCompletionSummary(permissions);
+  const canOpenDesign =
+    canListDesigns(permissions) || hasPermission(permissions, PERMISSIONS.TASK_EXECUTE);
+
   const images = designQuery.data?.images ?? [];
   const needsPrimaryImage = images.length === 0 || !images.some((img) => img.isPrimary);
   const showImageGate = needsPrimaryImage || (showConceptSetup && images.length === 0);
@@ -83,6 +87,14 @@ export function DesignDetailView({
     if (sampleCheck.status === "CORRECTION_REQUIRED") return "REJECT / RESAMPLE pending";
     return sampleCheck.status;
   }, [designQuery.data?.tasks, isFinalApproval]);
+
+  if (!canOpenDesign) {
+    return (
+      <div className="page-shell">
+        <PermissionDenied permission={PERMISSIONS.TASK_EXECUTE} />
+      </div>
+    );
+  }
 
   return (
     <div className="page-shell">

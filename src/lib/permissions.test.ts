@@ -64,6 +64,13 @@ describe("permissions", () => {
       PERMISSIONS.ERP_ACCOUNTS_OPERATE,
     );
   });
+
+  it("keeps ROLE_CATALOG permissions aligned with DEFAULT_ROLE_PERMISSIONS", async () => {
+    const { ROLE_CATALOG } = await import("@/config/roles");
+    for (const code of Object.values(ROLE_CODES)) {
+      expect(ROLE_CATALOG[code].permissions).toEqual(DEFAULT_ROLE_PERMISSIONS[code]);
+    }
+  });
 });
 
 describe("task dependency gate", () => {

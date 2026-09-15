@@ -22,6 +22,8 @@ export type ActionCenterBlockedItem = {
   design: { id: string; ideaRef: string; collectionName: string };
   stage: string;
   status: string;
+  priority?: string;
+  designPriority?: string | null;
   blockedBy: string;
   blockedOwner?: string;
   blockedMessage: string;
