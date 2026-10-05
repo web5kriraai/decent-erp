@@ -251,9 +251,15 @@ export function WorkflowOverrideActions({
   );
 
   return (
-    <div className="w-full space-y-2">
+    <div
+      className={
+        sendQcOpen || bypassOpen
+          ? "workflow-override-actions workflow-override-actions--open"
+          : "workflow-override-actions"
+      }
+    >
       {!sendQcOpen && !bypassOpen ? (
-        <div className="flex flex-wrap gap-2">
+        <>
           <AppButton
             type="button"
             appVariant="outline"
@@ -280,7 +286,7 @@ export function WorkflowOverrideActions({
           >
             Bypass to phase
           </AppButton>
-        </div>
+        </>
       ) : null}
 
       {inline && sendQcOpen ? (

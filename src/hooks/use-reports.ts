@@ -30,7 +30,9 @@ export type DesignSuccessMetricRow = {
   productionQty?: number | null;
   salesQty?: number | null;
   salesValue?: string | number | null;
+  returnQty?: number | null;
   marginPercent?: string | number | null;
+  repeatOrders?: number | null;
   design?: {
     id: string;
     ideaRef: string;

@@ -100,6 +100,20 @@ export async function apiPatch<T>(
   return parseResponse<T>(res);
 }
 
+export async function apiPut<T>(
+  url: string,
+  body: unknown,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...init?.headers },
+    body: JSON.stringify(body),
+  });
+  return parseResponse<T>(res);
+}
+
 export async function apiDelete<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...init, method: "DELETE" });
   return parseResponse<T>(res);

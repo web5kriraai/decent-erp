@@ -214,6 +214,11 @@ export async function releaseToProduction(
     if (design.designNumber) {
       await seedErpStagesForDesign(design.id, design.designNumber, actorId, correlationId);
     }
+    const now = new Date();
+    await upsertDesignSuccessMetric(design.id, {
+      periodYear: now.getUTCFullYear(),
+      periodMonth: now.getUTCMonth() + 1,
+    });
     await syncAllErpModules(design.id, actorId, correlationId);
     return design;
   });
@@ -391,15 +396,23 @@ export async function upsertDesignSuccessMetric(
     repeatOrders?: number;
   },
 ) {
+  const { periodYear, periodMonth, ...metricFields } = data;
+  const definedUpdate: Record<string, number> = {};
+  for (const [key, value] of Object.entries(metricFields)) {
+    if (value !== undefined) {
+      definedUpdate[key] = value;
+    }
+  }
+
   return prisma.designSuccessMetric.upsert({
     where: {
       designId_periodYear_periodMonth: {
         designId,
-        periodYear: data.periodYear,
-        periodMonth: data.periodMonth,
+        periodYear,
+        periodMonth,
       },
     },
-    update: data,
-    create: { designId, ...data },
+    update: definedUpdate,
+    create: { designId, periodYear, periodMonth, ...definedUpdate },
   });
 }

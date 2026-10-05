@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { DataTable } from "@/components/DataTable";
 import {
@@ -11,17 +11,18 @@ import {
 import { FormSelect } from "@/components/ui/form-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton } from "@/components/ui/AppButton";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { ListPage } from "@/components/ui/ListPage";
 import { PermissionDenied } from "@/components/PermissionDenied";
-import { QueryState } from "@/components/ui/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
+import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
 import {
   useAdminEmployees,
   useAdminRoles,
   useCreateEmployee,
   useUpdateEmployee,
 } from "@/hooks/use-admin-roles";
+import { useClientList } from "@/hooks/use-client-list";
 import { PERMISSIONS, ROLE_CODES } from "@/lib/permissions";
 import type { AdminEmployeeRow } from "@/lib/types/api";
 
@@ -32,6 +33,18 @@ type FormState = {
   password: string;
   active: boolean;
 };
+
+type StatusFilter = "all" | "active" | "inactive";
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+function employeeSearchText(row: AdminEmployeeRow) {
+  return `${row.name} ${row.email} ${row.role.name} ${row.role.code}`;
+}
 
 const emptyForm = (roleCode: string = ROLE_CODES.SKETCH_DESIGNER): FormState => ({
   name: "",
@@ -55,10 +68,26 @@ export function EmployeesAdminView() {
   const [editEmployee, setEditEmployee] = useState<AdminEmployeeRow | null>(null);
   const [createForm, setCreateForm] = useState<FormState>(() => emptyForm());
   const [editForm, setEditForm] = useState<FormState>(() => emptyForm());
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const roles = rolesQuery.data ?? [];
   const currentEmployeeId = session?.user?.employeeId;
   const defaultRoleCode = roles[0]?.code ?? ROLE_CODES.SKETCH_DESIGNER;
+
+  const statusFiltered = useMemo(() => {
+    const items = employeesQuery.data ?? [];
+    if (statusFilter === "all") return items;
+    if (statusFilter === "active") return items.filter((row) => row.active);
+    return items.filter((row) => !row.active);
+  }, [employeesQuery.data, statusFilter]);
+
+  const getSearchText = useCallback(employeeSearchText, []);
+
+  const list = useClientList({
+    items: statusFiltered,
+    getSearchText,
+    filterKey: statusFilter,
+  });
 
   function openCreateModal() {
     setCreateForm(emptyForm(defaultRoleCode));
@@ -133,146 +162,185 @@ export function EmployeesAdminView() {
   }
 
   return (
-    <div className="page-shell page-shell--wide">
-      <PageHeader
-        title="Employees"
-        actions={
-          <AppButton type="button" appVariant="primary" size="sm" onClick={openCreateModal}>
-            Add Employee
-          </AppButton>
-        }
-      />
-
-      <QueryState
-        isLoading={employeesQuery.isLoading || rolesQuery.isLoading}
-        isError={employeesQuery.isError || rolesQuery.isError}
-        error={employeesQuery.error ?? rolesQuery.error}
-        onRetry={() => {
+    <ListPage
+      title="Employees"
+      wide
+      actions={
+        <AppButton type="button" appVariant="primary" size="sm" onClick={openCreateModal}>
+          Add Employee
+        </AppButton>
+      }
+      search={{
+        value: list.search,
+        onChange: list.setSearch,
+        placeholder: "Search name, email, or role…",
+        "aria-label": "Search employees",
+      }}
+      filters={
+        <ListSelectFilter
+          id="employee-status-filter"
+          label="Status"
+          value={statusFilter}
+          onChange={(v) => setStatusFilter(v as StatusFilter)}
+          options={STATUS_OPTIONS}
+        />
+      }
+      onRefresh={() => {
+        employeesQuery.refetch();
+        rolesQuery.refetch();
+      }}
+      isRefreshing={employeesQuery.isFetching || rolesQuery.isFetching}
+      query={{
+        isLoading: employeesQuery.isLoading || rolesQuery.isLoading,
+        isError: employeesQuery.isError || rolesQuery.isError,
+        error: employeesQuery.error ?? rolesQuery.error,
+        onRetry: () => {
           employeesQuery.refetch();
           rolesQuery.refetch();
-        }}
-        skeletonVariant="table"
-      >
-          <DataTable
-            columns={[
-              { key: "name", header: "Name" },
-              { key: "email", header: "Email" },
-              {
-                key: "role",
-                header: "Role",
-                render: (row) => (
-                  <select
-                    className="form-select form-select--compact"
-                    value={row.role.code}
-                    disabled={updateEmployee.isPending || isSelf(row.id)}
-                    onChange={(e) => handleRoleChange(row, e.target.value)}
-                    aria-label={`Role for ${row.name}`}
-                  >
-                    {roles.map((role) => (
-                      <option key={role.code} value={role.code}>
-                        {role.displayName}
-                      </option>
-                    ))}
-                  </select>
-                ),
-              },
-              {
-                key: "grade",
-                header: "Grade",
-                render: (row) =>
-                  row.gradeCode ? (
-                    <span className="inline-flex flex-wrap items-center gap-2">
-                      <StatusBadge
-                        status={
-                          row.gradeCode === "A"
-                            ? "APPROVED"
-                            : row.gradeCode === "B"
-                              ? "COMPLETED"
-                              : row.gradeCode === "C"
-                                ? "ASSIGNED"
-                                : row.gradeCode === "D"
-                                  ? "ON_HOLD"
-                                  : "REJECTED"
-                        }
-                        label={`Grade ${row.gradeCode}`}
-                      />
-                      {row.marksBalance != null ? (
-                        <span className="text-sm text-muted-foreground">
-                          {Math.round(row.marksBalance * 10) / 10} marks
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : (
-                    "—"
-                  ),
-              },
-              {
-                key: "active",
-                header: "Status",
-                render: (row) => (
-                  <StatusBadge
-                    status={row.active ? "ACTIVE" : "INACTIVE"}
-                    label={row.active ? "Active" : "Inactive"}
-                  />
-                ),
-              },
-              {
-                key: "actions",
-                header: "",
-                align: "right",
-                render: (row) => (
-                  <TableIconActionGroup>
-                    <TableIconAction action="edit" onClick={() => openEditModal(row)} />
-                    {!isSelf(row.id) && (
-                      <TableIconAction
-                        action={row.active ? "deactivate" : "activate"}
-                        disabled={updateEmployee.isPending}
-                        onClick={() => toggleActive(row)}
-                      />
-                    )}
-                  </TableIconActionGroup>
-                ),
-              },
-            ]}
-            rows={employeesQuery.data ?? []}
-            getRowKey={(row) => String(row.id)}
-            emptyTitle="No employees yet"
-            emptyDescription="Add your first employee to give them login access and a role."
-            emptyAction={
-              <AppButton type="button" appVariant="primary" onClick={openCreateModal}>
-                Add Employee
-              </AppButton>
-            }
+        },
+        skeletonVariant: "table",
+      }}
+      pagination={{
+        total: list.total,
+        page: list.page,
+        pageSize: list.pageSize,
+        onPageChange: list.setPage,
+        onPageSizeChange: list.setPageSize,
+        pageSizeSelectId: "employees-page-size",
+      }}
+      overlays={
+        <>
+          <EmployeeFormModal
+            open={createOpen}
+            title="Add Employee"
+            form={createForm}
+            roles={roles}
+            requirePassword
+            isPending={createEmployee.isPending}
+            onClose={() => setCreateOpen(false)}
+            onChange={setCreateForm}
+            onSubmit={handleCreateSubmit}
+            submitLabel="Create Employee"
           />
-      </QueryState>
-
-      <EmployeeFormModal
-        open={createOpen}
-        title="Add Employee"
-        form={createForm}
-        roles={roles}
-        requirePassword
-        isPending={createEmployee.isPending}
-        onClose={() => setCreateOpen(false)}
-        onChange={setCreateForm}
-        onSubmit={handleCreateSubmit}
-        submitLabel="Create Employee"
+          <EmployeeFormModal
+            open={!!editEmployee}
+            title={editEmployee ? `Edit ${editEmployee.name}` : "Edit Employee"}
+            form={editForm}
+            roles={roles}
+            showActiveToggle={!!editEmployee && !isSelf(editEmployee.id)}
+            requirePassword={false}
+            isPending={updateEmployee.isPending}
+            onClose={() => setEditEmployee(null)}
+            onChange={setEditForm}
+            onSubmit={handleEditSubmit}
+            submitLabel="Save Changes"
+          />
+        </>
+      }
+    >
+      <DataTable
+        flush
+        columns={[
+          { key: "name", header: "Name" },
+          { key: "email", header: "Email" },
+          {
+            key: "role",
+            header: "Role",
+            render: (row) => (
+              <select
+                className="form-select form-select--compact"
+                value={row.role.code}
+                disabled={updateEmployee.isPending || isSelf(row.id)}
+                onChange={(e) => handleRoleChange(row, e.target.value)}
+                aria-label={`Role for ${row.name}`}
+              >
+                {roles.map((role) => (
+                  <option key={role.code} value={role.code}>
+                    {role.displayName}
+                  </option>
+                ))}
+              </select>
+            ),
+          },
+          {
+            key: "grade",
+            header: "Grade",
+            render: (row) =>
+              row.gradeCode ? (
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  <StatusBadge
+                    status={
+                      row.gradeCode === "A"
+                        ? "APPROVED"
+                        : row.gradeCode === "B"
+                          ? "COMPLETED"
+                          : row.gradeCode === "C"
+                            ? "ASSIGNED"
+                            : row.gradeCode === "D"
+                              ? "ON_HOLD"
+                              : "REJECTED"
+                    }
+                    label={`Grade ${row.gradeCode}`}
+                  />
+                  {row.marksBalance != null ? (
+                    <span className="text-sm text-muted-foreground">
+                      {Math.round(row.marksBalance * 10) / 10} marks
+                    </span>
+                  ) : null}
+                </span>
+              ) : (
+                "—"
+              ),
+          },
+          {
+            key: "active",
+            header: "Status",
+            render: (row) => (
+              <StatusBadge
+                status={row.active ? "ACTIVE" : "INACTIVE"}
+                label={row.active ? "Active" : "Inactive"}
+              />
+            ),
+          },
+          {
+            key: "actions",
+            header: "",
+            align: "right",
+            render: (row) => (
+              <TableIconActionGroup>
+                <TableIconAction action="edit" onClick={() => openEditModal(row)} />
+                {!isSelf(row.id) && (
+                  <TableIconAction
+                    action={row.active ? "deactivate" : "activate"}
+                    disabled={updateEmployee.isPending}
+                    onClick={() => toggleActive(row)}
+                  />
+                )}
+              </TableIconActionGroup>
+            ),
+          },
+        ]}
+        rows={list.pageItems}
+        getRowKey={(row) => String(row.id)}
+        emptyTitle={
+          list.search || statusFilter !== "all"
+            ? "No employees match your filters"
+            : "No employees yet"
+        }
+        emptyDescription={
+          list.search || statusFilter !== "all"
+            ? "Try a different search or status filter."
+            : "Add your first employee to give them login access and a role."
+        }
+        emptyAction={
+          !list.search && statusFilter === "all" ? (
+            <AppButton type="button" appVariant="primary" onClick={openCreateModal}>
+              Add Employee
+            </AppButton>
+          ) : undefined
+        }
       />
-
-      <EmployeeFormModal
-        open={!!editEmployee}
-        title={editEmployee ? `Edit ${editEmployee.name}` : "Edit Employee"}
-        form={editForm}
-        roles={roles}
-        showActiveToggle={!!editEmployee && !isSelf(editEmployee.id)}
-        requirePassword={false}
-        isPending={updateEmployee.isPending}
-        onClose={() => setEditEmployee(null)}
-        onChange={setEditForm}
-        onSubmit={handleEditSubmit}
-        submitLabel="Save Changes"
-      />
-    </div>
+    </ListPage>
   );
 }
 
@@ -304,6 +372,11 @@ function EmployeeFormModal({
   submitLabel,
 }: EmployeeFormModalProps) {
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+
+  // Reset after successful submit, which closes via open without handleClose.
+  useEffect(() => {
+    if (open) setAttemptedSubmit(false);
+  }, [open]);
 
   const fieldErrors = {
     roleCode: !form.roleCode ? "Role is required" : undefined,

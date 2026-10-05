@@ -17,6 +17,11 @@ const patchSchema = z.object({
   machineFormat: z.enum(MACHINE_FORMATS).optional().nullable(),
   sampleQty: z.number().int().min(0).optional().nullable(),
   wastageQty: z.number().int().min(0).optional().nullable(),
+  needleCount: z.number().int().min(0).optional().nullable(),
+  colorCount: z.number().int().min(0).optional().nullable(),
+  hoopSize: z.string().max(40).optional().nullable(),
+  softwareName: z.string().max(80).optional().nullable(),
+  stitchDensity: z.number().min(0).optional().nullable(),
 });
 
 export async function PATCH(
@@ -43,7 +48,7 @@ export async function PATCH(
       throw businessRule(
         APP_ERROR_CODES.VALIDATION_FAILED,
         undefined,
-        "Machine output metrics can only be recorded on machine sample, receive, or re-sample tasks.",
+        "Machine / punching metrics can only be recorded on punching or machine sample stages.",
       );
     }
 
@@ -61,6 +66,11 @@ export async function PATCH(
         ...(body.machineFormat !== undefined ? { machineFormat: body.machineFormat } : {}),
         ...(body.sampleQty !== undefined ? { sampleQty: body.sampleQty } : {}),
         ...(body.wastageQty !== undefined ? { wastageQty: body.wastageQty } : {}),
+        ...(body.needleCount !== undefined ? { needleCount: body.needleCount } : {}),
+        ...(body.colorCount !== undefined ? { colorCount: body.colorCount } : {}),
+        ...(body.hoopSize !== undefined ? { hoopSize: body.hoopSize } : {}),
+        ...(body.softwareName !== undefined ? { softwareName: body.softwareName } : {}),
+        ...(body.stitchDensity !== undefined ? { stitchDensity: body.stitchDensity } : {}),
       },
     });
 

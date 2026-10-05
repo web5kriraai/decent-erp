@@ -100,6 +100,8 @@ services:
       dockerfile: Dockerfile.dev
     container_name: decent-erp-app
     restart: unless-stopped
+    # node_modules is a separate volume, so regenerate the client from the mounted schema on start.
+    command: sh -c "npx prisma generate && npm run dev"
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://${POSTGRES_USER:-decent_user}:${POSTGRES_PASSWORD:-decent_dev_password}@postgres:5432/${POSTGRES_DB:-decent_erp}

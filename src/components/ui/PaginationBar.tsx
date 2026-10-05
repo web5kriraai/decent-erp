@@ -16,6 +16,8 @@ export type PaginationBarProps = {
   className?: string;
   /** Show page-size select. Default true when onPageSizeChange is provided. */
   showPageSize?: boolean;
+  /** Unique id for the page-size select (required when multiple bars can mount). */
+  pageSizeSelectId?: string;
 };
 
 export function PaginationBar({
@@ -26,6 +28,7 @@ export function PaginationBar({
   onPageSizeChange,
   className,
   showPageSize = Boolean(onPageSizeChange),
+  pageSizeSelectId = "pagination-page-size",
 }: PaginationBarProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
   const safePage = Math.min(Math.max(page, 1), totalPages);
@@ -41,7 +44,7 @@ export function PaginationBar({
       <div className="pagination-bar__controls">
         {showPageSize && onPageSizeChange ? (
           <FormSelect
-            id="pagination-page-size"
+            id={pageSizeSelectId}
             label=""
             value={String(pageSize)}
             onValueChange={(v) => onPageSizeChange(Number(v))}

@@ -232,7 +232,8 @@ export function TaskEndDialog({
     !allChecklistPassed &&
     checklistItems.length > 0;
 
-  const remarkOk = isCosting ? costingOk && !!endRemark.trim() : !!endRemark.trim();
+  const remarkRequired = isCosting;
+  const remarkOk = remarkRequired ? costingOk && !!endRemark.trim() : true;
   const costingLoading = isCosting && costsQuery.isLoading;
   const formComplete =
     remarkOk &&
@@ -259,9 +260,10 @@ export function TaskEndDialog({
 
   function submitLabel() {
     if (isPending) return "Submitting…";
-    if (machineOutputBusy) return "Saving machine output…";
-    if (metricsBlocking) return "Enter machine output…";
-    if (isUploading) return "Waiting for upload…";
+    if (machineOutputBusy) return "Saving…";
+    if (metricsBlocking) return "Add machine metrics";
+    if (filesBlocking) return isUploading ? "Uploading…" : "Upload a file";
+    if (remarkRequired && !endRemark.trim()) return "Add note";
     if (isPartialChecklist) return "Submit with notes";
     return "Submit Completion";
   }
@@ -292,7 +294,7 @@ export function TaskEndDialog({
       title={dialogTitle ?? (isSampleCheck ? "Complete Sample Check" : "Complete Task")}
       description={dialogDescription}
       onClose={handleClose}
-      size={denseDeliverables || isCosting || isProdRelease ? "lg" : "md"}
+      size={denseDeliverables || isCosting || isProdRelease ? "xl" : "md"}
       footer={
         <ModalFooterActions>
           <AppButton
@@ -303,7 +305,12 @@ export function TaskEndDialog({
           >
             Cancel
           </AppButton>
-          <AppButton type="button" disabled={!canSubmit} onClick={onSubmit}>
+          <AppButton
+            type="button"
+            className="min-w-[10.5rem] whitespace-nowrap"
+            disabled={!canSubmit}
+            onClick={onSubmit}
+          >
             {submitLabel()}
           </AppButton>
         </ModalFooterActions>
@@ -356,11 +363,20 @@ export function TaskEndDialog({
             >
               {showMachineOutput ? (
                 <div className="min-w-0 space-y-2">
-                  <p className="text-sm font-medium text-foreground">Machine output</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {subProcessCode === "PUNCH" || subProcessCode === "PUNCH_CHECK"
+                      ? "Punching / Wilcom output"
+                      : "Machine output"}
+                  </p>
                   <TaskMachineOutputPanel
                     taskId={taskId!}
                     canEdit={canUpload && !isPending}
                     compact
+                    preferredArtifactType={
+                      subProcessCode === "PUNCH" || subProcessCode === "PUNCH_CHECK"
+                        ? "PUNCHING_FILE"
+                        : "SAMPLE_OUTPUT"
+                    }
                     onBusyChange={setMachineOutputBusy}
                   />
                 </div>
@@ -567,7 +583,7 @@ export function TaskEndDialog({
             <FormTextArea
               id="endRemark"
               label={remarkLabel}
-              required
+              required={remarkRequired}
               rows={2}
               value={endRemark}
               onChange={(e) => onEndRemarkChange(e.target.value)}
@@ -580,7 +596,7 @@ export function TaskEndDialog({
           <FormTextArea
             id="endRemark"
             label={remarkLabel}
-            required
+            required={remarkRequired}
             rows={2}
             value={endRemark}
             onChange={(e) => onEndRemarkChange(e.target.value)}

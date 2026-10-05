@@ -48,28 +48,32 @@ export function ConceptMediaPanel({
       {showIntro ? (
         <p className="m-0 text-sm text-[var(--color-neutral-600)]">
           {requiredImage
-            ? "Upload at least one product image (required). You can also add other files or a voice note."
+            ? "Upload at least one product image (required). Link images to components when selected. You can also add other files or a voice note."
             : "Attach files or record a voice note. Type is detected automatically."}
         </p>
       ) : null}
 
+      {/* Drop zone is the upload control — no separate Upload button */}
       <div className="flex w-full flex-wrap gap-2">
-        <AppButton
-          type="button"
-          size="sm"
-          appVariant={tab === "upload" ? "primary" : "secondary"}
-          onClick={() => setTab("upload")}
-        >
-          Upload
-        </AppButton>
-        <AppButton
-          type="button"
-          size="sm"
-          appVariant={tab === "record" ? "primary" : "secondary"}
-          onClick={() => setTab("record")}
-        >
-          Record voice
-        </AppButton>
+        {tab === "record" ? (
+          <AppButton
+            type="button"
+            size="sm"
+            appVariant="secondary"
+            onClick={() => setTab("upload")}
+          >
+            Back to files
+          </AppButton>
+        ) : (
+          <AppButton
+            type="button"
+            size="sm"
+            appVariant="secondary"
+            onClick={() => setTab("record")}
+          >
+            Record voice
+          </AppButton>
+        )}
       </div>
 
       {tab === "upload" ? (
@@ -78,6 +82,7 @@ export function ConceptMediaPanel({
           autoDetectMediaKind
           showComponentSelect={!!components?.length}
           components={components}
+          queueComponentByTypeId={queueMode}
           onUploaded={onUploaded}
           queueMode={queueMode}
           pendingItems={pendingItems}

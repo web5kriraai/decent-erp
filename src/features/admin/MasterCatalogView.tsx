@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,8 +16,12 @@ import { FormTextField } from "@/components/ui/form-text-field";
 import { FormSelect } from "@/components/ui/form-select";
 import { AppButton } from "@/components/ui/AppButton";
 import { Input } from "@/components/ui/input";
+import { ListSearch } from "@/components/ui/ListSearch";
+import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { IconChevronLeft, IconChevronRight, IconSearch } from "@/components/icons";
+import { useClientList } from "@/hooks/use-client-list";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
@@ -39,6 +43,10 @@ import { cn } from "@/lib/utils";
 import type { RegisterMasterDataPrimaryAction } from "@/features/admin/master-data-primary-action";
 
 type StatusFilter = "all" | "active" | "inactive";
+
+function catalogSearchText(row: CatalogMaster) {
+  return `${row.code} ${row.name} ${row.description ?? ""}`;
+}
 
 function tileMatchesQuery(tile: MasterHubTile, query: string) {
   if (!query) return true;
@@ -76,7 +84,6 @@ export function MasterCatalogView({
   const selectedType: MasterType | null = isMasterType(typeParam) ? typeParam : null;
 
   const [hubSearch, setHubSearch] = useState("");
-  const [rowSearch, setRowSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [editItem, setEditItem] = useState<CatalogMaster | null>(null);
@@ -94,7 +101,6 @@ export function MasterCatalogView({
     if (next) params.set("type", next);
     else params.delete("type");
     router.replace(`/admin/masters?${params.toString()}`, { scroll: false });
-    setRowSearch("");
     setStatusFilter("all");
     setCreateOpen(false);
     setEditItem(null);
@@ -188,28 +194,31 @@ export function MasterCatalogView({
     [hubSearch],
   );
 
-  const rows = useMemo(() => {
+  const statusFiltered = useMemo(() => {
     const all = catalogQuery.data ?? [];
-    const q = rowSearch.trim().toLowerCase();
     return all.filter((row) => {
       const active = (row.active ?? row.isActive) !== false;
       if (statusFilter === "active" && !active) return false;
       if (statusFilter === "inactive" && active) return false;
-      if (!q) return true;
-      return (
-        row.code.toLowerCase().includes(q) ||
-        row.name.toLowerCase().includes(q) ||
-        (row.description ?? "").toLowerCase().includes(q)
-      );
+      return true;
     });
-  }, [catalogQuery.data, rowSearch, statusFilter]);
+  }, [catalogQuery.data, statusFilter]);
 
-  const canReorderRows = !rowSearch.trim() && statusFilter === "all";
+  const getSearchText = useCallback(catalogSearchText, []);
+
+  const list = useClientList({
+    items: statusFiltered,
+    getSearchText,
+    filterKey: statusFilter,
+  });
+
+  const canReorderRows =
+    !list.search.trim() && statusFilter === "all" && list.total <= list.pageSize;
 
   function handleReorder(fromIndex: number, toIndex: number) {
     if (!canReorderRows || reorderItems.isPending) return;
-    const next = moveArrayItem(rows, fromIndex, toIndex);
-    if (next === rows) return;
+    const next = moveArrayItem(list.filtered, fromIndex, toIndex);
+    if (next === list.filtered) return;
     const queryKey = queryKeys.masters.catalog(selectedType ?? undefined, true);
     queryClient.setQueryData<CatalogMaster[]>(queryKey, next);
     reorderItems.mutate(next);
@@ -362,21 +371,13 @@ export function MasterCatalogView({
         <span className="text-sm font-medium text-foreground">
           {MASTER_TYPE_LABELS[selectedType]}
         </span>
-        <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-          <IconSearch
-            size={16}
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            value={rowSearch}
-            onChange={(e) => setRowSearch(e.target.value)}
-            placeholder="Filter by code or name…"
-            className="pl-8"
-            aria-label="Filter catalog items"
-          />
-        </div>
+        <ListSearch
+          value={list.search}
+          onChange={list.setSearch}
+          placeholder="Filter by code or name…"
+          aria-label="Filter catalog items"
+          className="min-w-[12rem] flex-1 sm:max-w-xs"
+        />
         <div className="flex flex-wrap gap-1.5">
           {(
             [
@@ -396,6 +397,11 @@ export function MasterCatalogView({
             </AppButton>
           ))}
         </div>
+        <ListRefreshButton
+          onRefresh={() => catalogQuery.refetch()}
+          isRefreshing={catalogQuery.isFetching}
+          className="ml-auto"
+        />
       </PageToolbar>
 
         <QueryState
@@ -406,6 +412,7 @@ export function MasterCatalogView({
           skeletonVariant="table"
         >
           <DataTable
+            flush
             columns={[
               { key: "code", header: "Code" },
               { key: "name", header: "Name" },
@@ -462,17 +469,26 @@ export function MasterCatalogView({
                 ),
               },
             ]}
-            rows={rows}
+            rows={list.pageItems}
             getRowKey={(row) => String(row.id)}
             onReorder={handleReorder}
             reorderDisabled={!canReorderRows || reorderItems.isPending}
             emptyTitle={
-              rowSearch || statusFilter !== "all"
+              list.search || statusFilter !== "all"
                 ? "No items match this filter"
                 : "No catalog items"
             }
           />
         </QueryState>
+
+      <PaginationBar
+        total={list.total}
+        page={list.page}
+        pageSize={list.pageSize}
+        onPageChange={list.setPage}
+        onPageSizeChange={list.setPageSize}
+        pageSizeSelectId="master-catalog-page-size"
+      />
 
       <Modal
         open={createOpen}

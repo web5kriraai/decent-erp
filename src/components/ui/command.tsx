@@ -11,10 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  InputGroup,
-  InputGroupAddon,
-} from "@/components/ui/input-group"
 import { IconSearch, IconCheck } from "@/components/icons"
 
 function Command({
@@ -25,7 +21,7 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "flex size-full flex-col overflow-hidden rounded-xl! bg-popover p-1 text-popover-foreground",
+        "flex size-full flex-col overflow-hidden rounded-xl! bg-popover text-popover-foreground",
         className
       )}
       {...props}
@@ -50,7 +46,7 @@ function CommandDialog({
   children: React.ReactNode
 }) {
   return (
-    <Dialog disablePointerDismissal modal="trap-focus" {...props}>
+    <Dialog modal="trap-focus" {...props}>
       <DialogHeader className="sr-only">
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
@@ -73,20 +69,22 @@ function CommandInput({
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
-    <div data-slot="command-input-wrapper" className="p-1 pb-0">
-      <InputGroup className="h-8! rounded-lg! border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2!">
-        <CommandPrimitive.Input
-          data-slot="command-input"
-          className={cn(
-            "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
-            className
-          )}
-          {...props}
-        />
-        <InputGroupAddon>
-          <IconSearch className="size-4 shrink-0 opacity-50" />
-        </InputGroupAddon>
-      </InputGroup>
+    <div
+      data-slot="command-input-wrapper"
+      className="relative flex items-center gap-2 border-b border-border px-3 py-2.5"
+    >
+      <IconSearch
+        className="pointer-events-none size-4 shrink-0 text-muted-foreground"
+        aria-hidden
+      />
+      <CommandPrimitive.Input
+        data-slot="command-input"
+        className={cn(
+          "h-8 w-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-0",
+          className
+        )}
+        {...props}
+      />
     </div>
   )
 }
@@ -99,7 +97,7 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "no-scrollbar max-h-72 scroll-py-1 overflow-x-hidden overflow-y-auto outline-none",
+        "no-scrollbar max-h-72 scroll-py-1 overflow-x-hidden overflow-y-auto p-1 outline-none",
         className
       )}
       {...props}

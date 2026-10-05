@@ -19,7 +19,10 @@ export async function GET(
     ],
     async (ctx) => {
       const design = serializeBigInt(
-        await getDesignById(BigInt(id), { viewerEmployeeId: ctx.employeeId }),
+        await getDesignById(BigInt(id), {
+          viewerEmployeeId: ctx.employeeId,
+          companyId: ctx.companyId,
+        }),
       ) as unknown as DesignSummary;
       const actions = resolveDesignContextActions({
         design,

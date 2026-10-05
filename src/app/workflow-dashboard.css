@@ -37,24 +37,28 @@
 
 .workflow-dash-filters {
   flex-shrink: 0;
-  align-items: end;
+  width: 100%;
   margin-bottom: 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
 }
 
-.workflow-dash-filters__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: end;
-  justify-content: flex-end;
-  min-height: 2.5rem;
+.workflow-dash-filters.list-filter-group {
+  flex: 0 0 auto;
+  align-items: center;
 }
 
 .workflow-dash-search {
-  min-width: min(100%, 14rem);
   flex: 1 1 12rem;
+  min-width: min(100%, 12rem);
   max-width: 18rem;
   margin: 0;
+}
+
+.workflow-dash-search input {
+  height: 2.25rem;
 }
 
 .workflow-dash-page .workflow-dash-stats.stat-grid {
@@ -90,11 +94,22 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   touch-action: pan-x;
-  scroll-behavior: smooth;
+  /* auto: wheel / drag panning feel snappy; smooth fights continuous deltas */
+  scroll-behavior: auto;
   container-type: inline-size;
   container-name: workflow-board;
   scrollbar-width: thin;
   scrollbar-color: var(--color-neutral-400) var(--color-neutral-100);
+}
+
+.workflow-dash-board-scroll.is-drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.workflow-dash-board-scroll.is-drag-scrolling .workflow-dash-card,
+.workflow-dash-board-scroll.is-drag-scrolling a {
+  pointer-events: none;
 }
 
 .workflow-dash-board-scroll::-webkit-scrollbar {
@@ -513,9 +528,9 @@
 /* ---- Breakpoints ---- */
 
 @media (max-width: 639px) {
-  .workflow-dash-filters__actions {
-    justify-content: flex-start;
-    grid-column: 1 / -1;
+  .workflow-dash-search {
+    flex-basis: 100%;
+    max-width: none;
   }
 
   .kanban--workflow-dash {

@@ -55,6 +55,7 @@ export const ROUTES = {
     kpi: "/analytics/kpi",
     kpiEmployees: "/analytics/kpi/employees",
     kpiDesignHead: "/analytics/kpi/design-head",
+    kpiBenchmark: "/analytics/kpi/benchmark",
     timeReport: "/analytics/time",
     reportsCorrections: "/analytics/reports/corrections",
     reportsDesignSuccess: "/analytics/reports/design-success",
@@ -69,6 +70,7 @@ export const ROUTES = {
     employees: "/admin/employees",
     roles: "/admin/roles",
     audit: "/admin/audit",
+    notificationChannels: "/admin/notification-channels",
   },
   production: {
     release: "/production/release",
@@ -284,6 +286,13 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: IconAudit,
         permission: PERMISSIONS.MASTER_ADMIN,
       },
+      {
+        id: "notification-channels",
+        label: "Notification channels",
+        href: ROUTES.admin.notificationChannels,
+        icon: IconAudit,
+        permission: PERMISSIONS.MASTER_ADMIN,
+      },
     ],
   },
 ];
@@ -358,6 +367,11 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: "Performance KPI", href: ROUTES.analytics.kpi },
     { label: "Design Head KPI" },
   ],
+  [ROUTES.analytics.kpiBenchmark]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "Performance KPI", href: ROUTES.analytics.kpi },
+    { label: "Benchmarking" },
+  ],
   [ROUTES.analytics.timeReport]: [
     { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Time Report" },
@@ -409,6 +423,10 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   [ROUTES.admin.audit]: [
     { label: "Dashboard", href: ROUTES.dashboard },
     { label: "Audit Log" },
+  ],
+  [ROUTES.admin.notificationChannels]: [
+    { label: "Dashboard", href: ROUTES.dashboard },
+    { label: "Notification channels" },
   ],
   [ROUTES.production.release]: [
     { label: "Dashboard", href: ROUTES.dashboard },

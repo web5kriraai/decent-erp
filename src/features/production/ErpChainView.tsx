@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AppButton } from "@/components/ui/AppButton";
+import { ListSearch } from "@/components/ui/ListSearch";
+import { PaginationBar } from "@/components/ui/PaginationBar";
+import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { QueryState } from "@/components/ui/QueryState";
+import { useClientList } from "@/hooks/use-client-list";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import {
   IconCheckCircle2,
@@ -72,6 +76,16 @@ export function ErpChainView() {
 
   const chains = chainsQuery.data ?? [];
 
+  const chainSearchText = useCallback(
+    (chain: ErpStageChain) =>
+      `${chain.ideaRef} ${chain.collectionName} ${chain.currentModule ?? ""}`,
+    [],
+  );
+  const list = useClientList({
+    items: chains,
+    getSearchText: chainSearchText,
+  });
+
   const selected = useMemo(
     () => chains.find((c) => c.designId === selectedDesignId) ?? null,
     [chains, selectedDesignId],
@@ -115,11 +129,16 @@ export function ErpChainView() {
   }
 
   return (
-    <div className="page-shell erp-chain-page">
+    <div className="page-shell list-page erp-chain-page">
       <PageHeader
         title="ERP Chain"
+        className="list-page__header"
         actions={
           <div className="erp-chain-header-actions">
+            <ListRefreshButton
+              onRefresh={() => chainsQuery.refetch()}
+              isRefreshing={chainsQuery.isFetching}
+            />
             {canOpenDesk ? (
               <Link href={ROUTES.production.release} className="data-table-link text-sm">
                 Production Desk
@@ -175,11 +194,22 @@ export function ErpChainView() {
         skeletonVariant="table"
       >
         <div className="erp-chain-board">
-          <div className="erp-chain-queue" role="list" aria-label="Designs in ERP chain">
-            {chains.length === 0 ? (
-              <p className="erp-chain-queue-empty">No ERP chains yet</p>
+          <div className="erp-chain-queue-panel">
+            <div className="page-toolbar !mb-0 border-b px-3 py-2">
+              <ListSearch
+                value={list.search}
+                onChange={list.setSearch}
+                placeholder="Search designs…"
+                aria-label="Search ERP chain designs"
+              />
+            </div>
+            <div className="erp-chain-queue" role="list" aria-label="Designs in ERP chain">
+            {list.filtered.length === 0 ? (
+              <p className="erp-chain-queue-empty">
+                {chains.length === 0 ? "No ERP chains yet" : "No matching designs"}
+              </p>
             ) : (
-              chains.map((row: ErpStageChain) => {
+              list.pageItems.map((row: ErpStageChain) => {
                 const active = row.designId === selectedDesignId;
                 const done = row.completedCount === 9;
                 return (
@@ -207,6 +237,17 @@ export function ErpChainView() {
                 );
               })
             )}
+            </div>
+            {list.total > 0 ? (
+              <PaginationBar
+                total={list.total}
+                page={list.page}
+                pageSize={list.pageSize}
+                onPageChange={list.setPage}
+                onPageSizeChange={list.setPageSize}
+                pageSizeSelectId="erp-chain-page-size"
+              />
+            ) : null}
           </div>
 
           <div className="erp-chain-work-panel">

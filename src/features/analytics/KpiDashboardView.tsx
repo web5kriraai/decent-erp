@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { QueryState } from "@/components/ui/QueryState";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
@@ -166,12 +167,24 @@ export function KpiDashboardView() {
   }
 
   return (
-    <div className="page-shell page-shell--wide">
+    <div className="page-shell page-shell--wide list-page">
       <PageHeader
         title="Performance KPI"
         subtitle="Team scores and metric achievement for the current scoring period."
+        className="list-page__header"
         actions={
           <>
+            <ListRefreshButton
+              onRefresh={() => kpiQuery.refetch()}
+              isRefreshing={kpiQuery.isFetching}
+            />
+            <AppButtonLink
+              href={ROUTES.analytics.kpiBenchmark}
+              appVariant="secondary"
+              size="sm"
+            >
+              Benchmarking
+            </AppButtonLink>
             <AppButtonLink
               href={`${ROUTES.admin.masters}?tab=kpi`}
               appVariant="secondary"

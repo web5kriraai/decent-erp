@@ -21,7 +21,7 @@ export function OverviewPanel({
     design.status;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4">
       <AppCard title="Concept Information">
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between gap-3">

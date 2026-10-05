@@ -179,7 +179,7 @@ export function validateUploadFile(
 /** Detect JPEG / PNG / WebP / PDF from leading bytes. Returns null when unrecognized. */
 export function detectContentSignature(
   buffer: Uint8Array | ArrayBuffer,
-): "jpeg" | "png" | "webp" | "pdf" | null {
+): "jpeg" | "png" | "webp" | "pdf" | "dst" | "emb" | null {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   if (bytes.length < 4) return null;
 
@@ -217,12 +217,23 @@ export function detectContentSignature(
   ) {
     return "webp";
   }
+
+  // Tajima DST: 512-byte header typically ends with 0x1A; require minimum size.
+  if (bytes.length >= 512 && bytes[511] === 0x1a) return "dst";
+  // Wilcom EMB: OLE/compound-ish or proprietary; accept when "EMB" / "Wilcom" appears early.
+  if (bytes.length >= 64) {
+    const head = Buffer.from(bytes.subarray(0, Math.min(bytes.length, 256))).toString(
+      "latin1",
+    );
+    if (/EMB|Wilcom|Embroidery/i.test(head)) return "emb";
+  }
+
   return null;
 }
 
 /**
  * Validate content signatures for image/PDF categories.
- * Punching EMB/DST proprietary formats skip magic-byte checks.
+ * Punching EMB/DST use format-aware checks (not open skip).
  */
 export function validateUploadContent(
   buffer: Uint8Array | ArrayBuffer,
@@ -230,13 +241,26 @@ export function validateUploadContent(
   category: UploadCategory,
 ): UploadValidationResult {
   const ext = fileExtension(file.name);
+  const signature = detectContentSignature(buffer);
 
   if (category === "PUNCHING" && (ext === "emb" || ext === "dst")) {
-    return { ok: true };
+    if (ext === "dst" && signature === "dst") return { ok: true };
+    if (ext === "emb" && (signature === "emb" || signature == null)) {
+      // EMB layouts vary; require minimum payload when magic is inconclusive.
+      const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+      if (bytes.length >= 128) return { ok: true };
+    }
+    if (signature === "pdf" || signature === "jpeg" || signature === "png" || signature === "webp") {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      status: 400,
+      message: "Punching file content does not look like a valid EMB/DST payload",
+    };
   }
 
-  const signature = detectContentSignature(buffer);
-  if (!signature) {
+  if (!signature || signature === "dst" || signature === "emb") {
     return {
       ok: false,
       status: 400,

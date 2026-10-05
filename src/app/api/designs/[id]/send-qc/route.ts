@@ -32,7 +32,10 @@ export async function POST(
       body.assigneeId,
     );
 
-    const design = await getDesignById(BigInt(id), { viewerEmployeeId: ctx.employeeId });
+    const design = await getDesignById(BigInt(id), {
+      viewerEmployeeId: ctx.employeeId,
+      companyId: ctx.companyId,
+    });
     return jsonOk(serializeBigInt(design), ctx.correlationId);
   });
 }

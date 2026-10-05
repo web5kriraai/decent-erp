@@ -33,11 +33,13 @@ export function DesignDetailView({
   designId,
   showConceptSetup = false,
   highlightImageId = null,
+  initialTab,
 }: {
   designId: string;
   /** When true (e.g. ?setup=images), emphasize the primary-image gate after create. */
   showConceptSetup?: boolean;
   highlightImageId?: string | null;
+  initialTab?: DesignDetailTab;
 }) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
@@ -46,7 +48,7 @@ export function DesignDetailView({
   const [assignTask, setAssignTask] = useState<DesignTask | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<DesignDetailTab>(
-    highlightImageId || showConceptSetup ? "files" : "overview",
+    initialTab ?? (highlightImageId || showConceptSetup ? "files" : "overview"),
   );
 
   useBreadcrumbReplacement(designId, designQuery.data?.ideaRef);
@@ -97,7 +99,7 @@ export function DesignDetailView({
   }
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--wide">
       <QueryState
         isLoading={designQuery.isLoading}
         isError={designQuery.isError}

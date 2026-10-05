@@ -17,9 +17,8 @@ import {
 import {
   canRoleActOnStageApproval,
   getStageApprovalUiConfig,
-  isStageApprovalCode,
+  nextStepHintForStageApproval,
   usesStageApprovalActionsNotTimerEnd,
-  type StageApprovalCode,
 } from "@/lib/stage-approval-rbac";
 import type { HandoffContext } from "@/lib/handoff-context";
 
@@ -47,18 +46,6 @@ export function isStageApprovalTask(
   options?: { capabilities?: unknown; isApproval?: boolean },
 ) {
   return usesStageApprovalActionsNotTimerEnd(code, options);
-}
-
-function nextStepHintForApproval(code: string): string {
-  if (!isStageApprovalCode(code)) return "Opens the next stage";
-  switch (code as StageApprovalCode) {
-    case "LIVE_REVIEW":
-      return "Design goes live";
-    case "FINAL_APPROVAL":
-      return "Ready to request management approval";
-    default:
-      return "Opens the next stage";
-  }
 }
 
 function approveLabelForCode(code: string, stageName: string): string {
@@ -171,7 +158,7 @@ export function TaskStageApprovalPanel({
     stageCode,
     stageName,
     status,
-    nextStepHint: nextStepHintForApproval(stageCode),
+    nextStepHint: nextStepHintForStageApproval(stageCode),
     blockers: !canApprove && approvalBlockedMessage ? [approvalBlockedMessage] : undefined,
   };
 

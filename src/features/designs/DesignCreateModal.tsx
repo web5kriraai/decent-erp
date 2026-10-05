@@ -22,6 +22,8 @@ import {
 } from "@/lib/concept-media-upload";
 import { useCreateDesign } from "@/hooks/use-designs";
 import {
+  useComponentTypes,
+  useMasterCatalog,
   useMasterEmployees,
   useProcessMasters,
   useProductTypes,
@@ -29,7 +31,12 @@ import {
   useWorkflowPatterns,
 } from "@/hooks/use-masters";
 import { getFieldErrors, ApiClientError } from "@/lib/api-client";
-import type { Priority } from "@/lib/types/api";
+import {
+  WORK_TYPE_OPTIONS,
+  isWorkTypeCode,
+  type Priority,
+  type WorkType,
+} from "@/lib/types/api";
 import { ROUTES } from "@/config/routes";
 import { filterWorkflowPatternsForProductType } from "@/lib/workflow-patterns";
 import type { TaskDateMode } from "@/lib/services/task-date-mode";
@@ -40,6 +47,7 @@ import {
   type AssignmentMode,
   type ManualTaskDraft,
 } from "@/features/designs/DesignAssignmentPanel";
+import { DesignComponentTypePicker } from "@/features/designs/DesignComponentTypePicker";
 
 const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: "LOW", label: "Low" },
@@ -47,6 +55,16 @@ const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: "HIGH", label: "High" },
   { value: "URGENT", label: "Urgent" },
 ];
+
+function buildComponentTypeIdMap(
+  components: Array<{ id: string; componentTypeId?: number }> | undefined,
+): Map<number, string> {
+  const map = new Map<number, string>();
+  for (const c of components ?? []) {
+    if (c.componentTypeId != null) map.set(c.componentTypeId, c.id);
+  }
+  return map;
+}
 
 type DesignCreateModalProps = {
   open: boolean;
@@ -61,6 +79,10 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
 
   const [collectionName, setCollectionName] = useState("");
   const [conceptNote, setConceptNote] = useState("");
+  const [styleName, setStyleName] = useState("");
+  const [workType, setWorkType] = useState<WorkType | "">("");
+  const [trendReference, setTrendReference] = useState("");
+  const [celebrityReference, setCelebrityReference] = useState("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [productTypeId, setProductTypeId] = useState<number | "">("");
   const [seasonId, setSeasonId] = useState<number | "">("");
@@ -77,12 +99,33 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   const [mediaProgress, setMediaProgress] = useState<ConceptMediaUploadProgress | null>(
     null,
   );
+  const [componentTypeIds, setComponentTypeIds] = useState<number[]>([]);
 
   const productTypes = useProductTypes(open);
   const seasons = useSeasons(open);
   const patterns = useWorkflowPatterns(open);
+  const componentTypes = useComponentTypes(open);
+  const styles = useMasterCatalog("STYLE", open);
+  const celebrities = useMasterCatalog("CELEBRITY", open);
+  const themes = useMasterCatalog("THEME", open);
+  const workTypesCatalog = useMasterCatalog("WORK_TYPE", open);
   const processes = useProcessMasters(open && assignmentMode === "MANUAL");
   const employees = useMasterEmployees(open && assignmentMode === "MANUAL");
+
+  const workTypeOptions = useMemo(() => {
+    const fromCatalog = (workTypesCatalog.data ?? [])
+      .filter((w) => isWorkTypeCode(w.code))
+      .map((w) => ({ value: w.code as WorkType, label: w.name }));
+    return fromCatalog.length > 0 ? fromCatalog : WORK_TYPE_OPTIONS;
+  }, [workTypesCatalog.data]);
+
+  const queueComponentOptions = useMemo(
+    () =>
+      (componentTypes.data ?? [])
+        .filter((c) => componentTypeIds.includes(c.id))
+        .map((c) => ({ id: String(c.id), label: c.name })),
+    [componentTypes.data, componentTypeIds],
+  );
 
   const availablePatterns = useMemo(
     () => filterWorkflowPatternsForProductType(patterns.data ?? [], productTypeId),
@@ -158,6 +201,10 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   function resetForm() {
     setCollectionName("");
     setConceptNote("");
+    setStyleName("");
+    setWorkType("");
+    setTrendReference("");
+    setCelebrityReference("");
     setPriority("MEDIUM");
     setProductTypeId("");
     setSeasonId("");
@@ -165,6 +212,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
     setWorkflowPatternId("");
     setTaskDateMode("SEQUENTIAL");
     setManualTasks([emptyManualTask(0, "MEDIUM")]);
+    setComponentTypeIds([]);
     setFieldErrors({});
     setAttemptedSubmit(false);
     for (const item of pendingMedia) {
@@ -190,11 +238,16 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         seasonId: Number(seasonId),
         collectionName: collectionName.trim(),
         conceptNote: conceptNote.trim(),
+        styleName: styleName.trim() || undefined,
+        workType: workType || undefined,
+        trendReference: trendReference.trim() || undefined,
+        celebrityReference: celebrityReference.trim() || undefined,
         priority,
         assignmentMode,
         taskDateMode: assignmentMode === "AUTOMATIC" ? taskDateMode : undefined,
         workflowPatternId:
           assignmentMode === "AUTOMATIC" ? Number(effectiveWorkflowPatternId) : undefined,
+        componentTypeIds: componentTypeIds.length ? componentTypeIds : undefined,
         manualTasks:
           assignmentMode === "MANUAL"
             ? manualTasks.map((task, index) => ({
@@ -214,10 +267,12 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
       setMediaUploading(true);
       setMediaProgress(null);
       const queued = pendingMedia;
+      const componentMap = buildComponentTypeIdMap(design.components);
       try {
         const { uploaded, failed } = await uploadPendingConceptMedia({
           designId: design.id,
           items: queued,
+          componentTypeIdToDesignComponentId: componentMap,
           onProgress: setMediaProgress,
         });
         for (const item of queued) {
@@ -355,6 +410,42 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
             options={PRIORITY_OPTIONS}
           />
         </ModalFormGrid>
+        <ModalFormGrid>
+          <FormSelect
+            id="createStyle"
+            label="Style"
+            value={styleName || null}
+            onValueChange={(v) => setStyleName(v ?? "")}
+            options={(styles.data ?? []).map((s) => ({ value: s.name, label: s.name }))}
+            placeholder="Select style…"
+          />
+          <FormSelect
+            id="createWorkType"
+            label="Work Type"
+            value={workType || null}
+            onValueChange={(v) => setWorkType(v as WorkType)}
+            options={workTypeOptions}
+            placeholder="Select…"
+          />
+        </ModalFormGrid>
+        <ModalFormGrid>
+          <FormSelect
+            id="createTheme"
+            label="Theme / Trend"
+            value={trendReference || null}
+            onValueChange={(v) => setTrendReference(v ?? "")}
+            options={(themes.data ?? []).map((t) => ({ value: t.name, label: t.name }))}
+            placeholder="Select theme…"
+          />
+          <FormSelect
+            id="createCelebrity"
+            label="Celebrity"
+            value={celebrityReference || null}
+            onValueChange={(v) => setCelebrityReference(v ?? "")}
+            options={(celebrities.data ?? []).map((c) => ({ value: c.name, label: c.name }))}
+            placeholder="Select…"
+          />
+        </ModalFormGrid>
         <FormTextArea
           id="createConcept"
           label="Concept Note"
@@ -364,6 +455,21 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
           onChange={(e) => setConceptNote(e.target.value)}
           placeholder="Short note about the idea"
           error={showErrors ? validationErrors.conceptNote : undefined}
+        />
+
+        <DesignComponentTypePicker
+          options={componentTypes.data ?? []}
+          value={componentTypeIds}
+          onChange={(ids) => {
+            setComponentTypeIds(ids);
+            setPendingMedia((prev) =>
+              prev.map((item) =>
+                item.componentTypeId != null && !ids.includes(item.componentTypeId)
+                  ? { ...item, componentTypeId: null }
+                  : item,
+              ),
+            );
+          }}
         />
 
         <div className="form-section-label">Task Assignment System</div>
@@ -395,6 +501,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
           queueMode
           pendingItems={pendingMedia}
           onPendingChange={setPendingMedia}
+          components={queueComponentOptions}
           canUpload
           compact
           showIntro

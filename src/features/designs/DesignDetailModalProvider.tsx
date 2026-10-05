@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { DesignDetailModal } from "@/features/designs/DesignDetailModal";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { ROUTES } from "@/config/routes";
 
 export type DesignDetailTab =
   | "overview"
@@ -22,92 +22,45 @@ type DesignDetailModalContextValue = {
 
 const DesignDetailModalContext = createContext<DesignDetailModalContextValue | null>(null);
 
-const TAB_VALUES: DesignDetailTab[] = [
-  "overview",
-  "corrections",
-  "costing",
-  "kra-kpi",
-  "files",
-  "approvals",
-];
-
-function parseTab(value: string | null): DesignDetailTab {
-  if (value && TAB_VALUES.includes(value as DesignDetailTab)) {
-    return value as DesignDetailTab;
-  }
-  return "overview";
-}
-
+/**
+ * Opens designs on the full detail page (not the right drawer).
+ * Kept as a provider so list/kanban callers can keep using openDesign().
+ */
 export function DesignDetailModalProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const urlDesignId = searchParams.get("designId");
-  const urlTab = parseTab(searchParams.get("tab"));
-
-  const [localDesignId, setLocalDesignId] = useState<string | null>(null);
-  const [localTab, setLocalTab] = useState<DesignDetailTab>("overview");
-
-  const designId = urlDesignId ?? localDesignId;
-  const tab = urlDesignId ? urlTab : localTab;
-
-  const syncUrl = useCallback(
-    (nextId: string | null, nextTab: DesignDetailTab) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (nextId) {
-        params.set("designId", nextId);
-        params.set("tab", nextTab);
-      } else {
-        params.delete("designId");
-        params.delete("tab");
-      }
-      const q = params.toString();
-      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-    },
-    [pathname, router, searchParams],
-  );
 
   const openDesign = useCallback(
     (id: string, nextTab: DesignDetailTab = "overview") => {
-      setLocalDesignId(id);
-      setLocalTab(nextTab);
-      syncUrl(id, nextTab);
+      const href =
+        nextTab === "overview"
+          ? ROUTES.designs.detail(id)
+          : `${ROUTES.designs.detail(id)}?tab=${nextTab}`;
+      router.push(href);
     },
-    [syncUrl],
+    [router],
   );
 
   const closeDesign = useCallback(() => {
-    setLocalDesignId(null);
-    setLocalTab("overview");
-    syncUrl(null, "overview");
-  }, [syncUrl]);
+    router.push(ROUTES.designs.list);
+  }, [router]);
 
-  const setTab = useCallback(
-    (nextTab: DesignDetailTab) => {
-      setLocalTab(nextTab);
-      if (designId) syncUrl(designId, nextTab);
-    },
-    [designId, syncUrl],
-  );
+  const setTab = useCallback((_nextTab: DesignDetailTab) => {
+    // Tab state lives on the full detail page; no-op for list/kanban callers.
+  }, []);
 
   const value = useMemo(
-    () => ({ openDesign, closeDesign, designId, tab, setTab }),
-    [openDesign, closeDesign, designId, tab, setTab],
+    () => ({
+      openDesign,
+      closeDesign,
+      designId: null,
+      tab: "overview" as DesignDetailTab,
+      setTab,
+    }),
+    [openDesign, closeDesign, setTab],
   );
 
   return (
-    <DesignDetailModalContext.Provider value={value}>
-      {children}
-      {designId ? (
-        <DesignDetailModal
-          designId={designId}
-          open={!!designId}
-          tab={tab}
-          onTabChange={setTab}
-          onClose={closeDesign}
-        />
-      ) : null}
-    </DesignDetailModalContext.Provider>
+    <DesignDetailModalContext.Provider value={value}>{children}</DesignDetailModalContext.Provider>
   );
 }
 

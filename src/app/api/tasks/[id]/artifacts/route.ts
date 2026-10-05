@@ -22,14 +22,15 @@ const schema = z
     machineFormat: z.enum(MACHINE_FORMATS).optional(),
     sampleQty: z.number().int().min(0).optional(),
     wastageQty: z.number().int().min(0).optional(),
+    needleCount: z.number().int().min(0).optional(),
+    colorCount: z.number().int().min(0).optional(),
+    hoopSize: z.string().max(40).optional(),
+    softwareName: z.string().max(80).optional(),
+    stitchDensity: z.number().min(0).optional(),
   })
   .superRefine((body, ctx) => {
     const hasFile = !!body.storageKey?.trim();
-    const hasMetrics =
-      body.stitchCount != null ||
-      body.sampleQty != null ||
-      body.wastageQty != null ||
-      !!body.machineFormat?.trim();
+    const hasMetrics = hasMachineMetricsInPayload(body);
     if (!hasFile && !hasMetrics) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -62,14 +63,14 @@ export async function POST(
       throw businessRule(
         APP_ERROR_CODES.VALIDATION_FAILED,
         undefined,
-        "Machine output metrics can only be recorded on machine sample, receive, or re-sample tasks.",
+        "Machine / punching metrics can only be recorded on punching or machine sample stages.",
       );
     }
 
-    // Keep one SAMPLE_OUTPUT row so file upload and metrics stay on the same artifact.
-    if (body.artifactType === "SAMPLE_OUTPUT") {
+    // Keep one SAMPLE_OUTPUT / PUNCHING_FILE row so file upload and metrics stay together.
+    if (body.artifactType === "SAMPLE_OUTPUT" || body.artifactType === "PUNCHING_FILE") {
       const existing = await prisma.taskArtifact.findFirst({
-        where: { taskId, artifactType: "SAMPLE_OUTPUT" },
+        where: { taskId, artifactType: body.artifactType },
         orderBy: { uploadedAtUtc: "desc" },
       });
 
@@ -86,6 +87,11 @@ export async function POST(
               : {}),
             ...(body.sampleQty !== undefined ? { sampleQty: body.sampleQty } : {}),
             ...(body.wastageQty !== undefined ? { wastageQty: body.wastageQty } : {}),
+            ...(body.needleCount !== undefined ? { needleCount: body.needleCount } : {}),
+            ...(body.colorCount !== undefined ? { colorCount: body.colorCount } : {}),
+            ...(body.hoopSize !== undefined ? { hoopSize: body.hoopSize } : {}),
+            ...(body.softwareName !== undefined ? { softwareName: body.softwareName } : {}),
+            ...(body.stitchDensity !== undefined ? { stitchDensity: body.stitchDensity } : {}),
           },
         });
 
@@ -113,6 +119,11 @@ export async function POST(
         machineFormat: body.machineFormat,
         sampleQty: body.sampleQty,
         wastageQty: body.wastageQty,
+        needleCount: body.needleCount,
+        colorCount: body.colorCount,
+        hoopSize: body.hoopSize,
+        softwareName: body.softwareName,
+        stitchDensity: body.stitchDensity,
         uploadedById: ctx.employeeId,
       },
     });

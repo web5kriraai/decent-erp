@@ -12,6 +12,10 @@ export type TimeEventRecord = {
 export type TimeSummary = {
   activeSeconds: number;
   holdSeconds: number;
+  /** Hold seconds where holdReason.excludeFromActiveTime is true (or unset). */
+  excludedHoldSeconds: number;
+  /** Hold seconds where holdReason.excludeFromActiveTime is explicitly false. */
+  nonExcludedHoldSeconds: number;
   totalElapsedSeconds: number;
   holdByReason: Array<{ code: string; name: string; seconds: number }>;
 };
@@ -84,9 +88,17 @@ export function computeHoldSeconds(
 export function computeHoldBreakdown(
   events: TimeEventRecord[],
   now: Date = new Date(),
-): Array<{ code: string; name: string; seconds: number }> {
+): Array<{
+  code: string;
+  name: string;
+  seconds: number;
+  excludeFromActiveTime: boolean;
+}> {
   const sorted = sortEvents(events);
-  const buckets = new Map<string, { name: string; ms: number }>();
+  const buckets = new Map<
+    string,
+    { name: string; ms: number; excludeFromActiveTime: boolean }
+  >();
   let holdStart: Date | null = null;
   let holdReason: TimeEventRecord["holdReason"] = null;
 
@@ -98,7 +110,8 @@ export function computeHoldBreakdown(
     } else if (holdStart && (event.eventType === "RESUME" || event.eventType === "END")) {
       const code = holdReason?.code ?? "UNKNOWN";
       const name = holdReason?.name ?? "Unknown hold";
-      const existing = buckets.get(code) ?? { name, ms: 0 };
+      const excludeFromActiveTime = holdReason?.excludeFromActiveTime !== false;
+      const existing = buckets.get(code) ?? { name, ms: 0, excludeFromActiveTime };
       existing.ms += msBetween(holdStart, time);
       buckets.set(code, existing);
       holdStart = null;
@@ -109,13 +122,19 @@ export function computeHoldBreakdown(
   if (holdStart) {
     const code = holdReason?.code ?? "UNKNOWN";
     const name = holdReason?.name ?? "Unknown hold";
-    const existing = buckets.get(code) ?? { name, ms: 0 };
+    const excludeFromActiveTime = holdReason?.excludeFromActiveTime !== false;
+    const existing = buckets.get(code) ?? { name, ms: 0, excludeFromActiveTime };
     existing.ms += msBetween(holdStart, now);
     buckets.set(code, existing);
   }
 
   return [...buckets.entries()]
-    .map(([code, { name, ms }]) => ({ code, name, seconds: Math.floor(ms / 1000) }))
+    .map(([code, { name, ms, excludeFromActiveTime }]) => ({
+      code,
+      name,
+      seconds: Math.floor(ms / 1000),
+      excludeFromActiveTime,
+    }))
     .sort((a, b) => b.seconds - a.seconds);
 }
 
@@ -126,6 +145,13 @@ export function computeTimeSummary(
   const sorted = sortEvents(events);
   const activeSeconds = computeActiveSeconds(sorted, now);
   const holdSeconds = computeHoldSeconds(sorted, now);
+  const holdByReason = computeHoldBreakdown(sorted, now);
+  const excludedHoldSeconds = holdByReason
+    .filter((h) => h.excludeFromActiveTime)
+    .reduce((sum, h) => sum + h.seconds, 0);
+  const nonExcludedHoldSeconds = holdByReason
+    .filter((h) => !h.excludeFromActiveTime)
+    .reduce((sum, h) => sum + h.seconds, 0);
   const firstStart = sorted.find((e) => e.eventType === "START");
   const lastEnd = [...sorted].reverse().find((e) => e.eventType === "END");
 
@@ -138,8 +164,10 @@ export function computeTimeSummary(
   return {
     activeSeconds,
     holdSeconds,
+    excludedHoldSeconds,
+    nonExcludedHoldSeconds,
     totalElapsedSeconds,
-    holdByReason: computeHoldBreakdown(sorted, now),
+    holdByReason: holdByReason.map(({ code, name, seconds }) => ({ code, name, seconds })),
   };
 }
 

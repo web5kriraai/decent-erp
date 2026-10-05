@@ -75,6 +75,7 @@ export async function createDesignWithTasks(
   createdById: number,
   correlationId: string,
   actorRoleCode?: string,
+  tenant?: { companyId: number; locationId?: number | null },
 ) {
   await requireMasterOfType(input.productTypeId, MASTER_TYPES.PRODUCT_CATEGORY);
   await requireMasterOfType(input.seasonId, MASTER_TYPES.SEASON);
@@ -98,6 +99,13 @@ export async function createDesignWithTasks(
     );
   }
 
+  const creator =
+    tenant ??
+    (await prisma.employee.findUniqueOrThrow({
+      where: { id: createdById },
+      select: { companyId: true, locationId: true },
+    }));
+
   return prisma.$transaction(async (tx) => {
     if (input.assignmentMode === "AUTOMATIC" && input.workflowPatternId) {
       const pattern = await tx.workflowPattern.findUnique({
@@ -119,6 +127,8 @@ export async function createDesignWithTasks(
       data: {
         ideaRef,
         designNumber: generateDesignNumber(ideaRef),
+        companyId: creator.companyId,
+        locationId: creator.locationId ?? null,
         productTypeId: input.productTypeId,
         collectionName: input.collectionName,
         seasonId: input.seasonId,
@@ -274,7 +284,15 @@ export async function createDesignWithTasks(
         }),
       );
     }
-    return prisma.designConcept.findUniqueOrThrow({ where: { id: design.id } });
+    return prisma.designConcept.findUniqueOrThrow({
+      where: { id: design.id },
+      include: {
+        components: {
+          include: { componentType: { select: { id: true, name: true, code: true } } },
+          orderBy: { sequence: "asc" },
+        },
+      },
+    });
   });
 }
 
@@ -283,8 +301,10 @@ export async function listDesigns(filters: {
   search?: string;
   limit?: number;
   offset?: number;
+  companyId: number;
 }) {
   const where = {
+    companyId: filters.companyId,
     ...(filters.status ? { status: filters.status as never } : {}),
     ...(filters.search
       ? {
@@ -315,7 +335,10 @@ export async function listDesigns(filters: {
   return { items, total };
 }
 
-export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: number }) {
+export async function getDesignById(
+  id: bigint,
+  options?: { viewerEmployeeId?: number; companyId?: number },
+) {
   await reconcileStuckWorkflowTasks(id, options?.viewerEmployeeId);
 
   const correctionScope =
@@ -411,6 +434,9 @@ export async function getDesignById(id: bigint, options?: { viewerEmployeeId?: n
   });
 
   if (!design) throw new ApiError("Design not found", 404);
+  if (options?.companyId != null && design.companyId !== options.companyId) {
+    throw new ApiError("Design is outside your company scope", 403);
+  }
 
   const totalTasks = design.tasks.length;
   const completedTasks = design.tasks.filter((t) => t.status === "COMPLETED").length;
@@ -791,9 +817,9 @@ export function assertAllowedDesignStatusTransition(
   }
 }
 
-export async function listDesignsForKanban() {
+export async function listDesignsForKanban(companyId: number) {
   return prisma.designConcept.findMany({
-    where: { status: { notIn: ["CLOSED", "REJECTED"] } },
+    where: { companyId, status: { notIn: ["CLOSED", "REJECTED"] } },
     orderBy: { updatedAtUtc: "desc" },
     include: {
       productType: { select: { name: true, code: true } },
@@ -855,7 +881,7 @@ function nearestOpenDueAt(
  * Enriched kanban payload for the Design Workflow Dashboard:
  * cards + KPI summary (presigned primary image URLs included).
  */
-export async function getDesignWorkflowDashboard(): Promise<{
+export async function getDesignWorkflowDashboard(companyId: number): Promise<{
   items: Array<Record<string, unknown>>;
   summary: {
     totalIdeas: number;
@@ -872,7 +898,7 @@ export async function getDesignWorkflowDashboard(): Promise<{
   };
 }> {
   const { getPresignedDownloadUrl } = await import("@/lib/storage");
-  const designs = await listDesignsForKanban();
+  const designs = await listDesignsForKanban(companyId);
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 

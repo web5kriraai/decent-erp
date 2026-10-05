@@ -17,12 +17,22 @@ export function hasMachineMetricsInPayload(body: {
   machineFormat?: string | null;
   sampleQty?: number | null;
   wastageQty?: number | null;
+  needleCount?: number | null;
+  colorCount?: number | null;
+  hoopSize?: string | null;
+  softwareName?: string | null;
+  stitchDensity?: number | null;
 }): boolean {
   return (
     body.stitchCount != null ||
     body.sampleQty != null ||
     body.wastageQty != null ||
-    !!(body.machineFormat && body.machineFormat.trim())
+    body.needleCount != null ||
+    body.colorCount != null ||
+    body.stitchDensity != null ||
+    !!(body.machineFormat && body.machineFormat.trim()) ||
+    !!(body.hoopSize && body.hoopSize.trim()) ||
+    !!(body.softwareName && body.softwareName.trim())
   );
 }
 
@@ -40,7 +50,7 @@ export function canRecordMachineMetrics(
   return isMachineOutputTask(subProcessCode, capabilities);
 }
 
-/** Prefer the SAMPLE_OUTPUT row that already carries metrics (or a file). */
+/** Prefer SAMPLE_OUTPUT or PUNCHING_FILE row that already carries metrics (or a file). */
 export function pickPreferredSampleOutput<
   T extends {
     artifactType: string;
@@ -49,17 +59,24 @@ export function pickPreferredSampleOutput<
     machineFormat?: string | null;
     sampleQty?: number | null;
     wastageQty?: number | null;
+    needleCount?: number | null;
+    colorCount?: number | null;
+    hoopSize?: string | null;
+    softwareName?: string | null;
     storageKey?: string | null;
   },
 >(artifacts: T[]): T | null {
-  const sampleOutputs = artifacts.filter((a) => a.artifactType === "SAMPLE_OUTPUT");
-  if (sampleOutputs.length === 0) return null;
+  const candidates = artifacts.filter(
+    (a) => a.artifactType === "SAMPLE_OUTPUT" || a.artifactType === "PUNCHING_FILE",
+  );
+  if (candidates.length === 0) return null;
 
-  const scored = [...sampleOutputs].sort((a, b) => {
+  const scored = [...candidates].sort((a, b) => {
     const score = (row: T) => {
       let s = 0;
       if (hasMachineMetricsInPayload(row)) s += 2;
       if (row.storageKey) s += 1;
+      if (row.artifactType === "PUNCHING_FILE") s += 0.5;
       return s;
     };
     const diff = score(b) - score(a);
@@ -86,6 +103,28 @@ export function formatMachineOutputSummary(row: {
     row.wastageQty != null ? `${row.wastageQty} wastage` : null,
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
+}
+
+/** True when any SAMPLE_OUTPUT / PUNCHING_FILE row carries machine metrics. */
+export function artifactsIncludeMachineMetrics(
+  artifacts: Array<{
+    artifactType: string;
+    stitchCount?: number | null;
+    machineFormat?: string | null;
+    sampleQty?: number | null;
+    wastageQty?: number | null;
+    needleCount?: number | null;
+    colorCount?: number | null;
+    hoopSize?: string | null;
+    softwareName?: string | null;
+    stitchDensity?: number | null;
+  }>,
+): boolean {
+  return artifacts.some(
+    (row) =>
+      (row.artifactType === "SAMPLE_OUTPUT" || row.artifactType === "PUNCHING_FILE") &&
+      hasMachineMetricsInPayload(row),
+  );
 }
 
 export const MACHINE_FORMAT_OPTIONS = [

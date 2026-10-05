@@ -10,7 +10,7 @@ import {
   type UploadCategory,
   validateUploadFileClient,
 } from "@/lib/file-upload-policy";
-import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
+import { isMachineOutputTask, artifactsIncludeMachineMetrics } from "@/lib/services/task-machine-output-utils";
 import { cn } from "@/lib/utils";
 import { IconFile, IconLoader2, IconUploadCloud } from "@/components/icons";
 
@@ -334,15 +334,7 @@ export function useTaskHasMachineMetrics(taskId: string, enabled = true) {
     enabled: enabled && !!taskId,
   });
 
-  const hasMetrics =
-    artifactsQuery.data?.some(
-      (a) =>
-        a.artifactType === "SAMPLE_OUTPUT" &&
-        (a.stitchCount != null ||
-          a.sampleQty != null ||
-          a.wastageQty != null ||
-          !!a.machineFormat?.trim()),
-    ) ?? false;
+  const hasMetrics = artifactsIncludeMachineMetrics(artifactsQuery.data ?? []);
 
   return {
     hasMetrics,

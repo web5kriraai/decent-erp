@@ -8,17 +8,19 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
 import { TimerWidget } from "@/components/TimerWidget";
 import { PermissionDenied } from "@/components/PermissionDenied";
-import { TaskActionCard, TaskActionListItem, BlockedActionCard } from "@/components/tasks/TaskActionCard";
+import { TaskActionCard } from "@/components/tasks/TaskActionCard";
+import { ActionCenterRecordsTable } from "@/components/tasks/ActionCenterRecordsTable";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
+import { CloseWorkdayConfirm } from "@/components/tasks/CloseWorkdayConfirm";
 import { AppButton } from "@/components/ui/AppButton";
+import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTES } from "@/config/routes";
 import {
   useActionCenter,
   useTaskMutations,
-  type ActionCenterBlockedItem,
 } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { useTaskTimeDetail } from "@/hooks/use-time";
@@ -67,40 +69,6 @@ const ACTION_TABS: { id: ActionTab; label: string }[] = [
   { id: "completed", label: "Completed" },
 ];
 
-function BlockedList({ items }: { items: ActionCenterBlockedItem[] }) {
-  if (items.length === 0) {
-    return <p className="action-center-empty">No blocked tasks.</p>;
-  }
-  return (
-    <ul className="action-center-list">
-      {items.map((item) => (
-        <BlockedActionCard key={item.taskId} item={item} />
-      ))}
-    </ul>
-  );
-}
-
-function TaskList({
-  tasks,
-  emptyMessage,
-  variant = "active",
-}: {
-  tasks: DesignTask[];
-  emptyMessage: string;
-  variant?: "active" | "completed" | "upcoming";
-}) {
-  if (tasks.length === 0) {
-    return <p className="action-center-empty">{emptyMessage}</p>;
-  }
-  return (
-    <ul className="action-center-list">
-      {tasks.map((task) => (
-        <TaskActionListItem key={task.id} task={task} variant={variant} />
-      ))}
-    </ul>
-  );
-}
-
 export function TaskWorkspace() {
   const router = useRouter();
   const { data: session } = useSession();
@@ -118,6 +86,7 @@ export function TaskWorkspace() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [holdModalOpen, setHoldModalOpen] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
+  const [closeWorkdayOpen, setCloseWorkdayOpen] = useState(false);
   const [holdReasonId, setHoldReasonId] = useState<number | "">("");
   const [holdRemark, setHoldRemark] = useState("");
   const [endRemark, setEndRemark] = useState("");
@@ -311,7 +280,12 @@ export function TaskWorkspace() {
   async function handleStart(task: DesignTask) {
     if (!task.canStart) return;
     setSelectedTaskId(task.id);
-    await start.mutateAsync(task.id);
+    try {
+      await start.mutateAsync(task.id);
+    } catch {
+      // Toast is handled by useTaskMutations.onError
+      return;
+    }
     const href = resolveWorkOpenHref({
       taskId: task.id,
       designId: task.design?.id ?? task.designId,
@@ -389,8 +363,6 @@ export function TaskWorkspace() {
     if (e.key === "Enter" && showStart) {
       e.preventDefault();
       void handleStart(task);
-    } else if (e.key === "Enter") {
-      setSelectedTaskId(task.id);
     }
   }
 
@@ -398,20 +370,27 @@ export function TaskWorkspace() {
     tabCounts.actionRequired + tabCounts.blocked + tabCounts.upcoming + tabCounts.completed > 0;
 
   return (
-    <div className="page-shell page-shell--wide">
+    <div className="page-shell page-shell--wide list-page">
       <PageHeader
         title="My Action Center"
+        className="list-page__header"
         actions={
-          <AppButton
-            type="button"
-            appVariant="outline"
-            size="sm"
-            onClick={() => closeWorkday.mutate()}
-            disabled={closeWorkday.isPending || !!runningTask}
-            title={runningTask ? "Stop running task before closing workday" : undefined}
-          >
-            Close Workday
-          </AppButton>
+          <>
+            <ListRefreshButton
+              onRefresh={() => centerQuery.refetch()}
+              isRefreshing={centerQuery.isFetching}
+            />
+            <AppButton
+              type="button"
+              appVariant="outline"
+              size="sm"
+              onClick={() => setCloseWorkdayOpen(true)}
+              disabled={closeWorkday.isPending || !!runningTask}
+              title={runningTask ? "Stop running task before closing workday" : undefined}
+            >
+              Close Workday
+            </AppButton>
+          </>
         }
       />
 
@@ -607,23 +586,30 @@ export function TaskWorkspace() {
             ) : null}
           </TabsContent>
 
-          <TabsContent value="blocked">
-            <BlockedList items={center?.blocked ?? []} />
-          </TabsContent>
-
-          <TabsContent value="upcoming">
-            <TaskList
-              tasks={center?.upcoming ?? []}
-              emptyMessage="No upcoming tasks - prior stages will unlock work for you."
-              variant="upcoming"
+          <TabsContent value="blocked" className="action-center-tab-panel">
+            <ActionCenterRecordsTable
+              mode="blocked"
+              items={center?.blocked ?? []}
+              onRefresh={() => centerQuery.refetch()}
+              isRefreshing={centerQuery.isFetching}
             />
           </TabsContent>
 
-          <TabsContent value="completed">
-            <TaskList
-              tasks={center?.completed ?? []}
-              emptyMessage="No recently completed tasks."
-              variant="completed"
+          <TabsContent value="upcoming" className="action-center-tab-panel">
+            <ActionCenterRecordsTable
+              mode="upcoming"
+              items={center?.upcoming ?? []}
+              onRefresh={() => centerQuery.refetch()}
+              isRefreshing={centerQuery.isFetching}
+            />
+          </TabsContent>
+
+          <TabsContent value="completed" className="action-center-tab-panel">
+            <ActionCenterRecordsTable
+              mode="completed"
+              items={center?.completed ?? []}
+              onRefresh={() => centerQuery.refetch()}
+              isRefreshing={centerQuery.isFetching}
             />
           </TabsContent>
         </Tabs>
@@ -683,6 +669,17 @@ export function TaskWorkspace() {
         onCostEntriesChange={setCostEntries}
         onSubmit={handleEndSubmit}
         isPending={end.isPending}
+      />
+
+      <CloseWorkdayConfirm
+        open={closeWorkdayOpen}
+        onClose={() => setCloseWorkdayOpen(false)}
+        isPending={closeWorkday.isPending}
+        onConfirm={() => {
+          closeWorkday.mutate(undefined, {
+            onSuccess: () => setCloseWorkdayOpen(false),
+          });
+        }}
       />
     </div>
   );

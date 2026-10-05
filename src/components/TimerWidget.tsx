@@ -60,7 +60,7 @@ export function TimerWidget({
         status === "ON_HOLD" && "timer-widget--hold",
       )}
     >
-      <p className="timer-widget-label">Active Task Timer</p>
+      <p className="timer-widget-label">{compact ? "Timer" : "Active Task Timer"}</p>
 
       <p
         className="timer-display"

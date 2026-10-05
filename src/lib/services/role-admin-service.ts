@@ -13,12 +13,13 @@ const employeeSelect = {
   role: { select: { id: true, code: true, name: true } },
 } as const;
 
-export async function listEmployeesForAdmin() {
+export async function listEmployeesForAdmin(companyId: number) {
   const now = new Date();
   const periodYear = now.getUTCFullYear();
   const periodMonth = now.getUTCMonth() + 1;
 
   const employees = await prisma.employee.findMany({
+    where: { companyId },
     orderBy: [{ active: "desc" }, { name: "asc" }],
     select: employeeSelect,
   });
@@ -105,6 +106,8 @@ export async function createEmployee(
     email: string;
     roleCode: string;
     password: string;
+    companyId: number;
+    locationId?: number | null;
   },
 ) {
   const role = await resolveRole(input.roleCode);
@@ -126,6 +129,8 @@ export async function createEmployee(
       email,
       passwordHash,
       roleId: role.id,
+      companyId: input.companyId,
+      locationId: input.locationId ?? null,
       active: true,
     },
     select: employeeSelect,

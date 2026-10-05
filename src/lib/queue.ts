@@ -64,6 +64,96 @@ export async function enqueueNotification(job: NotificationJobPayload): Promise<
   }
 }
 
+/** Spec §17 — repeatable due-soon / overdue scanner (every 15 minutes). */
+export const SCAN_TASK_DUES_EVENT = "SCAN_TASK_DUES";
+
+/** Spec §13.2 — move aged AuditLog rows into archive table (daily). */
+export const SCAN_AUDIT_ARCHIVE_EVENT = "SCAN_AUDIT_ARCHIVE";
+
+/** Live ERP design-success partner pull (hourly when ERP_API_BASE_URL is set). */
+export const SCAN_DESIGN_SUCCESS_ERP_EVENT = "SCAN_DESIGN_SUCCESS_ERP";
+
+export async function ensureTaskDueScanSchedule(): Promise<void> {
+  if (queueDisabled) return;
+  try {
+    const queue = getNotificationQueue();
+    await queue.upsertJobScheduler(
+      "scan-task-dues",
+      { every: 15 * 60_000 },
+      {
+        name: SCAN_TASK_DUES_EVENT,
+        data: {
+          eventType: SCAN_TASK_DUES_EVENT,
+          payload: {},
+          correlationId: "scan-task-dues-repeat",
+        },
+      },
+    );
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "Could not register SCAN_TASK_DUES job scheduler",
+        error: String(error),
+      }),
+    );
+  }
+}
+
+export async function ensureAuditArchiveSchedule(): Promise<void> {
+  if (queueDisabled) return;
+  try {
+    const queue = getNotificationQueue();
+    await queue.upsertJobScheduler(
+      "scan-audit-archive",
+      { every: 24 * 60 * 60_000 },
+      {
+        name: SCAN_AUDIT_ARCHIVE_EVENT,
+        data: {
+          eventType: SCAN_AUDIT_ARCHIVE_EVENT,
+          payload: {},
+          correlationId: "scan-audit-archive-repeat",
+        },
+      },
+    );
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "Could not register SCAN_AUDIT_ARCHIVE job scheduler",
+        error: String(error),
+      }),
+    );
+  }
+}
+
+export async function ensureDesignSuccessErpScanSchedule(): Promise<void> {
+  if (queueDisabled) return;
+  try {
+    const queue = getNotificationQueue();
+    await queue.upsertJobScheduler(
+      "scan-design-success-erp",
+      { every: 60 * 60_000 },
+      {
+        name: SCAN_DESIGN_SUCCESS_ERP_EVENT,
+        data: {
+          eventType: SCAN_DESIGN_SUCCESS_ERP_EVENT,
+          payload: {},
+          correlationId: "scan-design-success-erp-repeat",
+        },
+      },
+    );
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "Could not register SCAN_DESIGN_SUCCESS_ERP job scheduler",
+        error: String(error),
+      }),
+    );
+  }
+}
+
 export function startNotificationWorker(
   processor: (job: Job<NotificationJobPayload>) => Promise<void>,
 ) {

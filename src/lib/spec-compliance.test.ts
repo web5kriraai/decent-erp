@@ -8,7 +8,7 @@ describe("time calculation", () => {
   it("computes active seconds excluding hold intervals (TC-05/TC-06)", () => {
     const events = [
       { eventType: "START", eventTimeUtc: base },
-      { eventType: "HOLD", eventTimeUtc: new Date("2026-08-24T10:00:00Z"), holdReason: { code: "LUNCH" } },
+      { eventType: "HOLD", eventTimeUtc: new Date("2026-08-24T10:00:00Z"), holdReason: { code: "LUNCH", excludeFromActiveTime: true } },
       { eventType: "RESUME", eventTimeUtc: new Date("2026-08-24T10:30:00Z") },
       { eventType: "END", eventTimeUtc: new Date("2026-08-24T11:00:00Z") },
     ];
@@ -16,6 +16,31 @@ describe("time calculation", () => {
     expect(computeHoldSeconds(events)).toBe(1800); // 30m hold
     const summary = computeTimeSummary(events);
     expect(summary.activeSeconds + summary.holdSeconds).toBeLessThanOrEqual(summary.totalElapsedSeconds);
+    expect(summary.excludedHoldSeconds).toBe(1800);
+    expect(summary.nonExcludedHoldSeconds).toBe(0);
+  });
+
+  it("splits excluded vs non-excluded hold seconds by flag", () => {
+    const events = [
+      { eventType: "START", eventTimeUtc: base },
+      {
+        eventType: "HOLD",
+        eventTimeUtc: new Date("2026-08-24T10:00:00Z"),
+        holdReason: { code: "WAIT_MATERIAL", excludeFromActiveTime: true },
+      },
+      { eventType: "RESUME", eventTimeUtc: new Date("2026-08-24T10:20:00Z") },
+      {
+        eventType: "HOLD",
+        eventTimeUtc: new Date("2026-08-24T10:30:00Z"),
+        holdReason: { code: "CUSTOM", excludeFromActiveTime: false },
+      },
+      { eventType: "RESUME", eventTimeUtc: new Date("2026-08-24T10:40:00Z") },
+      { eventType: "END", eventTimeUtc: new Date("2026-08-24T11:00:00Z") },
+    ];
+    const summary = computeTimeSummary(events);
+    expect(summary.excludedHoldSeconds).toBe(1200);
+    expect(summary.nonExcludedHoldSeconds).toBe(600);
+    expect(summary.holdSeconds).toBe(1800);
   });
 });
 

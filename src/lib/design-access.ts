@@ -21,7 +21,17 @@ export async function canReadDesign(input: {
   designId: bigint;
   employeeId: number;
   permissions: string[];
+  companyId?: number;
 }): Promise<boolean> {
+  const design = await prisma.designConcept.findUnique({
+    where: { id: input.designId },
+    select: { designHeadEmployeeId: true, companyId: true },
+  });
+  if (!design) return false;
+  if (input.companyId != null && design.companyId !== input.companyId) {
+    return false;
+  }
+
   if (hasPermission(input.permissions, DESIGN_PIPELINE_VIEW_PERMISSIONS)) {
     return true;
   }
@@ -29,11 +39,6 @@ export async function canReadDesign(input: {
     return false;
   }
 
-  const design = await prisma.designConcept.findUnique({
-    where: { id: input.designId },
-    select: { designHeadEmployeeId: true },
-  });
-  if (!design) return false;
   if (design.designHeadEmployeeId === input.employeeId) return true;
 
   const assigned = await prisma.designTask.findFirst({
@@ -51,6 +56,7 @@ export async function assertCanReadDesign(input: {
   designId: bigint;
   employeeId: number;
   permissions: string[];
+  companyId?: number;
 }): Promise<void> {
   const allowed = await canReadDesign(input);
   if (!allowed) {

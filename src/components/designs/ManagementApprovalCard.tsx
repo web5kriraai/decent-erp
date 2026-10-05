@@ -1,16 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "next-auth/react";
 import {
   Modal,
   ModalFooterActions,
 } from "@/components/ui/Modal";
-import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { AppButton } from "@/components/ui/AppButton";
 import { usePendingApprovals, useSubmitApproval } from "@/hooks/use-approvals";
 import { useEmployeeOptions } from "@/hooks/use-corrections";
 import { parseApprovalRequestPackage } from "@/lib/approval-request-package";
-import { approvalsHubHrefForRole } from "@/lib/stage-approval-rbac";
 import {
   ApprovalDecisionForm,
   defaultApprovalDecisionFormState,
@@ -24,8 +22,6 @@ type ManagementApprovalCardProps = {
 };
 
 export function ManagementApprovalCard({ designId, ideaRef }: ManagementApprovalCardProps) {
-  const { data: session } = useSession();
-  const managementHref = approvalsHubHrefForRole(session?.user?.roleCode, "management");
   const pendingQuery = usePendingApprovals(true);
   const submitApproval = useSubmitApproval();
   const [formState, setFormState] = useState<ApprovalDecisionFormState>(
@@ -74,13 +70,6 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
           </p>
         </div>
         <div className="compact-design-actions-row">
-          <AppButtonLink
-            href={managementHref}
-            appVariant="ghost"
-            size="sm"
-          >
-            All sign-offs
-          </AppButtonLink>
           <AppButton type="button" size="sm" onClick={() => setModalOpen(true)}>
             Review &amp; approve
           </AppButton>
@@ -90,7 +79,7 @@ export function ManagementApprovalCard({ designId, ideaRef }: ManagementApproval
       <Modal
         open={modalOpen}
         title={`Decide ${ideaRef}`}
-        size="lg"
+        size="xl"
         onClose={() => setModalOpen(false)}
         footer={
           <ModalFooterActions>

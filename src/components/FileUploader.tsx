@@ -28,7 +28,16 @@ type FileUploaderProps = {
   designComponentId?: string | null;
   /** Show optional component link select. */
   showComponentSelect?: boolean;
+  /**
+   * Live upload: DesignComponent.id.
+   * Queue (create) mode: use componentTypeId as id (stringified master id).
+   */
   components?: Array<{ id: string; label: string }>;
+  /**
+   * When true with queueMode, component select stores componentTypeId on pending items
+   * (ids in `components` are master type ids).
+   */
+  queueComponentByTypeId?: boolean;
   /** Infer IMAGE/AUDIO/VIDEO/FILE from each file (default true). */
   autoDetectMediaKind?: boolean;
   /** Queue mode for create form — do not upload yet. */
@@ -50,6 +59,7 @@ export function FileUploader({
   designComponentId: designComponentIdProp = null,
   showComponentSelect = false,
   components,
+  queueComponentByTypeId = false,
   autoDetectMediaKind = true,
   queueMode = false,
   pendingItems = [],
@@ -69,6 +79,11 @@ export function FileUploader({
   useEffect(() => {
     setDesignComponentId(designComponentIdProp);
   }, [designComponentIdProp]);
+
+  const selectedComponentTypeId =
+    queueMode && queueComponentByTypeId && designComponentId
+      ? Number(designComponentId)
+      : null;
 
   const enqueueFiles = useCallback(
     (files: FileList | File[]) => {
@@ -96,11 +111,23 @@ export function FileUploader({
           isPrimary:
             kind === "IMAGE" && !next.some((p) => p.mediaKind === "IMAGE" && p.isPrimary),
           previewUrl,
+          componentTypeId:
+            queueComponentByTypeId && selectedComponentTypeId != null && !Number.isNaN(selectedComponentTypeId)
+              ? selectedComponentTypeId
+              : null,
         });
       }
       onPendingChange(next);
     },
-    [autoDetectMediaKind, mediaKindProp, onPendingChange, pendingItems, toast],
+    [
+      autoDetectMediaKind,
+      mediaKindProp,
+      onPendingChange,
+      pendingItems,
+      queueComponentByTypeId,
+      selectedComponentTypeId,
+      toast,
+    ],
   );
 
   const uploadFiles = useCallback(
@@ -199,6 +226,19 @@ export function FileUploader({
     );
   }
 
+  function setPendingComponentType(id: string, componentTypeId: number | null) {
+    if (!onPendingChange) return;
+    onPendingChange(
+      pendingItems.map((p) =>
+        p.id === id ? { ...p, componentTypeId } : p,
+      ),
+    );
+  }
+
+  const componentLabelByTypeId = new Map(
+    (components ?? []).map((c) => [c.id, c.label]),
+  );
+
   const accept = autoDetectMediaKind
     ? acceptForAllConceptMedia()
     : acceptForConceptMedia(mediaKindProp);
@@ -290,15 +330,15 @@ export function FileUploader({
 
       {queueMode && pendingItems.length > 0 ? (
         <div
-          className="grid w-full gap-2"
+          className="grid w-full gap-3"
           style={{
-            gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
           }}
         >
           {pendingItems.map((item) => (
             <div
               key={item.id}
-              className="rounded border border-[var(--border)] bg-[var(--card)] p-2"
+              className="rounded border border-[var(--border)] bg-[var(--card)] p-3"
               style={{
                 outline:
                   item.isPrimary && item.mediaKind === "IMAGE"
@@ -313,30 +353,52 @@ export function FileUploader({
                   alt={item.file.name}
                   style={{
                     width: "100%",
-                    height: 80,
+                    height: 140,
                     objectFit: "cover",
-                    borderRadius: 3,
+                    borderRadius: 4,
                   }}
                 />
               ) : item.mediaKind === "VIDEO" && item.previewUrl ? (
                 <video
                   src={item.previewUrl}
-                  style={{ width: "100%", height: 80, objectFit: "cover" }}
+                  style={{ width: "100%", height: 140, objectFit: "cover" }}
                 />
               ) : item.mediaKind === "AUDIO" && item.previewUrl ? (
                 <audio controls src={item.previewUrl} className="w-full" />
               ) : (
                 <div
                   className="flex items-center justify-center text-xs text-[var(--color-neutral-600)]"
-                  style={{ height: 80, background: "var(--muted)" }}
+                  style={{ height: 140, background: "var(--muted)" }}
                 >
                   {item.mediaKind}
                 </div>
               )}
-              <p className="mt-1 mb-0 truncate text-xs" title={item.file.name}>
+              <p className="mt-2 mb-0 truncate text-sm" title={item.file.name}>
                 {item.file.name}
               </p>
-              <div className="mt-1 flex flex-wrap gap-1">
+              {queueMode && queueComponentByTypeId && components && components.length > 0 ? (
+                <FormSelect
+                  id={`pending-component-${item.id}`}
+                  label="Component"
+                  value={
+                    item.componentTypeId != null ? String(item.componentTypeId) : null
+                  }
+                  onValueChange={(v) =>
+                    setPendingComponentType(item.id, v ? Number(v) : null)
+                  }
+                  options={[
+                    { value: "", label: "Design-level" },
+                    ...components.map((c) => ({ value: c.id, label: c.label })),
+                  ]}
+                  placeholder="Optional"
+                />
+              ) : item.componentTypeId != null ? (
+                <p className="m-0 mt-1 text-xs text-[var(--color-neutral-600)]">
+                  {componentLabelByTypeId.get(String(item.componentTypeId)) ??
+                    `Component #${item.componentTypeId}`}
+                </p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-1">
                 {item.mediaKind === "IMAGE" && !item.isPrimary ? (
                   <AppButton
                     type="button"

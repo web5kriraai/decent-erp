@@ -258,36 +258,36 @@ async function applyDesignSuccessAfterComplete(
   input: CompleteErpStageInput,
 ) {
   const { periodYear, periodMonth } = currentPeriod();
-  if (module === "READY_STOCK") {
+  if (module === "READY_STOCK" && input.qty != null) {
     await upsertDesignSuccessMetric(designId, {
       periodYear,
       periodMonth,
-      productionQty: input.qty ?? 0,
+      productionQty: input.qty,
     });
     return;
   }
-  if (module === "SALES") {
+  if (module === "SALES" && (input.qty != null || input.amount != null)) {
     await upsertDesignSuccessMetric(designId, {
       periodYear,
       periodMonth,
-      salesQty: input.qty ?? 0,
-      salesValue: input.amount ?? 0,
+      ...(input.qty != null ? { salesQty: input.qty } : {}),
+      ...(input.amount != null ? { salesValue: input.amount } : {}),
     });
     return;
   }
-  if (module === "SALES_RETURN") {
+  if (module === "SALES_RETURN" && input.qty != null) {
     await upsertDesignSuccessMetric(designId, {
       periodYear,
       periodMonth,
-      returnQty: input.qty ?? 0,
+      returnQty: input.qty,
     });
     return;
   }
-  if (module === "ACCOUNTS") {
+  if (module === "ACCOUNTS" && input.marginPercent != null) {
     await upsertDesignSuccessMetric(designId, {
       periodYear,
       periodMonth,
-      marginPercent: input.marginPercent ?? 0,
+      marginPercent: input.marginPercent,
     });
   }
 }

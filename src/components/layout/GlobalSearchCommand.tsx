@@ -193,7 +193,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
       icon: IconLogout,
       run: () => {
         handleOpenChange(false);
-        void signOut({ callbackUrl: ROUTES.login });
+        void signOut({ callbackUrl: `${window.location.origin}${ROUTES.login}` });
       },
     });
 
@@ -447,7 +447,8 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           <kbd className="rounded border bg-muted px-1 py-0.5 font-medium">↵</kbd> open
         </span>
         <span>
-          <kbd className="rounded border bg-muted px-1 py-0.5 font-medium">esc</kbd> close
+          <kbd className="rounded border bg-muted px-1 py-0.5 font-medium">esc</kbd> / click outside
+          to close
         </span>
       </div>
     </CommandDialog>

@@ -126,6 +126,7 @@ export async function POST(request: Request) {
       ctx.employeeId,
       ctx.correlationId,
       ctx.roleCode,
+      { companyId: ctx.companyId, locationId: ctx.locationId },
     );
     return jsonOk(serializeBigInt(design), ctx.correlationId, 201);
   });
@@ -139,6 +140,7 @@ export async function GET(request: Request) {
       search: searchParams.get("search") ?? undefined,
       limit: Number(searchParams.get("limit") ?? 50),
       offset: Number(searchParams.get("offset") ?? 0),
+      companyId: ctx.companyId,
     });
     return jsonOk(serializeBigInt(result), ctx.correlationId);
   });

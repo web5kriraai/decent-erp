@@ -1,27 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { QueryState } from "@/components/ui/QueryState";
+import { ListPage } from "@/components/ui/ListPage";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
-import { IconPlus, IconSearch } from "@/components/icons";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { IconPlus } from "@/components/icons";
+import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useDesignsList } from "@/hooks/use-designs";
+import { useClientList } from "@/hooks/use-client-list";
 import type { DesignSummary } from "@/lib/types/api";
 import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
 
@@ -36,26 +29,36 @@ const STATUS_LABELS: Record<(typeof STATUS_FILTERS)[number], string> = {
   ON_HOLD: "On hold",
 };
 
+const STATUS_OPTIONS = STATUS_FILTERS.map((s) => ({
+  value: s,
+  label: STATUS_LABELS[s],
+}));
+
+function designSearchText(row: DesignSummary) {
+  return `${row.ideaRef} ${row.collectionName} ${row.productType?.name ?? ""} ${row.designHead?.name ?? ""}`;
+}
+
 export function DesignListView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const detailModal = useOptionalDesignDetailModal();
-  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   const designsQuery = useDesignsList(permissions.includes(PERMISSIONS.DESIGN_CREATE));
 
-  const filtered = useMemo(() => {
-    if (!designsQuery.data?.items) return [];
-    return designsQuery.data.items.filter((row) => {
-      const matchSearch =
-        !search ||
-        row.ideaRef.toLowerCase().includes(search.toLowerCase()) ||
-        row.collectionName.toLowerCase().includes(search.toLowerCase());
-      const matchStatus = statusFilter === "ALL" || row.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [designsQuery.data, search, statusFilter]);
+  const statusFiltered = useMemo(() => {
+    const items = designsQuery.data?.items ?? [];
+    if (statusFilter === "ALL") return items;
+    return items.filter((row) => row.status === statusFilter);
+  }, [designsQuery.data?.items, statusFilter]);
+
+  const getSearchText = useCallback(designSearchText, []);
+
+  const list = useClientList({
+    items: statusFiltered,
+    getSearchText,
+    filterKey: statusFilter,
+  });
 
   if (!permissions.includes(PERMISSIONS.DESIGN_CREATE)) {
     return (
@@ -65,141 +68,121 @@ export function DesignListView() {
     );
   }
 
-  const statusItems = Object.fromEntries(
-    STATUS_FILTERS.map((s) => [s, STATUS_LABELS[s]]),
-  );
-
   return (
-    <div className="page-shell concept-board-page">
-      <PageHeader
-        title="Concept Board"
-        className="concept-board-page__header"
-        actions={
+    <ListPage
+      title="Concept Board"
+      className="concept-board-page"
+      actions={
+        <AppButtonLink href={ROUTES.designs.new} appVariant="primary" size="sm">
+          <IconPlus size={16} />
+          New Design Concept
+        </AppButtonLink>
+      }
+      search={{
+        value: list.search,
+        onChange: list.setSearch,
+        placeholder: "Search idea ref or collection…",
+        "aria-label": "Search designs",
+      }}
+      filters={
+        <ListSelectFilter
+          id="design-status-filter"
+          label="Status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={STATUS_OPTIONS}
+        />
+      }
+      toolbarExtra={
+        <>
+          <span className="toolbar-count">
+            {list.total} of {designsQuery.data?.total ?? 0}
+          </span>
+          <AppButtonLink href={ROUTES.dashboard} appVariant="outline" size="sm">
+            Workflow Dashboard
+          </AppButtonLink>
+        </>
+      }
+      onRefresh={() => designsQuery.refetch()}
+      isRefreshing={designsQuery.isFetching}
+      query={{
+        isLoading: designsQuery.isLoading,
+        isError: designsQuery.isError,
+        error: designsQuery.error,
+        onRetry: () => designsQuery.refetch(),
+      }}
+      pagination={{
+        total: list.total,
+        page: list.page,
+        pageSize: list.pageSize,
+        onPageChange: list.setPage,
+        onPageSizeChange: list.setPageSize,
+        pageSizeSelectId: "designs-page-size",
+      }}
+    >
+      <DataTable<DesignSummary & Record<string, unknown>>
+        flush
+        columns={[
+          {
+            key: "ideaRef",
+            header: "Ref",
+            render: (row) => (
+              <button
+                type="button"
+                className="data-table-link"
+                onClick={() => detailModal?.openDesign(row.id)}
+              >
+                {row.ideaRef}
+              </button>
+            ),
+          },
+          { key: "collectionName", header: "Design" },
+          {
+            key: "product",
+            header: "Product",
+            render: (row) => row.productType?.name ?? "—",
+          },
+          {
+            key: "status",
+            header: "Status",
+            render: (row) => <StatusBadge status={row.status} />,
+          },
+          {
+            key: "owner",
+            header: "Owner",
+            render: (row) => row.designHead?.name ?? "—",
+          },
+          {
+            key: "priority",
+            header: "Priority",
+            render: (row) => <PriorityBadge priority={row.priority} />,
+          },
+          {
+            key: "actions",
+            header: "",
+            align: "right",
+            render: (row) => (
+              <TableIconActionGroup>
+                <TableIconAction
+                  action="edit"
+                  label="Open design"
+                  onClick={() => detailModal?.openDesign(row.id)}
+                />
+              </TableIconActionGroup>
+            ),
+          },
+        ]}
+        rows={list.pageItems as (DesignSummary & Record<string, unknown>)[]}
+        getRowKey={(row) => row.id}
+        emptyTitle="No designs match your filters"
+        emptyDescription="Create a concept to get started."
+        emptyAction={
           <AppButtonLink href={ROUTES.designs.new} appVariant="primary" size="sm">
             <IconPlus size={16} />
             New Design Concept
           </AppButtonLink>
         }
       />
-
-      <QueryState
-        isLoading={designsQuery.isLoading}
-        isError={designsQuery.isError}
-        error={designsQuery.error}
-        onRetry={() => designsQuery.refetch()}
-        skeletonVariant="table"
-      >
-        <DataTable<DesignSummary & Record<string, unknown>>
-          className="!space-y-2"
-          toolbar={
-            <>
-              <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-                <IconSearch
-                  size={16}
-                  className="pointer-events-none absolute left-2.5 top-1/2 z-[1] -translate-y-1/2 text-muted-foreground"
-                  aria-hidden
-                />
-                <Input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search idea ref or collection…"
-                  className="pl-8"
-                  aria-label="Search designs"
-                />
-              </div>
-              <Select
-                value={statusFilter}
-                onValueChange={(v) => {
-                  if (v != null) setStatusFilter(String(v));
-                }}
-                items={statusItems}
-              >
-                <SelectTrigger
-                  id="design-status-filter"
-                  aria-label="Filter by status"
-                  className="h-8 min-w-[10rem]"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false} align="start">
-                  {STATUS_FILTERS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {STATUS_LABELS[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="toolbar-count">
-                {filtered.length} of {designsQuery.data?.total ?? 0}
-              </span>
-              <AppButtonLink href={ROUTES.dashboard} appVariant="outline" size="sm">
-                Workflow Dashboard
-              </AppButtonLink>
-            </>
-          }
-          columns={[
-            {
-              key: "ideaRef",
-              header: "Ref",
-              render: (row) => (
-                <button
-                  type="button"
-                  className="data-table-link"
-                  onClick={() => detailModal?.openDesign(row.id)}
-                >
-                  {row.ideaRef}
-                </button>
-              ),
-            },
-            { key: "collectionName", header: "Design" },
-            {
-              key: "product",
-              header: "Product",
-              render: (row) => row.productType?.name ?? "—",
-            },
-            {
-              key: "status",
-              header: "Status",
-              render: (row) => <StatusBadge status={row.status} />,
-            },
-            {
-              key: "owner",
-              header: "Owner",
-              render: (row) => row.designHead?.name ?? "—",
-            },
-            {
-              key: "priority",
-              header: "Priority",
-              render: (row) => <PriorityBadge priority={row.priority} />,
-            },
-            {
-              key: "actions",
-              header: "",
-              align: "right",
-              render: (row) => (
-                <TableIconActionGroup>
-                  <TableIconAction
-                    action="edit"
-                    label="Open design"
-                    onClick={() => detailModal?.openDesign(row.id)}
-                  />
-                </TableIconActionGroup>
-              ),
-            },
-          ]}
-          rows={filtered as (DesignSummary & Record<string, unknown>)[]}
-          getRowKey={(row) => row.id}
-          emptyTitle="No designs match your filters"
-          emptyDescription="Create a concept to get started."
-          emptyAction={
-            <AppButtonLink href={ROUTES.designs.new} appVariant="primary" size="sm">
-              <IconPlus size={16} />
-              New Design Concept
-            </AppButtonLink>
-          }
-        />
-      </QueryState>
-    </div>
+    </ListPage>
   );
 }

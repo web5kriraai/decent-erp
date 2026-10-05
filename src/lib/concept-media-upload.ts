@@ -13,6 +13,11 @@ export type PendingConceptMedia = {
   isPrimary?: boolean;
   /** Object URL for local preview (revoke when removed). */
   previewUrl?: string;
+  /**
+   * Create-time link: master PRODUCT_COMPONENT id.
+   * Resolved to DesignComponent.id after design create.
+   */
+  componentTypeId?: number | null;
 };
 
 export type ConceptMediaUploadProgress = {
@@ -87,9 +92,19 @@ export async function uploadConceptMediaFile(options: {
 export async function uploadPendingConceptMedia(options: {
   designId: string;
   items: PendingConceptMedia[];
+  /** Maps create-time componentTypeId → DesignComponent.id after create. */
+  componentTypeIdToDesignComponentId?: Map<number, string> | Record<number, string>;
   onProgress?: (progress: ConceptMediaUploadProgress) => void;
 }): Promise<{ uploaded: number; failed: ConceptMediaUploadProgress[] }> {
   const { designId, items, onProgress } = options;
+  const typeMap =
+    options.componentTypeIdToDesignComponentId instanceof Map
+      ? options.componentTypeIdToDesignComponentId
+      : new Map(
+          Object.entries(options.componentTypeIdToDesignComponentId ?? {}).map(
+            ([k, v]) => [Number(k), v] as [number, string],
+          ),
+        );
   let uploaded = 0;
   const failed: ConceptMediaUploadProgress[] = [];
   const total = items.length;
@@ -109,11 +124,16 @@ export async function uploadPendingConceptMedia(options: {
       status: "uploading",
     });
     try {
+      const designComponentId =
+        item.componentTypeId != null
+          ? (typeMap.get(item.componentTypeId) ?? null)
+          : null;
       await uploadConceptMediaFile({
         designId,
         file: item.file,
         mediaKind: item.mediaKind,
         isPrimary: item.id === primaryId,
+        designComponentId,
       });
       uploaded += 1;
       onProgress?.({

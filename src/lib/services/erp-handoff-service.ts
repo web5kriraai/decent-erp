@@ -11,8 +11,10 @@ import {
 import {
   hasIngestableDesignSuccessMetrics,
   normalizeDesignSuccessPayload,
+  parseErpDesignSuccessPayload,
   type ErpDesignSuccessPayload,
 } from "@/lib/services/erp-design-success-payload";
+import { erpFetchJson } from "@/lib/services/erp-http-client";
 
 export type { ErpDesignSuccessPayload } from "@/lib/services/erp-design-success-payload";
 export { normalizeDesignSuccessPayload } from "@/lib/services/erp-design-success-payload";
@@ -28,8 +30,13 @@ export type { ErpIntegrationMode } from "@/lib/services/erp-integration-config";
 
 type ErpModule = (typeof PRIMARY_ERP_MODULES)[number] | string;
 
-/** Modules whose successful sync should refresh Design Success metrics from live ERP. */
-const DESIGN_SUCCESS_TRIGGER_MODULES = new Set(["SALES", "SALES_RETURN"]);
+/** Modules whose successful sync may warrant a design-success refresh (batch still refreshes once at end). */
+const DESIGN_SUCCESS_TRIGGER_MODULES = new Set([
+  "READY_STOCK",
+  "SALES",
+  "SALES_RETURN",
+  "ACCOUNTS",
+]);
 
 export const ERP_HANDOFF_CONTRACT_VERSION = 1;
 
@@ -79,33 +86,36 @@ async function postToErpModule(
     };
   }
 
-  const res = await fetch(url, {
+  const body = {
+    contractVersion: payload.contractVersion,
+    sourceModule: payload.sourceModule,
+    designId: payload.designId,
+    designNumber: payload.designNumber,
+    ideaRef: payload.ideaRef,
+    collectionName: payload.collectionName,
+    productTypeId: payload.productTypeId,
+    productTypeName: payload.productTypeName ?? null,
+    seasonId: payload.seasonId ?? null,
+    seasonName: payload.seasonName ?? null,
+    idempotencyKey: `${payload.designId}:${module}:v${payload.contractVersion}`,
+  };
+
+  const result = await erpFetchJson<{ reference?: string; id?: string }>(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(process.env.ERP_API_KEY ? { Authorization: `Bearer ${process.env.ERP_API_KEY}` } : {}),
-    },
-    body: JSON.stringify({
-      contractVersion: payload.contractVersion,
-      sourceModule: payload.sourceModule,
-      designId: payload.designId,
-      designNumber: payload.designNumber,
-      ideaRef: payload.ideaRef,
-      collectionName: payload.collectionName,
-      productTypeId: payload.productTypeId,
-      productTypeName: payload.productTypeName ?? null,
-      seasonId: payload.seasonId ?? null,
-      seasonName: payload.seasonName ?? null,
-    }),
+    body,
   });
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`ERP ${module} returned ${res.status}: ${body.slice(0, 200)}`);
+  if (!result.ok) {
+    throw new Error(`ERP ${module} returned ${result.status}: ${result.body.slice(0, 200)}`);
   }
 
-  const json = (await res.json()) as { reference?: string; id?: string };
-  const erpReference = json.reference ?? json.id ?? `ERP-${module}-${Date.now()}`;
+  const json = result.data;
+  const erpReference = json.reference ?? json.id;
+  if (!erpReference) {
+    throw new Error(
+      `ERP ${module} response missing reference/id for design ${payload.designNumber}`,
+    );
+  }
   return { erpReference, response: json };
 }
 
@@ -278,6 +288,7 @@ export async function syncAllErpModules(
   );
 
   const results = [];
+  let shouldRefreshSuccess = false;
   for (const handoff of handoffs) {
     try {
       const synced = await syncProductionHandoff(handoff.id, actorId, correlationId);
@@ -288,7 +299,7 @@ export async function syncAllErpModules(
         erpReference: synced.erpReference,
       });
       if (DESIGN_SUCCESS_TRIGGER_MODULES.has(handoff.erpModule) && synced.status === "SYNCED") {
-        await ingestDesignSuccessFromErp(designId, synced.designNumber).catch(() => undefined);
+        shouldRefreshSuccess = true;
       }
     } catch {
       results.push({
@@ -298,6 +309,35 @@ export async function syncAllErpModules(
       });
     }
   }
+
+  const design = await prisma.designConcept.findUnique({
+    where: { id: designId },
+    select: { designNumber: true },
+  });
+  const anySynced = results.some((r) => r.status === "SYNCED");
+  if (
+    design?.designNumber &&
+    getErpIntegrationMode() === "live" &&
+    (shouldRefreshSuccess || anySynced)
+  ) {
+    const ingest = await ingestDesignSuccessFromErp(designId, design.designNumber);
+    if (!ingest.ingested) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "design-success ingest after ERP sync",
+          designId: designId.toString(),
+          designNumber: design.designNumber,
+          correlationId,
+          reason: ingest.reason,
+          mode: ingest.mode,
+          triggeredBySalesModules: shouldRefreshSuccess,
+          anyModuleSynced: anySynced,
+        }),
+      );
+    }
+  }
+
   return results;
 }
 
@@ -329,11 +369,12 @@ export type DesignSuccessIngestResult = {
 export async function ingestDesignSuccessFromErp(
   designId: bigint,
   designNumber: string,
+  period?: { periodYear?: number; periodMonth?: number },
 ): Promise<DesignSuccessIngestResult> {
   const mode = getErpIntegrationMode();
   const now = new Date();
-  const periodYear = now.getUTCFullYear();
-  const periodMonth = now.getUTCMonth() + 1;
+  const periodYear = period?.periodYear ?? now.getUTCFullYear();
+  const periodMonth = period?.periodMonth ?? now.getUTCMonth() + 1;
 
   if (mode === "simulated") {
     return {
@@ -344,25 +385,47 @@ export async function ingestDesignSuccessFromErp(
     };
   }
 
+  if (!process.env.ERP_API_KEY?.trim()) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "ERP_API_KEY unset while live mode is active",
+        designNumber,
+      }),
+    );
+  }
+
   const base = process.env.ERP_API_BASE_URL!.replace(/\/$/, "");
   const url = `${base}/sales/designs/${encodeURIComponent(designNumber)}/success-metrics?year=${periodYear}&month=${periodMonth}`;
-  const res = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(process.env.ERP_API_KEY ? { Authorization: `Bearer ${process.env.ERP_API_KEY}` } : {}),
-    },
-  });
 
-  if (!res.ok) {
+  let result: Awaited<ReturnType<typeof erpFetchJson<unknown>>>;
+  try {
+    result = await erpFetchJson<unknown>(url, { method: "GET" });
+  } catch (error) {
     return {
       ingested: false,
       mode,
-      reason: `Live ERP returned ${res.status} for design ${designNumber}.`,
+      reason:
+        error instanceof Error
+          ? `Live ERP request failed: ${error.message}`
+          : "Live ERP request failed.",
     };
   }
 
-  const json = (await res.json()) as ErpDesignSuccessPayload;
-  const normalized = normalizeDesignSuccessPayload(json);
+  if (!result.ok) {
+    return {
+      ingested: false,
+      mode,
+      reason: `Live ERP returned ${result.status} for design ${designNumber} (${periodYear}-${periodMonth}).`,
+    };
+  }
+
+  const parsed = parseErpDesignSuccessPayload(result.data);
+  if (!parsed.ok) {
+    return { ingested: false, mode, reason: parsed.reason };
+  }
+
+  const normalized = normalizeDesignSuccessPayload(parsed.data);
   if (!hasIngestableDesignSuccessMetrics(normalized)) {
     return {
       ingested: false,

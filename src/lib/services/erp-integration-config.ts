@@ -61,11 +61,59 @@ export function erpModeShortHint(mode: ErpIntegrationMode): string {
     : "LOCAL mode - set ERP_API_BASE_URL to go live";
 }
 
+/** Human label for ERP module codes in tables. */
+export function formatErpModuleLabel(module: string): string {
+  return module
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
+ * Compact ERP reference for tables. Full value stays on title / copy.
+ * LOCAL-ACCOUNTS-DN-2UC-AEXT-1790… → "DN-2UC-AEXT · …2575"
+ */
+export function formatErpReferenceDisplay(ref: string | null | undefined): {
+  primary: string;
+  secondary?: string;
+  full: string;
+  simulated: boolean;
+} {
+  if (!ref?.trim()) {
+    return { primary: "-", full: "-", simulated: false };
+  }
+  const full = ref.trim();
+  const simulated = isSimulatedErpReference(full);
+  if (!simulated) {
+    return { primary: full, full, simulated: false };
+  }
+  // LOCAL-{MODULE}-{designNumber}-{timestamp}
+  const withoutLocal = full.replace(/^LOCAL-/, "");
+  const firstDash = withoutLocal.indexOf("-");
+  const module = firstDash >= 0 ? withoutLocal.slice(0, firstDash) : withoutLocal;
+  const rest = firstDash >= 0 ? withoutLocal.slice(firstDash + 1) : "";
+  const lastDash = rest.lastIndexOf("-");
+  const designNo = lastDash > 0 ? rest.slice(0, lastDash) : rest;
+  const stamp = lastDash > 0 ? rest.slice(lastDash + 1) : "";
+  const shortStamp = stamp.length > 4 ? `…${stamp.slice(-4)}` : stamp;
+  return {
+    primary: designNo || module,
+    secondary: shortStamp || undefined,
+    full,
+    simulated: true,
+  };
+}
+
 /** Go-live checklist when ERP_API_BASE_URL is unset (simulated). */
 export function erpGoLiveChecklistItems(): string[] {
   return [
     "Configure ERP_API_BASE_URL for live partner posts",
+    "Set ERP_API_KEY (Bearer) when the partner requires auth",
+    "Optional: ERP_HTTP_TIMEOUT_MS (default 15000) and ERP_HTTP_MAX_ATTEMPTS (default 3)",
     "Sync production handoffs after release",
+    "In-app ERP stages at /production/erp auto-update design-success on complete",
+    "Partner GET /sales/designs/{dn}/success-metrics?year=&month= for Sync from ERP",
     "Manual design-success metric entry remains available while simulated",
   ];
 }

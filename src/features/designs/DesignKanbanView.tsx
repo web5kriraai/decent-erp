@@ -7,14 +7,15 @@ import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
 import { StatCard } from "@/components/ui/StatCard";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
-import { FormSelect } from "@/components/ui/form-select";
-import { FormTextField } from "@/components/ui/form-text-field";
+import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
+import { ListSearch } from "@/components/ui/ListSearch";
 import {
   WorkflowBoardCard,
   buildProductSeasonOwnerDueMeta,
 } from "@/components/ui/WorkflowBoardCard";
 import { ROUTES } from "@/config/routes";
 import { useDesignKanban } from "@/hooks/use-designs";
+import { useHorizontalMouseScroll } from "@/hooks/use-horizontal-mouse-scroll";
 import { useProductTypes, useSeasons } from "@/hooks/use-masters";
 import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -217,6 +218,7 @@ function WorkflowDesignCard({
 
 export function DesignKanbanView() {
   const detailModal = useOptionalDesignDetailModal();
+  const boardScrollRef = useHorizontalMouseScroll<HTMLDivElement>();
 
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
@@ -386,12 +388,16 @@ export function DesignKanbanView() {
           />
         </div>
 
-        <div className="workflow-dash-filters page-filters">
-          <FormSelect
+        <div
+          className="workflow-dash-filters list-filter-group"
+          role="group"
+          aria-label="Workflow filters"
+        >
+          <ListSelectFilter
             id="wf-product"
             label="Product"
             value={productFilter === "ALL" ? "ALL" : productFilter}
-            onValueChange={(v) => setProductFilter(v ?? "ALL")}
+            onChange={(v) => setProductFilter(v || "ALL")}
             options={[
               { value: "ALL", label: "All Products" },
               ...(productTypes.data ?? []).map((pt) => ({
@@ -400,11 +406,11 @@ export function DesignKanbanView() {
               })),
             ]}
           />
-          <FormSelect
+          <ListSelectFilter
             id="wf-season"
             label="Season"
             value={seasonFilter}
-            onValueChange={(v) => setSeasonFilter(v ?? "ALL")}
+            onChange={(v) => setSeasonFilter(v || "ALL")}
             options={[
               { value: "ALL", label: "All Seasons" },
               ...(seasons.data ?? []).map((s) => ({
@@ -413,50 +419,47 @@ export function DesignKanbanView() {
               })),
             ]}
           />
-          <FormSelect
+          <ListSelectFilter
             id="wf-owner"
             label="Owner"
             value={ownerFilter}
-            onValueChange={(v) => setOwnerFilter(v ?? "ALL")}
+            onChange={(v) => setOwnerFilter(v || "ALL")}
             options={[
               { value: "ALL", label: "All Owners" },
               ...ownerOptions.map((name) => ({ value: name, label: name })),
             ]}
           />
-          <FormSelect
+          <ListSelectFilter
             id="wf-priority"
             label="Priority"
             value={priorityFilter}
-            onValueChange={(v) =>
+            onChange={(v) =>
               setPriorityFilter((v as Priority | "ALL") || "ALL")
             }
             options={PRIORITY_FILTER_OPTIONS}
           />
-          <div className="workflow-dash-filters__actions">
-            <FormTextField
-              id="wf-search"
-              label="Search"
-              type="search"
-              placeholder="Idea ref, name, product…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              autoComplete="off"
-              fieldClassName="workflow-dash-search"
-            />
-            <AppButton
-              type="button"
-              appVariant="ghost"
-              size="sm"
-              disabled={!filtersActive}
-              onClick={resetFilters}
-            >
-              Reset
-            </AppButton>
-          </div>
+          <ListSearch
+            id="wf-search"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Idea ref, name, product…"
+            aria-label="Search designs"
+            className="workflow-dash-search"
+          />
+          <AppButton
+            type="button"
+            appVariant="ghost"
+            size="sm"
+            disabled={!filtersActive}
+            onClick={resetFilters}
+          >
+            Reset
+          </AppButton>
         </div>
 
         <div className="workflow-dash-board-shell">
           <div
+            ref={boardScrollRef}
             className="workflow-dash-board-scroll"
             role="region"
             aria-label="Design workflow stages"

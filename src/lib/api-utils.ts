@@ -7,14 +7,19 @@ import {
   formatZodFieldSummary,
   messageForCode,
 } from "@/lib/errors/app-errors";
+import { ApiError } from "@/lib/errors/api-error";
 import { requirePermission, requireSession } from "./auth";
 import { loadEmployeeSessionPermissions } from "./session-permissions";
 import type { PermissionCode } from "./permissions";
+
+export { ApiError } from "@/lib/errors/api-error";
 
 export type ApiContext = {
   employeeId: number;
   permissions: string[];
   roleCode: string;
+  companyId: number;
+  locationId: number | null;
   correlationId: string;
 };
 
@@ -56,6 +61,19 @@ export async function withApiHandler(
     const fresh = await loadEmployeeSessionPermissions(session.user.employeeId);
     const permissions = fresh.permissions.length > 0 ? fresh.permissions : session.user.permissions;
     const roleCode = fresh.roleCode ?? session.user.roleCode;
+    const companyId = fresh.companyId ?? session.user.companyId;
+    const locationId =
+      fresh.locationId !== undefined ? fresh.locationId : session.user.locationId;
+
+    if (!companyId) {
+      return jsonError(
+        "Employee has no company assignment",
+        403,
+        correlationId,
+        undefined,
+        APP_ERROR_CODES.PERMISSION_DENIED,
+      );
+    }
 
     if (permission && !requirePermission(permissions, permission)) {
       const requiredList = Array.isArray(permission) ? permission : [permission];
@@ -72,6 +90,8 @@ export async function withApiHandler(
       employeeId: session.user.employeeId,
       permissions,
       roleCode,
+      companyId,
+      locationId: locationId ?? null,
       correlationId,
     });
   } catch (error) {
@@ -118,17 +138,6 @@ function formatErrorMessage(error: unknown): string {
   }
   if (error instanceof Error) return error.message;
   return String(error);
-}
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public details?: unknown,
-    public code?: string,
-  ) {
-    super(message);
-  }
 }
 
 export async function parseBody<T>(request: Request, schema: ZodSchema<T>): Promise<T> {

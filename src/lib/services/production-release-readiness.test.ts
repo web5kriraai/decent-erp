@@ -73,6 +73,19 @@ describe("collectPresentStageGaps (pattern-aware readiness)", () => {
     expect(missing).toContain("Sketch approval");
   });
 
+  it("ignores stages sequenced after PROD_RELEASE (e.g. floor MOP)", () => {
+    const missing = collectPresentStageGaps({
+      FINAL_APPROVAL: { status: "COMPLETED", sequence: 8 },
+      PROD_HANDOFF: { status: "COMPLETED", sequence: 9 },
+      PROD_INSTRUCTION: { status: "COMPLETED", sequence: 10 },
+      PROD_RELEASE: { status: "RUNNING", sequence: 11 },
+      LIVE_REVIEW: { status: "PENDING", sequence: 12 },
+      MOP: { status: "PENDING", name: "Mch. op.", sequence: 13 },
+    });
+    expect(missing).not.toContain("Mch. op.");
+    expect(missing).toEqual([]);
+  });
+
   it("ignores SKIPPED sample chain (no sample approval / file gaps)", () => {
     const missing = collectPresentStageGaps({
       MACHINE_SAMPLE: {

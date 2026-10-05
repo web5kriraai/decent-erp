@@ -1,9 +1,12 @@
 import type { TaskTimeEvent, TimeSummary } from "@/lib/types/api";
 import { formatDuration } from "@/lib/services/time-calculation";
+import { cn } from "@/lib/utils";
 
 type TaskTimeTimelineProps = {
   events: TaskTimeEvent[];
   summary?: TimeSummary;
+  /** Fill parent height; events scroll inside while metrics stay pinned. */
+  fill?: boolean;
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -15,7 +18,7 @@ const EVENT_LABELS: Record<string, string> = {
   ADMIN_ADJUSTMENT: "Admin adjustment",
 };
 
-export function TaskTimeTimeline({ events, summary }: TaskTimeTimelineProps) {
+export function TaskTimeTimeline({ events, summary, fill = false }: TaskTimeTimelineProps) {
   if (events.length === 0) {
     return (
       <p className="m-0 text-sm text-[var(--color-neutral-500)]">
@@ -25,51 +28,53 @@ export function TaskTimeTimeline({ events, summary }: TaskTimeTimelineProps) {
   }
 
   return (
-    <div className="time-timeline-wrap">
+    <div className={cn("time-timeline-wrap", fill && "time-timeline-wrap--fill")}>
       {summary && (
-        <div className="time-metric-grid stack-section-sm">
+        <div className="time-metric-grid time-timeline-summary">
           <TimeMetric label="Active work" value={formatDuration(summary.activeSeconds)} accent />
           <TimeMetric label="Hold time" value={formatDuration(summary.holdSeconds)} />
           <TimeMetric label="Total elapsed" value={formatDuration(summary.totalElapsedSeconds)} />
         </div>
       )}
 
-      <ol className="time-timeline">
-        {events.map((event, index) => (
-          <li key={event.id ?? `${event.eventType}-${index}`} className="time-timeline-item">
-            <span className={`time-timeline-dot time-timeline-dot--${event.eventType.toLowerCase()}`} />
-            <div className="time-timeline-content">
-              <div className="time-timeline-header">
-                <strong>{EVENT_LABELS[event.eventType] ?? event.eventType}</strong>
-                <time dateTime={event.eventTimeUtc}>
-                  {new Date(event.eventTimeUtc).toLocaleString()}
-                </time>
+      <div className={cn(fill && "time-timeline-scroll")}>
+        <ol className="time-timeline">
+          {events.map((event, index) => (
+            <li key={event.id ?? `${event.eventType}-${index}`} className="time-timeline-item">
+              <span className={`time-timeline-dot time-timeline-dot--${event.eventType.toLowerCase()}`} />
+              <div className="time-timeline-content">
+                <div className="time-timeline-header">
+                  <strong>{EVENT_LABELS[event.eventType] ?? event.eventType}</strong>
+                  <time dateTime={event.eventTimeUtc}>
+                    {new Date(event.eventTimeUtc).toLocaleString()}
+                  </time>
+                </div>
+                {event.holdReason && (
+                  <p className="time-timeline-meta">
+                    Reason: {event.holdReason.name}
+                    {event.holdReason.code ? ` (${event.holdReason.code})` : ""}
+                  </p>
+                )}
+                {event.remark && <p className="time-timeline-remark">{event.remark}</p>}
               </div>
-              {event.holdReason && (
-                <p className="time-timeline-meta">
-                  Reason: {event.holdReason.name}
-                  {event.holdReason.code ? ` (${event.holdReason.code})` : ""}
-                </p>
-              )}
-              {event.remark && <p className="time-timeline-remark">{event.remark}</p>}
-            </div>
-          </li>
-        ))}
-      </ol>
+            </li>
+          ))}
+        </ol>
 
-      {summary && summary.holdByReason.length > 0 && (
-        <div className="time-hold-breakdown">
-          <h4 className="mb-2 mt-4 text-sm font-semibold text-foreground">Hold breakdown</h4>
-          <ul className="detail-task-list">
-            {summary.holdByReason.map((h) => (
-              <li key={h.code}>
-                <span>{h.name}</span>
-                <span>{formatDuration(h.seconds)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        {summary && summary.holdByReason.length > 0 && (
+          <div className="time-hold-breakdown">
+            <h4 className="mb-2 mt-4 text-sm font-semibold text-foreground">Hold breakdown</h4>
+            <ul className="detail-task-list">
+              {summary.holdByReason.map((h) => (
+                <li key={h.code}>
+                  <span>{h.name}</span>
+                  <span>{formatDuration(h.seconds)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -96,14 +101,16 @@ export function TimeMetricGrid({
   holdSeconds,
   totalElapsedSeconds,
   extra,
+  className,
 }: {
   activeSeconds: number;
   holdSeconds: number;
   totalElapsedSeconds: number;
   extra?: Array<{ label: string; value: string }>;
+  className?: string;
 }) {
   return (
-    <div className="time-metric-grid">
+    <div className={["time-metric-grid", className].filter(Boolean).join(" ")}>
       <TimeMetric label="Active work" value={formatDuration(activeSeconds)} accent />
       <TimeMetric label="Hold time" value={formatDuration(holdSeconds)} />
       <TimeMetric label="Total elapsed" value={formatDuration(totalElapsedSeconds)} />

@@ -120,6 +120,40 @@ enum CostCategory {
 
 // --- Auth & RBAC ---
 
+model Company {
+  id           Int        @id @default(autoincrement()) @map("company_id")
+  code         String     @unique
+  name         String
+  active       Boolean    @default(true)
+  createdAtUtc DateTime   @default(now()) @map("created_at_utc")
+  updatedAtUtc DateTime   @updatedAt @map("updated_at_utc")
+
+  locations Location[]
+  employees Employee[]
+  designs   DesignConcept[]
+  scorecards KpiScorecard[]
+
+  @@map("companies")
+}
+
+model Location {
+  id           Int      @id @default(autoincrement()) @map("location_id")
+  companyId    Int      @map("company_id")
+  code         String
+  name         String
+  active       Boolean  @default(true)
+  createdAtUtc DateTime @default(now()) @map("created_at_utc")
+  updatedAtUtc DateTime @updatedAt @map("updated_at_utc")
+
+  company   Company         @relation(fields: [companyId], references: [id])
+  employees Employee[]
+  designs   DesignConcept[]
+
+  @@unique([companyId, code])
+  @@index([companyId, active])
+  @@map("locations")
+}
+
 model Employee {
   id              Int       @id @default(autoincrement())
   employeeCode    String    @unique @map("employee_code")
@@ -127,11 +161,15 @@ model Employee {
   email           String    @unique
   passwordHash    String    @map("password_hash")
   roleId          Int       @map("role_id")
+  companyId       Int       @map("company_id")
+  locationId      Int?      @map("location_id")
   active          Boolean   @default(true)
   createdAtUtc    DateTime  @default(now()) @map("created_at_utc")
   updatedAtUtc    DateTime  @updatedAt @map("updated_at_utc")
 
   role            Role      @relation(fields: [roleId], references: [id])
+  company         Company   @relation(fields: [companyId], references: [id])
+  location        Location? @relation(fields: [locationId], references: [id])
   accounts        Account[]
   sessions        Session[]
   skills          EmployeeSkill[]
@@ -163,7 +201,9 @@ model Employee {
   performanceGrades      EmployeePerformanceGrade[]
   creativityRatingsGiven DesignCreativityRating[] @relation("CreativityRatedBy")
   creativityRatingsReceived DesignCreativityRating[] @relation("CreativityRatedEmployee")
+  scorecardsCreated      KpiScorecard[] @relation("ScorecardCreatedBy")
 
+  @@index([companyId, active])
   @@map("employees")
 }
 
@@ -179,6 +219,7 @@ model Role {
   designSubProcessMasters DesignSubProcessMaster[]
   approvalLevels ApprovalLevel[]
   skills      Skill[]
+  scorecards  KpiScorecard[]
 
   @@map("roles")
 }
@@ -299,6 +340,7 @@ model MasterCatalog {
   conceptTargetsAsSeason ConceptTarget[]          @relation("TargetSeason")
   conceptTargetsAsProduct ConceptTarget[]         @relation("TargetProductType")
   materialLines          DesignMaterialLine[]     @relation("MaterialCatalogItem")
+  bomLines               DesignBomLine[]          @relation("BomCatalogItem")
   sampleMachineTasks     DesignTask[]             @relation("TaskSampleMachine")
 
   @@unique([masterType, code])
@@ -423,6 +465,8 @@ model DesignConcept {
   id                   BigInt       @id @default(autoincrement()) @map("design_id")
   ideaRef              String       @unique @map("idea_ref")
   designNumber         String?      @unique @map("design_number")
+  companyId            Int          @map("company_id")
+  locationId           Int?         @map("location_id")
   productTypeId        Int          @map("product_type_id")
   collectionName       String       @map("collection_name")
   seasonId             Int          @map("season_id")
@@ -458,6 +502,8 @@ model DesignConcept {
   updatedAtUtc         DateTime     @updatedAt @map("updated_at_utc")
   version              Int          @default(1)
 
+  company        Company          @relation(fields: [companyId], references: [id])
+  location       Location?        @relation(fields: [locationId], references: [id])
   productType    MasterCatalog    @relation("DesignProductType", fields: [productTypeId], references: [id])
   season         MasterCatalog    @relation("DesignSeason", fields: [seasonId], references: [id])
   designHead     Employee         @relation("DesignHead", fields: [designHeadEmployeeId], references: [id])
@@ -480,8 +526,10 @@ model DesignConcept {
   erpStages        ErpStageRecord[]
   materialLines    DesignMaterialLine[]
   creativityRatings DesignCreativityRating[]
+  bomLines         DesignBomLine[]
 
   @@index([status, priority])
+  @@index([companyId, status])
   @@map("design_concepts")
 }
 
@@ -888,6 +936,12 @@ model TaskArtifact {
   machineFormat String?          @map("machine_format")
   sampleQty     Int?             @map("sample_qty")
   wastageQty    Int?             @map("wastage_qty")
+  /** Wilcom / digitizing depth fields. */
+  needleCount   Int?             @map("needle_count")
+  colorCount    Int?             @map("color_count")
+  hoopSize      String?          @map("hoop_size") @db.VarChar(40)
+  softwareName String?          @map("software_name") @db.VarChar(80)
+  stitchDensity Decimal?         @map("stitch_density") @db.Decimal(10, 2)
   metadata      Json?
   uploadedById  Int              @map("uploaded_by")
   uploadedAtUtc DateTime         @default(now()) @map("uploaded_at_utc")
@@ -1026,4 +1080,81 @@ model ConceptTarget {
   @@unique([periodYear, periodMonth, seasonId, productTypeId])
   @@index([periodYear, periodMonth])
   @@map("concept_targets")
+}
+
+/**
+ * Formal engineering BOM line (multi-level via parentLineId).
+ * Complements DesignMaterialLine (ops issue flow) and DesignCost (R&D cost sheet).
+ */
+model DesignBomLine {
+  id                BigInt   @id @default(autoincrement()) @map("bom_line_id")
+  designId          BigInt   @map("design_id")
+  parentLineId      BigInt?  @map("parent_line_id")
+  sequence          Int      @default(1)
+  itemCode          String?  @map("item_code") @db.VarChar(60)
+  itemName          String   @map("item_name")
+  catalogItemId     Int?     @map("catalog_item_id")
+  quantity          Decimal  @db.Decimal(18, 4)
+  unit              String   @default("pcs") @db.VarChar(20)
+  wastePercent      Decimal? @map("waste_percent") @db.Decimal(7, 2)
+  estimatedUnitCost Decimal? @map("estimated_unit_cost") @db.Decimal(18, 2)
+  notes             String?  @db.Text
+  active            Boolean  @default(true)
+  createdAtUtc      DateTime @default(now()) @map("created_at_utc")
+  updatedAtUtc      DateTime @updatedAt @map("updated_at_utc")
+
+  design      DesignConcept  @relation(fields: [designId], references: [id], onDelete: Cascade)
+  parent      DesignBomLine? @relation("BomTree", fields: [parentLineId], references: [id], onDelete: SetNull)
+  children    DesignBomLine[] @relation("BomTree")
+  catalogItem MasterCatalog? @relation("BomCatalogItem", fields: [catalogItemId], references: [id])
+
+  @@index([designId, sequence])
+  @@index([parentLineId])
+  @@map("design_bom_lines")
+}
+
+/** Cold archive for AuditLog rows older than retention window. */
+model AuditLogArchive {
+  id            BigInt   @id @default(autoincrement()) @map("audit_archive_id")
+  sourceAuditId BigInt   @map("source_audit_id")
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id")
+  action        String
+  beforeJson    Json?    @map("before_json")
+  afterJson     Json?    @map("after_json")
+  userId        Int      @map("user_id")
+  atUtc         DateTime @map("at_utc")
+  correlationId String?  @map("correlation_id")
+  archivedAtUtc DateTime @default(now()) @map("archived_at_utc")
+
+  @@index([atUtc])
+  @@index([entityType, entityId])
+  @@index([sourceAuditId])
+  @@map("audit_logs_archive")
+}
+
+/**
+ * Custom KPI scorecard definition (named weight sets for benchmarking).
+ * metricWeights JSON: { "ON_TIME_COMPLETION": 20, ... } summing to ~100.
+ */
+model KpiScorecard {
+  id            Int      @id @default(autoincrement()) @map("scorecard_id")
+  companyId     Int      @map("company_id")
+  code          String   @db.VarChar(40)
+  name          String
+  description   String?  @db.Text
+  roleId        Int?     @map("role_id")
+  metricWeights Json     @map("metric_weights")
+  active        Boolean  @default(true)
+  createdById   Int      @map("created_by")
+  createdAtUtc  DateTime @default(now()) @map("created_at_utc")
+  updatedAtUtc  DateTime @updatedAt @map("updated_at_utc")
+
+  company   Company @relation(fields: [companyId], references: [id])
+  role      Role?   @relation(fields: [roleId], references: [id])
+  createdBy Employee @relation("ScorecardCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([companyId, code])
+  @@index([companyId, active])
+  @@map("kpi_scorecards")
 }

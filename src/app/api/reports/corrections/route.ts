@@ -4,7 +4,7 @@ import { getCorrectionAnalysisReport } from "@/lib/services/kpi-service";
 
 export async function GET() {
   return withApiHandler(PERMISSIONS.KPI_ADMIN, async (ctx) => {
-    const report = await getCorrectionAnalysisReport();
+    const report = await getCorrectionAnalysisReport(ctx.companyId);
     return jsonOk(serializeBigInt(report), ctx.correlationId);
   });
 }

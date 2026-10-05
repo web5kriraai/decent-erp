@@ -515,3 +515,47 @@ export async function persistWorkdayClose(employeeId: number, correlationId: str
     correlationId,
   };
 }
+
+/** Undo today's workday close so the employee can start timers again. */
+export async function persistWorkdayReopen(employeeId: number, correlationId: string) {
+  const workDate = startOfUtcDay(new Date());
+  const existing = await prisma.workdaySession.findUnique({
+    where: { employeeId_workDate: { employeeId, workDate } },
+  });
+
+  if (!existing) {
+    return {
+      closed: false,
+      reopened: false,
+      employeeId,
+      workDate: workDate.toISOString().slice(0, 10),
+      correlationId,
+    };
+  }
+
+  await prisma.workdaySession.delete({
+    where: { employeeId_workDate: { employeeId, workDate } },
+  });
+
+  await writeAuditLogDirect({
+    entityType: "WorkdaySession",
+    entityId: existing.id.toString(),
+    action: "REOPEN",
+    userId: employeeId,
+    correlationId,
+    before: {
+      employeeId: existing.employeeId,
+      workDate: existing.workDate.toISOString().slice(0, 10),
+      closedAtUtc: existing.closedAtUtc.toISOString(),
+    },
+    after: null,
+  });
+
+  return {
+    closed: false,
+    reopened: true,
+    employeeId,
+    workDate: workDate.toISOString().slice(0, 10),
+    correlationId,
+  };
+}

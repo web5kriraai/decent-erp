@@ -36,8 +36,12 @@ export async function GET(
       designId,
       employeeId: ctx.employeeId,
       permissions: ctx.permissions,
+      companyId: ctx.companyId,
     });
-    const design = await getDesignById(designId, { viewerEmployeeId: ctx.employeeId });
+    const design = await getDesignById(designId, {
+      viewerEmployeeId: ctx.employeeId,
+      companyId: ctx.companyId,
+    });
     return jsonOk(serializeBigInt(design), ctx.correlationId);
   });
 }

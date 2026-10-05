@@ -174,15 +174,22 @@ export async function createDesignComponents(
   componentTypeIds: number[],
   specs?: Record<number, string | undefined>,
 ) {
-  if (!componentTypeIds.length) return;
-  await tx.designComponent.createMany({
-    data: componentTypeIds.map((componentTypeId, index) => ({
-      designId,
-      componentTypeId,
-      sequence: index + 1,
-      specification: specs?.[componentTypeId]?.trim() || null,
-    })),
-  });
+  if (!componentTypeIds.length) return [];
+  const created = [];
+  for (let index = 0; index < componentTypeIds.length; index++) {
+    const componentTypeId = componentTypeIds[index];
+    const row = await tx.designComponent.create({
+      data: {
+        designId,
+        componentTypeId,
+        sequence: index + 1,
+        specification: specs?.[componentTypeId]?.trim() || null,
+      },
+      include: { componentType: { select: { id: true, name: true, code: true } } },
+    });
+    created.push(row);
+  }
+  return created;
 }
 
 export function generateDesignNumber(ideaRef: string): string {

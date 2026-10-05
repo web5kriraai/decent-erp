@@ -186,7 +186,26 @@ export function useTaskMutations() {
     onError: (error) => toast.errorFromApi(error, "Cannot close workday"),
   });
 
-  return { start, hold, resume, end, closeWorkday, isPending: start.isPending || hold.isPending || resume.isPending || end.isPending };
+  const openWorkday = useMutation({
+    mutationFn: () =>
+      apiPost<{ closed: boolean; reopened?: boolean }>("/api/workday/open"),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Workday opened");
+    },
+    onError: (error) => toast.errorFromApi(error, "Cannot open workday"),
+  });
+
+  return {
+    start,
+    hold,
+    resume,
+    end,
+    closeWorkday,
+    openWorkday,
+    isPending:
+      start.isPending || hold.isPending || resume.isPending || end.isPending,
+  };
 }
 
 export function useCompleteStageApproval() {

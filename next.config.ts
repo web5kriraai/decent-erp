@@ -2,7 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  allowedDevOrigins: ["127.0.0.1", "localhost","*"],
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "localhost",
+    "*.ngrok-free.dev",
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+    "*.ngrok.app",
+    "*.ngrok.dev",
+  ],
   images: {
     remotePatterns: [
       { protocol: "http", hostname: "localhost", port: "9000" },

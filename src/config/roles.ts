@@ -155,20 +155,21 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     code: ROLE_CODES.MANAGEMENT,
     displayName: "Management (Owner)",
     summary:
-      "Business owner / executive - live review stage, analytics, and release oversight.",
+      "Business owner / executive — final approve, Live Review, KPIs, and read-only oversight.",
     responsibilities: [
       "Complete Live Design Review stage after production release",
       "View KPI, team time reports, and costing summaries",
-      "Authorize production release visibility at management level",
+      "Final management approval on the sign-off chain",
       "Mark designs live after production release when required",
     ],
     restrictions: [
+      "No production release or ERP floor/sales/accounts operate",
       "Operational edits restricted - read and approve focus",
       "No process master configuration",
-      "Does not create designs or approve for production (Design Head does)",
+      "Does not create designs or assign work (Design Head does)",
     ],
     permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MANAGEMENT],
-    navFocus: ["Quality", "Finance", "Team & Reports", "Production"],
+    navFocus: ["Quality", "Finance", "Team & Reports"],
   },
 };
 

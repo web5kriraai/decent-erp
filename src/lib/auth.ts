@@ -1,7 +1,9 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import { headers } from "next/headers";
 import { authConfig } from "@/lib/auth.config";
+import { publicOriginFrom, rewriteLocalhostUrl } from "@/lib/public-origin";
 import { prisma } from "./db";
 import type { PermissionCode } from "./permissions";
 
@@ -14,6 +16,8 @@ declare module "next-auth" {
       name: string;
       roleCode: string;
       permissions: string[];
+      companyId: number;
+      locationId: number | null;
       emailVerified?: Date | null;
     };
   }
@@ -22,6 +26,8 @@ declare module "next-auth" {
     employeeId: number;
     roleCode: string;
     permissions: string[];
+    companyId: number;
+    locationId: number | null;
     emailVerified?: Date | null;
   }
 }
@@ -31,6 +37,8 @@ declare module "@auth/core/jwt" {
     employeeId: number;
     roleCode: string;
     permissions: string[];
+    companyId: number;
+    locationId: number | null;
   }
 }
 
@@ -44,6 +52,27 @@ async function loadEmployeePermissions(roleId: number) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    async redirect({ url, baseUrl }) {
+      let origin = baseUrl;
+      try {
+        const forwarded = publicOriginFrom(await headers());
+        if (forwarded) origin = forwarded;
+      } catch {
+        // No request headers (build, worker). Keep Auth.js baseUrl.
+      }
+      if (url.startsWith("/")) return `${origin}${url}`;
+      const rewritten = rewriteLocalhostUrl(url, origin);
+      if (rewritten !== url) return rewritten;
+      try {
+        if (new URL(url).origin === origin) return url;
+      } catch {
+        // Relative or invalid — fall through to the public origin.
+      }
+      return origin;
+    },
+  },
   providers: [
     Credentials({
       name: "credentials",
@@ -76,6 +105,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: employee.name,
           roleCode: employee.role.code,
           permissions,
+          companyId: employee.companyId,
+          locationId: employee.locationId,
           emailVerified: null,
         };
       },

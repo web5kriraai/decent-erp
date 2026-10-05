@@ -147,24 +147,224 @@ export async function getDesignHeadKpi() {
   const now = new Date();
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth() + 1;
+  const periodStart = new Date(Date.UTC(year, month - 1, 1));
+  const periodEnd = new Date(Date.UTC(year, month, 1));
 
-  const [designsCreated, approved, released, live, teamScores] = await Promise.all([
+  const studioRoleCodes = [
+    "DESIGN_HEAD",
+    "SKETCH_DESIGNER",
+    "PUNCHING_DESIGNER",
+    "MACHINE_OPERATOR",
+    "SAMPLE_CHECKER",
+    "COSTING_TEAM",
+  ] as const;
+
+  const [
+    designsCreated,
+    approved,
+    released,
+    live,
+    rejected,
+    periodDesigns,
+    teamScores,
+    periodTasks,
+    mistakeCorrections,
+    successMetrics,
+  ] = await Promise.all([
+    prisma.designConcept.count({
+      where: { createdAtUtc: { gte: periodStart, lt: periodEnd } },
+    }),
     prisma.designConcept.count({
       where: {
-        createdAtUtc: {
-          gte: new Date(Date.UTC(year, month - 1, 1)),
-          lt: new Date(Date.UTC(year, month, 1)),
+        status: {
+          in: ["APPROVED", "PRODUCTION_ACCEPTED", "PRODUCTION_RELEASED", "LIVE"],
         },
       },
     }),
-    prisma.designConcept.count({ where: { status: "APPROVED" } }),
-    prisma.designConcept.count({ where: { status: "PRODUCTION_RELEASED" } }),
+    prisma.designConcept.count({
+      where: { status: { in: ["PRODUCTION_RELEASED", "LIVE"] } },
+    }),
     prisma.designConcept.count({ where: { status: "LIVE" } }),
+    prisma.designConcept.count({
+      where: {
+        status: "REJECTED",
+        updatedAtUtc: { gte: periodStart, lt: periodEnd },
+      },
+    }),
+    prisma.designConcept.findMany({
+      where: { createdAtUtc: { gte: periodStart, lt: periodEnd } },
+      select: {
+        id: true,
+        status: true,
+        collectionName: true,
+        createdAtUtc: true,
+        updatedAtUtc: true,
+        estimatedCost: true,
+        standardCost: true,
+        seasonId: true,
+        season: { select: { id: true, name: true } },
+        productType: { select: { id: true, name: true, code: true } },
+        costs: { select: { amount: true } },
+      },
+    }),
     getEmployeeKpiDashboard(),
+    prisma.designTask.findMany({
+      where: {
+        updatedAtUtc: { gte: periodStart, lt: periodEnd },
+        assignedEmployee: { role: { code: { in: [...studioRoleCodes] } } },
+      },
+      select: {
+        id: true,
+        status: true,
+        corrections: { select: { correctionType: true } },
+      },
+    }),
+    prisma.designCorrection.count({
+      where: {
+        createdAtUtc: { gte: periodStart, lt: periodEnd },
+        correctionType: { in: [...MISTAKE_CORRECTION_TYPES] },
+      },
+    }),
+    prisma.designSuccessMetric.findMany({
+      where: { periodYear: year, periodMonth: month },
+      select: {
+        salesQty: true,
+        design: {
+          select: {
+            season: { select: { name: true } },
+            collectionName: true,
+            productType: { select: { name: true } },
+          },
+        },
+      },
+    }),
   ]);
+
+  const finishedStatuses = new Set([
+    "APPROVED",
+    "PRODUCTION_ACCEPTED",
+    "PRODUCTION_RELEASED",
+    "LIVE",
+  ]);
+  const leadSamples = periodDesigns
+    .filter((d) => finishedStatuses.has(d.status))
+    .map((d) => {
+      const days =
+        (d.updatedAtUtc.getTime() - d.createdAtUtc.getTime()) / (1000 * 60 * 60 * 24);
+      return Math.max(0, days);
+    });
+  const avgLeadTimeDays =
+    leadSamples.length > 0
+      ? Math.round((leadSamples.reduce((a, b) => a + b, 0) / leadSamples.length) * 10) / 10
+      : null;
+
+  const completedTasks = periodTasks.filter((t) => t.status === "COMPLETED");
+  const firstTimeRight = completedTasks.filter(
+    (t) =>
+      !t.corrections.some((c) =>
+        MISTAKE_CORRECTION_TYPES.includes(c.correctionType as never),
+      ),
+  ).length;
+  const teamFtrPercent = completedTasks.length
+    ? Math.round((firstTimeRight / completedTasks.length) * 1000) / 10
+    : null;
+  const teamCorrectionRatePercent = completedTasks.length
+    ? Math.round((mistakeCorrections / completedTasks.length) * 1000) / 10
+    : null;
+
+  let estimatedBudget = 0;
+  let actualCost = 0;
+  for (const d of periodDesigns) {
+    const budget =
+      d.estimatedCost != null
+        ? Number(d.estimatedCost)
+        : d.standardCost != null
+          ? Number(d.standardCost)
+          : 0;
+    estimatedBudget += budget;
+    actualCost += d.costs.reduce((s, c) => s + Number(c.amount), 0);
+  }
+  const costVariancePercent =
+    estimatedBudget > 0
+      ? Math.round(((actualCost - estimatedBudget) / estimatedBudget) * 1000) / 10
+      : null;
+
+  function bump(
+    map: Map<string, { key: string; label: string; count: number; liveCount: number }>,
+    key: string,
+    label: string,
+    isLive: boolean,
+  ) {
+    const existing = map.get(key) ?? { key, label, count: 0, liveCount: 0 };
+    existing.count += 1;
+    if (isLive) existing.liveCount += 1;
+    map.set(key, existing);
+  }
+
+  const bySeason = new Map<string, { key: string; label: string; count: number; liveCount: number }>();
+  const byCollection = new Map<
+    string,
+    { key: string; label: string; count: number; liveCount: number }
+  >();
+  const byProduct = new Map<string, { key: string; label: string; count: number; liveCount: number }>();
+
+  for (const d of periodDesigns) {
+    const isLive = d.status === "LIVE" || d.status === "PRODUCTION_RELEASED";
+    bump(
+      bySeason,
+      String(d.seasonId ?? "none"),
+      d.season?.name ?? "Unassigned",
+      isLive,
+    );
+    bump(byCollection, d.collectionName || "none", d.collectionName || "Unassigned", isLive);
+    bump(
+      byProduct,
+      String(d.productType?.id ?? "none"),
+      d.productType?.name ?? "Unassigned",
+      isLive,
+    );
+  }
+
+  const salesByDimension = {
+    season: new Map<string, number>(),
+    collection: new Map<string, number>(),
+    product: new Map<string, number>(),
+  };
+  let periodSalesQty = 0;
+  for (const m of successMetrics) {
+    const qty = Number(m.salesQty ?? 0);
+    periodSalesQty += qty;
+    const season = m.design?.season?.name ?? "Unassigned";
+    const collection = m.design?.collectionName ?? "Unassigned";
+    const product = m.design?.productType?.name ?? "Unassigned";
+    salesByDimension.season.set(season, (salesByDimension.season.get(season) ?? 0) + qty);
+    salesByDimension.collection.set(
+      collection,
+      (salesByDimension.collection.get(collection) ?? 0) + qty,
+    );
+    salesByDimension.product.set(product, (salesByDimension.product.get(product) ?? 0) + qty);
+  }
+
+  const toBreakdown = (
+    map: Map<string, { key: string; label: string; count: number; liveCount: number }>,
+    salesMap: Map<string, number>,
+  ) =>
+    [...map.values()]
+      .map((row) => ({
+        ...row,
+        salesQty: salesMap.get(row.label) ?? 0,
+      }))
+      .sort((a, b) => b.count - a.count);
 
   const conversionRate = designsCreated
     ? Math.round((released / designsCreated) * 100)
+    : 0;
+  const liveConversionPercent = designsCreated
+    ? Math.round((live / designsCreated) * 100)
+    : 0;
+  const soldDesignCount = successMetrics.filter((m) => Number(m.salesQty ?? 0) > 0).length;
+  const salesConversionPercent = designsCreated
+    ? Math.round((Math.min(soldDesignCount, designsCreated) / designsCreated) * 100)
     : 0;
 
   return {
@@ -174,7 +374,24 @@ export async function getDesignHeadKpi() {
     approvedCount: approved,
     releasedCount: released,
     liveCount: live,
+    rejectedCount: rejected,
     conversionPercent: conversionRate,
+    liveConversionPercent,
+    salesConversionPercent,
+    periodSalesQty,
+    avgLeadTimeDays,
+    teamFtrPercent,
+    teamCorrectionRatePercent,
+    costVsBudget: {
+      estimatedBudget: Math.round(estimatedBudget * 100) / 100,
+      actualCost: Math.round(actualCost * 100) / 100,
+      variancePercent: costVariancePercent,
+    },
+    successBy: {
+      season: toBreakdown(bySeason, salesByDimension.season),
+      collection: toBreakdown(byCollection, salesByDimension.collection),
+      product: toBreakdown(byProduct, salesByDimension.product),
+    },
     teamScores: teamScores.filter((s) => s.employee.role.code === "DESIGN_HEAD"),
   };
 }
@@ -521,8 +738,9 @@ export async function getAdminDashboardStats(employeeId: number) {
   };
 }
 
-export async function getCorrectionAnalysisReport() {
+export async function getCorrectionAnalysisReport(companyId?: number) {
   const corrections = await prisma.designCorrection.findMany({
+    where: companyId != null ? { design: { companyId } } : undefined,
     include: {
       design: { select: { ideaRef: true, collectionName: true } },
       task: {
@@ -549,9 +767,17 @@ export async function getCorrectionAnalysisReport() {
   return { corrections, summary: { byType, totalExtraMinutes, totalExtraCost } };
 }
 
-export async function getDesignSuccessReport(year: number, month: number) {
+export async function getDesignSuccessReport(
+  year: number,
+  month: number,
+  companyId?: number,
+) {
   return prisma.designSuccessMetric.findMany({
-    where: { periodYear: year, periodMonth: month },
+    where: {
+      periodYear: year,
+      periodMonth: month,
+      ...(companyId != null ? { design: { companyId } } : {}),
+    },
     include: {
       design: {
         select: {
@@ -574,11 +800,16 @@ function utcMonthRange(year: number, month: number) {
 }
 
 /** Sample Status report: designs by sampleDecision + currentStage for a month. */
-export async function getSampleStatusReport(year: number, month: number) {
+export async function getSampleStatusReport(
+  year: number,
+  month: number,
+  companyId?: number,
+) {
   const { start, end } = utcMonthRange(year, month);
 
   const designs = await prisma.designConcept.findMany({
     where: {
+      ...(companyId != null ? { companyId } : {}),
       OR: [
         { sampleDecisionAtUtc: { gte: start, lt: end } },
         {
@@ -629,11 +860,16 @@ export async function getSampleStatusReport(year: number, month: number) {
  * Production Start report: designs that reached PRODUCTION_RELEASED or
  * PRODUCTION_ACCEPTED in the period, grouped by product type.
  */
-export async function getProductionStartReport(year: number, month: number) {
+export async function getProductionStartReport(
+  year: number,
+  month: number,
+  companyId?: number,
+) {
   const { start, end } = utcMonthRange(year, month);
 
   const designs = await prisma.designConcept.findMany({
     where: {
+      ...(companyId != null ? { companyId } : {}),
       status: { in: ["PRODUCTION_RELEASED", "PRODUCTION_ACCEPTED", "LIVE"] },
       OR: [
         { productionHandoffs: { some: { releasedAtUtc: { gte: start, lt: end } } } },

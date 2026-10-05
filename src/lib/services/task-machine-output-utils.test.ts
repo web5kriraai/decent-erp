@@ -3,6 +3,7 @@ import {
   isMachineOutputTask,
   MACHINE_FORMAT_OPTIONS,
   hasMachineMetricsInPayload,
+  artifactsIncludeMachineMetrics,
   canRecordMachineMetrics,
   pickPreferredSampleOutput,
   formatMachineOutputSummary,
@@ -15,6 +16,29 @@ describe("task-machine-output-utils", () => {
     expect(isMachineOutputTask("RESAMPLE")).toBe(true);
     expect(isMachineOutputTask("SKETCH")).toBe(false);
     expect(isMachineOutputTask("SAMPLE_CHECK")).toBe(false);
+  });
+
+  it("counts PUNCHING_FILE metrics the same as SAMPLE_OUTPUT", () => {
+    expect(
+      artifactsIncludeMachineMetrics([
+        {
+          artifactType: "PUNCHING_FILE",
+          stitchCount: 30000,
+          machineFormat: "EMB",
+          sampleQty: 5,
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      artifactsIncludeMachineMetrics([
+        {
+          artifactType: "PUNCHING_FILE",
+          stitchCount: null,
+          machineFormat: null,
+          sampleQty: null,
+        },
+      ]),
+    ).toBe(false);
   });
 
   it("exposes machine format options", () => {

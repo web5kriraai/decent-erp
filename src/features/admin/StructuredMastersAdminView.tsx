@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppButton } from "@/components/ui/AppButton";
@@ -14,7 +14,11 @@ import {
   ModalFormGrid,
 } from "@/components/ui/Modal";
 import { PageToolbar } from "@/components/ui/PageToolbar";
+import { ListSearch } from "@/components/ui/ListSearch";
+import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { QueryState } from "@/components/ui/QueryState";
+import { useClientList } from "@/hooks/use-client-list";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { useApiToast } from "@/components/ui/ToastProvider";
@@ -70,6 +74,12 @@ type ApprovalRow = {
   sequence: number;
   active: boolean;
 };
+
+type StructuredRow = HoldReasonRow | SkillRow | ChecklistRow | ApprovalRow;
+
+function structuredRowSearchText(row: StructuredRow) {
+  return `${row.code} ${row.name}`;
+}
 
 export function StructuredMastersAdminView({
   registerPrimaryAction,
@@ -309,20 +319,36 @@ export function StructuredMastersAdminView({
           ? checklistQuery
           : approvalsQuery;
 
+  const activeRows = useMemo((): StructuredRow[] => {
+    if (section === "holds") return holdsQuery.data ?? [];
+    if (section === "skills") return skillsQuery.data ?? [];
+    if (section === "checklist") return checklistQuery.data ?? [];
+    return approvalsQuery.data ?? [];
+  }, [section, holdsQuery.data, skillsQuery.data, checklistQuery.data, approvalsQuery.data]);
+
+  const getSearchText = useCallback(structuredRowSearchText, []);
+
+  const list = useClientList({
+    items: activeRows,
+    getSearchText,
+    filterKey: section,
+  });
+
+  const canReorderRows =
+    !list.search.trim() && list.total <= list.pageSize;
+
   function handleReorder(fromIndex: number, toIndex: number) {
-    if (reorderMutation.isPending) return;
+    if (!canReorderRows || reorderMutation.isPending) return;
     if (section === "checklist") {
-      const current = checklistQuery.data ?? [];
-      const next = moveArrayItem(current, fromIndex, toIndex);
-      if (next === current) return;
+      const next = moveArrayItem(list.filtered as ChecklistRow[], fromIndex, toIndex);
+      if (next === list.filtered) return;
       queryClient.setQueryData(["masters", "checklist", "admin"], next);
       reorderMutation.mutate({ section: "checklist", rows: next });
       return;
     }
     if (section !== "approvals") return;
-    const current = approvalsQuery.data ?? [];
-    const next = moveArrayItem(current, fromIndex, toIndex);
-    if (next === current) return;
+    const next = moveArrayItem(list.filtered as ApprovalRow[], fromIndex, toIndex);
+    if (next === list.filtered) return;
     queryClient.setQueryData(["masters", "approval-levels", "admin"], next);
     reorderMutation.mutate({ section: "approvals", rows: next });
   }
@@ -357,6 +383,20 @@ export function StructuredMastersAdminView({
         ))}
       </PageToolbar>
 
+      <PageToolbar className="!mb-0">
+        <ListSearch
+          value={list.search}
+          onChange={list.setSearch}
+          placeholder="Search code or name…"
+          aria-label="Search structured masters"
+        />
+        <ListRefreshButton
+          onRefresh={() => activeQuery.refetch()}
+          isRefreshing={activeQuery.isFetching}
+          className="ml-auto"
+        />
+      </PageToolbar>
+
         <QueryState
           isLoading={activeQuery.isLoading}
           isError={activeQuery.isError}
@@ -366,6 +406,7 @@ export function StructuredMastersAdminView({
         >
           {section === "holds" ? (
             <DataTable
+              flush
               columns={[
                 { key: "code", header: "Code", render: (r: HoldReasonRow) => r.code },
                 { key: "name", header: "Name", render: (r: HoldReasonRow) => r.name },
@@ -397,14 +438,17 @@ export function StructuredMastersAdminView({
                   ),
                 },
               ]}
-              rows={holdsQuery.data ?? []}
+              rows={list.pageItems as HoldReasonRow[]}
               getRowKey={(r) => String(r.id)}
-              emptyTitle="No hold reasons"
+              emptyTitle={
+                list.search ? "No hold reasons match your search" : "No hold reasons"
+              }
             />
           ) : null}
 
           {section === "skills" ? (
             <DataTable
+              flush
               columns={[
                 { key: "code", header: "Code", render: (r: SkillRow) => r.code },
                 { key: "name", header: "Name", render: (r: SkillRow) => r.name },
@@ -431,14 +475,15 @@ export function StructuredMastersAdminView({
                   ),
                 },
               ]}
-              rows={skillsQuery.data ?? []}
+              rows={list.pageItems as SkillRow[]}
               getRowKey={(r) => String(r.id)}
-              emptyTitle="No skills"
+              emptyTitle={list.search ? "No skills match your search" : "No skills"}
             />
           ) : null}
 
           {section === "checklist" ? (
             <DataTable
+              flush
               columns={[
                 { key: "seq", header: "#", render: (r: ChecklistRow) => r.sequence },
                 { key: "code", header: "Code", render: (r: ChecklistRow) => r.code },
@@ -472,16 +517,19 @@ export function StructuredMastersAdminView({
                   ),
                 },
               ]}
-              rows={checklistQuery.data ?? []}
+              rows={list.pageItems as ChecklistRow[]}
               getRowKey={(r) => String(r.id)}
               onReorder={handleReorder}
-              reorderDisabled={reorderMutation.isPending}
-              emptyTitle="No checklist items"
+              reorderDisabled={!canReorderRows || reorderMutation.isPending}
+              emptyTitle={
+                list.search ? "No checklist items match your search" : "No checklist items"
+              }
             />
           ) : null}
 
           {section === "approvals" ? (
             <DataTable
+              flush
               columns={[
                 { key: "seq", header: "#", render: (r: ApprovalRow) => r.sequence },
                 { key: "code", header: "Code", render: (r: ApprovalRow) => r.code },
@@ -509,14 +557,25 @@ export function StructuredMastersAdminView({
                   ),
                 },
               ]}
-              rows={approvalsQuery.data ?? []}
+              rows={list.pageItems as ApprovalRow[]}
               getRowKey={(r) => String(r.id)}
               onReorder={handleReorder}
-              reorderDisabled={reorderMutation.isPending}
-              emptyTitle="No approval levels"
+              reorderDisabled={!canReorderRows || reorderMutation.isPending}
+              emptyTitle={
+                list.search ? "No approval levels match your search" : "No approval levels"
+              }
             />
           ) : null}
         </QueryState>
+
+      <PaginationBar
+        total={list.total}
+        page={list.page}
+        pageSize={list.pageSize}
+        onPageChange={list.setPage}
+        onPageSizeChange={list.setPageSize}
+        pageSizeSelectId="structured-masters-page-size"
+      />
 
       <Modal
         open={createOpen}

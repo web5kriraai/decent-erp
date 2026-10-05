@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
+import { sanitizeHandoffRemark } from "@/lib/services/costing-end-utils";
 import { cn } from "@/lib/utils";
 import { hasHandoffFacts, type HandoffContext } from "@/lib/handoff-context";
 
@@ -52,7 +53,14 @@ export function ActionHandoffBanner({
     ctx.fileCount != null ||
     Boolean(ctx.sampleOutcome);
 
-  const showGrid = Boolean(ctx.nextStepHint || ctx.priorStage || showMetrics);
+  const priorRemark = sanitizeHandoffRemark(ctx.priorStage?.outputRemark);
+  const hasPrior = Boolean(ctx.priorStage);
+  const nextHint = ctx.nextStepHint?.trim() || null;
+  // Dense approval panels: Next + Prior as compact fact rows (not empty half-tiles).
+  const useDenseFacts = Boolean(dense && (nextHint || hasPrior));
+  const showNextTile = Boolean(nextHint && !useDenseFacts);
+  const showPriorTile = Boolean(hasPrior && !useDenseFacts);
+  const showGrid = Boolean(showNextTile || showPriorTile || showMetrics);
 
   return (
     <aside
@@ -74,20 +82,54 @@ export function ActionHandoffBanner({
         {ctx.description ? <p className="handoff-description">{ctx.description}</p> : null}
       </div>
 
+      {useDenseFacts ? (
+        <div className="handoff-facts">
+          {nextHint ? (
+            <div className="handoff-fact handoff-fact--next">
+              <span className="handoff-fact-label">Next</span>
+              <p className="handoff-fact-text">{nextHint}</p>
+            </div>
+          ) : null}
+          {ctx.priorStage ? (
+            <div className="handoff-fact">
+              <span className="handoff-fact-label">Prior</span>
+              <div className="handoff-fact-body">
+                <div className="handoff-prior-head">
+                  <span className="handoff-prior-name">{ctx.priorStage.name}</span>
+                  {ctx.priorStage.status ? (
+                    <StatusBadge status={ctx.priorStage.status} />
+                  ) : null}
+                </div>
+                {ctx.priorStage.assigneeName ? (
+                  <p className="handoff-prior-meta">By {ctx.priorStage.assigneeName}</p>
+                ) : null}
+                {priorRemark ? (
+                  <p className="handoff-prior-remark">{priorRemark}</p>
+                ) : null}
+                {ctx.priorStage.fileCount != null && ctx.priorStage.fileCount > 0 ? (
+                  <p className="handoff-prior-meta">
+                    {ctx.priorStage.fileCount} file
+                    {ctx.priorStage.fileCount === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {showGrid ? (
         <div className="handoff-grid">
-          {ctx.nextStepHint ? (
+          {showNextTile ? (
             <HandoffTile label="Next" className="handoff-tile--accent">
-              <p className="handoff-tile-text">{ctx.nextStepHint}</p>
+              <p className="handoff-tile-text">{nextHint}</p>
             </HandoffTile>
           ) : null}
 
-          {ctx.priorStage ? (
+          {showPriorTile && ctx.priorStage ? (
             <HandoffTile
               label="Prior"
-              className={
-                ctx.priorStage.outputRemark ? "handoff-tile--wide" : undefined
-              }
+              className={priorRemark ? "handoff-tile--wide" : undefined}
             >
               <div className="handoff-prior">
                 <div className="handoff-prior-head">
@@ -99,8 +141,8 @@ export function ActionHandoffBanner({
                 {ctx.priorStage.assigneeName ? (
                   <p className="handoff-prior-meta">By {ctx.priorStage.assigneeName}</p>
                 ) : null}
-                {ctx.priorStage.outputRemark ? (
-                  <p className="handoff-prior-remark">{ctx.priorStage.outputRemark}</p>
+                {priorRemark ? (
+                  <p className="handoff-prior-remark">{priorRemark}</p>
                 ) : null}
                 {ctx.priorStage.fileCount != null && ctx.priorStage.fileCount > 0 ? (
                   <p className="handoff-prior-meta">

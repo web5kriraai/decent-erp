@@ -20,6 +20,8 @@ import {
 } from "@/lib/concept-media-upload";
 import { useCreateDesign } from "@/hooks/use-designs";
 import {
+  useComponentTypes,
+  useMasterCatalog,
   useMasterEmployees,
   useProcessMasters,
   useProductTypes,
@@ -27,7 +29,12 @@ import {
   useWorkflowPatterns,
 } from "@/hooks/use-masters";
 import { getFieldErrors, ApiClientError } from "@/lib/api-client";
-import type { Priority } from "@/lib/types/api";
+import {
+  WORK_TYPE_OPTIONS,
+  isWorkTypeCode,
+  type Priority,
+  type WorkType,
+} from "@/lib/types/api";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -40,6 +47,7 @@ import {
   type AssignmentMode,
   type ManualTaskDraft,
 } from "@/features/designs/DesignAssignmentPanel";
+import { DesignComponentTypePicker } from "@/features/designs/DesignComponentTypePicker";
 
 const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: "LOW", label: "Low" },
@@ -52,6 +60,16 @@ function hasPendingProductImage(items: PendingConceptMedia[]) {
   return items.some((item) => item.mediaKind === "IMAGE");
 }
 
+function buildComponentTypeIdMap(
+  components: Array<{ id: string; componentTypeId?: number }> | undefined,
+): Map<number, string> {
+  const map = new Map<number, string>();
+  for (const c of components ?? []) {
+    if (c.componentTypeId != null) map.set(c.componentTypeId, c.id);
+  }
+  return map;
+}
+
 export function DesignCreateForm() {
   const router = useRouter();
   const toast = useApiToast();
@@ -62,6 +80,10 @@ export function DesignCreateForm() {
 
   const [collectionName, setCollectionName] = useState("");
   const [conceptNote, setConceptNote] = useState("");
+  const [styleName, setStyleName] = useState("");
+  const [workType, setWorkType] = useState<WorkType | "">("");
+  const [trendReference, setTrendReference] = useState("");
+  const [celebrityReference, setCelebrityReference] = useState("");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [productTypeId, setProductTypeId] = useState<number | "">("");
   const [seasonId, setSeasonId] = useState<number | "">("");
@@ -78,29 +100,53 @@ export function DesignCreateForm() {
   const [mediaProgress, setMediaProgress] = useState<ConceptMediaUploadProgress | null>(
     null,
   );
+  const [componentTypeIds, setComponentTypeIds] = useState<number[]>([]);
 
   const productTypes = useProductTypes();
   const seasons = useSeasons();
   const patterns = useWorkflowPatterns();
+  const componentTypes = useComponentTypes();
+  const styles = useMasterCatalog("STYLE");
+  const celebrities = useMasterCatalog("CELEBRITY");
+  const themes = useMasterCatalog("THEME");
+  const workTypesCatalog = useMasterCatalog("WORK_TYPE");
   const processes = useProcessMasters(assignmentMode === "MANUAL");
   const employees = useMasterEmployees(assignmentMode === "MANUAL");
+
+  const workTypeOptions = useMemo(() => {
+    const fromCatalog = (workTypesCatalog.data ?? [])
+      .filter((w) => isWorkTypeCode(w.code))
+      .map((w) => ({ value: w.code as WorkType, label: w.name }));
+    return fromCatalog.length > 0 ? fromCatalog : WORK_TYPE_OPTIONS;
+  }, [workTypesCatalog.data]);
+
+  const queueComponentOptions = useMemo(
+    () =>
+      (componentTypes.data ?? [])
+        .filter((c) => componentTypeIds.includes(c.id))
+        .map((c) => ({ id: String(c.id), label: c.name })),
+    [componentTypes.data, componentTypeIds],
+  );
 
   const mastersLoading =
     productTypes.isLoading ||
     seasons.isLoading ||
     patterns.isLoading ||
+    componentTypes.isLoading ||
     (assignmentMode === "MANUAL" && (processes.isLoading || employees.isLoading));
 
   const mastersError =
     productTypes.isError ||
     seasons.isError ||
     patterns.isError ||
+    componentTypes.isError ||
     (assignmentMode === "MANUAL" && (processes.isError || employees.isError));
 
   const mastersErrorObj =
     productTypes.error ??
     seasons.error ??
     patterns.error ??
+    componentTypes.error ??
     (assignmentMode === "MANUAL" ? (processes.error ?? employees.error) : undefined);
 
   const availablePatterns = useMemo(
@@ -189,11 +235,16 @@ export function DesignCreateForm() {
         seasonId: Number(seasonId),
         collectionName: collectionName.trim(),
         conceptNote: conceptNote.trim(),
+        styleName: styleName.trim() || undefined,
+        workType: workType || undefined,
+        trendReference: trendReference.trim() || undefined,
+        celebrityReference: celebrityReference.trim() || undefined,
         priority,
         assignmentMode,
         taskDateMode: assignmentMode === "AUTOMATIC" ? taskDateMode : undefined,
         workflowPatternId:
           assignmentMode === "AUTOMATIC" ? Number(effectiveWorkflowPatternId) : undefined,
+        componentTypeIds: componentTypeIds.length ? componentTypeIds : undefined,
         manualTasks:
           assignmentMode === "MANUAL"
             ? manualTasks.map((task, index) => ({
@@ -213,10 +264,12 @@ export function DesignCreateForm() {
       setMediaUploading(true);
       setMediaProgress(null);
       const queued = pendingMedia;
+      const componentMap = buildComponentTypeIdMap(design.components);
       try {
         const { uploaded, failed } = await uploadPendingConceptMedia({
           designId: design.id,
           items: queued,
+          componentTypeIdToDesignComponentId: componentMap,
           onProgress: setMediaProgress,
         });
         for (const item of queued) {
@@ -304,6 +357,7 @@ export function DesignCreateForm() {
           productTypes.refetch();
           seasons.refetch();
           patterns.refetch();
+          componentTypes.refetch();
           if (assignmentMode === "MANUAL") {
             processes.refetch();
             employees.refetch();
@@ -324,7 +378,7 @@ export function DesignCreateForm() {
             />
           )}
 
-          <div className="form-layout form-layout--split">
+          <div className="form-layout">
             <AppCard title="Basics">
               <div className="form-grid">
                 <FormTextField
@@ -367,6 +421,43 @@ export function DesignCreateForm() {
                     error={showErrors ? validationErrors.seasonId : undefined}
                   />
                 </div>
+                <div className="form-grid form-grid--2">
+                  <FormSelect
+                    id="styleName"
+                    label="Style"
+                    value={styleName || null}
+                    onValueChange={(v) => setStyleName(v ?? "")}
+                    options={(styles.data ?? []).map((s) => ({ value: s.name, label: s.name }))}
+                    placeholder="Select style…"
+                  />
+                  <FormSelect
+                    id="workType"
+                    label="Work Type"
+                    value={workType || null}
+                    onValueChange={(v) => setWorkType(v as WorkType)}
+                    options={workTypeOptions}
+                    placeholder="Select…"
+                  />
+                  <FormSelect
+                    id="trendReference"
+                    label="Theme / Trend"
+                    value={trendReference || null}
+                    onValueChange={(v) => setTrendReference(v ?? "")}
+                    options={(themes.data ?? []).map((t) => ({ value: t.name, label: t.name }))}
+                    placeholder="Select theme…"
+                  />
+                  <FormSelect
+                    id="celebrityReference"
+                    label="Celebrity"
+                    value={celebrityReference || null}
+                    onValueChange={(v) => setCelebrityReference(v ?? "")}
+                    options={(celebrities.data ?? []).map((c) => ({
+                      value: c.name,
+                      label: c.name,
+                    }))}
+                    placeholder="Select…"
+                  />
+                </div>
                 <FormTextArea
                   id="concept"
                   label="Concept Note"
@@ -385,6 +476,20 @@ export function DesignCreateForm() {
                         }
                   }
                 />
+                <DesignComponentTypePicker
+                  options={componentTypes.data ?? []}
+                  value={componentTypeIds}
+                  onChange={(ids) => {
+                    setComponentTypeIds(ids);
+                    setPendingMedia((prev) =>
+                      prev.map((item) =>
+                        item.componentTypeId != null && !ids.includes(item.componentTypeId)
+                          ? { ...item, componentTypeId: null }
+                          : item,
+                      ),
+                    );
+                  }}
+                />
               </div>
             </AppCard>
 
@@ -402,6 +507,7 @@ export function DesignCreateForm() {
                     queueMode
                     pendingItems={pendingMedia}
                     onPendingChange={setPendingMedia}
+                    components={queueComponentOptions}
                     canUpload
                     compact
                     showIntro

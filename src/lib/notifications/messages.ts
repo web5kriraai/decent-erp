@@ -12,6 +12,8 @@ export function buildNotificationMessage(
     DESIGN_CREATED: "New design created",
     TASK_DUE_SOON: "Task due soon",
     TASK_OVERDUE: "Task overdue",
+    MATERIAL_HOLD: "Task on hold — waiting for material",
+    MACHINE_HOLD: "Task on hold — machine not available",
     APPROVAL_PENDING: "Approval pending",
     DESIGN_APPROVED: "Design approved for production",
     ERP_HANDOFF_SYNCED: "ERP handoff synced",

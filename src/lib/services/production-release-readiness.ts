@@ -118,6 +118,7 @@ export async function validateProductionReleaseReadiness(
       name: task.subProcess.name,
       hasFile,
       code,
+      sequence: task.sequence,
     };
   }
 

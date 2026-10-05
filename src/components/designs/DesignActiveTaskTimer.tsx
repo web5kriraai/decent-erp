@@ -164,9 +164,9 @@ export function DesignActiveTaskTimer({
   }
 
   async function handleEndSubmit() {
-    if (!endRemark.trim()) return;
-    if (isSampleCheck && !sampleOutcome) return;
     const isCosting = endDialogConfig.costingEntry;
+    if (isCosting && !endRemark.trim()) return;
+    if (isSampleCheck && !sampleOutcome) return;
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -187,7 +187,7 @@ export function DesignActiveTaskTimer({
     await end.mutateAsync({
       taskId: activeTask.id,
       version: activeTask.version,
-      outputRemark: endRemark.trim(),
+      outputRemark: endRemark.trim() || "Completed",
       completionStatus: isSampleCheck
         ? sampleOutcome === "REJECT"
           ? "CHECKING"
@@ -215,8 +215,9 @@ export function DesignActiveTaskTimer({
     activeTask.id;
 
   return (
-    <div>
+    <div className="design-active-timer">
       <TimerWidget
+        compact
         status={timerFlags.isRunning ? "RUNNING" : "ON_HOLD"}
         elapsedSeconds={task.timeSummary.activeSeconds}
         taskLabel={`${task.process.name} → ${task.subProcess.name}`}
@@ -248,8 +249,8 @@ export function DesignActiveTaskTimer({
       />
 
       {timerFlags.blocksTimerEnd ? (
-        <p className="mt-2 text-sm text-muted-foreground">
-          Finish with stage approval actions - not the timer End dialog. Hold still works.{" "}
+        <p className="design-active-timer__hint">
+          Finish with stage approval actions — not the timer End dialog. Hold still works.{" "}
           <AppButtonLink href={taskOpenHref} appVariant="ghost" size="sm">
             Open task approval
           </AppButtonLink>

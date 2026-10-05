@@ -144,6 +144,8 @@ async function seedForEmployee(email: string, count: number) {
     data: {
       ideaRef,
       designNumber: `DN-DUMMY-${stamp}`,
+      companyId: employee.companyId,
+      locationId: employee.locationId,
       productTypeId: productType.id,
       collectionName: "Dummy Tasks Collection",
       seasonId: season.id,

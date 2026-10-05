@@ -50,6 +50,7 @@ import {
   buildHandoffContextFromTask,
 } from "@/lib/task-dialog-config";
 import { findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
+import { nextStepHintForStageApproval } from "@/lib/stage-approval-rbac";
 import { cn } from "@/lib/utils";
 
 type TaskDetailViewProps = {
@@ -284,12 +285,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             assignedEmployee: task.assignedEmployee,
           },
           {
-            nextStepHint:
-              task.subProcess.code === "PUNCH_CHECK"
-                ? "Material / fabric issue toward sample"
-                : task.subProcess.code === "LIVE_REVIEW"
-                  ? "Design goes LIVE · ERP chain unlocks"
-                  : "Advances the workflow to the next stage",
+            nextStepHint: nextStepHintForStageApproval(task.subProcess.code),
             priorStage: priorPeer
               ? {
                   code: priorPeer.subProcess.code,
@@ -350,8 +346,16 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     setCostEntries([]);
   }
 
+  const hasContextPanels =
+    !!task &&
+    (showComparePanel ||
+      (canControl && !!task.blockedMessage && !task.canStart) ||
+      // Quality panel mounts for quality stages; may still render null while loading.
+      task.subProcess.code === "SAMPLE_CHECK" ||
+      task.subProcess.code === "PUNCH_CHECK");
+
   return (
-    <div className="page-shell">
+    <div className="page-shell task-detail-page">
       <QueryState
         isLoading={detailQuery.isLoading}
         isError={detailQuery.isError}
@@ -370,7 +374,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         skeletonVariant="cards"
       >
         {task && designMismatch && (
-          <div className="alert alert-warning stack-section" role="alert">
+          <div className="alert alert-warning task-detail-page__alert" role="alert">
             This task belongs to design {task.design.ideaRef}.{" "}
             <Link href={ROUTES.designs.task(task.designId, task.id)} className="data-table-link">
               Open correct task URL
@@ -381,6 +385,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         {task && (
           <>
             <PageHeader
+              className="task-detail-page__header"
               title={`${task.design.ideaRef} · ${task.subProcess.name}`}
               subtitle={task.design.collectionName}
               actions={
@@ -409,156 +414,173 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
               }
             />
 
-            <TaskQualityContextPanel
-              designId={task.design.id}
-              subProcessCode={task.subProcess.code}
-            />
+            {hasContextPanels ? (
+              <div className="task-detail-page__context">
+                <TaskQualityContextPanel
+                  designId={task.design.id}
+                  subProcessCode={task.subProcess.code}
+                />
 
-            {showComparePanel ? (
-              <TaskCompareVersionsPanel designId={task.design.id} />
+                {showComparePanel ? (
+                  <TaskCompareVersionsPanel designId={task.design.id} />
+                ) : null}
+
+                {canControl && task.blockedMessage && !task.canStart ? (
+                  <ActionUnavailable reason={task.blockedMessage} />
+                ) : null}
+              </div>
             ) : null}
 
             {isStageApproval && canControl ? (
-              <TaskStageApprovalPanel
-                taskId={task.id}
-                designId={task.design.id}
-                version={task.version}
-                status={task.status}
-                stageName={task.subProcess.name}
-                stageCode={task.subProcess.code}
-                assignedEmployeeId={task.assignedEmployeeId}
-                employeeId={session?.user?.employeeId}
-                roleCode={roleCode}
-                ownerRoleCode={ownerRoleCode}
-                capabilities={task.subProcess.capabilities}
-                isApproval={task.subProcess.isApproval}
-                canAssign={canAssign}
-                showCompare={false}
-                workTaskStatus={linkedWorkTaskStatus}
-                handoff={stageApprovalHandoff}
-              />
+              <div className="task-detail-page__approval">
+                <TaskStageApprovalPanel
+                  taskId={task.id}
+                  designId={task.design.id}
+                  version={task.version}
+                  status={task.status}
+                  stageName={task.subProcess.name}
+                  stageCode={task.subProcess.code}
+                  assignedEmployeeId={task.assignedEmployeeId}
+                  employeeId={session?.user?.employeeId}
+                  roleCode={roleCode}
+                  ownerRoleCode={ownerRoleCode}
+                  capabilities={task.subProcess.capabilities}
+                  isApproval={task.subProcess.isApproval}
+                  canAssign={canAssign}
+                  showCompare={false}
+                  workTaskStatus={linkedWorkTaskStatus}
+                  handoff={stageApprovalHandoff}
+                />
+              </div>
             ) : null}
 
-            {canControl && task.blockedMessage && !task.canStart ? (
-              <ActionUnavailable
-                reason={task.blockedMessage}
-                className="mb-4"
-              />
-            ) : null}
+            <div className="task-detail-workspace">
+              <aside className="task-detail-workspace__controls">
+                {canControl ? (
+                  <div className="task-detail-timer-block">
+                    <TimerWidget
+                      compact
+                      status={isRunning ? "RUNNING" : isOnHold ? "ON_HOLD" : "IDLE"}
+                      elapsedSeconds={activeSeconds}
+                      taskLabel={`${task.process.name} — ${task.subProcess.name}`}
+                      onHold={
+                        timerFlags?.showHold
+                          ? () => {
+                              setHoldModalOpen(true);
+                              setHoldReasonId("");
+                            }
+                          : undefined
+                      }
+                      onResume={
+                        timerFlags?.showResume
+                          ? () => resume.mutate({ taskId: task.id, version: task.version })
+                          : undefined
+                      }
+                      onEnd={
+                        timerFlags?.showEnd
+                          ? () => {
+                              setEndModalOpen(true);
+                              setEndRemark("");
+                              setChecklistNote("");
+                              setSampleOutcome("");
+                              setChecklistResults({});
+                              setEndStatus("CHECKING");
+                            }
+                          : undefined
+                      }
+                    />
+                    {timerFlags?.blocksTimerEnd && (isRunning || isOnHold) ? (
+                      <p className="task-detail-timer-hint" role="status">
+                        Finish this stage with Approve / Request correction / Reject above — not
+                        the timer End dialog. Hold and Resume still work for time tracking.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <AppCard title="Time summary" className="task-detail-meta-card">
+                    {!isAssignee && canViewTeam && (
+                      <p className="mb-3 text-sm text-muted-foreground">
+                        Read-only view - you are not the assignee for this task.
+                      </p>
+                    )}
+                    {!isAssignee && !canViewTeam && (
+                      <p className="mb-3 text-sm text-muted-foreground">
+                        This task is not assigned to you.
+                      </p>
+                    )}
+                    <dl className="detail-list detail-list--compact">
+                      <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
+                      <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
+                      <DetailItem label="Expected" value={`${task.expectedMinutes} min`} />
+                    </dl>
+                  </AppCard>
+                )}
 
-            <div className="task-detail-layout">
-              {canControl ? (
-                <div className="stack-section">
-                  <TimerWidget
-                    status={isRunning ? "RUNNING" : isOnHold ? "ON_HOLD" : "IDLE"}
-                    elapsedSeconds={activeSeconds}
-                    taskLabel={`${task.process.name} → ${task.subProcess.name}`}
-                    onHold={
-                      timerFlags?.showHold
-                        ? () => {
-                            setHoldModalOpen(true);
-                            setHoldReasonId("");
-                          }
-                        : undefined
-                    }
-                    onResume={
-                      timerFlags?.showResume
-                        ? () => resume.mutate({ taskId: task.id, version: task.version })
-                        : undefined
-                    }
-                    onEnd={
-                      timerFlags?.showEnd
-                        ? () => {
-                            setEndModalOpen(true);
-                            setEndRemark("");
-                            setChecklistNote("");
-                            setSampleOutcome("");
-                            setChecklistResults({});
-                            setEndStatus("CHECKING");
-                          }
-                        : undefined
-                    }
-                  />
-                  {timerFlags?.blocksTimerEnd && (isRunning || isOnHold) ? (
-                    <p className="mt-2 text-sm text-muted-foreground" role="status">
-                      Finish this stage with Approve / Request correction / Reject above - not
-                      the timer End dialog. Hold and Resume still work for time tracking.
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                <AppCard title="Time summary">
-                  {!isAssignee && canViewTeam && (
-                    <p className="mb-3 text-sm text-muted-foreground">
-                      Read-only view - you are not the assignee for this task.
-                    </p>
-                  )}
-                  {!isAssignee && !canViewTeam && (
-                    <p className="mb-3 text-sm text-muted-foreground">
-                      This task is not assigned to you.
-                    </p>
-                  )}
-                  <dl className="detail-list">
+                <AppCard
+                  title="Task Details"
+                  className="task-detail-meta-card"
+                  contentClassName="task-detail-meta-card__content"
+                >
+                  <dl className="detail-list detail-list--compact">
+                    <DetailItem label="Process" value={task.process.name} />
+                    <DetailItem label="Sub-process" value={task.subProcess.name} />
+                    <DetailItem label="Expected Time" value={`${task.expectedMinutes} min`} />
+                    <DetailItem label="Priority" value={task.priority} />
                     <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
                     <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
-                    <DetailItem label="Expected" value={`${task.expectedMinutes} min`} />
                   </dl>
                 </AppCard>
-              )}
 
-              <AppCard title="Task Details">
-                <dl className="detail-list">
-                  <DetailItem label="Process" value={task.process.name} />
-                  <DetailItem label="Sub-process" value={task.subProcess.name} />
-                  <DetailItem label="Expected Time" value={`${task.expectedMinutes} min`} />
-                  <DetailItem label="Priority" value={task.priority} />
-                  <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
-                  <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
-                </dl>
-              </AppCard>
-            </div>
-
-            {showErpOnTask ? (
-              <AppCard
-                title="ERP Chain"
-                className="erp-chain-task-panel mt-6"
-                headerAction={
-                  <span
-                    className={cn(
-                      "erp-chain-floor-chip",
-                      floorProgress.ok && "erp-chain-floor-chip--ok",
-                    )}
+                {showErpOnTask ? (
+                  <AppCard
+                    title="ERP Chain"
+                    className="erp-chain-task-panel task-detail-erp-card"
+                    contentClassName="task-detail-erp-card__content"
+                    headerAction={
+                      <span
+                        className={cn(
+                          "erp-chain-floor-chip",
+                          floorProgress.ok && "erp-chain-floor-chip--ok",
+                        )}
+                      >
+                        Floor {floorProgress.completed}/{floorProgress.total}
+                      </span>
+                    }
                   >
-                    Floor {floorProgress.completed}/{floorProgress.total}
-                  </span>
-                }
-              >
-                {erpChainQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground m-0">Loading ERP stages…</p>
-                ) : erpChainQuery.data ? (
-                  <ErpStageOperator
-                    chain={erpChainQuery.data}
-                    permissions={permissions}
-                    isPending={erpStageAction.isPending}
-                    showFloorChip={false}
-                    onStart={(stageId) =>
-                      erpStageAction.mutate({ stageId, action: "start" })
-                    }
-                    onComplete={(stageId, payload) =>
-                      erpStageAction.mutate({ stageId, action: "complete", ...payload })
-                    }
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground m-0">
-                    Start this task to seed Floor ERP stages.
-                  </p>
-                )}
-              </AppCard>
-            ) : null}
+                    {erpChainQuery.isLoading ? (
+                      <p className="text-sm text-muted-foreground m-0">Loading ERP stages…</p>
+                    ) : erpChainQuery.data ? (
+                      <ErpStageOperator
+                        chain={erpChainQuery.data}
+                        permissions={permissions}
+                        isPending={erpStageAction.isPending}
+                        showFloorChip={false}
+                        onStart={(stageId) =>
+                          erpStageAction.mutate({ stageId, action: "start" })
+                        }
+                        onComplete={(stageId, payload) =>
+                          erpStageAction.mutate({ stageId, action: "complete", ...payload })
+                        }
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground m-0">
+                        Start this task to seed Floor ERP stages.
+                      </p>
+                    )}
+                  </AppCard>
+                ) : null}
+              </aside>
 
-            <AppCard title="Time event timeline" className="mt-6">
-              <TaskTimeTimeline events={task.timeline} summary={task.timeSummary} />
-            </AppCard>
+              <section className="task-detail-workspace__timeline" aria-label="Time event timeline">
+                <AppCard
+                  title="Time event timeline"
+                  className="task-detail-timeline-card"
+                  contentClassName="task-detail-timeline-card__content"
+                >
+                  <TaskTimeTimeline events={task.timeline} summary={task.timeSummary} fill />
+                </AppCard>
+              </section>
+            </div>
           </>
         )}
       </QueryState>

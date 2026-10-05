@@ -32,7 +32,7 @@ import {
 import { formatProductionReleaseMissing } from "@/lib/services/production-workflow";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import {
-  hasMachineMetricsInPayload,
+  artifactsIncludeMachineMetrics,
   isMachineOutputTask,
 } from "@/lib/services/task-machine-output-utils";
 import { resolveStatusAfterAssign, reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
@@ -448,7 +448,7 @@ export async function holdTask(
   correlationId: string,
   version?: number,
 ) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const task = await getTaskForEmployee(taskId, employeeId);
     if (task.status !== "RUNNING") {
       throw conflict(APP_ERROR_CODES.TASK_WRONG_STATUS, undefined, "Task must be running before it can be held.");
@@ -491,8 +491,26 @@ export async function holdTask(
       after: updated,
     });
 
-    return updated;
+    return {
+      updated,
+      holdReasonCode: reason.code,
+      designId: task.designId,
+    };
   });
+
+  if (result.holdReasonCode === "WAIT_MATERIAL" || result.holdReasonCode === "MACHINE_NA") {
+    const { notifyMaterialOrMachineHold } = await import(
+      "@/lib/services/hold-delay-notification-service"
+    );
+    await notifyMaterialOrMachineHold({
+      taskId,
+      designId: result.designId,
+      holdReasonCode: result.holdReasonCode,
+      correlationId,
+    });
+  }
+
+  return result.updated;
 }
 
 export async function resumeTask(
@@ -734,16 +752,24 @@ export async function endTask(
 
     if (isMachineOutputTask(task.subProcess.code, task.subProcess.capabilities)) {
       const sampleArtifacts = await tx.taskArtifact.findMany({
-        where: { taskId, artifactType: "SAMPLE_OUTPUT" },
+        where: {
+          taskId,
+          artifactType: { in: ["SAMPLE_OUTPUT", "PUNCHING_FILE"] },
+        },
         select: {
+          artifactType: true,
           stitchCount: true,
           machineFormat: true,
           sampleQty: true,
           wastageQty: true,
+          needleCount: true,
+          colorCount: true,
+          hoopSize: true,
+          softwareName: true,
+          stitchDensity: true,
         },
       });
-      const hasMetrics = sampleArtifacts.some((row) => hasMachineMetricsInPayload(row));
-      if (!hasMetrics) {
+      if (!artifactsIncludeMachineMetrics(sampleArtifacts)) {
         throw businessRule(
           APP_ERROR_CODES.VALIDATION_FAILED,
           undefined,
@@ -1570,6 +1596,11 @@ async function spawnResampleTask(
 export async function closeWorkday(employeeId: number, correlationId: string) {
   const { persistWorkdayClose } = await import("@/lib/services/time-service");
   return persistWorkdayClose(employeeId, correlationId);
+}
+
+export async function openWorkday(employeeId: number, correlationId: string) {
+  const { persistWorkdayReopen } = await import("@/lib/services/time-service");
+  return persistWorkdayReopen(employeeId, correlationId);
 }
 
 export async function adminAdjustTaskTime(

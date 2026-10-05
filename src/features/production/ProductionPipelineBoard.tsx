@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { IconProduction } from "@/components/icons";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { ListSearch } from "@/components/ui/ListSearch";
+import { PaginationBar } from "@/components/ui/PaginationBar";
+import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import type { ApprovedDesignForProduction } from "@/hooks/use-production";
+import { useClientList } from "@/hooks/use-client-list";
 import {
   canOpenProductionDeskNextAction,
   classifyProductionDeskRow,
@@ -95,65 +99,65 @@ function PipelineRow({
         `production-desk-row--${bucket === "missing_ladder" ? "missing" : bucket}`,
       )}
     >
-      <div className="production-desk-row-main">
-        <div className="production-desk-row-title-block">
-          <Link href={ROUTES.designs.detail(row.id)} className="production-desk-row-ref">
-            {row.ideaRef}
-          </Link>
-          <p className="production-desk-row-meta">
-            {row.collectionName}
-            <span aria-hidden> · </span>
-            {row.productType.name}
-            <span aria-hidden> · </span>
-            {row.designHead.name}
-          </p>
-        </div>
+      <div className="production-desk-row-title-block">
+        <Link href={ROUTES.designs.detail(row.id)} className="production-desk-row-ref">
+          {row.ideaRef}
+        </Link>
+        <p className="production-desk-row-meta">
+          {row.collectionName}
+          <span aria-hidden> · </span>
+          {row.productType.name}
+          <span aria-hidden> · </span>
+          {row.designHead.name}
+        </p>
+      </div>
 
-        <ol className="production-desk-ladder" aria-label="Production ladder">
-          {PRODUCTION_DESK_LADDER_CODES.map((code, index) => {
-            const stage = stages.find((s) => s.code === code);
-            const status = stage?.status ?? null;
-            const done = status === "COMPLETED";
-            const active = row.nextAction?.code === code;
-            return (
-              <li key={code} className="production-desk-ladder-item">
-                {index > 0 ? (
-                  <span
-                    className={cn(
-                      "production-desk-ladder-connector",
-                      done || active ? "production-desk-ladder-connector--lit" : null,
-                    )}
-                    aria-hidden
-                  />
-                ) : null}
-                <div
+      <ol className="production-desk-ladder" aria-label="Production ladder">
+        {PRODUCTION_DESK_LADDER_CODES.map((code, index) => {
+          const stage = stages.find((s) => s.code === code);
+          const status = stage?.status ?? null;
+          const done = status === "COMPLETED";
+          const active = row.nextAction?.code === code;
+          return (
+            <li key={code} className="production-desk-ladder-item">
+              {index > 0 ? (
+                <span
                   className={cn(
-                    "production-desk-ladder-step",
-                    done && "production-desk-ladder-step--done",
-                    active && "production-desk-ladder-step--active",
-                    !status && "production-desk-ladder-step--missing",
+                    "production-desk-ladder-connector",
+                    done || active ? "production-desk-ladder-connector--lit" : null,
                   )}
-                >
-                  <span className="production-desk-ladder-index" aria-hidden>
-                    {index + 1}
+                  aria-hidden
+                />
+              ) : null}
+              <div
+                className={cn(
+                  "production-desk-ladder-step",
+                  done && "production-desk-ladder-step--done",
+                  active && "production-desk-ladder-step--active",
+                  !status && "production-desk-ladder-step--missing",
+                )}
+              >
+                <span className="production-desk-ladder-index" aria-hidden>
+                  {index + 1}
+                </span>
+                <div className="production-desk-ladder-copy">
+                  <span className="production-desk-ladder-label">
+                    {PRODUCTION_DESK_STAGE_LABELS[code]}
                   </span>
-                  <div className="production-desk-ladder-copy">
-                    <span className="production-desk-ladder-label">
-                      {PRODUCTION_DESK_STAGE_LABELS[code]}
-                    </span>
-                    <StatusBadge status={stageBadgeStatus(status)} label={shortStatus(status)} />
-                  </div>
+                  <StatusBadge status={stageBadgeStatus(status)} label={shortStatus(status)} />
                 </div>
-              </li>
-            );
-          })}
-        </ol>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
 
+      <div className="production-desk-row-footer">
         <div className="production-desk-row-gate">
           {row.releaseReady ? (
             <StatusBadge status="COMPLETED" label="Gate ready" />
           ) : (
-            <div>
+            <>
               <StatusBadge status="CHECKING" label="Gate blocked" />
               {row.releaseMissing?.length ? (
                 <p className="production-desk-row-gate-detail">
@@ -163,26 +167,36 @@ function PipelineRow({
                     : ""}
                 </p>
               ) : null}
-            </div>
+            </>
           )}
         </div>
-      </div>
 
-      <div className="production-desk-row-actions">
-        {canOpen && row.nextAction ? (
-          <AppButtonLink
-            href={ROUTES.work.taskDetail(row.nextAction.taskId)}
-            appVariant="primary"
-            size="sm"
-          >
-            {`Open ${row.nextAction.label}`}
-          </AppButtonLink>
-        ) : waiting ? (
-          <p className="production-desk-waiting">{waiting}</p>
-        ) : null}
+        <div className="production-desk-row-actions">
+          {canOpen && row.nextAction ? (
+            <AppButtonLink
+              href={ROUTES.work.taskDetail(row.nextAction.taskId)}
+              appVariant="primary"
+              size="sm"
+            >
+              {`Open ${row.nextAction.label}`}
+            </AppButtonLink>
+          ) : waiting ? (
+            <p className="production-desk-waiting">{waiting}</p>
+          ) : null}
+        </div>
       </div>
     </article>
   );
+}
+
+type PipelineRowItem = {
+  row: ApprovedDesignForProduction;
+  bucket: ProductionDeskPipelineBucket;
+};
+
+function pipelineSearchText(item: PipelineRowItem) {
+  const { row } = item;
+  return `${row.ideaRef} ${row.collectionName} ${row.productType.name} ${row.designHead.name}`;
 }
 
 export function ProductionPipelineBoard({
@@ -190,11 +204,15 @@ export function ProductionPipelineBoard({
   roleCode,
   permissions,
   employeeId,
+  onRefresh,
+  isRefreshing,
 }: {
   designs: ApprovedDesignForProduction[];
   roleCode?: string | null;
   permissions: string[];
   employeeId?: number | null;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }) {
   const [filter, setFilter] = useState<PipelineFilter>("ALL");
 
@@ -245,14 +263,35 @@ export function ProductionPipelineBoard({
     });
   }, [rowsWithBucket, filter]);
 
+  const getSearchText = useCallback(pipelineSearchText, []);
+  const list = useClientList({
+    items: filtered,
+    getSearchText,
+    filterKey: filter,
+  });
+
   return (
     <AppCard
       title="Production pipeline"
-      className="production-desk-pipeline-card"
+      className="production-desk-pipeline-card overflow-visible"
       contentClassName="production-desk-card-content"
+      headerAction={
+        onRefresh ? (
+          <ListRefreshButton onRefresh={onRefresh} isRefreshing={isRefreshing} />
+        ) : null
+      }
     >
       <div className="production-desk-board">
         {designs.length > 0 ? (
+          <>
+          <div className="page-toolbar !mb-0 border-b px-3 py-2">
+            <ListSearch
+              value={list.search}
+              onChange={list.setSearch}
+              placeholder="Search pipeline…"
+              aria-label="Search production pipeline"
+            />
+          </div>
           <div className="production-desk-filters" role="tablist" aria-label="Filter pipeline">
             {FILTERS.map((item) => {
               if (item.key !== "ALL" && counts[item.key] === 0) return null;
@@ -274,9 +313,10 @@ export function ProductionPipelineBoard({
               );
             })}
           </div>
+          </>
         ) : null}
 
-        {filtered.length === 0 ? (
+        {list.filtered.length === 0 ? (
           <div className="production-desk-empty" role="status">
             <span className="production-desk-empty-icon" aria-hidden>
               <IconProduction className="size-6" />
@@ -293,18 +333,30 @@ export function ProductionPipelineBoard({
             </p>
           </div>
         ) : (
-          <div className="production-desk-rows">
-            {filtered.map(({ row, bucket }) => (
-              <PipelineRow
-                key={row.id}
-                row={row}
-                bucket={bucket}
-                roleCode={roleCode}
-                permissions={permissions}
-                employeeId={employeeId}
+          <>
+            <div className="production-desk-rows">
+              {list.pageItems.map(({ row, bucket }) => (
+                <PipelineRow
+                  key={row.id}
+                  row={row}
+                  bucket={bucket}
+                  roleCode={roleCode}
+                  permissions={permissions}
+                  employeeId={employeeId}
+                />
+              ))}
+            </div>
+            {list.total > 0 ? (
+              <PaginationBar
+                total={list.total}
+                page={list.page}
+                pageSize={list.pageSize}
+                onPageChange={list.setPage}
+                onPageSizeChange={list.setPageSize}
+                pageSizeSelectId="production-pipeline-page-size"
               />
-            ))}
-          </div>
+            ) : null}
+          </>
         )}
       </div>
     </AppCard>

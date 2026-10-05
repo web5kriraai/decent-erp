@@ -1,15 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { QueryState } from "@/components/ui/QueryState";
+import { ListPage } from "@/components/ui/ListPage";
+import { ListDateRangeFilter } from "@/components/ui/ListDateRangeFilter";
 import { PermissionDenied } from "@/components/PermissionDenied";
-import { AppCard } from "@/components/ui/AppCard";
 import { DataTable } from "@/components/DataTable";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useTimeReport } from "@/hooks/use-time";
+import { useClientList } from "@/hooks/use-client-list";
 import { PERMISSIONS } from "@/lib/permissions";
 import { formatDuration } from "@/lib/services/time-calculation";
 
@@ -30,6 +28,12 @@ type ReportRow = {
   holdByReason: Array<{ name: string; seconds: number }>;
 } & Record<string, unknown>;
 
+function reportSearchText(row: ReportRow) {
+  return [row.name, row.employeeCode, row.role.name, row.holdByReason[0]?.name]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function EmployeeTimeReportView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
@@ -47,6 +51,16 @@ export function EmployeeTimeReportView() {
 
   const reportQuery = useTimeReport(from, to, enabled);
 
+  const rows = (reportQuery.data?.rows ?? []) as ReportRow[];
+  const getSearchText = useCallback(reportSearchText, []);
+  const dateRangeKey = `${from}-${to}`;
+
+  const list = useClientList({
+    items: rows,
+    getSearchText,
+    filterKey: dateRangeKey,
+  });
+
   if (!enabled) {
     return (
       <div className="page-shell">
@@ -56,87 +70,82 @@ export function EmployeeTimeReportView() {
   }
 
   return (
-    <div className="page-shell page-shell--wide">
-      <PageHeader
-        title="Employee Time Report"
+    <ListPage
+      title="Employee Time Report"
+      wide
+      search={{
+        value: list.search,
+        onChange: list.setSearch,
+        placeholder: "Search employee, role…",
+        "aria-label": "Search time report",
+      }}
+      filters={
+        <ListDateRangeFilter
+          fromId="report-from"
+          toId="report-to"
+          from={from}
+          to={to}
+          onFromChange={setFrom}
+          onToChange={setTo}
+        />
+      }
+      onRefresh={() => reportQuery.refetch()}
+      isRefreshing={reportQuery.isFetching}
+      query={{
+        isLoading: reportQuery.isLoading,
+        isError: reportQuery.isError,
+        error: reportQuery.error,
+        onRetry: () => reportQuery.refetch(),
+      }}
+      pagination={{
+        total: list.total,
+        page: list.page,
+        pageSize: list.pageSize,
+        onPageChange: list.setPage,
+        onPageSizeChange: list.setPageSize,
+        pageSizeSelectId: "time-report-page-size",
+      }}
+    >
+      <DataTable<ReportRow>
+        flush
+        rows={list.pageItems as ReportRow[]}
+        getRowKey={(row) => String(row.employeeId)}
+        emptyTitle="No time records found"
+        emptyDescription="Try widening the date range or confirm employees logged task time in this period."
+        columns={[
+          {
+            key: "name",
+            header: "Employee",
+            render: (row) => <strong>{row.name}</strong>,
+          },
+          {
+            key: "role",
+            header: "Role",
+            render: (row) => row.role.name.replace(/_/g, " "),
+          },
+          { key: "tasksWorked", header: "Tasks worked" },
+          { key: "tasksCompleted", header: "Completed" },
+          { key: "workdaysClosed", header: "Workdays closed" },
+          {
+            key: "activeSeconds",
+            header: "Active",
+            render: (row) => formatDuration(row.activeSeconds),
+          },
+          {
+            key: "holdSeconds",
+            header: "Hold",
+            render: (row) => formatDuration(row.holdSeconds),
+          },
+          {
+            key: "holdByReason",
+            header: "Top hold reason",
+            render: (row) =>
+              row.holdByReason[0]
+                ? `${row.holdByReason[0].name} (${formatDuration(row.holdByReason[0].seconds)})`
+                : "-",
+          },
+        ]}
       />
-
-      <AppCard flat className="stack-section-sm">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="report-from">From</Label>
-            <Input
-              id="report-from"
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="report-to">To</Label>
-            <Input
-              id="report-to"
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </div>
-        </div>
-      </AppCard>
-
-      <QueryState
-        isLoading={reportQuery.isLoading}
-        isError={reportQuery.isError}
-        error={reportQuery.error}
-        onRetry={() => reportQuery.refetch()}
-      >
-        {reportQuery.data && (
-          <AppCard flush>
-              <DataTable<ReportRow>
-              flush
-              rows={(reportQuery.data.rows ?? []) as ReportRow[]}
-              getRowKey={(row) => String(row.employeeId)}
-              emptyTitle="No time records found"
-              emptyDescription="Try widening the date range or confirm employees logged task time in this period."
-              columns={[
-                {
-                  key: "name",
-                  header: "Employee",
-                  render: (row) => (
-                    <strong>{row.name}</strong>
-                  ),
-                },
-                {
-                  key: "role",
-                  header: "Role",
-                  render: (row) => row.role.name.replace(/_/g, " "),
-                },
-                { key: "tasksWorked", header: "Tasks worked" },
-                { key: "tasksCompleted", header: "Completed" },
-                { key: "workdaysClosed", header: "Workdays closed" },
-                {
-                  key: "activeSeconds",
-                  header: "Active",
-                  render: (row) => formatDuration(row.activeSeconds),
-                },
-                {
-                  key: "holdSeconds",
-                  header: "Hold",
-                  render: (row) => formatDuration(row.holdSeconds),
-                },
-                {
-                  key: "holdByReason",
-                  header: "Top hold reason",
-                  render: (row) =>
-                    row.holdByReason[0]
-                      ? `${row.holdByReason[0].name} (${formatDuration(row.holdByReason[0].seconds)})`
-                      : "-",
-                },
-              ]}
-            />
-          </AppCard>
-        )}
-      </QueryState>
-    </div>
+    </ListPage>
   );
 }

@@ -105,12 +105,14 @@ export function RbacMatrixGrid() {
         onRetry={() => matrixQuery.refetch()}
         skeletonVariant="table"
       >
-        <AppCard contentClassName="p-0">
-          <div className="rbac-matrix-scroll scroll-region">
+        <AppCard flush className="rbac-matrix-card" contentClassName="p-0">
+          <div className="rbac-matrix-scroll">
             <table className="rbac-matrix-table">
               <thead>
                 <tr>
-                  <th scope="col">Permission</th>
+                  <th scope="col" className="rbac-matrix-perm-head">
+                    Permission
+                  </th>
                   {roles.map((role) => (
                     <th key={role.id} scope="col" className="rbac-matrix-role-col">
                       <span className="rbac-matrix-role-name">{role.displayName}</span>

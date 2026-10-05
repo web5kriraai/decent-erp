@@ -8,10 +8,15 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
   deleteFromLocal,
   getLocalStorageRoot,
-  localDownloadPath,
   uploadToLocal,
+  readLocalObject,
 } from "@/lib/local-storage";
 import { StorageError, type StorageBackend } from "@/lib/storage-types";
+import {
+  filePresignTtlSeconds,
+  preferProxiedDownloads,
+  signedAppDownloadPath,
+} from "@/lib/signed-download";
 
 export { StorageError } from "@/lib/storage-types";
 
@@ -100,8 +105,19 @@ export async function uploadObject(
   key: string,
   body: Buffer | Uint8Array,
   contentType: string,
+  options?: { skipMalwareScan?: boolean },
 ) {
   assertSafeKey(key);
+
+  if (!options?.skipMalwareScan) {
+    const { scanUploadBuffer } = await import("@/lib/services/malware-scan");
+    const buffer = Buffer.isBuffer(body) ? body : Buffer.from(body);
+    const scan = await scanUploadBuffer(buffer);
+    if (!scan.ok) {
+      throw new StorageError(scan.message);
+    }
+  }
+
   const backend = getBackend();
 
   if (backend === "local") {
@@ -130,22 +146,53 @@ async function getS3PresignedDownloadUrl(key: string, expiresIn: number) {
   return getSignedUrl(s3Client, command, { expiresIn });
 }
 
-export async function getPresignedDownloadUrl(key: string, expiresIn = 3600) {
+export async function getPresignedDownloadUrl(key: string, expiresIn?: number) {
   assertSafeKey(key);
+  const ttl = expiresIn ?? filePresignTtlSeconds();
   const backend = getBackend();
 
-  if (backend === "local") {
-    return localDownloadPath(key);
+  // Always prefer app-proxied signed URLs when configured, or for local storage.
+  if (backend === "local" || preferProxiedDownloads()) {
+    return signedAppDownloadPath(key, ttl);
   }
 
   try {
-    return await getS3PresignedDownloadUrl(key, expiresIn);
+    return await getS3PresignedDownloadUrl(key, ttl);
   } catch (error) {
     if (storageDriver === "s3" || !isConnectionError(error)) {
       throw new StorageError("Could not create download URL for stored file.", error);
     }
     switchToLocalBackend(error);
-    return localDownloadPath(key);
+    return signedAppDownloadPath(key, ttl);
+  }
+}
+
+/** Stream object bytes (local or S3) for the signed download proxy. */
+export async function readStoredObject(key: string): Promise<{
+  body: Buffer;
+  contentType: string;
+}> {
+  assertSafeKey(key);
+  const backend = getBackend();
+  if (backend === "local") {
+    return readLocalObject(key);
+  }
+  try {
+    const res = await s3Client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    const bytes = await res.Body?.transformToByteArray();
+    if (!bytes) throw new StorageError("Empty object body");
+    return {
+      body: Buffer.from(bytes),
+      contentType: res.ContentType ?? "application/octet-stream",
+    };
+  } catch (error) {
+    if (storageDriver === "s3" || !isConnectionError(error)) {
+      throw new StorageError("Could not read stored file.", error);
+    }
+    switchToLocalBackend(error);
+    return readLocalObject(key);
   }
 }
 

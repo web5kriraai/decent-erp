@@ -20,6 +20,7 @@ import {
   resolveCompletedStageDetails,
   type ApprovalRequestPackage,
 } from "@/lib/approval-request-package";
+import { isMeaningfulCostingNote, sanitizeHandoffRemark } from "@/lib/services/costing-end-utils";
 import { cn } from "@/lib/utils";
 
 type ApprovalRequestPackagePanelProps = {
@@ -35,14 +36,14 @@ function fileExt(name: string) {
   return i >= 0 ? name.slice(i + 1).toUpperCase() : "FILE";
 }
 
-function shortStageLabel(stage: string) {
-  const cleaned = stage.replace(/\s*\/\s*.*$/, "").trim();
-  if (cleaned.length <= 14) return cleaned;
-  return `${cleaned.slice(0, 12)}…`;
-}
-
 function formatDecision(decision: string) {
   return decision.replace(/_/g, " ").toLowerCase();
+}
+
+function displayNote(value?: string | null): string | null {
+  const cleaned = sanitizeHandoffRemark(value);
+  if (!cleaned || !isMeaningfulCostingNote(cleaned)) return null;
+  return cleaned;
 }
 
 function SummaryItem({
@@ -109,6 +110,8 @@ export function ApprovalRequestPackagePanel({
     : requiresCosting
       ? "Required"
       : "Not required";
+  const requesterRemark = displayNote(pkg.requesterRemark);
+  const summaryNote = displayNote(pkg.summaryNote);
   const hasStageRemarks = stageDetails.some(
     (s) => (s.outputRemark && s.outputRemark.trim()) || s.assigneeName,
   );
@@ -148,62 +151,61 @@ export function ApprovalRequestPackagePanel({
         </SummaryItem>
       </div>
 
-      <div className="approval-pkg-mid">
-        <div className="approval-pkg-panel">
-          <p className="approval-pkg-panel-title">Requester notes</p>
-          <dl className="approval-pkg-remarks">
+      <div className="approval-pkg-panel">
+        <p className="approval-pkg-panel-title">Requester notes</p>
+        <dl className="approval-pkg-remarks approval-pkg-remarks--inline">
+          <div>
+            <dt>Remark</dt>
+            <dd>{requesterRemark ?? "—"}</dd>
+          </div>
+          {summaryNote ? (
             <div>
-              <dt>Remark</dt>
-              <dd>{pkg.requesterRemark}</dd>
+              <dt>Summary note</dt>
+              <dd>{summaryNote}</dd>
             </div>
-            {pkg.summaryNote ? (
-              <div>
-                <dt>Summary note</dt>
-                <dd>{pkg.summaryNote}</dd>
-              </div>
-            ) : null}
-          </dl>
-        </div>
+          ) : null}
+        </dl>
+      </div>
 
-        <div className="approval-pkg-panel">
-          <p className="approval-pkg-panel-title">
-            Workflow progress · {stageDetails.length} done
-          </p>
-          {stageDetails.length > 0 ? (
-            <>
-              <ol className="approval-pkg-stepper">
-                {stageDetails.map((stage, index) => (
-                  <li
-                    key={`${stage.code ?? stage.name}-${index}`}
-                    className="approval-pkg-step approval-pkg-step--done"
-                    title={
-                      stage.outputRemark
-                        ? `${stage.name}: ${stage.outputRemark}`
-                        : stage.name
-                    }
-                  >
-                    <span className="approval-pkg-step-mark" aria-hidden>
-                      <IconCheck />
-                    </span>
-                    <span className="approval-pkg-step-label">
-                      {shortStageLabel(stage.name)}
-                    </span>
-                  </li>
-                ))}
+      <div className="approval-pkg-panel">
+        <p className="approval-pkg-panel-title">
+          Workflow progress · {stageDetails.length} done
+        </p>
+        {stageDetails.length > 0 ? (
+          <>
+            <ol className="approval-pkg-stepper">
+              {stageDetails.map((stage, index) => (
                 <li
-                  className="approval-pkg-step approval-pkg-step--current"
-                  title="Management approval"
+                  key={`${stage.code ?? stage.name}-${index}`}
+                  className="approval-pkg-step approval-pkg-step--done"
+                  title={
+                    stage.outputRemark
+                      ? `${stage.name}: ${stage.outputRemark}`
+                      : stage.name
+                  }
                 >
                   <span className="approval-pkg-step-mark" aria-hidden>
-                    {stageDetails.length + 1}
+                    <IconCheck />
                   </span>
-                  <span className="approval-pkg-step-label">Management</span>
+                  <span className="approval-pkg-step-label">{stage.name}</span>
                 </li>
-              </ol>
+              ))}
+              <li
+                className="approval-pkg-step approval-pkg-step--current"
+                title="Management approval"
+              >
+                <span className="approval-pkg-step-mark" aria-hidden>
+                  {stageDetails.length + 1}
+                </span>
+                <span className="approval-pkg-step-label">Management</span>
+              </li>
+            </ol>
 
-              {hasStageRemarks ? (
-                <ol className="approval-pkg-stage-remarks">
-                  {stageDetails.map((stage, index) => (
+            {hasStageRemarks ? (
+              <ol className="approval-pkg-stage-remarks">
+                {stageDetails.map((stage, index) => {
+                  const stageRemark = displayNote(stage.outputRemark);
+                  return (
                     <li key={`remark-${stage.code ?? stage.name}-${index}`}>
                       <div className="approval-pkg-stage-remark-head">
                         <span className="approval-pkg-stage-remark-name">{stage.name}</span>
@@ -213,22 +215,22 @@ export function ApprovalRequestPackagePanel({
                           </span>
                         ) : null}
                       </div>
-                      {stage.outputRemark?.trim() ? (
-                        <p className="approval-pkg-stage-remark-body">{stage.outputRemark}</p>
+                      {stageRemark ? (
+                        <p className="approval-pkg-stage-remark-body">{stageRemark}</p>
                       ) : (
                         <p className="approval-pkg-metric-sub m-0">No output remark</p>
                       )}
                     </li>
-                  ))}
-                </ol>
-              ) : null}
-            </>
-          ) : (
-            <p className="approval-pkg-metric-sub m-0">
-              No completed stages recorded in package.
-            </p>
-          )}
-        </div>
+                  );
+                })}
+              </ol>
+            ) : null}
+          </>
+        ) : (
+          <p className="approval-pkg-metric-sub m-0">
+            No completed stages recorded in package.
+          </p>
+        )}
       </div>
 
       {briefs.length > 0 ? (
@@ -293,9 +295,7 @@ export function ApprovalRequestPackagePanel({
             <p className="approval-pkg-metric-value">
               {hasCosting ? `₹${snap.costingTotal.toLocaleString()}` : "-"}
             </p>
-            <p className="approval-pkg-metric-sub">
-              {costingLabel}
-            </p>
+            <p className="approval-pkg-metric-sub">{costingLabel}</p>
             {!preview ? (
               <Link href={ROUTES.finance.costing} className="approval-pkg-metric-link">
                 Open costing
@@ -338,30 +338,6 @@ export function ApprovalRequestPackagePanel({
           </div>
         </div>
       </div>
-
-      {!preview ? (
-        <div className="approval-pkg-resources">
-          <p className="approval-pkg-panel-title">Quick links</p>
-          <div className="approval-pkg-resource-row">
-            <Link href={ROUTES.designs.detail(designId)} className="approval-pkg-resource-btn">
-              <IconPackage aria-hidden />
-              Design
-            </Link>
-            <Link href={designFileDeepLink(designId)} className="approval-pkg-resource-btn">
-              <IconFolderOpen aria-hidden />
-              Files
-            </Link>
-            <Link href={ROUTES.finance.costing} className="approval-pkg-resource-btn">
-              <IconIndianRupee aria-hidden />
-              Costing
-            </Link>
-            <Link href={ROUTES.quality.corrections} className="approval-pkg-resource-btn">
-              <IconAlertTriangle aria-hidden />
-              Corrections
-            </Link>
-          </div>
-        </div>
-      ) : null}
 
       {files.length > 0 ? (
         <div className="approval-pkg-attachments">

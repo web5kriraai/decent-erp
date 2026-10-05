@@ -105,6 +105,8 @@ export const TEXTILE_CAPABILITIES_BY_CODE: Record<string, StageCapabilities> = {
     requiresFile: true,
     forcesChecking: true,
     isCorrectionAllowed: true,
+    /** Wilcom digitizing metrics (stitch count, format, needles, colors). */
+    machineOutput: true,
   }),
   PUNCH_CHECK: caps({
     isApproval: true,

@@ -13,7 +13,10 @@ import {
 import {
   parseConceptMediaKind,
   validateConceptMedia,
+  resolveUploadCategory,
+  validateUploadPayload,
 } from "@/lib/file-upload-policy";
+import { scanUploadBuffer } from "@/lib/services/malware-scan";
 
 async function listDesignImages(designId: bigint) {
   const images = await prisma.designImage.findMany({
@@ -68,27 +71,66 @@ export async function POST(
 
       if (!file) throw new ApiError("File is required", 400);
 
+      if (designComponentId != null) {
+        const component = await prisma.designComponent.findFirst({
+          where: { id: designComponentId, designId },
+          select: { id: true },
+        });
+        if (!component) {
+          throw new ApiError(
+            "designComponentId does not belong to this design",
+            422,
+          );
+        }
+      }
+
       const buffer = Buffer.from(await file.arrayBuffer());
-      const validation = validateConceptMedia(
-        { name: file.name, type: file.type || "", size: file.size },
-        mediaKind,
-        buffer,
-      );
-      if (!validation.ok) {
-        throw new ApiError(validation.message, validation.status);
+      const categoryHint = formData.get("category")?.toString();
+      const uploadCategory = resolveUploadCategory(categoryHint, file.name);
+
+      let resolvedMediaKind = mediaKind;
+      if (categoryHint && (uploadCategory === "PUNCHING" || uploadCategory === "SKETCH")) {
+        const punchValidation = validateUploadPayload(
+          { name: file.name, type: file.type || "", size: file.size },
+          uploadCategory,
+          buffer,
+        );
+        if (!punchValidation.ok) {
+          throw new ApiError(punchValidation.message, punchValidation.status);
+        }
+        if (uploadCategory === "PUNCHING") resolvedMediaKind = "FILE";
+        else if (file.name.toLowerCase().endsWith(".pdf")) resolvedMediaKind = "FILE";
+      } else {
+        const validation = validateConceptMedia(
+          { name: file.name, type: file.type || "", size: file.size },
+          mediaKind,
+          buffer,
+        );
+        if (!validation.ok) {
+          throw new ApiError(validation.message, validation.status);
+        }
+      }
+
+      const scan = await scanUploadBuffer(buffer);
+      if (!scan.ok) {
+        throw new ApiError(scan.message, scan.status);
       }
 
       let contentType =
         file.type && file.type !== "application/octet-stream"
           ? file.type
           : file.type || "application/octet-stream";
-      if (mediaKind === "FILE" && (!file.type || file.type === "application/octet-stream")) {
+      if (
+        (resolvedMediaKind === "FILE" || uploadCategory === "PUNCHING") &&
+        (!file.type || file.type === "application/octet-stream")
+      ) {
         contentType = "application/octet-stream";
       }
 
       const storageKey = buildStorageKey(id, file.name);
       try {
-        await uploadObject(storageKey, buffer, contentType);
+        // Already scanned above — skip duplicate ClamAV round-trip.
+        await uploadObject(storageKey, buffer, contentType, { skipMalwareScan: true });
       } catch (error) {
         if (error instanceof StorageError) {
           throw new ApiError(error.message, 503, error.cause);
@@ -101,7 +143,8 @@ export async function POST(
           where: { designId, isPrimary: true },
           select: { id: true },
         });
-        const makePrimary = isPrimary || !existingPrimary;
+        const makePrimary =
+          (isPrimary || !existingPrimary) && resolvedMediaKind === "IMAGE";
 
         if (makePrimary) {
           await tx.designImage.updateMany({
@@ -114,13 +157,13 @@ export async function POST(
           data: {
             designId,
             designComponentId,
-            mediaKind,
+            mediaKind: resolvedMediaKind,
             storageKey,
             fileName: file.name,
             contentType,
             fileSize: BigInt(file.size),
             uploadedById: ctx.employeeId,
-            isPrimary: makePrimary && mediaKind === "IMAGE",
+            isPrimary: makePrimary,
           },
         });
 
@@ -134,7 +177,7 @@ export async function POST(
             storageKey,
             fileName: file.name,
             isPrimary: makePrimary,
-            mediaKind,
+            mediaKind: resolvedMediaKind,
             designComponentId: designComponentId?.toString() ?? null,
           },
         });

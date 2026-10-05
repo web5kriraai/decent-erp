@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { QueryState } from "@/components/ui/QueryState";
+import { ListPage } from "@/components/ui/ListPage";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -16,8 +15,22 @@ import { useApiToast } from "@/components/ui/ToastProvider";
 import { Modal, ModalFooterActions } from "@/components/ui/Modal";
 import { AppButton } from "@/components/ui/AppButton";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
+import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
 import { CreateWorkflowPatternModal } from "@/features/admin/CreateWorkflowPatternModal";
+import { useClientList } from "@/hooks/use-client-list";
 import type { CreateWorkflowPatternPayload, WorkflowPattern } from "@/lib/types/api";
+
+type StatusFilter = "all" | "active" | "inactive";
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+function patternSearchText(row: WorkflowPattern) {
+  return `${row.name} ${row.productType?.name ?? ""}`;
+}
 
 export function WorkflowPatternsView() {
   const { data: session } = useSession();
@@ -29,6 +42,22 @@ export function WorkflowPatternsView() {
   const [open, setOpen] = useState(false);
   const [editPattern, setEditPattern] = useState<WorkflowPattern | null>(null);
   const [cloneTarget, setCloneTarget] = useState<WorkflowPattern | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const statusFiltered = useMemo(() => {
+    const items = patternsQuery.data ?? [];
+    if (statusFilter === "all") return items;
+    if (statusFilter === "active") return items.filter((row) => row.active !== false);
+    return items.filter((row) => row.active === false);
+  }, [patternsQuery.data, statusFilter]);
+
+  const getSearchText = useCallback(patternSearchText, []);
+
+  const list = useClientList({
+    items: statusFiltered,
+    getSearchText,
+    filterKey: statusFilter,
+  });
 
   const createPattern = useMutation({
     mutationFn: (payload: CreateWorkflowPatternPayload) =>
@@ -101,23 +130,105 @@ export function WorkflowPatternsView() {
   }
 
   return (
-    <div className="page-shell">
-      <PageHeader
-        title="Workflow Patterns"
+    <ListPage
+      title="Workflow Patterns"
         actions={
           <AppButton type="button" appVariant="primary" size="sm" onClick={() => setOpen(true)}>
             Add Pattern
           </AppButton>
         }
-      />
+        search={{
+          value: list.search,
+          onChange: list.setSearch,
+          placeholder: "Search name or product type…",
+          "aria-label": "Search workflow patterns",
+        }}
+        filters={
+          <ListSelectFilter
+            id="workflow-status-filter"
+            label="Status"
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as StatusFilter)}
+            options={STATUS_OPTIONS}
+          />
+        }
+        onRefresh={() => patternsQuery.refetch()}
+        isRefreshing={patternsQuery.isFetching}
+        query={{
+          isLoading: patternsQuery.isLoading,
+          isError: patternsQuery.isError,
+          error: patternsQuery.error,
+          onRetry: () => patternsQuery.refetch(),
+        }}
+        pagination={{
+          total: list.total,
+          page: list.page,
+          pageSize: list.pageSize,
+          onPageChange: list.setPage,
+          onPageSizeChange: list.setPageSize,
+          pageSizeSelectId: "workflow-patterns-page-size",
+        }}
+        overlays={
+          <>
+            <CreateWorkflowPatternModal
+              open={open}
+              onClose={() => setOpen(false)}
+              onSubmit={(payload) => createPattern.mutate(payload)}
+              isPending={createPattern.isPending}
+            />
 
-      <QueryState
-        isLoading={patternsQuery.isLoading}
-        isError={patternsQuery.isError}
-        error={patternsQuery.error}
-        onRetry={() => patternsQuery.refetch()}
+            <CreateWorkflowPatternModal
+              open={!!editPattern}
+              onClose={() => setEditPattern(null)}
+              onSubmit={() => {}}
+              isPending={false}
+              editPattern={editPattern}
+              onSubmitEdit={(patternId, payload) =>
+                editPattern &&
+                saveEditPattern.mutate({
+                  id: patternId,
+                  name: payload.name,
+                  previousName: editPattern.name,
+                  tasks: payload.tasks,
+                })
+              }
+              isEditPending={saveEditPattern.isPending}
+            />
+
+            <Modal
+              open={!!cloneTarget}
+              title="Clone as new version"
+              description="Creates a new version and deactivates the current one."
+              onClose={() => setCloneTarget(null)}
+              size="sm"
+              footer={
+                <ModalFooterActions>
+                  <AppButton type="button" appVariant="ghost" size="sm" onClick={() => setCloneTarget(null)}>
+                    Cancel
+                  </AppButton>
+                  <AppButton
+                    type="button"
+                    size="sm"
+                    disabled={clonePattern.isPending}
+                    onClick={() => cloneTarget && clonePattern.mutate(cloneTarget.id)}
+                  >
+                    {clonePattern.isPending ? "Cloning…" : "Clone pattern"}
+                  </AppButton>
+                </ModalFooterActions>
+              }
+            >
+              {cloneTarget ? (
+                <p className="text-sm text-muted-foreground">
+                  Clone <strong>{cloneTarget.name}</strong> v{cloneTarget.versionNo} to v
+                  {cloneTarget.versionNo + 1}?
+                </p>
+              ) : null}
+            </Modal>
+          </>
+        }
       >
         <DataTable
+          flush
           columns={[
             { key: "name", header: "Pattern Name" },
             {
@@ -163,67 +274,22 @@ export function WorkflowPatternsView() {
               ),
             },
           ]}
-          rows={patternsQuery.data ?? []}
+          rows={list.pageItems}
           getRowKey={(row) => String(row.id)}
-          emptyTitle="No workflow patterns"
+          emptyTitle={
+            list.search || statusFilter !== "all"
+              ? "No patterns match your filters"
+              : "No workflow patterns"
+          }
           emptyDescription="Create a pattern to get started."
+          emptyAction={
+            !list.search && statusFilter === "all" ? (
+              <AppButton type="button" appVariant="primary" size="sm" onClick={() => setOpen(true)}>
+                Add Pattern
+              </AppButton>
+            ) : undefined
+          }
         />
-      </QueryState>
-
-      <CreateWorkflowPatternModal
-        open={open}
-        onClose={() => setOpen(false)}
-        onSubmit={(payload) => createPattern.mutate(payload)}
-        isPending={createPattern.isPending}
-      />
-
-      <CreateWorkflowPatternModal
-        open={!!editPattern}
-        onClose={() => setEditPattern(null)}
-        onSubmit={() => {}}
-        isPending={false}
-        editPattern={editPattern}
-        onSubmitEdit={(patternId, payload) =>
-          editPattern &&
-          saveEditPattern.mutate({
-            id: patternId,
-            name: payload.name,
-            previousName: editPattern.name,
-            tasks: payload.tasks,
-          })
-        }
-        isEditPending={saveEditPattern.isPending}
-      />
-
-      <Modal
-        open={!!cloneTarget}
-        title="Clone as new version"
-        description="Creates a new version and deactivates the current one."
-        onClose={() => setCloneTarget(null)}
-        size="sm"
-        footer={
-          <ModalFooterActions>
-            <AppButton type="button" appVariant="ghost" size="sm" onClick={() => setCloneTarget(null)}>
-              Cancel
-            </AppButton>
-            <AppButton
-              type="button"
-              size="sm"
-              disabled={clonePattern.isPending}
-              onClick={() => cloneTarget && clonePattern.mutate(cloneTarget.id)}
-            >
-              {clonePattern.isPending ? "Cloning…" : "Clone pattern"}
-            </AppButton>
-          </ModalFooterActions>
-        }
-      >
-        {cloneTarget ? (
-          <p className="text-sm text-muted-foreground">
-            Clone <strong>{cloneTarget.name}</strong> v{cloneTarget.versionNo} to v
-            {cloneTarget.versionNo + 1}?
-          </p>
-        ) : null}
-      </Modal>
-    </div>
+    </ListPage>
   );
 }

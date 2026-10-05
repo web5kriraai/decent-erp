@@ -312,7 +312,7 @@ export function TopBar() {
                   onClick={() => {
                     setUserMenuOpen(false);
                     closeMobile();
-                    void signOut({ callbackUrl: ROUTES.login });
+                    void signOut({ callbackUrl: `${window.location.origin}${ROUTES.login}` });
                   }}
                 >
                   <IconLogout size={16} />

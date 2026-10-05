@@ -57,6 +57,13 @@ const REPORT_LINKS: ReportLink[] = [
     group: "production",
   },
   {
+    id: "kpi-benchmark",
+    title: "KPI Benchmarking",
+    description: "Team averages, percentiles, and custom scorecards.",
+    href: ROUTES.analytics.kpiBenchmark,
+    group: "people",
+  },
+  {
     id: "kpi",
     title: "Performance KPI",
     description: "Employee scores, grades, and metric weights.",
@@ -136,15 +143,16 @@ export function ReportsHubView() {
     );
   }
 
-  function downloadExport() {
-    window.location.href = `/api/reports/export?type=${encodeURIComponent(exportType)}`;
+  function downloadExport(format: "csv" | "pdf") {
+    window.location.href = `/api/reports/export?type=${encodeURIComponent(exportType)}&format=${format}`;
   }
 
   return (
-    <div className="page-shell page-shell--wide">
+    <div className="page-shell page-shell--wide list-page">
       <PageHeader
         title="Reports Hub"
-        subtitle="Browse scorecards and download CSV exports."
+        subtitle="Browse scorecards and download CSV or PDF exports."
+        className="list-page__header"
         actions={
           <AppButtonLink href={ROUTES.analytics.kpi} appVariant="secondary" size="sm">
             Performance KPI
@@ -193,10 +201,12 @@ export function ReportsHubView() {
           ) : null}
         </section>
 
-        <aside className="reports-hub-exports" aria-label="CSV exports">
+        <aside className="reports-hub-exports" aria-label="Report exports">
           <div className="reports-hub-exports-head">
-            <h2 className="reports-hub-group-title">CSV Exports</h2>
-            <p className="reports-hub-group-desc">Download a dataset without opening a report page.</p>
+            <h2 className="reports-hub-group-title">Exports</h2>
+            <p className="reports-hub-group-desc">
+              Download a dataset as CSV or PDF without opening a report page.
+            </p>
           </div>
           <ul className="reports-hub-export-list" role="listbox" aria-label="Export type">
             {EXPORT_ITEMS.map((item) => (
@@ -217,9 +227,19 @@ export function ReportsHubView() {
               </li>
             ))}
           </ul>
-          <AppButton type="button" className="reports-hub-export-btn" onClick={downloadExport}>
-            Download CSV
-          </AppButton>
+          <div className="reports-hub-export-actions" style={{ display: "flex", gap: "0.5rem" }}>
+            <AppButton type="button" className="reports-hub-export-btn" onClick={() => downloadExport("csv")}>
+              Download CSV
+            </AppButton>
+            <AppButton
+              type="button"
+              appVariant="secondary"
+              className="reports-hub-export-btn"
+              onClick={() => downloadExport("pdf")}
+            >
+              Download PDF
+            </AppButton>
+          </div>
         </aside>
       </div>
     </div>

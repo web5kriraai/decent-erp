@@ -10,7 +10,7 @@ import type {
 
 export async function GET() {
   return withApiHandler(PERMISSIONS.DESIGN_CREATE, async (ctx) => {
-    const dashboard = await getDesignWorkflowDashboard();
+    const dashboard = await getDesignWorkflowDashboard(ctx.companyId);
     const items: KanbanDesignItem[] = dashboard.items.map((raw) => {
       const serialized = serializeBigInt(raw) as unknown as Omit<
         KanbanDesignItem,

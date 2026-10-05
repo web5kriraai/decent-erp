@@ -79,7 +79,7 @@ export function DesignWorkflowPanel({
 
   const headerAction =
     showHeaderBadge || headerActions ? (
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="workflow-panel-header-actions">
         {showHeaderBadge ? <StatusBadge status={workflowHeaderStatus} /> : null}
         {headerActions}
       </div>

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildCostingOutputRemark,
   costingEndHasPositiveCosts,
+  isMeaningfulCostingNote,
   mergeCostAmountsByType,
+  sanitizeHandoffRemark,
   totalFromByType,
 } from "@/lib/services/costing-end-utils";
 
@@ -55,6 +57,21 @@ describe("mergeCostAmountsByType / buildCostingOutputRemark", () => {
   it("appends optional note to auto remark", () => {
     const remark = buildCostingOutputRemark({ TIME: 10 }, 10, "Ready for final");
     expect(remark).toMatch(/Ready for final$/);
+  });
+
+  it("ignores placeholder additional notes", () => {
+    expect(isMeaningfulCostingNote("nothing")).toBe(false);
+    expect(buildCostingOutputRemark({ MATERIAL: 500 }, 500, "nothing")).toBe(
+      "Costing submitted: MATERIAL ₹500.00; total ₹500.00",
+    );
+  });
+
+  it("strips trailing placeholder notes from stored remarks", () => {
+    expect(
+      sanitizeHandoffRemark(
+        "Costing submitted: MATERIAL ₹500.00, MACHINE ₹300.00; total ₹800.00, nothing",
+      ),
+    ).toBe("Costing submitted: MATERIAL ₹500.00, MACHINE ₹300.00; total ₹800.00");
   });
 
   it("falls back when no positive amounts", () => {

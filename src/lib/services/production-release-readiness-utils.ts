@@ -37,6 +37,8 @@ export type ReadinessTaskSnapshot = {
   capabilities?: unknown;
   code?: string;
   name?: string;
+  /** Pipeline sequence - stages after PROD_RELEASE never block release. */
+  sequence?: number;
 };
 
 export function isReleaseInactiveStatus(status: string): boolean {
@@ -95,10 +97,19 @@ export function collectPresentStageGaps(
   tasksByCode: Record<string, ReadinessTaskSnapshot | undefined>,
 ): string[] {
   const missing: string[] = [];
+  const releaseSequence = tasksByCode.PROD_RELEASE?.sequence;
 
   for (const [code, task] of Object.entries(tasksByCode)) {
     if (!task) continue;
     if (code === "PROD_RELEASE" || code === "LIVE_REVIEW") continue;
+    // Floor / post-release stages (e.g. MOP after PROD_RELEASE) must not gate release.
+    if (
+      releaseSequence != null &&
+      task.sequence != null &&
+      task.sequence > releaseSequence
+    ) {
+      continue;
+    }
     if (isReleaseInactiveStatus(task.status)) continue;
 
     const behavior = resolveStageBehavior({

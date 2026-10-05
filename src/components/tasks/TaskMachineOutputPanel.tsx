@@ -20,6 +20,11 @@ type MachineArtifact = {
   machineFormat: string | null;
   sampleQty: number | null;
   wastageQty: number | null;
+  needleCount?: number | null;
+  colorCount?: number | null;
+  hoopSize?: string | null;
+  softwareName?: string | null;
+  stitchDensity?: number | string | null;
   storageKey?: string | null;
   uploadedAtUtc: string;
 };
@@ -28,7 +33,8 @@ type TaskMachineOutputPanelProps = {
   taskId: string;
   canEdit?: boolean;
   compact?: boolean;
-  /** Notifies parent while a debounced auto-save is in flight (e.g. End Task). */
+  /** Prefer PUNCHING_FILE for digitizing stages. */
+  preferredArtifactType?: "SAMPLE_OUTPUT" | "PUNCHING_FILE";
   onBusyChange?: (busy: boolean) => void;
 };
 
@@ -37,6 +43,11 @@ type DraftSnapshot = {
   machineFormat: string | null;
   sampleQty: string;
   wastageQty: string;
+  needleCount: string;
+  colorCount: string;
+  hoopSize: string;
+  softwareName: string;
+  stitchDensity: string;
 };
 
 function parseOptionalInt(value: string): number | undefined {
@@ -46,12 +57,25 @@ function parseOptionalInt(value: string): number | undefined {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
+function parseOptionalFloat(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number.parseFloat(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 function snapshotFromArtifact(artifact: MachineArtifact | null): DraftSnapshot {
   return {
     stitchCount: artifact?.stitchCount != null ? String(artifact.stitchCount) : "",
     machineFormat: artifact?.machineFormat ?? null,
     sampleQty: artifact?.sampleQty != null ? String(artifact.sampleQty) : "",
     wastageQty: artifact?.wastageQty != null ? String(artifact.wastageQty) : "",
+    needleCount: artifact?.needleCount != null ? String(artifact.needleCount) : "",
+    colorCount: artifact?.colorCount != null ? String(artifact.colorCount) : "",
+    hoopSize: artifact?.hoopSize ?? "",
+    softwareName: artifact?.softwareName ?? "",
+    stitchDensity:
+      artifact?.stitchDensity != null ? String(artifact.stitchDensity) : "",
   };
 }
 
@@ -60,23 +84,24 @@ function draftsEqual(a: DraftSnapshot, b: DraftSnapshot): boolean {
     a.stitchCount === b.stitchCount &&
     a.machineFormat === b.machineFormat &&
     a.sampleQty === b.sampleQty &&
-    a.wastageQty === b.wastageQty
+    a.wastageQty === b.wastageQty &&
+    a.needleCount === b.needleCount &&
+    a.colorCount === b.colorCount &&
+    a.hoopSize === b.hoopSize &&
+    a.softwareName === b.softwareName &&
+    a.stitchDensity === b.stitchDensity
   );
 }
 
 function hasAnyValue(draft: DraftSnapshot): boolean {
-  return (
-    !!draft.stitchCount.trim() ||
-    !!draft.sampleQty.trim() ||
-    !!draft.wastageQty.trim() ||
-    !!draft.machineFormat?.trim()
-  );
+  return Object.values(draft).some((v) => !!String(v ?? "").trim());
 }
 
 export function TaskMachineOutputPanel({
   taskId,
   canEdit = true,
   compact = false,
+  preferredArtifactType = "SAMPLE_OUTPUT",
   onBusyChange,
 }: TaskMachineOutputPanelProps) {
   const toast = useApiToast();
@@ -85,6 +110,11 @@ export function TaskMachineOutputPanel({
   const [machineFormat, setMachineFormat] = useState<string | null>(null);
   const [sampleQty, setSampleQty] = useState("");
   const [wastageQty, setWastageQty] = useState("");
+  const [needleCount, setNeedleCount] = useState("");
+  const [colorCount, setColorCount] = useState("");
+  const [hoopSize, setHoopSize] = useState("");
+  const [softwareName, setSoftwareName] = useState("");
+  const [stitchDensity, setStitchDensity] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const lastSavedRef = useRef<DraftSnapshot>(snapshotFromArtifact(null));
@@ -111,6 +141,11 @@ export function TaskMachineOutputPanel({
     setMachineFormat(next.machineFormat);
     setSampleQty(next.sampleQty);
     setWastageQty(next.wastageQty);
+    setNeedleCount(next.needleCount);
+    setColorCount(next.colorCount);
+    setHoopSize(next.hoopSize);
+    setSoftwareName(next.softwareName);
+    setStitchDensity(next.stitchDensity);
     lastSavedRef.current = next;
     artifactIdRef.current = machineArtifact?.id ?? null;
     setSaveState("idle");
@@ -121,6 +156,11 @@ export function TaskMachineOutputPanel({
     machineFormat,
     sampleQty,
     wastageQty,
+    needleCount,
+    colorCount,
+    hoopSize,
+    softwareName,
+    stitchDensity,
   };
 
   useEffect(() => {
@@ -136,7 +176,6 @@ export function TaskMachineOutputPanel({
       );
       return;
     }
-    // Don't create an empty SAMPLE_OUTPUT row until the user enters something.
     if (!artifactIdRef.current && !hasAnyValue(draft)) {
       setSaveState((prev) => (prev === "saving" ? "idle" : prev));
       return;
@@ -152,18 +191,26 @@ export function TaskMachineOutputPanel({
           machineFormat: draft.machineFormat?.trim() || null,
           sampleQty: parseOptionalInt(draft.sampleQty) ?? null,
           wastageQty: parseOptionalInt(draft.wastageQty) ?? null,
+          needleCount: parseOptionalInt(draft.needleCount) ?? null,
+          colorCount: parseOptionalInt(draft.colorCount) ?? null,
+          hoopSize: draft.hoopSize.trim() || null,
+          softwareName: draft.softwareName.trim() || null,
+          stitchDensity: parseOptionalFloat(draft.stitchDensity) ?? null,
         };
 
         try {
           if (artifactIdRef.current) {
             await apiPatch(`/api/tasks/${taskId}/artifacts/${artifactIdRef.current}`, payload);
           } else {
+            const createType =
+              machineArtifact?.artifactType === "PUNCHING_FILE"
+                ? "PUNCHING_FILE"
+                : preferredArtifactType;
             const created = await apiPost<MachineArtifact>(`/api/tasks/${taskId}/artifacts`, {
-              artifactType: "SAMPLE_OUTPUT",
-              stitchCount: payload.stitchCount ?? undefined,
-              machineFormat: payload.machineFormat ?? undefined,
-              sampleQty: payload.sampleQty ?? undefined,
-              wastageQty: payload.wastageQty ?? undefined,
+              artifactType: createType,
+              ...Object.fromEntries(
+                Object.entries(payload).map(([k, v]) => [k, v ?? undefined]),
+              ),
             });
             artifactIdRef.current = created.id;
           }
@@ -183,7 +230,15 @@ export function TaskMachineOutputPanel({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [canEdit, draft, queryClient, taskId, toast]);
+  }, [
+    canEdit,
+    draft,
+    machineArtifact?.artifactType,
+    preferredArtifactType,
+    queryClient,
+    taskId,
+    toast,
+  ]);
 
   const statusLabel =
     saveState === "saving"
@@ -223,6 +278,56 @@ export function TaskMachineOutputPanel({
           options={[...MACHINE_FORMAT_OPTIONS]}
           placeholder="Select format…"
           disabled={!canEdit}
+        />
+        <FormTextField
+          id={`machine-needles-${taskId}`}
+          label="Needle count"
+          type="number"
+          min={0}
+          inputMode="numeric"
+          value={needleCount}
+          onChange={(e) => setNeedleCount(e.target.value)}
+          disabled={!canEdit}
+          placeholder="Wilcom needles"
+        />
+        <FormTextField
+          id={`machine-colors-${taskId}`}
+          label="Color count"
+          type="number"
+          min={0}
+          inputMode="numeric"
+          value={colorCount}
+          onChange={(e) => setColorCount(e.target.value)}
+          disabled={!canEdit}
+          placeholder="Thread colors"
+        />
+        <FormTextField
+          id={`machine-hoop-${taskId}`}
+          label="Hoop size"
+          value={hoopSize}
+          onChange={(e) => setHoopSize(e.target.value)}
+          disabled={!canEdit}
+          placeholder="e.g. 130x180"
+        />
+        <FormTextField
+          id={`machine-software-${taskId}`}
+          label="Software"
+          value={softwareName}
+          onChange={(e) => setSoftwareName(e.target.value)}
+          disabled={!canEdit}
+          placeholder="Wilcom / Hatch"
+        />
+        <FormTextField
+          id={`machine-density-${taskId}`}
+          label="Stitch density"
+          type="number"
+          min={0}
+          step="0.01"
+          inputMode="decimal"
+          value={stitchDensity}
+          onChange={(e) => setStitchDensity(e.target.value)}
+          disabled={!canEdit}
+          placeholder="stitches/mm"
         />
         <FormTextField
           id={`machine-sample-qty-${taskId}`}
@@ -268,7 +373,9 @@ export function TaskMachineOutputPanel({
   return (
     <Card className="mt-6">
       <CardHeader>
-        <CardTitle>Machine output</CardTitle>
+        <CardTitle>
+          {preferredArtifactType === "PUNCHING_FILE" ? "Punching / Wilcom output" : "Machine output"}
+        </CardTitle>
       </CardHeader>
       <CardContent>{body}</CardContent>
     </Card>

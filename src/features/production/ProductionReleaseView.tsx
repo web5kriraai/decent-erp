@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
 import {
@@ -81,6 +81,13 @@ export function ProductionReleaseView() {
     return counts;
   }, [designs]);
 
+  function handleRefresh() {
+    void designsQuery.refetch();
+    if (canMarkLive) void releasedQuery.refetch();
+    if (showErpOps) void handoffsQuery.refetch();
+    void erpStatusQuery.refetch();
+  }
+
   if (sessionStatus === "loading") {
     return (
       <div className="page-shell page-shell--wide production-desk-page">
@@ -104,8 +111,18 @@ export function ProductionReleaseView() {
     <div className="page-shell page-shell--wide production-desk-page">
       <PageHeader
         title="Production Desk"
+        className="production-desk-page__header"
         actions={
           <div className="production-desk-header-actions">
+            <ListRefreshButton
+              onRefresh={handleRefresh}
+              isRefreshing={
+                designsQuery.isFetching ||
+                releasedQuery.isFetching ||
+                handoffsQuery.isFetching ||
+                erpStatusQuery.isFetching
+              }
+            />
             <ProductionErpModePill
               status={erpStatusQuery.data}
               showErpChainLink={showErpOps}
@@ -142,6 +159,8 @@ export function ProductionReleaseView() {
           roleCode={roleCode}
           permissions={permissions}
           employeeId={employeeId}
+          onRefresh={() => designsQuery.refetch()}
+          isRefreshing={designsQuery.isFetching}
         />
       </QueryState>
 
@@ -159,10 +178,10 @@ export function ProductionReleaseView() {
             permissions={permissions}
             markLivePending={markLive.isPending}
             onMarkLive={(id) => markLive.mutateAsync(id)}
+            onRefresh={() => releasedQuery.refetch()}
+            isRefreshing={releasedQuery.isFetching}
           />
         </QueryState>
-      ) : canMarkLive ? (
-        <p className="production-desk-quiet-note">No designs awaiting go-live.</p>
       ) : null}
 
       {showErpOps && (handoffsQuery.isLoading || handoffs.length > 0) ? (
@@ -179,15 +198,10 @@ export function ProductionReleaseView() {
             retryPending={retrySync.isPending}
             onSyncLatest={(designId) => syncDesignHandoffs.mutate(designId)}
             onRetry={(id) => retrySync.mutate(id)}
+            onRefresh={() => handoffsQuery.refetch()}
+            isRefreshing={handoffsQuery.isFetching}
           />
         </QueryState>
-      ) : showErpOps ? (
-        <p className="production-desk-quiet-note">
-          No ERP handoffs.{" "}
-          <Link href={ROUTES.production.erpChain} className="production-desk-erp-link">
-            ERP Chain
-          </Link>
-        </p>
       ) : null}
 
       {canEnsureLadder ? (

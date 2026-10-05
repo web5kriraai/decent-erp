@@ -183,7 +183,14 @@ Change all passwords before production. After an admin changes a user's role, th
 - **Master Catalog** - unified `master_catalog` table (product category, season, fabric, machine, correction type, and all prototype master types) with tile admin UI at `/admin/masters`
 - **Materials** - design material request / stock / indent / issue at `/work/materials` (bound to MAT_REQ / FABRIC_ISSUE stage completion)
 - **Ops workbenches** - Sketch / Punching / Sample boards at `/work/sketch`, `/work/punching`, `/work/samples` (reachable from tasks; not primary sidebar links)
-- **Reports CSV export** - Design Performance, Cost, Material, Delay, Ranking via `/api/reports/export`
+- **Reports CSV / PDF export** - Design Performance, Cost, Material, Delay, Ranking via `/api/reports/export?format=csv|pdf`
+- **Company / location isolation** - employees and designs scoped by `companyId` (seeded default: Decent Technologies / Head Office)
+- **KPI benchmarking / scorecards** - `/analytics/kpi/benchmark` + `GET /api/kpi/benchmark`, `GET/POST/PUT /api/kpi/scorecards`
+- **Engineering BOM** - multi-level BOM on design costing tab (`/api/designs/{id}/bom`)
+- **Signed downloads** - short-lived HMAC tokens via `/api/files/download` (optional `FILE_PROXY_DOWNLOADS`)
+- **Upload content scan** - magic-byte validation + optional ClamAV (`UPLOAD_SCAN_MODE`)
+- **Audit archive** - hot→cold move via Admin “Archive old logs” and daily worker job
+- **Punching Wilcom depth** - stitch/needle/color/hoop/software fields on punch stages
 - **Bulk approvals** - approve selected management sign-offs
 - **Concept Targets** - monthly idea targets by season/product category under Master Data → Concept Targets (`?tab=targets`)
 - **KPI weightage admin** - edit role metric weights under Master Data → KPI Weights
@@ -199,9 +206,8 @@ Change all passwords before production. After an admin changes a user's role, th
 
 ### Not yet implemented
 
-- Extended analytics beyond the nine weighted KPI metrics (custom scorecards / benchmarking)
-- Multi-tenant / multi-company isolation
-- PDF report export (CSV export is available)
+- Native browser Web Push subscription store (current push path is webhook/FCM relay via `PUSH_WEBHOOK_URL`)
+- Cloud antivirus SaaS integrations beyond optional ClamAV (`UPLOAD_SCAN_MODE=clamav`)
 
 ## How to work with the project
 

@@ -101,6 +101,24 @@ export function isStageApprovalCode(code: string): boolean {
   return behavior.isApproval && behavior.approvalSurface !== "none";
 }
 
+/** Short “what happens next” copy for approval handoff banners. */
+export function nextStepHintForStageApproval(code: string): string {
+  switch (code) {
+    case "CONCEPT_REVIEW":
+      return "Approve concept · opens sketch";
+    case "SKETCH_APPROVAL":
+      return "Approve sketch · opens punching";
+    case "PUNCH_CHECK":
+      return "Approve punch · unlocks material / sample work";
+    case "FINAL_APPROVAL":
+      return "Approve when costing & sample look right · unlocks management sign-off";
+    case "LIVE_REVIEW":
+      return "Approve go-live · design goes LIVE";
+    default:
+      return "Approve to advance the workflow";
+  }
+}
+
 export function getStageApprovalOwnerRole(
   code: string,
   ownerRoleCode?: string | null,

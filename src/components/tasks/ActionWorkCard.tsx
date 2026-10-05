@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Priority } from "@/lib/types/api";
@@ -28,7 +29,7 @@ export type ActionWorkCardProps = {
 
 /**
  * Shared Action Center card shell — same hierarchy on kanban, blocked, upcoming, completed.
- * 1) Design title + priority  2) Idea ref  3) Stage  4) Hint  5) Status + action
+ * Whole card opens the task; footer buttons keep their own clicks.
  */
 export function ActionWorkCard({
   href,
@@ -47,23 +48,45 @@ export function ActionWorkCard({
   onKeyDown,
   className,
 }: ActionWorkCardProps) {
-  const interactive = !!onSelect;
+  const router = useRouter();
+
+  function openTask() {
+    onSelect?.();
+    router.push(href);
+  }
+
+  function handleCardClick(e: React.MouseEvent) {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("a, button, input, select, textarea, [data-card-no-nav]")) {
+      return;
+    }
+    openTask();
+  }
+
+  function handleCardKeyDown(e: React.KeyboardEvent) {
+    onKeyDown?.(e);
+    if (e.defaultPrevented) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openTask();
+    }
+  }
 
   return (
     <article
       className={cn(
-        "task-card",
+        "task-card task-card--openable",
         `task-card--priority-${priority}`,
         selected && "task-card--selected",
         active && "task-card--active",
         waiting && "task-card--waiting",
         className,
       )}
-      onClick={onSelect}
-      onKeyDown={onKeyDown}
-      role={interactive ? "button" : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      aria-label={`${designTitle} · ${stageName}`}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role="link"
+      tabIndex={0}
+      aria-label={`${designTitle} · ${stageName}. Open task.`}
       aria-current={active ? "true" : undefined}
     >
       <div className="task-card-header">
@@ -71,7 +94,10 @@ export function ActionWorkCard({
           <Link
             href={href}
             className="task-card-design-link"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect?.();
+            }}
           >
             {designTitle}
           </Link>
@@ -98,7 +124,11 @@ export function ActionWorkCard({
 
       <div className="task-card-meta">
         <StatusBadge status={status} />
-        {footerAction ? <div className="task-card-meta-action">{footerAction}</div> : null}
+        {footerAction ? (
+          <div className="task-card-meta-action" data-card-no-nav>
+            {footerAction}
+          </div>
+        ) : null}
       </div>
     </article>
   );

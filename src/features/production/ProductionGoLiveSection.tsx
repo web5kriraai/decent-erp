@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { DataTable } from "@/components/DataTable";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { ListSearch } from "@/components/ui/ListSearch";
+import { PaginationBar } from "@/components/ui/PaginationBar";
+import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import type { ReleasedDesignForGoLive } from "@/hooks/use-production";
@@ -12,6 +15,11 @@ import { getMarkLiveAvailability } from "@/lib/action-availability";
 import { PERMISSIONS } from "@/lib/permissions";
 import { resolveProductionContextActions } from "@/lib/workflow-actions";
 import { MarkLiveConfirm } from "@/features/production/MarkLiveConfirm";
+import { useClientList } from "@/hooks/use-client-list";
+
+function goLiveSearchText(row: ReleasedDesignForGoLive) {
+  return `${row.ideaRef} ${row.collectionName} ${row.productType?.name ?? ""} ${row.designHead?.name ?? ""}`;
+}
 
 export function ProductionGoLiveSection({
   designs,
@@ -19,24 +27,44 @@ export function ProductionGoLiveSection({
   permissions,
   markLivePending,
   onMarkLive,
+  onRefresh,
+  isRefreshing,
 }: {
   designs: ReleasedDesignForGoLive[];
   roleCode: string | undefined;
   permissions: string[];
   markLivePending: boolean;
   onMarkLive: (designId: string) => Promise<unknown>;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }) {
   const canExecuteTasks = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const [confirmDesign, setConfirmDesign] = useState<ReleasedDesignForGoLive | null>(null);
+  const getSearchText = useCallback(goLiveSearchText, []);
+  const list = useClientList({ items: designs, getSearchText });
 
   return (
     <>
       <AppCard
         title="Awaiting go-live"
-        className="production-desk-secondary-card"
+        className="production-desk-secondary-card overflow-visible"
         description={undefined}
+        headerAction={
+          onRefresh ? (
+            <ListRefreshButton onRefresh={onRefresh} isRefreshing={isRefreshing} />
+          ) : null
+        }
       >
+        <div className="page-toolbar !mb-0 border-b px-3 py-2">
+          <ListSearch
+            value={list.search}
+            onChange={list.setSearch}
+            placeholder="Search designs…"
+            aria-label="Search awaiting go-live designs"
+          />
+        </div>
         <DataTable
+          flush
           columns={[
             {
               key: "ideaRef",
@@ -134,10 +162,20 @@ export function ProductionGoLiveSection({
               },
             },
           ]}
-          rows={designs}
+          rows={list.pageItems}
           getRowKey={(r) => r.id}
           emptyTitle="No designs awaiting go-live"
         />
+        {list.total > 0 ? (
+          <PaginationBar
+            total={list.total}
+            page={list.page}
+            pageSize={list.pageSize}
+            onPageChange={list.setPage}
+            onPageSizeChange={list.setPageSize}
+            pageSizeSelectId="production-golive-page-size"
+          />
+        ) : null}
       </AppCard>
 
       <MarkLiveConfirm

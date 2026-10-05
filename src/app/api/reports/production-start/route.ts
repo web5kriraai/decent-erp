@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const safeYear = Number.isFinite(year) ? year : now.getUTCFullYear();
     const safeMonth =
       Number.isFinite(month) && month >= 1 && month <= 12 ? month : now.getUTCMonth() + 1;
-    const report = await getProductionStartReport(safeYear, safeMonth);
+    const report = await getProductionStartReport(safeYear, safeMonth, ctx.companyId);
     return jsonOk(serializeBigInt(report), ctx.correlationId);
   });
 }

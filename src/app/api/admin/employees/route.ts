@@ -16,7 +16,7 @@ const createSchema = z.object({
 
 export async function GET() {
   return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
-    const employees = await listEmployeesForAdmin();
+    const employees = await listEmployeesForAdmin(ctx.companyId);
     return jsonOk(employees, ctx.correlationId);
   });
 }
@@ -24,7 +24,11 @@ export async function GET() {
 export async function POST(request: Request) {
   return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
     const body = await parseBody(request, createSchema);
-    const employee = await createEmployee(body);
+    const employee = await createEmployee({
+      ...body,
+      companyId: ctx.companyId,
+      locationId: ctx.locationId,
+    });
     return jsonOk(employee, ctx.correlationId, 201);
   });
 }

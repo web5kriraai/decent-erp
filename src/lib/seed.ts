@@ -51,12 +51,12 @@ export async function seedDatabase() {
   }
 
   const holdReasons = [
-    { code: "OTHER_WORK", name: "Other work", excludeFromActiveTime: false },
+    { code: "OTHER_WORK", name: "Other work", excludeFromActiveTime: true },
     { code: "LUNCH", name: "Lunch break", excludeFromActiveTime: true },
     { code: "TEA", name: "Tea break", excludeFromActiveTime: true },
-    { code: "WAIT_APPROVAL", name: "Waiting for approval", excludeFromActiveTime: false },
-    { code: "WAIT_MATERIAL", name: "Waiting for material", excludeFromActiveTime: false },
-    { code: "MACHINE_NA", name: "Machine not available", excludeFromActiveTime: false },
+    { code: "WAIT_APPROVAL", name: "Waiting for approval", excludeFromActiveTime: true },
+    { code: "WAIT_MATERIAL", name: "Waiting for material", excludeFromActiveTime: true },
+    { code: "MACHINE_NA", name: "Machine not available", excludeFromActiveTime: true },
     { code: "MEETING", name: "Meeting", excludeFromActiveTime: true },
     { code: "PERSONAL", name: "Personal break", excludeFromActiveTime: true },
     { code: "OFFICE_CLOSE", name: "Office time close", excludeFromActiveTime: true },
@@ -156,15 +156,38 @@ export async function seedDatabase() {
   const passwordHash = await bcrypt.hash("Admin@123", 12);
   const demoPasswordHash = await bcrypt.hash("Demo@123", 12);
 
+  const company = await prisma.company.upsert({
+    where: { code: "DECENT" },
+    update: { name: "Decent Technologies", active: true },
+    create: { code: "DECENT", name: "Decent Technologies", active: true },
+  });
+  const location = await prisma.location.upsert({
+    where: { companyId_code: { companyId: company.id, code: "HO" } },
+    update: { name: "Head Office", active: true },
+    create: {
+      companyId: company.id,
+      code: "HO",
+      name: "Head Office",
+      active: true,
+    },
+  });
+
   const admin = await prisma.employee.upsert({
     where: { email: "admin@decent-erp.local" },
-    update: { name: "System Admin", roleId: adminRole.id },
+    update: {
+      name: "System Admin",
+      roleId: adminRole.id,
+      companyId: company.id,
+      locationId: location.id,
+    },
     create: {
       employeeCode: "EMP001",
       name: "System Admin",
       email: "admin@decent-erp.local",
       passwordHash,
       roleId: adminRole.id,
+      companyId: company.id,
+      locationId: location.id,
     },
   });
 
@@ -183,13 +206,20 @@ export async function seedDatabase() {
     const role = await prisma.role.findUniqueOrThrow({ where: { code: user.role } });
     await prisma.employee.upsert({
       where: { email: user.email },
-      update: { name: user.name, roleId: role.id },
+      update: {
+        name: user.name,
+        roleId: role.id,
+        companyId: company.id,
+        locationId: location.id,
+      },
       create: {
         employeeCode: user.code,
         name: user.name,
         email: user.email,
         passwordHash: demoPasswordHash,
         roleId: role.id,
+        companyId: company.id,
+        locationId: location.id,
       },
     });
   }
@@ -330,6 +360,27 @@ export async function seedDatabase() {
     return;
   }
 
+  /** Workflow start requires a primary design image; keep the sample demo runnable. */
+  async function ensureSamplePrimaryImage(designId: bigint, uploadedById: number) {
+    const primary = await prisma.designImage.findFirst({
+      where: { designId, isPrimary: true },
+      select: { id: true },
+    });
+    if (primary) return;
+    await prisma.designImage.create({
+      data: {
+        designId,
+        mediaKind: "IMAGE",
+        storageKey: `seed/IDEA-SAMPLE-001/primary.png`,
+        fileName: "sample-primary.png",
+        contentType: "image/png",
+        fileSize: BigInt(128),
+        isPrimary: true,
+        uploadedById,
+      },
+    });
+  }
+
   if (!existingSample) {
     const bodyComponent = await prisma.masterCatalog.findUniqueOrThrow({
       where: { masterType_code: { masterType: "PRODUCT_COMPONENT", code: "BODY" } },
@@ -338,6 +389,8 @@ export async function seedDatabase() {
       data: {
         ideaRef: "IDEA-SAMPLE-001",
         designNumber: "DN-SAMPLE001",
+        companyId: company.id,
+        locationId: location.id,
         productTypeId: sareeType.id,
         collectionName: "Royal Festive 2026",
         seasonId: festiveSeason.id,
@@ -394,6 +447,8 @@ export async function seedDatabase() {
       });
     }
 
+    await ensureSamplePrimaryImage(design.id, designHead.id);
+
     await prisma.designTask.createMany({
       data: eightStepTasks.slice(0, 2).map((t, i) => ({
         designId: design.id,
@@ -410,6 +465,8 @@ export async function seedDatabase() {
       })),
     });
   } else {
+    await ensureSamplePrimaryImage(existingSample.id, designHead.id);
+
     const sketchSub = subIndex.SKETCH;
     await prisma.designTask.updateMany({
       where: {

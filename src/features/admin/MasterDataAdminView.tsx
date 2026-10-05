@@ -57,50 +57,60 @@ export function MasterDataAdminView() {
   }
 
   return (
-    <div className="page-shell page-shell--wide">
-      <PageHeader
-        title="Master Data"
-        actions={
-          primaryAction ? (
+    <div className="list-page-host">
+      <div className="page-shell page-shell--wide list-page master-data-page">
+        <PageHeader
+          className="list-page__header"
+          title="Master Data"
+          actions={
+            primaryAction ? (
+              <AppButton
+                type="button"
+                appVariant="primary"
+                size="sm"
+                onClick={primaryAction.onClick}
+              >
+                {primaryAction.label}
+              </AppButton>
+            ) : null
+          }
+        />
+
+        <PageToolbar
+          panel
+          className="!mb-0 master-data-page__tabs"
+          role="tablist"
+          aria-label="Master data sections"
+        >
+          {TABS.map((item) => (
             <AppButton
+              key={item.id}
               type="button"
-              appVariant="primary"
               size="sm"
-              onClick={primaryAction.onClick}
+              role="tab"
+              aria-selected={tab === item.id}
+              appVariant={tab === item.id ? "primary" : "secondary"}
+              onClick={() => setTab(item.id)}
             >
-              {primaryAction.label}
+              {item.label}
             </AppButton>
-          ) : null
-        }
-      />
+          ))}
+        </PageToolbar>
 
-      <PageToolbar panel className="!mb-0" role="tablist" aria-label="Master data sections">
-        {TABS.map((item) => (
-          <AppButton
-            key={item.id}
-            type="button"
-            size="sm"
-            role="tab"
-            aria-selected={tab === item.id}
-            appVariant={tab === item.id ? "primary" : "secondary"}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </AppButton>
-        ))}
-      </PageToolbar>
-
-      {tab === "processes" ? (
-        <MastersView embedded registerPrimaryAction={registerPrimaryAction} />
-      ) : tab === "structured" ? (
-        <StructuredMastersAdminView registerPrimaryAction={registerPrimaryAction} />
-      ) : tab === "kpi" ? (
-        <KpiWeightsAdminView />
-      ) : tab === "targets" ? (
-        <ConceptTargetsAdminView />
-      ) : (
-        <MasterCatalogView registerPrimaryAction={registerPrimaryAction} />
-      )}
+        <div className="master-data-page__body">
+          {tab === "processes" ? (
+            <MastersView embedded registerPrimaryAction={registerPrimaryAction} />
+          ) : tab === "structured" ? (
+            <StructuredMastersAdminView registerPrimaryAction={registerPrimaryAction} />
+          ) : tab === "kpi" ? (
+            <KpiWeightsAdminView />
+          ) : tab === "targets" ? (
+            <ConceptTargetsAdminView />
+          ) : (
+            <MasterCatalogView registerPrimaryAction={registerPrimaryAction} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

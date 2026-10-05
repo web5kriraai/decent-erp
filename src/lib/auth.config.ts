@@ -18,13 +18,22 @@ export const authConfig = {
         token.employeeId = user.employeeId;
         token.roleCode = user.roleCode;
         token.permissions = user.permissions;
+        token.companyId = user.companyId;
+        token.locationId = user.locationId;
       }
 
       // Client calls session.update({ permissions, roleCode }) after /api/auth/refresh-session.
       if (trigger === "update" && session) {
-        const patch = session as { permissions?: string[]; roleCode?: string };
+        const patch = session as {
+          permissions?: string[];
+          roleCode?: string;
+          companyId?: number;
+          locationId?: number | null;
+        };
         if (patch.permissions) token.permissions = patch.permissions;
         if (patch.roleCode) token.roleCode = patch.roleCode;
+        if (patch.companyId != null) token.companyId = patch.companyId;
+        if (patch.locationId !== undefined) token.locationId = patch.locationId;
       }
 
       return token;
@@ -37,6 +46,8 @@ export const authConfig = {
         name: session.user.name ?? "",
         roleCode: token.roleCode as string,
         permissions: (token.permissions as string[]) ?? [],
+        companyId: (token.companyId as number) ?? 0,
+        locationId: (token.locationId as number | null) ?? null,
         emailVerified: null,
       };
       return session;

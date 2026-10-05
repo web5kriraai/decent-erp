@@ -5,6 +5,8 @@ import {
   erpModeDisplayLabel,
   erpModeShortHint,
   erpSyncOrderMessage,
+  formatErpModuleLabel,
+  formatErpReferenceDisplay,
   getErpIntegrationMode,
   getHandoffDisplayStatus,
   isSimulatedErpReference,
@@ -87,5 +89,17 @@ describe("erp-integration-config", () => {
     expect(checklist.some((item) => item.includes("ERP_API_BASE_URL"))).toBe(true);
     expect(checklist.some((item) => /handoff/i.test(item))).toBe(true);
     expect(checklist.some((item) => /manual/i.test(item))).toBe(true);
+  });
+
+  it("formats module labels and compact LOCAL refs", () => {
+    expect(formatErpModuleLabel("SALES_RETURN")).toBe("Sales Return");
+    expect(formatErpModuleLabel("ACCOUNTS")).toBe("Accounts");
+    const local = formatErpReferenceDisplay(
+      "LOCAL-ACCOUNTS-DN-2UC-AEXT-1790059992575",
+    );
+    expect(local.simulated).toBe(true);
+    expect(local.primary).toBe("DN-2UC-AEXT");
+    expect(local.secondary).toBe("…2575");
+    expect(formatErpReferenceDisplay(null).primary).toBe("-");
   });
 });

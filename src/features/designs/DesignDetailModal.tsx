@@ -14,6 +14,7 @@ import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActi
 import { OverviewPanel } from "@/features/designs/detail/OverviewPanel";
 import { CorrectionsPanel } from "@/features/designs/detail/CorrectionsPanel";
 import { CostingPanel } from "@/features/designs/detail/CostingPanel";
+import { DesignBomPanel } from "@/features/designs/detail/DesignBomPanel";
 import { KraKpiPanel } from "@/features/designs/detail/KraKpiPanel";
 import { FilesPanel } from "@/features/designs/detail/FilesPanel";
 import { ApprovalsPanel } from "@/features/designs/detail/ApprovalsPanel";
@@ -243,8 +244,9 @@ export function DesignDetailTabsBody({
                 defaultTaskId={assignableTask?.id}
               />
             </TabsContent>
-            <TabsContent value="costing" className="pt-3">
+            <TabsContent value="costing" className="pt-3 space-y-6">
               <CostingPanel design={design} />
+              <DesignBomPanel designId={String(design.id)} />
             </TabsContent>
             <TabsContent value="kra-kpi" className="pt-3">
               <KraKpiPanel design={design} />
