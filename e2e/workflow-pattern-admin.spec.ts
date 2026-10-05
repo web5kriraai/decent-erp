@@ -54,6 +54,7 @@ test.describe("Workflow pattern admin", () => {
       seasonId: seasons[0].id,
       collectionName: `Pattern E2E ${Date.now()}`,
       priority: "MEDIUM",
+      conceptNote: "E2E concept note",
       assignmentMode: "AUTOMATIC",
       workflowPatternId: pattern.id,
     });

@@ -84,7 +84,9 @@ test.describe("Workday UI flow (end-to-end)", () => {
       }>
     >(page, "/api/tasks/my");
 
-    const assignedTask = tasks.find((t) => t.status === "ASSIGNED");
+    const assignedTask = tasks.find(
+      (t) => t.design.id === design.id && t.subProcess.code === "SKETCH" && t.status === "ASSIGNED",
+    );
     if (!assignedTask) {
       test.skip(true, "No ASSIGNED sketch task after design create");
       return;
@@ -102,12 +104,13 @@ test.describe("Workday UI flow (end-to-end)", () => {
 
     const card = page.locator("article.task-card", { hasText: assignedTask.design.ideaRef }).first();
     const startBtn = card.getByRole("button", { name: /^Start$/i });
+    const taskUrl = new RegExp(`/work/tasks/${assignedTask.id}`);
     if (await startBtn.isVisible().catch(() => false)) {
       await startBtn.click();
-      await expect(page).toHaveURL(new RegExp(`/designs/${design.id}`), { timeout: 20_000 });
+      await expect(page).toHaveURL(taskUrl, { timeout: 20_000 });
     } else {
       await apiPostJson(page, `/api/tasks/${assignedTask.id}/start`, {});
-      await page.goto(`/designs/${design.id}`);
+      await page.goto(`/work/tasks/${assignedTask.id}`);
     }
 
     await expect(page.locator(".timer-widget")).toBeVisible({ timeout: 15_000 });
@@ -137,7 +140,7 @@ test.describe("Workday UI flow (end-to-end)", () => {
     await expect(holdDialog).not.toBeVisible({ timeout: 15_000 });
     await expect(page.locator(".timer-status")).toContainText(/ON HOLD/i, { timeout: 15_000 });
 
-    await page.getByRole("button", { name: /Resume task/i }).click();
+    await page.getByRole("button", { name: /^Resume$/i }).click();
     await expect(page.locator(".timer-status")).toContainText(/RUNNING/i, { timeout: 15_000 });
 
     const taskMeta = await apiGetJson<{
@@ -155,17 +158,16 @@ test.describe("Workday UI flow (end-to-end)", () => {
     const checklistSection = endDialog.getByText(/Quality Checklist/i);
     const hasChecklist = await checklistSection.isVisible().catch(() => false);
     if (hasChecklist) {
-      await endDialog.getByRole("button", { name: /Mark all as passed/i }).click();
+      const markAll = endDialog.getByRole("button", { name: /Mark all passed/i });
+      if (await markAll.isEnabled().catch(() => false)) {
+        await markAll.click();
+      }
     }
 
-    const submitBtn = endDialog.getByRole("button", {
-      name: /Submit Completion|Submit with notes/i,
-    });
     if (needsFile) {
-      await expect(endDialog.getByRole("alert")).toContainText(/uploads automatically/i);
-      await expect(submitBtn).toBeDisabled();
-      // Upload must be available inside Complete Task (not only behind the modal).
-      await expect(endDialog.getByText(/^Task Files/i)).toBeVisible();
+      await expect(endDialog.getByRole("status")).toContainText(/Upload at least one file/i);
+      await expect(endDialog.locator('[data-slot="button"]', { hasText: "Upload a file" })).toBeDisabled();
+      await expect(endDialog.getByText("Task files", { exact: true })).toBeVisible();
       await expect(endDialog.getByText(/No task files uploaded yet/i)).toBeVisible();
       await endDialog.locator('input[type="file"]').setInputFiles({
         name: "e2e-sketch.png",
@@ -175,9 +177,12 @@ test.describe("Workday UI flow (end-to-end)", () => {
       await expect(endDialog.getByText(/No task files uploaded yet/i)).toHaveCount(0, {
         timeout: 20_000,
       });
-      await expect(endDialog.getByRole("alert")).toHaveCount(0);
+      await expect(endDialog.getByRole("status")).toHaveCount(0);
     }
 
+    const submitBtn = endDialog.getByRole("button", {
+      name: /Submit Completion|Submit with notes/i,
+    });
     await expect(submitBtn).toBeEnabled({ timeout: 10_000 });
     await submitBtn.click();
     await expect(endDialog).not.toBeVisible({ timeout: 20_000 });

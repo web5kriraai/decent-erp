@@ -374,52 +374,52 @@ export function resolveProductionContextActions(input: {
   liveReviewCompleted?: boolean;
 }): ResolvedWorkflowAction[] {
   const canProd = input.permissions.includes(PERMISSIONS.PRODUCTION_RELEASE);
-  if (!canProd) {
-    return [];
-  }
+  const actions: ResolvedWorkflowAction[] = [];
 
-  const actions: ResolvedWorkflowAction[] = [
-    buildAction(WORKFLOW_ACTION_CODES.OPEN_PRODUCTION_TASKS, {
-      enabled: true,
-      href: ROUTES.work.tasks,
-    }),
-  ];
-
-  if (input.instructionTaskId) {
+  if (canProd) {
     actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
+      buildAction(WORKFLOW_ACTION_CODES.OPEN_PRODUCTION_TASKS, {
         enabled: true,
-        label: "Open Production Instruction",
-        taskId: input.instructionTaskId,
-        designId: input.designId,
-        href: ROUTES.work.taskDetail(input.instructionTaskId),
-        variant: "primary",
+        href: ROUTES.work.tasks,
       }),
     );
-  }
 
-  if (input.releaseTaskId) {
-    actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.RELEASE_PRODUCTION, {
-        enabled: true,
-        label: "Open Production Release",
-        taskId: input.releaseTaskId,
-        designId: input.designId,
-        href: ROUTES.work.taskDetail(input.releaseTaskId),
-        variant: "primary",
-      }),
-    );
-  }
+    if (input.instructionTaskId) {
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.OPEN_TASK, {
+          enabled: true,
+          label: "Open Production Instruction",
+          taskId: input.instructionTaskId,
+          designId: input.designId,
+          href: ROUTES.work.taskDetail(input.instructionTaskId),
+          variant: "primary",
+        }),
+      );
+    }
 
-  // Only expose Return when the handoff is actually returnable.
-  if (input.designId && input.canReturn) {
-    actions.push(
-      buildAction(WORKFLOW_ACTION_CODES.RETURN_PRODUCTION_HANDOFF, {
-        enabled: true,
-        designId: input.designId,
-        variant: "destructive",
-      }),
-    );
+    if (input.releaseTaskId) {
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.RELEASE_PRODUCTION, {
+          enabled: true,
+          label: "Open Production Release",
+          taskId: input.releaseTaskId,
+          designId: input.designId,
+          href: ROUTES.work.taskDetail(input.releaseTaskId),
+          variant: "primary",
+        }),
+      );
+    }
+
+    // Only expose Return when the handoff is actually returnable.
+    if (input.designId && input.canReturn) {
+      actions.push(
+        buildAction(WORKFLOW_ACTION_CODES.RETURN_PRODUCTION_HANDOFF, {
+          enabled: true,
+          designId: input.designId,
+          variant: "destructive",
+        }),
+      );
+    }
   }
 
   if (input.designStatus === "PRODUCTION_RELEASED") {

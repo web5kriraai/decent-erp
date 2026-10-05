@@ -56,7 +56,10 @@ async function completeTaskForUser(
   await login(page, email, DEMO);
   const tasks = await listMyTasks(page);
   const mine = tasks.find(
-    (t) => t.design.id === designId && t.subProcess.code === code && t.status === "ASSIGNED",
+    (t) =>
+      t.design.id === designId &&
+      t.subProcess.code === code &&
+      ["ASSIGNED", "CORRECTION_REQUIRED", "PENDING"].includes(t.status),
   );
   if (!mine) return false;
   await completeAssignedTask(page, mine.id, `E2E ${code}`);

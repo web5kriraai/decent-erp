@@ -50,7 +50,7 @@ export function ProductionReleaseView() {
   const showErpOps = canViewErpChain(permissions);
 
   const designsQuery = useApprovedDesigns(canRelease);
-  const releasedQuery = useReleasedDesigns(canRelease && canMarkLive);
+  const releasedQuery = useReleasedDesigns(canMarkLive);
   const handoffsQuery = useProductionHandoffs(canRelease && showErpOps);
   const erpStatusQuery = useErpIntegrationStatus(canRelease);
   const markLive = useMarkDesignLive();
@@ -99,7 +99,7 @@ export function ProductionReleaseView() {
     );
   }
 
-  if (!canRelease) {
+  if (!canRelease && !canMarkLive) {
     return (
       <div className="page-shell">
         <PermissionDenied permission={PERMISSIONS.PRODUCTION_RELEASE} />
@@ -138,31 +138,35 @@ export function ProductionReleaseView() {
 
       <ProductionDeskFlowStrip />
 
-      <ProductionDeskMetrics
-        blocked={metrics.blocked + metrics.missing_ladder}
-        handoff={metrics.handoff}
-        instruction={metrics.instruction}
-        ready={metrics.ready}
-        awaitingLive={released.length}
-        showAwaitingLive={canMarkLive}
-      />
-
-      <QueryState
-        isLoading={designsQuery.isLoading}
-        isError={designsQuery.isError}
-        error={designsQuery.error}
-        onRetry={() => designsQuery.refetch()}
-        skeletonVariant="table"
-      >
-        <ProductionPipelineBoard
-          designs={designs}
-          roleCode={roleCode}
-          permissions={permissions}
-          employeeId={employeeId}
-          onRefresh={() => designsQuery.refetch()}
-          isRefreshing={designsQuery.isFetching}
+      {canRelease ? (
+        <ProductionDeskMetrics
+          blocked={metrics.blocked + metrics.missing_ladder}
+          handoff={metrics.handoff}
+          instruction={metrics.instruction}
+          ready={metrics.ready}
+          awaitingLive={released.length}
+          showAwaitingLive={canMarkLive}
         />
-      </QueryState>
+      ) : null}
+
+      {canRelease ? (
+        <QueryState
+          isLoading={designsQuery.isLoading}
+          isError={designsQuery.isError}
+          error={designsQuery.error}
+          onRetry={() => designsQuery.refetch()}
+          skeletonVariant="table"
+        >
+          <ProductionPipelineBoard
+            designs={designs}
+            roleCode={roleCode}
+            permissions={permissions}
+            employeeId={employeeId}
+            onRefresh={() => designsQuery.refetch()}
+            isRefreshing={designsQuery.isFetching}
+          />
+        </QueryState>
+      ) : null}
 
       {canMarkLive && (releasedQuery.isLoading || released.length > 0) ? (
         <QueryState

@@ -24,8 +24,41 @@ export async function login(page: Page, email: string, password: string) {
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /Sign in to workspace/i }).click();
-  await page.waitForURL("**/dashboard", { timeout: 30_000 });
+  try {
+    await page.waitForURL("**/dashboard", { timeout: 15_000 });
+  } catch {
+    if (!page.url().includes("/dashboard")) {
+      await page.getByLabel("Email address").fill(email);
+      await page.getByLabel("Password").fill(password);
+      await page.getByRole("button", { name: /Sign in to workspace/i }).click();
+      await page.waitForURL("**/dashboard", { timeout: 30_000 });
+    }
+  }
   await expect(page.locator("#main-content")).toBeVisible({ timeout: 30_000 });
+}
+
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+/** Workflow start is blocked until a design has a primary image. */
+export async function attachPrimaryDesignImage(page: Page, designId: string) {
+  const res = await page.request.post(`/api/designs/${designId}/images`, {
+    multipart: {
+      file: {
+        name: "primary.png",
+        mimeType: "image/png",
+        buffer: TINY_PNG,
+      },
+      isPrimary: "true",
+      mediaKind: "IMAGE",
+    },
+  });
+  if (!res.ok()) {
+    const body = await res.text();
+    throw new Error(`POST /api/designs/${designId}/images failed (${res.status()}): ${body.slice(0, 300)}`);
+  }
 }
 
 type ApiEnvelope<T> = { data: T; correlationId?: string };
@@ -70,10 +103,15 @@ export async function fetchMasters(page: Page) {
     >(page, "/api/workflow-patterns"),
   ]);
   const productTypeId = productTypes.find((p) => p.code === "SAREE")?.id ?? productTypes[0].id;
+  const forProduct = patterns.filter(
+    (p) => p.productTypeId == null || p.productTypeId === productTypeId,
+  );
+  const pool = forProduct.length > 0 ? forProduct : patterns;
   const matchingPattern =
-    patterns.find((p) => p.productTypeId === productTypeId) ??
-    patterns.find((p) => p.productTypeId == null) ??
-    patterns[0];
+    pool.find((p) => p.name === "Standard Saree Development (Full)") ??
+    pool.find((p) => /\(Full\)/.test(p.name ?? "")) ??
+    pool.find((p) => (p.name ?? "").startsWith("Spec 8-Step ")) ??
+    pool[0];
   return {
     productTypeId,
     seasonId: seasons[0].id,
@@ -89,8 +127,11 @@ export async function createDesignViaApi(
     conceptNote: string;
   }>,
 ) {
+  const { clearStaleRunningTasks } = await import("./workflow");
+  await clearStaleRunningTasks(page);
+
   const masters = await fetchMasters(page);
-  return apiPostJson<{ id: string; ideaRef: string; status: string; version: number }>(
+  const design = await apiPostJson<{ id: string; ideaRef: string; status: string; version: number }>(
     page,
     "/api/designs",
     {
@@ -98,9 +139,11 @@ export async function createDesignViaApi(
       seasonId: masters.seasonId,
       collectionName,
       priority: overrides?.priority ?? "MEDIUM",
-      conceptNote: overrides?.conceptNote,
+      conceptNote: overrides?.conceptNote ?? "E2E concept note",
       assignmentMode: "AUTOMATIC",
       workflowPatternId: masters.workflowPatternId,
     },
   );
+  await attachPrimaryDesignImage(page, design.id);
+  return design;
 }

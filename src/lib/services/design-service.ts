@@ -516,8 +516,15 @@ async function reconcileStuckWorkflowTasks(
     },
   });
 
+  const openResample = tasks.some(
+    (task) =>
+      task.subProcess?.code === "RESAMPLE" &&
+      !isDependencySatisfiedStatus(task.status),
+  );
+
   const hasStuckSuccessor = tasks.some((task, index) => {
     if (!isDependencySatisfiedStatus(task.status)) return false;
+    if (openResample && task.subProcess?.code === "SAMPLE_CHECK") return false;
     const next = tasks[index + 1];
     return next?.status === "PENDING";
   });
@@ -527,6 +534,9 @@ async function reconcileStuckWorkflowTasks(
   await prisma.$transaction(async (tx) => {
     for (const task of tasks) {
       if (!isDependencySatisfiedStatus(task.status)) continue;
+      // Re-sample must be approved again before Costing. SAMPLE_CHECK is
+      // completed for the attempt, but it must not release the next stage.
+      if (openResample && task.subProcess?.code === "SAMPLE_CHECK") continue;
       await unlockNextDependentTasks(
         tx,
         {

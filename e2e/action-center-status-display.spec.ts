@@ -70,13 +70,11 @@ test.describe("Action Center status display", () => {
     await page.goto("/work/tasks");
     await expect(page.getByRole("heading", { name: /My Action Center/i })).toBeVisible();
     await page.getByRole("tab", { name: /Upcoming/i }).click();
+    await page.getByRole("searchbox", { name: /Search upcoming tasks/i }).fill(design.ideaRef);
 
-    const row = page
-      .locator("li.action-center-list-item", { hasText: design.ideaRef })
-      .filter({ hasText: /Sketch Creation/i })
-      .first();
+    const row = page.getByRole("row").filter({ hasText: design.ideaRef });
     await expect(row).toBeVisible();
-    await expect(row).toHaveClass(/action-center-list-item--waiting/);
+    await expect(row.getByRole("cell", { name: /Sketch Creation/i })).toBeVisible();
     await expect(row.getByLabel("Status: CHECKING")).toBeVisible();
     await expect(row.getByText(/Submitted · waiting on/i)).toBeVisible();
   });

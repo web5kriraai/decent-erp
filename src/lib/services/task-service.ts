@@ -588,6 +588,9 @@ export async function endTask(
   correlationId: string,
 ) {
   return prisma.$transaction(async (tx) => {
+    // Serialize concurrent end attempts so the version check cannot both succeed.
+    await tx.$queryRaw`SELECT task_id FROM design_tasks WHERE task_id = ${taskId} FOR UPDATE`;
+
     const task = await tx.designTask.findUnique({
       where: { id: taskId },
       include: { subProcess: true },
@@ -1560,13 +1563,12 @@ async function spawnResampleTask(
   const roleId = resample.defaultRoleId ?? sourceTask.assignedRoleId;
   const skillId = await resolveSkillIdForStageCode(tx, "MACHINE_SAMPLE");
   const assigneeId = roleId ? await resolveEmployeeForRole(roleId, { skillId, tx }) : null;
-  const maxSeq = await tx.designTask.aggregate({
-    where: { designId: sourceTask.designId },
-    _max: { sequence: true },
-  });
-  const sequence = (maxSeq._max.sequence ?? 0) + 1;
-  // Independent of SAMPLE_CHECK completion - costing must not unlock from this task.
-  const dependencySequence = sourceTask.dependencySequence ?? sourceTask.sequence;
+  // Same pipeline sequence as Sample Check so later stages do not block starting
+  // this rework. Dependency sits just before Sample Check so completing the
+  // rework cannot skip the reopened check and unlock Costing.
+  const sequence = sourceTask.sequence;
+  const sampleCheckDep = sourceTask.dependencySequence ?? sourceTask.sequence;
+  const dependencySequence = Math.max(0, sampleCheckDep - 1);
 
   const created = await tx.designTask.create({
     data: {

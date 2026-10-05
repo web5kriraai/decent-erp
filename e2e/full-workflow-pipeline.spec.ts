@@ -31,6 +31,8 @@ const BASE_ROLE_MAP: Record<string, string> = {
   MAT_REQ: USERS.designHead.email,
   FABRIC_ISSUE: USERS.production.email,
   MACHINE_SAMPLE: USERS.machine.email,
+  SAMPLE_CUTTING: USERS.machine.email,
+  SAMPLE_STITCHING: USERS.machine.email,
   SAMPLE_RECEIVE: USERS.machine.email,
   SAMPLE_CHECK: USERS.checker.email,
   COSTING: USERS.costing.email,
@@ -95,7 +97,8 @@ test.describe("Full workflow pipeline", () => {
 
     await page.goto(`/quality/approvals?tab=ready`);
     await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
-    await expect(page.getByText(design.ideaRef)).toBeVisible();
+    await page.getByRole("searchbox", { name: /Search approvals/i }).fill(design.ideaRef);
+    await expect(page.getByRole("row").filter({ hasText: design.ideaRef })).toBeVisible();
 
     await login(page, USERS.designHead.email, DEMO);
     await requestDesignApproval(page, design.id);
@@ -211,10 +214,8 @@ test.describe("Sample reject and re-sample", () => {
     );
     expect(sampleCheckWaiting?.status).toBe("COMPLETED");
 
-    if (resample!.status === "PENDING") {
-      const machineId = await employeeIdFor(page, USERS.machine.email);
-      await assignTaskToEmployee(page, resample!.id, machineId);
-    }
+    const machineId = await employeeIdFor(page, USERS.machine.email);
+    await assignTaskToEmployee(page, resample!.id, machineId);
 
     const resampleDone = await completeTaskForUser(
       page,

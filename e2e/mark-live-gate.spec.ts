@@ -12,8 +12,11 @@ import {
 import {
   addTaskArtifact,
   assignTaskToEmployee,
+  buildSampleCheckChecklist,
   completeAssignedTask,
   completeStageApproval,
+  finalizeDevelopmentForSignOff,
+  getChecklistForSubProcessCode,
   getDesign,
   getDesignTaskByCode,
   listMyTasks,
@@ -43,6 +46,8 @@ async function releaseDesignWithoutLiveReview(page: import("@playwright/test").P
     MAT_REQ: USERS.designHead.email,
     FABRIC_ISSUE: USERS.production.email,
     MACHINE_SAMPLE: USERS.machine.email,
+    SAMPLE_CUTTING: USERS.machine.email,
+    SAMPLE_STITCHING: USERS.machine.email,
     SAMPLE_RECEIVE: USERS.machine.email,
     SAMPLE_CHECK: USERS.checker.email,
     COSTING: USERS.costing.email,
@@ -71,6 +76,8 @@ async function releaseDesignWithoutLiveReview(page: import("@playwright/test").P
     "MAT_REQ",
     "FABRIC_ISSUE",
     "MACHINE_SAMPLE",
+    "SAMPLE_CUTTING",
+    "SAMPLE_STITCHING",
     "SAMPLE_RECEIVE",
   ] as const) {
     await login(page, roleMap[code], DEMO);
@@ -94,7 +101,6 @@ async function releaseDesignWithoutLiveReview(page: import("@playwright/test").P
     }
   }
 
-  const checklist = await apiGetJson<Array<{ id: number }>>(page, "/api/masters/checklist");
   await login(page, USERS.checker.email, DEMO);
   const sampleMine = (await listMyTasks(page)).find(
     (t) => t.design.id === design.id && t.subProcess.code === "SAMPLE_CHECK" && t.status === "ASSIGNED",
@@ -102,19 +108,13 @@ async function releaseDesignWithoutLiveReview(page: import("@playwright/test").P
   expect(sampleMine).toBeTruthy();
   await completeAssignedTask(page, sampleMine!.id, "E2E sample approved", {
     sampleOutcome: "APPROVE",
-    checklist: checklist.slice(0, 2).map((item) => ({ itemId: item.id, result: true })),
+    checklist: await buildSampleCheckChecklist(page),
   });
 
-  await login(page, USERS.costing.email, DEMO);
-  await apiPostJson(page, `/api/designs/${design.id}/costs`, {
-    costType: "MATERIAL",
-    description: "Mark live gate costing",
-    amount: 900,
+  await finalizeDevelopmentForSignOff(page, design.id, employeeIdFor, {
+    costAmount: 900,
+    costDescription: "Mark live gate costing",
   });
-
-  await login(page, USERS.designHead.email, DEMO);
-  const finalApproval = await getDesignTaskByCode(page, design.id, "FINAL_APPROVAL");
-  if (finalApproval?.status === "ASSIGNED") await completeStageApproval(page, finalApproval.id);
 
   await submitManagementApprovals(page, design.id);
 
@@ -146,6 +146,7 @@ test.describe("Mark Live gate and guards", () => {
     test.setTimeout(300_000);
 
     const designId = await releaseDesignWithoutLiveReview(page);
+    const releasedDesign = await getDesign(page, designId);
 
     // Go-live queue is Management/Admin only (aligned with Mark Live).
     await login(page, USERS.management.email, DEMO);
@@ -167,9 +168,14 @@ test.describe("Mark Live gate and guards", () => {
       timeout: 15_000,
     });
 
+    await page
+      .getByRole("searchbox", { name: /Search awaiting go-live/i })
+      .fill(releasedDesign.ideaRef);
+    const designRow = page.getByRole("row").filter({ hasText: releasedDesign.ideaRef });
+    await expect(designRow).toBeVisible();
     // Mark Live is omitted until live review completes - not shown disabled.
-    await expect(page.getByRole("button", { name: "Mark Live" })).toHaveCount(0);
-    await expect(page.getByText(/Complete Live Design Review first/i).first()).toBeVisible();
+    await expect(designRow.getByRole("button", { name: "Mark Live" })).toHaveCount(0);
+    await expect(designRow.getByText(/Complete Live Design Review first/i)).toBeVisible();
   });
 
   test("production head cannot mark live even after live review", async ({ page }) => {
@@ -239,6 +245,10 @@ test.describe("Mark Live gate and guards", () => {
 
     await apiPostJson(page, `/api/tasks/${sketch!.id}/start`, {});
     await addTaskArtifact(page, sketch!.id, "SKETCH_VERSION");
+    const checklist = (await getChecklistForSubProcessCode(page, "SKETCH")).map((item) => ({
+      itemId: item.id,
+      result: true,
+    }));
     const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${sketch!.id}`);
 
     const first = page.request.post(`/api/tasks/${sketch!.id}/end`, {
@@ -246,6 +256,7 @@ test.describe("Mark Live gate and guards", () => {
         version: detail.version,
         outputRemark: "First end",
         completionStatus: "COMPLETED",
+        checklist,
       },
       headers: { "Content-Type": "application/json" },
     });
@@ -254,6 +265,7 @@ test.describe("Mark Live gate and guards", () => {
         version: detail.version,
         outputRemark: "Stale end",
         completionStatus: "COMPLETED",
+        checklist,
       },
       headers: { "Content-Type": "application/json" },
     });

@@ -129,6 +129,9 @@ export function ProductionGoLiveSection({
                         : null;
                     return (
                       <div className="flex max-w-56 flex-col items-end gap-1">
+                        <span className="text-right text-xs text-muted-foreground">
+                          Complete Live Design Review first
+                        </span>
                         {reviewHref ? (
                           <AppButtonLink href={reviewHref} appVariant="ghost" size="sm">
                             Open live review

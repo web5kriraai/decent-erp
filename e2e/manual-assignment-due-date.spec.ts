@@ -27,6 +27,7 @@ test.describe("Manual assignment + due date", () => {
       seasonId: masters.seasonId,
       collectionName: `Manual Due ${Date.now()}`,
       priority: "HIGH",
+      conceptNote: "E2E concept note",
       assignmentMode: "MANUAL",
       manualTasks: [
         {
@@ -71,6 +72,7 @@ test.describe("Manual assignment + due date", () => {
       seasonId: masters.seasonId,
       collectionName: `SameDay ${Date.now()}`,
       priority: "MEDIUM",
+      conceptNote: "E2E concept note",
       assignmentMode: "AUTOMATIC",
       workflowPatternId: masters.workflowPatternId,
       taskDateMode: "SAME_DAY",

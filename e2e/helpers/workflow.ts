@@ -127,61 +127,72 @@ export async function buildSampleCheckChecklist(
   return items.map((item) => ({ itemId: item.id, result: options?.approveAll !== false }));
 }
 
-/** End or resume+end any RUNNING/ON_HOLD tasks so a new task can start. */
+/** Free the one-running-task lock. ON_HOLD already allows another start. */
 export async function clearStaleRunningTasks(page: Page, exceptTaskId?: string) {
   const tasks = await listMyTasks(page);
-  const blockers = tasks.filter(
-    (t) =>
-      t.id !== exceptTaskId &&
-      (t.status === "RUNNING" || t.status === "ON_HOLD"),
-  );
+  const blockers = tasks.filter((t) => t.id !== exceptTaskId && t.status === "RUNNING");
 
   for (const task of blockers) {
-    if (task.status === "ON_HOLD") {
-      await apiPostJson(page, `/api/tasks/${task.id}/resume`, {});
-    }
-    const detail = await apiGetJson<{
-      version: number;
-      status: string;
-      subProcess: { id?: number; code?: string; isFileRequired?: boolean };
-    }>(page, `/api/tasks/${task.id}`);
+    try {
+      const detail = await apiGetJson<{
+        version: number;
+        status: string;
+        subProcess: { id?: number; code?: string; isFileRequired?: boolean };
+      }>(page, `/api/tasks/${task.id}`);
 
-    if (detail.subProcess.isFileRequired || isMachineOutputCode(detail.subProcess.code)) {
-      if (isMachineOutputCode(detail.subProcess.code)) {
-        await ensureMachineOutputArtifact(page, task.id, {
-          includeFile: !!detail.subProcess.isFileRequired,
-        });
-      } else {
-        const type =
-          detail.subProcess.code === "SKETCH"
-            ? "SKETCH_VERSION"
-            : detail.subProcess.code === "PUNCH"
-              ? "PUNCHING_FILE"
-              : "SAMPLE_OUTPUT";
-        await addTaskArtifact(page, task.id, type);
+      if (detail.subProcess.isFileRequired || isMachineOutputCode(detail.subProcess.code)) {
+        if (isMachineOutputCode(detail.subProcess.code)) {
+          await ensureMachineOutputArtifact(page, task.id, {
+            includeFile: !!detail.subProcess.isFileRequired,
+          });
+        } else {
+          const type =
+            detail.subProcess.code === "SKETCH"
+              ? "SKETCH_VERSION"
+              : detail.subProcess.code === "PUNCH"
+                ? "PUNCHING_FILE"
+                : "SAMPLE_OUTPUT";
+          await addTaskArtifact(page, task.id, type);
+        }
       }
-    }
 
-    let checklist: Array<{ itemId: number; result: boolean }> | undefined;
-    if (detail.subProcess.code === "SAMPLE_CHECK") {
-      checklist = await buildSampleCheckChecklist(page);
-    } else if (detail.subProcess.id) {
-      const forSubProcess = await getChecklistForSubProcessCode(
+      let checklist: Array<{ itemId: number; result: boolean }> | undefined;
+      if (detail.subProcess.code === "SAMPLE_CHECK") {
+        checklist = await buildSampleCheckChecklist(page);
+      } else if (detail.subProcess.id) {
+        const forSubProcess = await getChecklistForSubProcessCode(
+          page,
+          detail.subProcess.code ?? "",
+        );
+        if (forSubProcess.length > 0) {
+          checklist = forSubProcess.map((item) => ({ itemId: item.id, result: true }));
+        }
+      }
+
+      await apiPostJson(page, `/api/tasks/${task.id}/end`, {
+        version: detail.version,
+        outputRemark: "E2E cleanup - end stale running task",
+        completionStatus: "COMPLETED",
+        sampleOutcome: detail.subProcess.code === "SAMPLE_CHECK" ? "APPROVE" : undefined,
+        checklist,
+      });
+    } catch {
+      const reasons = await apiGetJson<Array<{ id: number }>>(page, "/api/masters/hold-reasons");
+      const reasonId = reasons[0]?.id;
+      if (!reasonId) {
+        throw new Error(`Could not release running task ${task.id} and no hold reason exists`);
+      }
+      const latest = await apiGetJson<{ version: number; status: string }>(
         page,
-        detail.subProcess.code ?? "",
+        `/api/tasks/${task.id}`,
       );
-      if (forSubProcess.length > 0) {
-        checklist = forSubProcess.map((item) => ({ itemId: item.id, result: true }));
-      }
+      if (latest.status !== "RUNNING") continue;
+      await apiPostJson(page, `/api/tasks/${task.id}/hold`, {
+        holdReasonId: reasonId,
+        remark: "E2E cleanup - release running lock",
+        version: latest.version,
+      });
     }
-
-    await apiPostJson(page, `/api/tasks/${task.id}/end`, {
-      version: detail.version,
-      outputRemark: "E2E cleanup - end stale running task",
-      completionStatus: "COMPLETED",
-      sampleOutcome: detail.subProcess.code === "SAMPLE_CHECK" ? "APPROVE" : undefined,
-      checklist,
-    });
   }
 }
 
@@ -216,7 +227,10 @@ export async function completeTaskForUser(
 
   const tasks = await listMyTasks(page);
   const mine = tasks.find(
-    (t) => t.design.id === designId && t.subProcess.code === code && t.status === "ASSIGNED",
+    (t) =>
+      t.design.id === designId &&
+      t.subProcess.code === code &&
+      ["ASSIGNED", "CORRECTION_REQUIRED", "PENDING"].includes(t.status),
   );
   if (!mine && code === "CONCEPT_REVIEW") {
     return false;
@@ -262,6 +276,8 @@ export async function runWorkOrderThroughSampleReceive(
     "MAT_REQ",
     "FABRIC_ISSUE",
     "MACHINE_SAMPLE",
+    "SAMPLE_CUTTING",
+    "SAMPLE_STITCHING",
     "SAMPLE_RECEIVE",
   ] as const;
 
@@ -357,7 +373,7 @@ export async function completeAssignedTask(
     page,
     `/api/tasks/${taskId}`,
   );
-  if (current.status === "ASSIGNED") {
+  if (["ASSIGNED", "CORRECTION_REQUIRED", "PENDING"].includes(current.status)) {
     await apiPostJson(page, `/api/tasks/${taskId}/start`, {});
   }
 
@@ -384,6 +400,25 @@ export async function completeAssignedTask(
     }
   }
 
+  if (detail.subProcess.code === "MAT_REQ") {
+    const designId = detail.design?.id ?? detail.designId ?? current.design?.id ?? current.designId;
+    if (designId) {
+      const fabrics = await apiGetJson<Array<{ id: number }>>(page, "/api/masters/fabrics");
+      const catalogItemId = fabrics[0]?.id;
+      if (!catalogItemId) {
+        throw new Error("No fabric catalog item available for the material request");
+      }
+      await apiPostJson(page, "/api/materials", {
+        designId: String(designId),
+        catalogItemId,
+        unit: "m",
+        quantity: 2,
+        source: "STOCK",
+        remark: "E2E material request",
+      });
+    }
+  }
+
   if (detail.subProcess.code === "PROD_RELEASE") {
     const designId = detail.design?.id ?? detail.designId ?? current.design?.id ?? current.designId;
     if (designId) {
@@ -407,13 +442,19 @@ export async function completeAssignedTask(
     }
   }
 
-  return apiPostJson(page, `/api/tasks/${taskId}/end`, {
-    version: detail.version,
-    outputRemark: remark,
-    completionStatus: extra?.completionStatus ?? "COMPLETED",
-    sampleOutcome: extra?.sampleOutcome,
-    checklist,
-  });
+  try {
+    return await apiPostJson(page, `/api/tasks/${taskId}/end`, {
+      version: detail.version,
+      outputRemark: remark,
+      completionStatus: extra?.completionStatus ?? "COMPLETED",
+      sampleOutcome: extra?.sampleOutcome,
+      checklist,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!message.includes("stage approval actions")) throw error;
+    return completeStageApproval(page, taskId, remark);
+  }
 }
 
 const FLOOR_ERP_MODULES = [
@@ -479,6 +520,7 @@ export async function completeStageApproval(
   remark = "E2E stage approval",
   decision: "APPROVED" | "REJECT" | "CORRECTION_REQUIRED" = "APPROVED",
 ) {
+  await clearStaleRunningTasks(page, taskId);
   const detail = await apiGetJson<{ version: number }>(page, `/api/tasks/${taskId}`);
   return apiPostJson(page, `/api/tasks/${taskId}/approve-stage`, {
     outputRemark: remark,
@@ -680,6 +722,8 @@ const WORKFLOW_ROLE_MAP: Record<string, string> = {
   MAT_REQ: USERS.designHead.email,
   FABRIC_ISSUE: USERS.production.email,
   MACHINE_SAMPLE: USERS.machine.email,
+  SAMPLE_CUTTING: USERS.machine.email,
+  SAMPLE_STITCHING: USERS.machine.email,
   SAMPLE_RECEIVE: USERS.machine.email,
   SAMPLE_CHECK: USERS.checker.email,
   COSTING: USERS.costing.email,

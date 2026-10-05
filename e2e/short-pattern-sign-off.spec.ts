@@ -7,6 +7,7 @@ import {
   USERS,
   apiGetJson,
   apiPostJson,
+  attachPrimaryDesignImage,
   login,
 } from "./helpers/auth";
 import {
@@ -93,9 +94,11 @@ test.describe("Short pattern sign-off (no costing)", () => {
       seasonId: seasons[0]!.id,
       collectionName: `Short pattern sign-off ${Date.now()}`,
       priority: "MEDIUM",
+      conceptNote: "E2E concept note",
       assignmentMode: "AUTOMATIC",
       workflowPatternId: pattern.id,
     });
+    await attachPrimaryDesignImage(page, design.id);
 
     const created = await getDesign(page, design.id);
     expect(created.tasks.map((t) => t.subProcess.code)).toEqual([

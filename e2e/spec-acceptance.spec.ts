@@ -209,8 +209,11 @@ test.describe("Decent ERP acceptance (TC-01–TC-14)", () => {
 
     await page.goto("/admin/roles");
     await expect(page.getByRole("heading", { name: /Roles & Access/i })).toBeVisible();
-    await page.getByRole("tab", { name: /Role guide/i }).click();
-    await page.getByRole("button", { name: /Edit permissions/i }).first().click();
-    await expect(page.locator(".role-perm-grid").first()).toBeVisible();
+    await expect(page.locator(".rbac-matrix-table")).toBeVisible();
+    const sketchExecute = page.getByRole("checkbox", {
+      name: /TASK_EXECUTE for SKETCH_DESIGNER/i,
+    });
+    await expect(sketchExecute).toBeVisible();
+    await expect(sketchExecute).toBeChecked();
   });
 });

@@ -42,6 +42,8 @@ const ROLE_MAP: Record<string, string> = {
   MAT_REQ: USERS.designHead.email,
   FABRIC_ISSUE: USERS.production.email,
   MACHINE_SAMPLE: USERS.machine.email,
+  SAMPLE_CUTTING: USERS.machine.email,
+  SAMPLE_STITCHING: USERS.machine.email,
   SAMPLE_RECEIVE: USERS.machine.email,
   SAMPLE_CHECK: USERS.checker.email,
   COSTING: USERS.costing.email,
@@ -96,8 +98,9 @@ test.describe("Approvals hub", () => {
     expect(readyQueue.some((row) => row.designId === design.id)).toBe(true);
 
     await page.goto("/quality/approvals?tab=ready");
-    await expect(page.getByRole("tab", { name: /Ready to approve/i })).toBeVisible();
-    const designRow = page.getByRole("row", { name: new RegExp(design.ideaRef) });
+    await expect(page.getByRole("tab", { name: /Ready to request/i })).toBeVisible();
+    await page.getByRole("searchbox", { name: /Search approvals/i }).fill(design.ideaRef);
+    const designRow = page.getByRole("row").filter({ hasText: design.ideaRef });
     await expect(designRow).toBeVisible();
     const requestLink = designRow.getByRole("link", { name: /Request management approval|Approve for production/i });
     await expect(requestLink).toBeVisible();
