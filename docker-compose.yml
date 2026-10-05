@@ -114,6 +114,8 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin123}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_FORCE_PATH_STYLE: "true"
+      # Browser and ngrok cannot open http://minio:9000. Stream files through the app.
+      FILE_PROXY_DOWNLOADS: "true"
       JWT_EXPIRY: ${JWT_EXPIRY:-8h}
     ports:
       - "${APP_PORT:-3000}:3000"
