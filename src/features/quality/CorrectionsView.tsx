@@ -137,6 +137,7 @@ export function CorrectionsView() {
 
   return (
     <ListPage
+      className="corrections-page"
       title="Correction Management"
         subtitle="Track every correction, mistake owner, improvement and cost impact"
         actions={

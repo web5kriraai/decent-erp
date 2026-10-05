@@ -1003,6 +1003,35 @@ h3 {
   background: transparent;
 }
 
+/* Corrections: stats + activity sit above the table, so the page scrolls
+   instead of clipping the list to a single row. */
+.app-content:has(.list-page-host):has(.corrections-page) {
+  overflow-y: auto;
+}
+
+.app-content:has(.list-page-host):has(.corrections-page) > .list-page-host {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.corrections-page.list-page {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.corrections-page .list-page__body,
+.corrections-page .list-page__table,
+.corrections-page .list-page__table > div,
+.corrections-page .list-page__table .app-table-wrap,
+.corrections-page .list-page__table .app-table-wrap--flush {
+  overflow: visible;
+  max-height: none;
+  height: auto;
+  flex: none;
+}
+
 /* Master Data: keep title + tabs fixed; scroll only the tab content */
 .master-data-page__tabs {
   flex-shrink: 0;
