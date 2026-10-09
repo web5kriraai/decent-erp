@@ -14,7 +14,7 @@ import { FormTextArea } from "@/components/ui/form-text-area";
 import { AppButton } from "@/components/ui/AppButton";
 import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { cn } from "@/lib/utils";
-import { IconCheck, IconTrash2, IconClose } from "@/components/icons";
+import { IconCheck, IconClose } from "@/components/icons";
 import type { ChecklistItemMaster } from "@/hooks/use-masters";
 import { TaskArtifactPanel, useTaskHasFiles, useTaskHasMachineMetrics } from "@/components/tasks/TaskArtifactPanel";
 import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
@@ -27,8 +27,9 @@ import type { CostType } from "@/lib/services/costing-end-utils";
 import type { CostEntryInput } from "@/lib/services/costing-end-utils";
 import {
   buildCostingOutputRemark,
-  costingEndHasPositiveCosts,
+  COST_ENTRY_TYPES,
   mergeCostAmountsByType,
+  parseCostAmount,
   totalFromByType,
 } from "@/lib/services/costing-end-utils";
 import type { HandoffContext } from "@/lib/handoff-context";
@@ -130,15 +131,17 @@ export function TaskEndDialog({
   designerStages,
   releaseReadinessItems,
   showStatusSelect,
-  costEntries = [],
   onCostEntriesChange,
   onSubmit,
   isPending,
 }: TaskEndDialogProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [draftCostType, setDraftCostType] = useState<CostType>("TIME");
-  const [draftAmount, setDraftAmount] = useState("");
-  const [draftDescription, setDraftDescription] = useState("");
+  const [costAmounts, setCostAmounts] = useState<Record<CostType, string>>({
+    TIME: "",
+    MATERIAL: "",
+    MACHINE: "",
+    CORRECTION: "",
+  });
   const [costingNote, setCostingNote] = useState("");
   const [machineOutputBusy, setMachineOutputBusy] = useState(false);
 
@@ -175,9 +178,7 @@ export function TaskEndDialog({
 
   function handleClose() {
     setIsUploading(false);
-    setDraftAmount("");
-    setDraftDescription("");
-    setDraftCostType("TIME");
+    setCostAmounts({ TIME: "", MATERIAL: "", MACHINE: "", CORRECTION: "" });
     setCostingNote("");
     setMachineOutputBusy(false);
     onClose();
@@ -211,24 +212,51 @@ export function TaskEndDialog({
   const allowStatusSelect =
     showStatusSelect ?? (!isSampleCheck && !isCosting && !forcesChecking);
 
+  const parsedCostAmounts = useMemo(() => {
+    const byType = {} as Record<CostType, number | null>;
+    for (const costType of COST_ENTRY_TYPES) {
+      byType[costType] = parseCostAmount(costAmounts[costType] ?? "");
+    }
+    return byType;
+  }, [costAmounts]);
+  const costAmountsValid = COST_ENTRY_TYPES.every(
+    (costType) => parsedCostAmounts[costType] != null,
+  );
+  const draftCostEntries = useMemo(
+    () =>
+      COST_ENTRY_TYPES.map((costType) => ({
+        costType,
+        amount: parsedCostAmounts[costType] ?? 0,
+      })),
+    [parsedCostAmounts],
+  );
   const mergedByType = useMemo(
-    () => mergeCostAmountsByType(existingSummary?.byType ?? {}, costEntries),
-    [existingSummary?.byType, costEntries],
+    () => mergeCostAmountsByType(existingSummary?.byType ?? {}, draftCostEntries),
+    [existingSummary?.byType, draftCostEntries],
   );
   const mergedTotal = useMemo(() => totalFromByType(mergedByType), [mergedByType]);
-  const costingOk = costingEndHasPositiveCosts(!!existingSummary?.hasCosting, costEntries);
+  const costingOk = costAmountsValid;
 
   useEffect(() => {
     if (!open || !isCosting) return;
     onEndRemarkChange(buildCostingOutputRemark(mergedByType, mergedTotal, costingNote));
-  }, [open, isCosting, mergedByType, mergedTotal, costingNote, onEndRemarkChange]);
+    if (costAmountsValid) onCostEntriesChange?.(draftCostEntries);
+  }, [
+    open,
+    isCosting,
+    mergedByType,
+    mergedTotal,
+    costingNote,
+    costAmountsValid,
+    draftCostEntries,
+    onEndRemarkChange,
+    onCostEntriesChange,
+  ]);
 
   useEffect(() => {
     if (!open) {
       setCostingNote("");
-      setDraftAmount("");
-      setDraftDescription("");
-      setDraftCostType("TIME");
+      setCostAmounts({ TIME: "", MATERIAL: "", MACHINE: "", CORRECTION: "" });
     }
   }, [open]);
 
@@ -289,28 +317,9 @@ export function TaskEndDialog({
     if (machineOutputBusy) return "Saving…";
     if (metricsBlocking) return digitizingStage ? "Add punching details" : "Add sample qty";
     if (filesBlocking) return isUploading ? "Uploading…" : "Upload a file";
+    if (isCosting && !costAmountsValid) return "Check cost amounts";
     if (remarkRequired && !endRemark.trim()) return "Add note";
     return "Submit Completion";
-  }
-
-  function addDraftCostLine() {
-    const amount = Number(draftAmount);
-    if (!(amount > 0) || !onCostEntriesChange) return;
-    onCostEntriesChange([
-      ...costEntries,
-      {
-        costType: draftCostType,
-        description: draftDescription.trim() || undefined,
-        amount,
-      },
-    ]);
-    setDraftAmount("");
-    setDraftDescription("");
-  }
-
-  function removeDraftCostLine(index: number) {
-    if (!onCostEntriesChange) return;
-    onCostEntriesChange(costEntries.filter((_, i) => i !== index));
   }
 
   return (
@@ -494,86 +503,42 @@ export function TaskEndDialog({
               </ul>
             ) : null}
 
-            {costEntries.length > 0 ? (
-              <ul className="space-y-1">
-                {costEntries.map((entry, index) => (
-                  <li
-                    key={`draft-${index}-${entry.costType}-${entry.amount}`}
-                    className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-sm"
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      <span className="font-medium">{entry.costType}</span>
-                      {entry.description ? ` · ${entry.description}` : ""}
-                      <span className="ml-2 tabular-nums">₹{entry.amount.toFixed(2)}</span>
-                    </span>
-                    <AppButton
-                      type="button"
-                      appVariant="ghost"
-                      size="sm"
-                      className="h-7 w-7 shrink-0 p-0"
-                      onClick={() => removeDraftCostLine(index)}
-                      disabled={isPending}
-                      aria-label="Remove draft cost line"
-                    >
-                      <IconTrash2 className="size-3.5" />
-                    </AppButton>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
+            <p className="m-0 text-xs text-muted-foreground">
+              Enter each cost type. A blank amount is saved as 0 and still counts in the total.
+            </p>
             <ModalFormGrid className="gap-3 sm:grid-cols-2">
-              <FormSelect
-                id="draftCostType"
-                label="Cost type"
-                value={draftCostType}
-                onValueChange={(v) => setDraftCostType(v as CostType)}
-                options={COST_TYPE_OPTIONS}
-                disabled={isPending}
-              />
-              <div className="form-group">
-                <label className="form-label" htmlFor="draftCostAmount">
-                  Amount (₹) *
-                </label>
-                <input
-                  id="draftCostAmount"
-                  type="number"
-                  min={0.01}
-                  step="0.01"
-                  className="form-input"
-                  value={draftAmount}
-                  onChange={(e) => setDraftAmount(e.target.value)}
-                  disabled={isPending}
-                />
-              </div>
+              {COST_TYPE_OPTIONS.map((option) => {
+                const invalid = parsedCostAmounts[option.value] == null;
+                return (
+                  <div className="form-group" key={option.value}>
+                    <label className="form-label" htmlFor={`cost-${option.value}`}>
+                      {option.label} (₹)
+                    </label>
+                    <input
+                      id={`cost-${option.value}`}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="form-input"
+                      value={costAmounts[option.value]}
+                      onChange={(e) =>
+                        setCostAmounts((prev) => ({
+                          ...prev,
+                          [option.value]: e.target.value,
+                        }))
+                      }
+                      placeholder="0"
+                      disabled={isPending}
+                      aria-invalid={invalid || undefined}
+                    />
+                  </div>
+                );
+              })}
             </ModalFormGrid>
-            <div className="form-group">
-              <label className="form-label" htmlFor="draftCostDesc">
-                Description
-              </label>
-              <input
-                id="draftCostDesc"
-                type="text"
-                className="form-input"
-                value={draftDescription}
-                onChange={(e) => setDraftDescription(e.target.value)}
-                placeholder="Optional detail…"
-                disabled={isPending}
-              />
-            </div>
-            <AppButton
-              type="button"
-              appVariant="outline"
-              size="sm"
-              onClick={addDraftCostLine}
-              disabled={isPending || !(Number(draftAmount) > 0)}
-            >
-              Add cost line
-            </AppButton>
 
-            {!costingOk && !costingLoading ? (
+            {!costAmountsValid && !costingLoading ? (
               <p className="text-xs text-destructive" role="alert">
-                Add at least one cost line (or ensure costs already exist on Finance → Costing).
+                Each cost type must be blank (counted as 0) or a positive amount.
               </p>
             ) : null}
 

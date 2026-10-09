@@ -44,13 +44,15 @@ describe("mergeCostAmountsByType / buildCostingOutputRemark", () => {
     expect(totalFromByType(byType)).toBe(185);
   });
 
-  it("builds auto remark from totals", () => {
+  it("builds auto remark from totals and lists missing types as zero", () => {
     const remark = buildCostingOutputRemark(
       { TIME: 100, MATERIAL: 200 },
       300,
     );
     expect(remark).toContain("TIME ₹100.00");
     expect(remark).toContain("MATERIAL ₹200.00");
+    expect(remark).toContain("MACHINE ₹0.00");
+    expect(remark).toContain("CORRECTION ₹0.00");
     expect(remark).toContain("total ₹300.00");
   });
 
@@ -62,7 +64,7 @@ describe("mergeCostAmountsByType / buildCostingOutputRemark", () => {
   it("ignores placeholder additional notes", () => {
     expect(isMeaningfulCostingNote("nothing")).toBe(false);
     expect(buildCostingOutputRemark({ MATERIAL: 500 }, 500, "nothing")).toBe(
-      "Costing submitted: MATERIAL ₹500.00; total ₹500.00",
+      "Costing submitted: TIME ₹0.00, MATERIAL ₹500.00, MACHINE ₹0.00, CORRECTION ₹0.00; total ₹500.00",
     );
   });
 
@@ -74,7 +76,9 @@ describe("mergeCostAmountsByType / buildCostingOutputRemark", () => {
     ).toBe("Costing submitted: MATERIAL ₹500.00, MACHINE ₹300.00; total ₹800.00");
   });
 
-  it("falls back when no positive amounts", () => {
-    expect(buildCostingOutputRemark({}, 0)).toBe("Costing submitted");
+  it("lists every type as zero when nothing was entered", () => {
+    expect(buildCostingOutputRemark({}, 0)).toBe(
+      "Costing submitted: TIME ₹0.00, MATERIAL ₹0.00, MACHINE ₹0.00, CORRECTION ₹0.00; total ₹0.00",
+    );
   });
 });

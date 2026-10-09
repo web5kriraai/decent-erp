@@ -25,7 +25,7 @@ const schema = z.object({
       z.object({
         costType: z.enum(["TIME", "MATERIAL", "MACHINE", "CORRECTION"]),
         description: z.string().optional(),
-        amount: z.number().positive(),
+        amount: z.number().min(0),
       }),
     )
     .optional(),

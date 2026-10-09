@@ -43,7 +43,6 @@ import { sortTasksByEffectivePriority } from "@/lib/task-priority";
 import { resolveWorkTaskEndStatus, findCheckingWorkTasksReleasedByApproval } from "@/lib/services/workflow-stage-gate";
 import {
   createCostEntryInTx,
-  designHasCosting,
   type CostType,
 } from "@/lib/services/costing-service";
 import type { Prisma } from "@prisma/client";
@@ -845,25 +844,26 @@ export async function endTask(
     const isCosting = stageBehavior.costingEntry;
     if (isCosting) {
       for (const entry of input.costEntries ?? []) {
+        const amount = Number(entry.amount);
+        if (!Number.isFinite(amount) || amount < 0) {
+          throw businessRule(
+            APP_ERROR_CODES.VALIDATION_FAILED,
+            undefined,
+            "Each cost type must be 0 or a positive amount.",
+          );
+        }
+        if (!(amount > 0)) continue;
         await createCostEntryInTx(
           tx,
           task.designId,
           {
             costType: entry.costType,
             description: entry.description?.trim() || undefined,
-            amount: entry.amount,
+            amount,
           },
           employeeId,
           correlationId,
           { skipDesignCheck: true },
-        );
-      }
-      const hasCosting = await designHasCosting(task.designId, tx);
-      if (!hasCosting) {
-        throw businessRule(
-          APP_ERROR_CODES.COSTING_REQUIRED,
-          undefined,
-          "Enter at least one cost before completing Costing.",
         );
       }
     }

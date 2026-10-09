@@ -4,30 +4,51 @@
    Board: full-width lanes with native smooth horizontal scroll.
    ========================================================================== */
 
-.workflow-dash-page {
-  height: 100%;
-  max-height: 100%;
+.page-shell.workflow-dash-page {
+  height: auto;
+  max-height: none;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
+  gap: 0;
+  padding: var(--content-padding);
 }
 
-.workflow-dash-page > .page-header {
-  flex-shrink: 0;
-}
-
-.workflow-dash-body {
-  flex: 1 1 auto;
+.workflow-dash-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
   min-height: 0;
+  overflow: visible;
+}
+
+.workflow-dash-scroll > .page-header {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.workflow-dash-body,
+.workflow-dash-intro {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
 }
 
-.workflow-dash-page > .workflow-dash-body {
-  flex: 1 1 auto;
-  min-height: 0;
+.workflow-dash-stage {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  box-sizing: border-box;
+  height: calc(100dvh - var(--topbar-height));
+  max-height: calc(100dvh - var(--topbar-height));
+  margin-bottom: calc(var(--content-padding) * -1);
+  background: var(--color-page-canvas);
 }
 
 .workflow-dash-day {
@@ -47,6 +68,12 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--card);
+}
+
+.workflow-dash-pagination {
+  flex-shrink: 0;
+  margin-top: auto;
+  background: var(--color-page-canvas);
 }
 
 .workflow-dash-filters.list-filter-group {
@@ -98,7 +125,7 @@
 .workflow-dash-board-shell {
   position: relative;
   flex: 1 1 auto;
-  min-height: 22rem;
+  min-height: 0;
   width: calc(100% + 2 * var(--content-padding));
   max-width: none;
   margin-inline: calc(var(--content-padding) * -1);

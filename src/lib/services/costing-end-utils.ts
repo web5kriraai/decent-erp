@@ -60,19 +60,25 @@ export function sanitizeHandoffRemark(remark?: string | null): string | null {
   return cleaned || null;
 }
 
-/** Auto remark so Costing does not need a long free-text essay. */
+/** Empty means 0. A negative or non-numeric value is invalid. */
+export function parseCostAmount(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return 0;
+  const amount = Number(trimmed);
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return amount;
+}
+
+/** Auto remark so Costing does not need a long free-text essay. Every type is listed; a missing type is 0. */
 export function buildCostingOutputRemark(
   byType: Record<string, number>,
   total: number,
   additionalNote?: string,
 ): string {
-  const parts = Object.entries(byType)
-    .filter(([, amount]) => Number(amount) > 0)
-    .map(([type, amount]) => `${type} ₹${Number(amount).toFixed(2)}`);
-  const base =
-    parts.length > 0
-      ? `Costing submitted: ${parts.join(", ")}; total ₹${total.toFixed(2)}`
-      : "Costing submitted";
+  const parts = COST_ENTRY_TYPES.map(
+    (type) => `${type} ₹${Number(byType[type] ?? 0).toFixed(2)}`,
+  );
+  const base = `Costing submitted: ${parts.join(", ")}; total ₹${total.toFixed(2)}`;
   if (!isMeaningfulCostingNote(additionalNote)) return base;
   return `${base}. ${additionalNote!.trim()}`;
 }

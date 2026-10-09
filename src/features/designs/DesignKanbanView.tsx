@@ -214,6 +214,7 @@ export function DesignKanbanView() {
 
   return (
     <div className="page-shell page-shell--wide workflow-dash-page">
+      <div className="workflow-dash-scroll">
       <PageHeader
         title="Design Workflow Dashboard"
         actions={
@@ -292,7 +293,9 @@ export function DesignKanbanView() {
             trend="Create → approved / released"
           />
         </div>
+        </div>
 
+        <div className="workflow-dash-stage">
         <div
           className="workflow-dash-filters list-filter-group"
           role="group"
@@ -414,10 +417,11 @@ export function DesignKanbanView() {
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           pageSizeSelectId="workflow-dash-page-size"
-          className="list-page__pagination"
+          className="list-page__pagination workflow-dash-pagination"
         />
         </div>
       </QueryState>
+      </div>
     </div>
   );
 }
