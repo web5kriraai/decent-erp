@@ -18,9 +18,30 @@ function resolveEmployeeId(payload: Record<string, unknown>): number | null {
   return null;
 }
 
+async function withTaskContext(payload: Record<string, unknown>) {
+  const taskId = typeof payload.taskId === "string" ? payload.taskId : null;
+  if (!taskId || !/^\d+$/.test(taskId)) return payload;
+  if (payload.ideaRef && payload.stageName) return payload;
+  const task = await prisma.designTask.findUnique({
+    where: { id: BigInt(taskId) },
+    select: {
+      subProcess: { select: { name: true } },
+      design: { select: { ideaRef: true, collectionName: true } },
+    },
+  });
+  if (!task) return payload;
+  return {
+    ...payload,
+    ideaRef: payload.ideaRef ?? task.design.ideaRef,
+    collectionName: payload.collectionName ?? task.design.collectionName,
+    stageName: payload.stageName ?? task.subProcess.name,
+  };
+}
+
 export async function deliverNotification(
   eventType: string,
   payload: Record<string, unknown>,
+  options?: { skipInApp?: boolean; skipExternal?: boolean },
 ): Promise<{
   inApp: boolean;
   emailSent: boolean;
@@ -28,14 +49,15 @@ export async function deliverNotification(
   whatsAppSent: boolean;
   pushSent: boolean;
 }> {
-  const { subject, text, html } = buildNotificationMessage(eventType, payload);
+  const enriched = await withTaskContext(payload);
+  const { subject, text, html } = buildNotificationMessage(eventType, enriched);
 
   let inApp = false;
-  const employeeId = resolveEmployeeId(payload);
+  const employeeId = resolveEmployeeId(enriched);
 
-  if (employeeId != null) {
+  if (!options?.skipInApp && employeeId != null) {
     try {
-      await createEmployeeNotification(employeeId, eventType, payload);
+      await createEmployeeNotification(employeeId, eventType, enriched);
       inApp = true;
     } catch (error) {
       console.warn(
@@ -56,7 +78,7 @@ export async function deliverNotification(
       channel: "in-app",
       msg: text,
       eventType,
-      payload,
+      enriched,
       deliveredAt: new Date().toISOString(),
     }),
   );
@@ -71,7 +93,7 @@ export async function deliverNotification(
         ? payload.responsibleEmployeeId
         : null;
 
-  if (notifyEmployeeId && isSmtpConfigured()) {
+  if (!options?.skipExternal && notifyEmployeeId && isSmtpConfigured()) {
     const employee = await prisma.employee.findUnique({
       where: { id: notifyEmployeeId },
       select: { email: true, active: true },
@@ -81,7 +103,7 @@ export async function deliverNotification(
       emailSent = result.sent;
       emailTo = employee.email;
     }
-  } else if (isSmtpConfigured() && process.env.SMTP_NOTIFY_EMAIL) {
+  } else if (!options?.skipExternal && isSmtpConfigured() && process.env.SMTP_NOTIFY_EMAIL) {
     const result = await sendEmail({
       to: process.env.SMTP_NOTIFY_EMAIL,
       subject,
@@ -93,7 +115,7 @@ export async function deliverNotification(
   }
 
   let whatsAppSent = false;
-  if (isWhatsAppConfigured() && eventAllowed("WHATSAPP_NOTIFY_EVENTS", eventType)) {
+  if (!options?.skipExternal && isWhatsAppConfigured() && eventAllowed("WHATSAPP_NOTIFY_EVENTS", eventType)) {
     const result = await sendWhatsAppMessage(`${subject}\n\n${text}`, payload);
     whatsAppSent = result.sent;
     if (!result.sent && result.reason) {
@@ -109,7 +131,7 @@ export async function deliverNotification(
   }
 
   let pushSent = false;
-  if (isPushConfigured() && eventAllowed("PUSH_NOTIFY_EVENTS", eventType)) {
+  if (!options?.skipExternal && isPushConfigured() && eventAllowed("PUSH_NOTIFY_EVENTS", eventType)) {
     const result = await sendPushNotification(subject, text, { eventType, ...payload });
     pushSent = result.sent;
     if (!result.sent && result.reason) {

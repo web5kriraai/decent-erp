@@ -37,6 +37,8 @@ export type NotificationJobPayload = {
   correlationId?: string;
   /** Marks this specific outbox row processed after delivery (avoids updateMany by eventType). */
   outboxId?: string;
+  /** In-app row was already written when the outbox was created. */
+  skipInApp?: boolean;
 };
 
 export function isNotificationQueueDisabled(): boolean {
@@ -64,10 +66,10 @@ export async function enqueueNotification(job: NotificationJobPayload): Promise<
   }
 }
 
-/** Spec §17 — repeatable due-soon / overdue scanner (every 15 minutes). */
+/** Spec §17 - repeatable due-soon / overdue scanner (every 15 minutes). */
 export const SCAN_TASK_DUES_EVENT = "SCAN_TASK_DUES";
 
-/** Spec §13.2 — move aged AuditLog rows into archive table (daily). */
+/** Spec §13.2 - move aged AuditLog rows into archive table (daily). */
 export const SCAN_AUDIT_ARCHIVE_EVENT = "SCAN_AUDIT_ARCHIVE";
 
 /** Live ERP design-success partner pull (hourly when ERP_API_BASE_URL is set). */

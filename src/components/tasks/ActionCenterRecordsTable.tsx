@@ -82,7 +82,7 @@ function mapTaskRows(
   return tasks.map((task) => {
     const labels = resolveActionDesignLabels(task.design);
     const priority = resolveActionPriority(task.priority, task.design?.priority);
-    const detail = formatActionCenterListHint(task, mode) ?? "—";
+    const detail = formatActionCenterListHint(task, mode) ?? "-";
     return {
       id: task.id,
       collection: labels.designTitle,

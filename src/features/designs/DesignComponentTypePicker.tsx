@@ -13,6 +13,9 @@ type DesignComponentTypePickerProps = {
   onChange: (ids: number[]) => void;
   error?: string;
   id?: string;
+  /** When true, show hint until product type is chosen (options stay empty). */
+  requiresProductType?: boolean;
+  productTypeSelected?: boolean;
 };
 
 export function DesignComponentTypePicker({
@@ -21,8 +24,11 @@ export function DesignComponentTypePicker({
   onChange,
   error,
   id = "componentTypes",
+  requiresProductType = false,
+  productTypeSelected = true,
 }: DesignComponentTypePickerProps) {
   const activeOptions = options.filter((o) => o.active !== false);
+  const waitingForProduct = requiresProductType && !productTypeSelected;
 
   function toggle(componentId: number) {
     onChange(
@@ -36,11 +42,13 @@ export function DesignComponentTypePicker({
     <fieldset className="form-field" id={id}>
       <legend className="form-label">Product components</legend>
       <p className="m-0 mb-2 text-xs text-muted-foreground">
-        Select parts of this design (e.g. Pallu, Blouse). Link each image to a
-        component when uploading.
+        {waitingForProduct
+          ? "Choose a product type above to see the components for that product."
+          : "Select parts of this design (e.g. Pallu, Blouse). Link each image to a component when uploading."}
       </p>
       <div className="form-grid form-grid--checkboxes" role="group" aria-label="Product components">
-        {activeOptions.map((opt) => {
+        {!waitingForProduct
+          ? activeOptions.map((opt) => {
           const checked = value.includes(opt.id);
           const inputId = `${id}-${opt.id}`;
           return (
@@ -54,10 +62,14 @@ export function DesignComponentTypePicker({
               <span>{opt.name}</span>
             </label>
           );
-        })}
+        })
+          : null}
       </div>
-      {activeOptions.length === 0 ? (
-        <p className="m-0 mt-1 text-xs text-muted-foreground">No component types in masters.</p>
+      {!waitingForProduct && activeOptions.length === 0 ? (
+        <p className="m-0 mt-1 text-xs text-muted-foreground">
+          No components linked to this product type. Link them under Master Data → Product
+          Components.
+        </p>
       ) : null}
       {error ? (
         <p className="form-error" role="alert">

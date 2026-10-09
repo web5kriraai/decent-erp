@@ -14,7 +14,7 @@ export type ListDateRangeFilterProps = {
   className?: string;
 };
 
-/** Compact From/To date pair for list toolbars — labels inline, not stacked. */
+/** Compact From/To date pair for list toolbars - labels inline, not stacked. */
 export function ListDateRangeFilter({
   fromId = "list-filter-from",
   toId = "list-filter-to",

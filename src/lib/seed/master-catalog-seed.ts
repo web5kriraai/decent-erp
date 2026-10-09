@@ -160,7 +160,7 @@ const EXTRA_CATALOG_SEED: CatalogSeedRow[] = [
   { masterType: MASTER_TYPES.PHYSICAL_SAMPLE_LOCATION, code: "SHOWROOM", name: "Showroom", sortOrder: 3 },
 ];
 
-/** @deprecated use COMPONENT_CATALOG_SEED — kept name for import compatibility */
+/** @deprecated use COMPONENT_CATALOG_SEED - kept name for import compatibility */
 export const COMPONENT_TYPE_SEED = [
   { code: "BODY", name: "Body", sequence: 1 },
   { code: "PALLU", name: "Pallu", sequence: 2 },
@@ -172,6 +172,49 @@ export const COMPONENT_TYPE_SEED = [
   { code: "BOTTOM", name: "Bottom", sequence: 8 },
   { code: "DUPATTA", name: "Dupatta", sequence: 9 },
 ] as const;
+
+/** Product category code → component codes shown on design create for that category. */
+export const PRODUCT_CATEGORY_COMPONENT_MAP: Record<string, readonly string[]> = {
+  SAREE: ["BODY", "PALLU", "BORDER", "BLOUSE", "BUTTA"],
+  SUIT: ["TOP_FRONT", "TOP_BACK", "BOTTOM", "SLEEVE", "DUPATTA", "BORDER"],
+  KURTI: ["TOP_FRONT", "TOP_BACK", "SLEEVE", "BOTTOM", "BORDER", "DUPATTA"],
+  LEHENGA: ["TOP_FRONT", "TOP_BACK", "BOTTOM", "DUPATTA", "BORDER", "BUTTA"],
+};
+
+export async function seedProductCategoryComponentLinks(prisma: PrismaClient) {
+  const categories = await prisma.masterCatalog.findMany({
+    where: { masterType: MASTER_TYPES.PRODUCT_CATEGORY },
+    select: { id: true, code: true },
+  });
+  const components = await prisma.masterCatalog.findMany({
+    where: { masterType: MASTER_TYPES.PRODUCT_COMPONENT },
+    select: { id: true, code: true },
+  });
+  const categoryByCode = new Map(categories.map((c) => [c.code, c.id]));
+  const componentByCode = new Map(components.map((c) => [c.code, c.id]));
+
+  for (const [categoryCode, componentCodes] of Object.entries(
+    PRODUCT_CATEGORY_COMPONENT_MAP,
+  )) {
+    const productCategoryId = categoryByCode.get(categoryCode);
+    if (!productCategoryId) continue;
+
+    await prisma.productCategoryComponentLink.deleteMany({
+      where: { productCategoryId },
+    });
+
+    const rows = componentCodes
+      .map((code, sortOrder) => {
+        const componentId = componentByCode.get(code);
+        return componentId ? { productCategoryId, componentId, sortOrder } : null;
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null);
+
+    if (rows.length) {
+      await prisma.productCategoryComponentLink.createMany({ data: rows });
+    }
+  }
+}
 
 export async function seedAllMasterCatalog(prisma: PrismaClient) {
   const batches: Array<{ label: string; rows: CatalogSeedRow[] }> = [
@@ -188,6 +231,7 @@ export async function seedAllMasterCatalog(prisma: PrismaClient) {
   for (const batch of batches) {
     await seedMasterCatalogBatch(prisma, batch.rows, batch.label);
   }
+  await seedProductCategoryComponentLinks(prisma);
 }
 
 export async function seedComponentTypes(prisma: PrismaClient) {

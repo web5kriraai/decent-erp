@@ -275,7 +275,7 @@ export function MaterialsView() {
                 }}
                 options={designOptions.map((d) => ({
                   value: String(d.id),
-                  label: `${d.ideaRef} — ${d.collectionName}`,
+                  label: `${d.ideaRef} - ${d.collectionName}`,
                 }))}
                 placeholder={
                   designsQuery.isLoading
@@ -329,7 +329,7 @@ export function MaterialsView() {
             {
               key: "item",
               header: "Item",
-              render: (row) => row.catalogItem?.name ?? "—",
+              render: (row) => row.catalogItem?.name ?? "-",
             },
             {
               key: "qty",

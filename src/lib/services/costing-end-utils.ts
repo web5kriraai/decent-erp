@@ -38,7 +38,7 @@ export function totalFromByType(byType: Record<string, number>): number {
 }
 
 const PLACEHOLDER_COSTING_NOTE =
-  /^(nothing|n\/?a|na|none|nil|-|—|–|\.|…)$/i;
+  /^(nothing|n\/?a|na|none|nil|-|-|–|\.|…)$/i;
 
 /** True when an optional costing note is worth appending to the auto remark. */
 export function isMeaningfulCostingNote(note?: string | null): boolean {
@@ -55,7 +55,7 @@ export function sanitizeHandoffRemark(remark?: string | null): string | null {
   const trimmed = remark?.trim();
   if (!trimmed) return null;
   const cleaned = trimmed
-    .replace(/[.,;]\s*(nothing|n\/?a|na|none|nil|-|—|–)\s*$/i, "")
+    .replace(/[.,;]\s*(nothing|n\/?a|na|none|nil|-|-|–)\s*$/i, "")
     .trim();
   return cleaned || null;
 }

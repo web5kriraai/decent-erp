@@ -13,7 +13,8 @@ export async function GET() {
           id: true,
           name: true,
           employeeCode: true,
-          role: { select: { code: true, name: true } },
+          roleId: true,
+          role: { select: { id: true, code: true, name: true } },
         },
       });
       return jsonOk(employees, ctx.correlationId);

@@ -68,7 +68,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       try {
         if (new URL(url).origin === origin) return url;
       } catch {
-        // Relative or invalid — fall through to the public origin.
+        // Relative or invalid - fall through to the public origin.
       }
       return origin;
     },

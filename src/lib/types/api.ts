@@ -33,7 +33,19 @@ export type DesignSummary = {
   stitchingTypeId?: number | null;
   estimatedCost?: number | null;
   currentStage?: string | null;
+  createdAtUtc?: string;
+  targetEndDate?: string | null;
+  assignmentMode?: "AUTOMATIC" | "MANUAL";
   version?: number;
+  listMeta?: {
+    assignmentMode: "AUTOMATIC" | "MANUAL";
+    workflowTypeLabel: string;
+    currentStageName?: string;
+    currentAssigneeName: string | null;
+    pendingReviewerName: string | null;
+    openCorrectionCount: number;
+    maxCorrectionCycle: number;
+  };
   productType?: { id: number; name: string; code: string };
   season?: { id: number; name: string; code: string };
   designHead?: { id: number; name: string };
@@ -87,11 +99,13 @@ export type DesignCorrectionDetail = {
   id: string;
   correctionType: string;
   status: string;
+  cycleNo?: number;
   rootCause?: string | null;
   ratingImpact?: number | null;
   createdAtUtc: string;
   raisedBy?: { id: number; name: string };
   responsibleEmployee?: { id: number; name: string } | null;
+  reviewerEmployee?: { id: number; name: string } | null;
   routeToSubProcess?: { id: number; code: string; name: string } | null;
 };
 
@@ -147,6 +161,8 @@ export type KanbanWorkflowInfo = {
   summary: string | null;
   completedStages: number;
   totalStages: number;
+  /** Current open stage is an approval still waiting on its assignee. */
+  pendingApproval?: boolean;
   activeStages: Array<{
     label: string;
     status: string;
@@ -191,6 +207,10 @@ export type DesignWorkflowDashboardSummary = {
 export type DesignWorkflowDashboardResponse = {
   items: KanbanDesignItem[];
   summary: DesignWorkflowDashboardSummary;
+  /** Full count in each column after filters, not just the current page. */
+  laneCounts?: Partial<Record<string, number>>;
+  owners?: string[];
+  pagination?: { page: number; pageSize: number; total: number };
 };
 
 export type DesignTask = {
@@ -207,7 +227,16 @@ export type DesignTask = {
   skippedAt?: string | null;
   assignedEmployeeId?: number | null;
   assignedEmployee?: { id: number; name: string; employeeCode: string } | null;
-  design: { id: string; ideaRef: string; collectionName: string; priority?: Priority };
+  design: {
+    id: string;
+    ideaRef: string;
+    collectionName: string;
+    priority?: Priority;
+    createdAtUtc?: string;
+    primaryImageUrl?: string | null;
+    productType?: { name?: string | null; code?: string | null } | null;
+  };
+  updatedAtUtc?: string;
   process: { id: number; name: string; code: string };
   subProcess: {
     id: number;
@@ -229,6 +258,11 @@ export type DesignTask = {
     machineFormat?: string | null;
     sampleQty?: number | null;
     wastageQty?: number | null;
+    needleCount?: number | null;
+    colorCount?: number | null;
+    hoopSize?: string | null;
+    softwareName?: string | null;
+    stitchDensity?: number | string | null;
     fileName?: string | null;
     storageKey?: string | null;
     contentType?: string | null;
@@ -314,12 +348,41 @@ export type TaskTimeDetail = {
   expectedMinutes: number;
   version: number;
   outputRemark?: string | null;
+  instructionNote?: string | null;
+  dueAt?: string | null;
+  startedAt?: string | null;
+  updatedAtUtc?: string | null;
   assignedEmployeeId?: number | null;
   design: {
     id: string;
     ideaRef: string;
+    designNumber?: string | null;
     collectionName: string;
+    styleName?: string | null;
+    conceptNote?: string | null;
+    workType?: string | null;
+    trendReference?: string | null;
+    celebrityReference?: string | null;
+    priority?: Priority;
+    status?: string;
+    currentStage?: string | null;
+    targetEndDate?: string | null;
     productType?: string | null;
+    season?: string | null;
+    designHead?: string | null;
+    location?: string | null;
+    fabric?: string | null;
+    machine?: string | null;
+    stitchingType?: string | null;
+    designGrade?: string | null;
+    primaryImageUrl?: string | null;
+    primaryImageName?: string | null;
+    components?: Array<{
+      id: string;
+      name: string;
+      specification?: string | null;
+      images: Array<{ id: string; fileName: string; downloadUrl: string | null }>;
+    }>;
   };
   process: { id: number; name: string; code: string };
   subProcess: {
@@ -341,13 +404,51 @@ export type TaskTimeDetail = {
     status: string;
     assignedEmployeeId: number | null;
     outputRemark?: string | null;
-    subProcess: { name: string; code: string; isApproval?: boolean };
+    dueAt?: string | null;
+    startedAt?: string | null;
+    updatedAtUtc?: string | null;
+    instructionNote?: string | null;
+    expectedMinutes?: number | null;
+    activeSeconds?: number | null;
+    holdSeconds?: number | null;
+    subProcess: {
+      name: string;
+      code: string;
+      isApproval?: boolean;
+      defaultRole?: { name?: string | null } | null;
+    };
     assignedEmployee?: { name: string } | null;
   }>;
   assigneeHasRunningTask: boolean;
   canStart: boolean;
   startBlockedReason?: string;
   blockedMessage?: string | null;
+  workdayClosed?: boolean;
+  /** Files submitted on earlier stages. Each later role sees sketch, punching, and sample work. */
+  priorWorkFiles?: Array<{
+    id: string;
+    fileName: string;
+    contentType: string | null;
+    downloadUrl: string | null;
+    uploadedAtUtc: string;
+    uploadedByName: string | null;
+    stageName: string;
+    stageCode: string;
+    artifactType: string;
+  }>;
+  /** Digitizing details saved on an earlier Punching / Wilcom task. */
+  priorPunching?: PriorPunchingDetails | null;
+};
+
+export type PriorPunchingDetails = {
+  stitchCount: number | null;
+  machineFormat: string | null;
+  needleCount: number | null;
+  colorCount: number | null;
+  hoopSize: string | null;
+  stitchDensity: string | null;
+  softwareName: string | null;
+  recordedByName: string | null;
 };
 
 export type HoldReason = {
@@ -411,10 +512,6 @@ export type AdminEmployeeRow = {
   email: string;
   active: boolean;
   role: { id: number; code: string; name: string };
-  /** Current UTC month performance grade (A–E), when computed. */
-  gradeCode?: string | null;
-  /** Marks balance snapshot from current-month grade row. */
-  marksBalance?: number | null;
 };
 
 export type AdminRoleOption = {
@@ -444,6 +541,8 @@ export type CorrectionRecord = {
   };
   raisedBy: { id: number; name: string; employeeCode: string };
   responsibleEmployee?: { id: number; name: string; employeeCode: string } | null;
+  reviewerEmployee?: { id: number; name: string; employeeCode: string } | null;
+  cycleNo?: number;
   routeToSubProcess?: { id: number; code: string; name: string } | null;
 };
 
@@ -538,6 +637,8 @@ export type DesignImageRecord = {
   isPrimary: boolean;
   mediaKind?: "IMAGE" | "AUDIO" | "VIDEO" | "FILE" | string;
   designComponentId?: string | null;
+  /** Product component this file belongs to, when one was chosen at upload. */
+  componentName?: string | null;
   reviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
   reviewNote?: string | null;
   uploadedAtUtc: string;
@@ -576,6 +677,7 @@ export type ManualDesignTask = {
   expectedMinutes: number;
   sequence?: number;
   assignedEmployeeId?: number;
+  instructionNote?: string;
   /** ISO date or datetime; stored as task dueAt */
   dueAt?: string;
   priority?: Priority;
@@ -663,6 +765,15 @@ export type CreateDesignPayload = {
   assignmentMode: "AUTOMATIC" | "MANUAL";
   workflowPatternId?: number;
   taskDateMode?: "SEQUENTIAL" | "SAME_DAY";
+  targetEndDate?: string;
+  patternSteps?: Array<{
+    sequence: number;
+    expectedMinutes: number;
+    dueAt: string;
+    priority: Priority;
+    assignedEmployeeId?: number;
+    instructionNote?: string;
+  }>;
   manualTasks?: ManualDesignTask[];
 };
 
@@ -677,6 +788,7 @@ export type WorkflowPatternPreview = {
     stage: string;
     assigneeName: string;
     assignedEmployeeId: number | null;
+    roleId: number | null;
     roleName: string | null;
     hours: string;
     expectedMinutes: number;

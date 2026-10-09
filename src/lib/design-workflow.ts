@@ -165,8 +165,9 @@ function workflowDisplayStatus(
   effectiveStatus: string,
   isCurrent: boolean,
   isUpcoming: boolean,
-  options?: { isApproval?: boolean },
+  options?: { isApproval?: boolean; scheduledAssigneeName?: string | null },
 ): string {
+  if (isUpcoming && options?.scheduledAssigneeName) return "SCHEDULED";
   if (isUpcoming) return "UPCOMING";
   if (effectiveStatus === "SKIPPED") return "SKIPPED";
   if (effectiveStatus === "COMPLETED") return "COMPLETED";
@@ -223,13 +224,17 @@ export function buildWorkflowSteps(tasks: DesignTask[] | undefined): WorkflowSte
         laterEffective !== "CANCELLED"
       );
     });
+    const isOpenApproval =
+      Boolean(task.subProcess?.isApproval) &&
+      ["PENDING", "ASSIGNED"].includes(task.status);
     const canReassign =
       !isUpcoming &&
       !isDone &&
       isWorkflowStepAssignable(task.status) &&
       (isCurrent ||
+        isOpenApproval ||
         (index < currentIdx &&
-          ["ASSIGNED", "RUNNING", "ON_HOLD"].includes(task.status) &&
+          ["ASSIGNED", "RUNNING", "ON_HOLD", "CORRECTION_REQUIRED"].includes(task.status) &&
           hasLaterOpenWork));
 
     return {
@@ -245,6 +250,8 @@ export function buildWorkflowSteps(tasks: DesignTask[] | undefined): WorkflowSte
       canReassign,
       displayStatus: workflowDisplayStatus(effectiveStatus, isCurrent, isUpcoming, {
         isApproval: !!task.subProcess?.isApproval,
+        scheduledAssigneeName:
+          isUpcoming && task.assignedEmployee?.name ? task.assignedEmployee.name : null,
       }),
       assigneeName: task.assignedEmployee?.name ?? null,
       holdReasonName: getActiveHoldReasonName(task),
@@ -757,18 +764,31 @@ export function getDesignWorkflowContext(input: {
       "Review sample and provide decision: Approve / Request Re-sample / Raise Correction";
   }
 
+  const ownerName = firstOpen.assignedEmployee?.name ?? null;
+  const stageName = firstOpen.subProcess?.name ?? currentStep?.label ?? "This stage";
+  const currentIsApproval = Boolean(firstOpen.subProcess?.isApproval);
+  const nextIsApproval = Boolean(nextAfterCurrent?.subProcess?.isApproval);
+  const nextName = nextAfterCurrent?.assignedEmployee?.name ?? null;
+  const nextStageName = nextAfterCurrent?.subProcess?.name ?? "the next approval";
+
   return {
     summary: currentStep
       ? `Current stage: ${currentStep.label} (${currentStep.displayStatus.replace(/_/g, " ").toLowerCase()}).`
       : null,
     currentStage: firstOpen.subProcess?.name ?? currentStep?.label ?? null,
     currentStatus: (currentStep?.displayStatus ?? firstOpen.status).replace(/_/g, " ").toLowerCase(),
-    currentOwner: firstOpen.assignedEmployee?.name ?? null,
+    currentOwner: ownerName,
     nextAction: nextAfterCurrent?.subProcess?.name ?? null,
-    nextOwner: nextAfterCurrent?.assignedEmployee?.name ?? null,
+    nextOwner: nextName,
     blockingLabel: null,
     blockingOwner: null,
-    waitingMessage: null,
+    waitingMessage: currentIsApproval
+      ? `Pending approval with ${ownerName ?? "the approver"} · ${stageName}.`
+      : nextIsApproval
+        ? `Next pending approval: ${nextStageName} with ${nextName ?? "the approver"}.`
+        : ownerName
+          ? `Assigned to ${ownerName} · ${stageName}.`
+          : null,
     nextActionHint,
   };
 }
@@ -884,6 +904,10 @@ export function buildKanbanWorkflowInfo(input: {
     summary: ctx.summary,
     completedStages,
     totalStages,
+    pendingApproval: Boolean(
+      steps.some((step) => step.isCurrent && step.isApproval && !step.isDone) ||
+        ctx.currentStage === "Management approval",
+    ),
     activeStages,
   };
 }

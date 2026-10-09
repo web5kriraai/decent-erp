@@ -148,7 +148,7 @@ export function AdminTimeLiveView() {
   return (
     <ListPage
       title="Live Team Time"
-        subtitle="Who is working, on hold, or idle — updates every 15 seconds."
+        subtitle="Who is working, on hold, or idle - updates every 15 seconds."
         wide
         className="live-time-page"
         actions={
@@ -300,13 +300,13 @@ export function AdminTimeLiveView() {
               key: "active",
               header: "Active",
               render: (row) =>
-                row.task ? formatDuration(row.task.activeSeconds) : "—",
+                row.task ? formatDuration(row.task.activeSeconds) : "-",
             },
             {
               key: "hold",
               header: "Hold",
               render: (row) =>
-                row.task ? formatDuration(row.task.holdSeconds) : "—",
+                row.task ? formatDuration(row.task.holdSeconds) : "-",
             },
             {
               key: "actions",

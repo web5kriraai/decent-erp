@@ -196,7 +196,7 @@ export function ReportsHubView() {
           })}
           {!canViewTime ? (
             <p className="reports-hub-perm-note">
-              Time Report is hidden — requires team time access.
+              Time Report is hidden - requires team time access.
             </p>
           ) : null}
         </section>

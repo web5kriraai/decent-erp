@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { AppButton } from "@/components/ui/AppButton";
 import { cn } from "@/lib/utils";
 import { IconPause, IconPlay, IconSquare } from "@/components/icons";
@@ -10,6 +9,10 @@ type TimerWidgetProps = {
   elapsedSeconds: number;
   taskLabel?: string;
   compact?: boolean;
+  onStart?: () => void;
+  startDisabled?: boolean;
+  startLabel?: string;
+  startHint?: string;
   onHold?: () => void;
   onResume?: () => void;
   onEnd?: () => void;
@@ -27,27 +30,15 @@ export function TimerWidget({
   elapsedSeconds,
   taskLabel,
   compact = false,
+  onStart,
+  startDisabled = false,
+  startLabel = "Start Task",
+  startHint,
   onHold,
   onResume,
   onEnd,
 }: TimerWidgetProps) {
-  const [runningOffset, setRunningOffset] = useState(0);
-
-  useEffect(() => {
-    if (status !== "RUNNING") return;
-
-    const startedAt = Date.now();
-    const id = window.setInterval(() => {
-      setRunningOffset(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-    return () => {
-      window.clearInterval(id);
-      setRunningOffset(0);
-    };
-  }, [elapsedSeconds, status]);
-
-  const displaySeconds =
-    status === "RUNNING" ? elapsedSeconds + runningOffset : elapsedSeconds;
+  const displaySeconds = Math.max(0, Math.floor(elapsedSeconds));
 
   const isActive = status === "RUNNING" || status === "ON_HOLD";
 
@@ -88,31 +79,47 @@ export function TimerWidget({
       ) : null}
 
       <div className="timer-actions">
+        {status === "IDLE" && onStart ? (
+          <AppButton
+            type="button"
+            size="sm"
+            onClick={onStart}
+            disabled={startDisabled}
+            aria-label={startLabel}
+            title={startHint}
+          >
+            <IconPlay aria-hidden />
+            {startLabel}
+          </AppButton>
+        ) : null}
         {status === "RUNNING" && onHold ? (
           <AppButton
             type="button"
             appVariant="outline"
             size="sm"
             onClick={onHold}
-            aria-label="Hold task"
+            aria-label="Hold Task"
           >
             <IconPause aria-hidden />
-            Hold
+            Hold Task
           </AppButton>
         ) : null}
         {status === "ON_HOLD" && onResume ? (
-          <AppButton type="button" size="sm" onClick={onResume}>
-            <IconPlay />
-            Resume
+          <AppButton type="button" size="sm" onClick={onResume} aria-label="Resume Task">
+            <IconPlay aria-hidden />
+            Resume Task
           </AppButton>
         ) : null}
         {isActive && onEnd ? (
-          <AppButton type="button" appVariant="danger" size="sm" onClick={onEnd}>
-            <IconSquare />
+          <AppButton type="button" appVariant="danger" size="sm" onClick={onEnd} aria-label="End Task">
+            <IconSquare aria-hidden />
             End Task
           </AppButton>
         ) : null}
-        {status === "IDLE" ? (
+        {status === "IDLE" && onStart && startHint ? (
+          <p className="timer-idle-hint">{startHint}</p>
+        ) : null}
+        {status === "IDLE" && !onStart ? (
           <p className="timer-idle-hint">Start a task from the board to begin tracking time.</p>
         ) : null}
       </div>

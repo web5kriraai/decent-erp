@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   isMachineOutputTask,
   MACHINE_FORMAT_OPTIONS,
+  hasDigitizingMetrics,
   hasMachineMetricsInPayload,
+  hasSampleQuantity,
   artifactsIncludeMachineMetrics,
   canRecordMachineMetrics,
   pickPreferredSampleOutput,
@@ -49,6 +51,13 @@ describe("task-machine-output-utils", () => {
     expect(hasMachineMetricsInPayload({})).toBe(false);
     expect(hasMachineMetricsInPayload({ sampleQty: 3 })).toBe(true);
     expect(hasMachineMetricsInPayload({ machineFormat: "EMB" })).toBe(true);
+  });
+
+  it("keeps punching details separate from sample quantity", () => {
+    expect(hasDigitizingMetrics({ stitchCount: 1200 })).toBe(true);
+    expect(hasDigitizingMetrics({ sampleQty: 2 })).toBe(false);
+    expect(hasSampleQuantity({ sampleQty: 2 })).toBe(true);
+    expect(hasSampleQuantity({ stitchCount: 1200 })).toBe(false);
   });
 
   it("allows metrics only on machine output tasks", () => {

@@ -3,11 +3,12 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { StatusBadge } from "@/components/StatusBadge";
-import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
+import { resolveListItemDisplayStatus, taskCardDetailLines } from "@/lib/task-action-display";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
+import { RoleDayScore } from "@/features/dashboard/RoleDayScore";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -76,6 +77,7 @@ export function MachineOperatorWorkbench() {
       onRetry={() => tasksQuery.refetch()}
     >
       <div className="workbench-overview">
+        <RoleDayScore />
         <div className="stat-grid workbench-pulse">
           <StatCard label="Pending sample work" value={queues.pending.length} />
           <StatCard label="Running / on hold" value={queues.running.length} />
@@ -103,6 +105,7 @@ export function MachineOperatorWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}
@@ -126,6 +129,7 @@ export function MachineOperatorWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}
@@ -149,6 +153,7 @@ export function MachineOperatorWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status="CORRECTION_REQUIRED" />}
                   />
                 ))}
@@ -172,6 +177,7 @@ export function MachineOperatorWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status="COMPLETED" />}
                   />
                 ))}

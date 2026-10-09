@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QueryState } from "@/components/ui/QueryState";
@@ -37,6 +37,8 @@ import {
 } from "@/lib/types/api";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ROUTES } from "@/config/routes";
+import { isBeforeToday, todayDateInput } from "@/lib/ui/date-input";
+import { scrollToFirstFormError } from "@/lib/ui/scroll-to-form-error";
 import { PERMISSIONS } from "@/lib/permissions";
 import { filterWorkflowPatternsForProductType } from "@/lib/workflow-patterns";
 import type { TaskDateMode } from "@/lib/services/task-date-mode";
@@ -46,6 +48,7 @@ import {
   hoursToMinutes,
   type AssignmentMode,
   type ManualTaskDraft,
+  type PatternStepDraft,
 } from "@/features/designs/DesignAssignmentPanel";
 import { DesignComponentTypePicker } from "@/features/designs/DesignComponentTypePicker";
 
@@ -55,6 +58,7 @@ const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: "HIGH", label: "High" },
   { value: "URGENT", label: "Urgent" },
 ];
+
 
 function hasPendingProductImage(items: PendingConceptMedia[]) {
   return items.some((item) => item.mediaKind === "IMAGE");
@@ -90,28 +94,34 @@ export function DesignCreateForm() {
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>("AUTOMATIC");
   const [workflowPatternId, setWorkflowPatternId] = useState<number | "">("");
   const [taskDateMode, setTaskDateMode] = useState<TaskDateMode>("SEQUENTIAL");
+  const [patternSteps, setPatternSteps] = useState<PatternStepDraft[]>([]);
   const [manualTasks, setManualTasks] = useState<ManualTaskDraft[]>(() => [
     emptyManualTask(0, "MEDIUM"),
   ]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [errorScrollTick, setErrorScrollTick] = useState(0);
   const [pendingMedia, setPendingMedia] = useState<PendingConceptMedia[]>([]);
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaProgress, setMediaProgress] = useState<ConceptMediaUploadProgress | null>(
     null,
   );
   const [componentTypeIds, setComponentTypeIds] = useState<number[]>([]);
+  const [createdDate] = useState(todayDateInput);
+  const [targetEndDate, setTargetEndDate] = useState("");
 
   const productTypes = useProductTypes();
   const seasons = useSeasons();
   const patterns = useWorkflowPatterns();
-  const componentTypes = useComponentTypes();
+  const componentCategoryId =
+    productTypeId === "" ? null : productTypeId;
+  const componentTypes = useComponentTypes(true, componentCategoryId);
   const styles = useMasterCatalog("STYLE");
   const celebrities = useMasterCatalog("CELEBRITY");
   const themes = useMasterCatalog("THEME");
   const workTypesCatalog = useMasterCatalog("WORK_TYPE");
   const processes = useProcessMasters(assignmentMode === "MANUAL");
-  const employees = useMasterEmployees(assignmentMode === "MANUAL");
+  const employees = useMasterEmployees(true);
 
   const workTypeOptions = useMemo(() => {
     const fromCatalog = (workTypesCatalog.data ?? [])
@@ -128,26 +138,38 @@ export function DesignCreateForm() {
     [componentTypes.data, componentTypeIds],
   );
 
+  useEffect(() => {
+    if (productTypeId === "") {
+      setComponentTypeIds([]);
+      return;
+    }
+    const allowed = new Set((componentTypes.data ?? []).map((c) => c.id));
+    setComponentTypeIds((prev) => prev.filter((id) => allowed.has(id)));
+  }, [productTypeId, componentTypes.data]);
+
   const mastersLoading =
     productTypes.isLoading ||
     seasons.isLoading ||
     patterns.isLoading ||
     componentTypes.isLoading ||
-    (assignmentMode === "MANUAL" && (processes.isLoading || employees.isLoading));
+    employees.isLoading ||
+    (assignmentMode === "MANUAL" && processes.isLoading);
 
   const mastersError =
     productTypes.isError ||
     seasons.isError ||
     patterns.isError ||
     componentTypes.isError ||
-    (assignmentMode === "MANUAL" && (processes.isError || employees.isError));
+    employees.isError ||
+    (assignmentMode === "MANUAL" && processes.isError);
 
   const mastersErrorObj =
     productTypes.error ??
     seasons.error ??
     patterns.error ??
     componentTypes.error ??
-    (assignmentMode === "MANUAL" ? (processes.error ?? employees.error) : undefined);
+    employees.error ??
+    (assignmentMode === "MANUAL" ? processes.error : undefined);
 
   const availablePatterns = useMemo(
     () => filterWorkflowPatternsForProductType(patterns.data ?? [], productTypeId),
@@ -182,6 +204,10 @@ export function DesignCreateForm() {
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
   if (!conceptNote.trim()) validationErrors.conceptNote = "Concept note is required";
+  if (!targetEndDate) validationErrors.targetEndDate = "End date is required";
+  else if (isBeforeToday(targetEndDate)) {
+    validationErrors.targetEndDate = "End date cannot be in the past";
+  }
   if (!priority) validationErrors.priority = "Priority is required";
   if (!assignmentMode) validationErrors.assignmentMode = "Task assignment is required";
   if (!hasPendingProductImage(pendingMedia)) {
@@ -192,6 +218,36 @@ export function DesignCreateForm() {
       availablePatterns.length === 0
         ? "No workflow pattern available"
         : "Workflow pattern is required";
+  }
+  if (assignmentMode === "AUTOMATIC" && effectiveWorkflowPatternId) {
+    if (patternSteps.length === 0) {
+      validationErrors.patternSteps = "Set hours, due date, and priority for each workflow step";
+    }
+    patternSteps.forEach((step, index) => {
+      if (!Number(step.hours) || Number(step.hours) <= 0) {
+        validationErrors[`patternSteps.${index}.expectedMinutes`] =
+          "Hours must be greater than zero";
+      }
+      if (!step.dueDate) {
+        validationErrors[`patternSteps.${index}.dueAt`] = "Due date is required";
+      } else if (isBeforeToday(step.dueDate)) {
+        validationErrors[`patternSteps.${index}.dueAt`] = "Due date cannot be in the past";
+      } else if (targetEndDate && step.dueDate > targetEndDate) {
+        validationErrors[`patternSteps.${index}.dueAt`] = "Due date must be on or before the end date";
+      }
+      if (!step.priority) {
+        validationErrors[`patternSteps.${index}.priority`] = "Priority is required";
+      }
+      if (!step.assignedEmployeeId) {
+        validationErrors[`patternSteps.${index}.assignedEmployeeId`] = "Assign a person";
+      }
+    });
+    if (
+      Object.keys(validationErrors).some((key) => key.startsWith("patternSteps.")) &&
+      !validationErrors.patternSteps
+    ) {
+      validationErrors.patternSteps = "Complete hours, due date, and priority for each step";
+    }
   }
   if (assignmentMode === "MANUAL") {
     if (manualTasks.length === 0) {
@@ -207,6 +263,11 @@ export function DesignCreateForm() {
       }
       if (!task.dueDate) {
         validationErrors[`manualTasks.${index}.dueAt`] = "Due date is required";
+      } else if (isBeforeToday(task.dueDate)) {
+        validationErrors[`manualTasks.${index}.dueAt`] = "Due date cannot be in the past";
+      } else if (targetEndDate && task.dueDate > targetEndDate) {
+        validationErrors[`manualTasks.${index}.dueAt`] =
+          "Due date must be on or before the end date";
       }
       if (!task.priority) {
         validationErrors[`manualTasks.${index}.priority`] = "Priority is required";
@@ -222,12 +283,21 @@ export function DesignCreateForm() {
 
   const showErrors = attemptedSubmit;
 
+  useEffect(() => {
+    if (!errorScrollTick) return;
+    const frame = requestAnimationFrame(() => scrollToFirstFormError("design-create-form"));
+    return () => cancelAnimationFrame(frame);
+  }, [errorScrollTick]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setAttemptedSubmit(true);
     setFieldErrors({});
 
-    if (Object.keys(validationErrors).length > 0) return;
+    if (Object.keys(validationErrors).length > 0) {
+      setErrorScrollTick((tick) => tick + 1);
+      return;
+    }
 
     try {
       const design = await createDesign.mutateAsync({
@@ -235,6 +305,7 @@ export function DesignCreateForm() {
         seasonId: Number(seasonId),
         collectionName: collectionName.trim(),
         conceptNote: conceptNote.trim(),
+        targetEndDate,
         styleName: styleName.trim() || undefined,
         workType: workType || undefined,
         trendReference: trendReference.trim() || undefined,
@@ -244,6 +315,19 @@ export function DesignCreateForm() {
         taskDateMode: assignmentMode === "AUTOMATIC" ? taskDateMode : undefined,
         workflowPatternId:
           assignmentMode === "AUTOMATIC" ? Number(effectiveWorkflowPatternId) : undefined,
+        patternSteps:
+          assignmentMode === "AUTOMATIC"
+            ? patternSteps.map((step) => ({
+                sequence: step.sequence,
+                expectedMinutes: hoursToMinutes(step.hours),
+                dueAt: step.dueDate,
+                priority: step.priority,
+                assignedEmployeeId: step.assignedEmployeeId
+                  ? Number(step.assignedEmployeeId)
+                  : undefined,
+                instructionNote: step.note.trim() || undefined,
+              }))
+            : undefined,
         componentTypeIds: componentTypeIds.length ? componentTypeIds : undefined,
         manualTasks:
           assignmentMode === "MANUAL"
@@ -255,6 +339,7 @@ export function DesignCreateForm() {
                 assignedEmployeeId: task.assignedEmployeeId
                   ? Number(task.assignedEmployeeId)
                   : undefined,
+                instructionNote: task.note.trim() || undefined,
                 dueAt: task.dueDate,
                 priority: task.priority,
               }))
@@ -309,6 +394,7 @@ export function DesignCreateForm() {
       if (error instanceof ApiClientError && error.details) {
         setFieldErrors(getFieldErrors(error.details));
       }
+      setErrorScrollTick((tick) => tick + 1);
     }
   }
 
@@ -324,6 +410,7 @@ export function DesignCreateForm() {
   return (
     <div className="page-shell">
       <PageHeader
+        className="create-concept-header"
         title="Create Design Concept"
         actions={
           <>
@@ -394,12 +481,36 @@ export function DesignCreateForm() {
                   }
                 />
                 <div className="form-grid form-grid--2">
+                  <FormTextField
+                    id="createdDate"
+                    label="Created"
+                    type="date"
+                    value={createdDate}
+                    readOnly
+                  />
+                  <FormTextField
+                    id="endDate"
+                    label="End date"
+                    required
+                    type="date"
+                    min={todayDateInput()}
+                    value={targetEndDate}
+                    onChange={(event) => setTargetEndDate(event.target.value)}
+                    hint="Task due dates follow this date."
+                    error={showErrors ? validationErrors.targetEndDate : undefined}
+                  />
+                </div>
+                <div className="form-grid form-grid--2">
                   <FormSelect
                     id="productType"
                     label="Product Type"
                     required
                     value={productTypeId ? String(productTypeId) : null}
-                    onValueChange={(v) => setProductTypeId(v ? Number(v) : "")}
+                    onValueChange={(v) => {
+                      const next = v ? Number(v) : "";
+                      setProductTypeId(next);
+                      if (!next) setComponentTypeIds([]);
+                    }}
                     options={(productTypes.data ?? []).map((pt) => ({
                       value: String(pt.id),
                       label: pt.name,
@@ -477,6 +588,8 @@ export function DesignCreateForm() {
                   }
                 />
                 <DesignComponentTypePicker
+                  requiresProductType
+                  productTypeSelected={productTypeId !== ""}
                   options={componentTypes.data ?? []}
                   value={componentTypeIds}
                   onChange={(ids) => {
@@ -578,9 +691,11 @@ export function DesignCreateForm() {
                     onManualTasksChange={setManualTasks}
                     stageOptions={stageOptions}
                     employees={employees.data ?? []}
+                    onPatternStepsChange={setPatternSteps}
                     showErrors={showErrors}
                     validationErrors={validationErrors}
                     fieldErrors={fieldErrors}
+                    targetEndDate={targetEndDate}
                   />
               </AppCard>
             </div>

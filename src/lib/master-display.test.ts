@@ -13,7 +13,7 @@ describe("masterDisplayName", () => {
   });
 
   it("returns fallback when both name and code are absent", () => {
-    expect(masterDisplayName(null, null)).toBe("—");
+    expect(masterDisplayName(null, null)).toBe("-");
     expect(masterDisplayName(undefined, "", "n/a")).toBe("n/a");
   });
 });

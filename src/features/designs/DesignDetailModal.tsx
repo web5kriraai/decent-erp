@@ -18,6 +18,8 @@ import { DesignBomPanel } from "@/features/designs/detail/DesignBomPanel";
 import { KraKpiPanel } from "@/features/designs/detail/KraKpiPanel";
 import { FilesPanel } from "@/features/designs/detail/FilesPanel";
 import { ApprovalsPanel } from "@/features/designs/detail/ApprovalsPanel";
+import { ActivityTimelinePanel } from "@/features/designs/detail/ActivityTimelinePanel";
+import { hasWorkflowHistoryPermission } from "@/lib/permissions";
 import type { DesignDetailTab } from "@/features/designs/DesignDetailModalProvider";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignTask } from "@/lib/types/api";
@@ -25,6 +27,7 @@ import { cn } from "@/lib/utils";
 
 const TAB_ITEMS: { value: DesignDetailTab; label: string }[] = [
   { value: "overview", label: "Overview" },
+  { value: "activity", label: "Activity" },
   { value: "corrections", label: "Corrections" },
   { value: "costing", label: "Costing" },
   { value: "kra-kpi", label: "KRA/KPI" },
@@ -48,30 +51,45 @@ export function DesignDetailTabsBody({
   tab,
   onTabChange,
   compactHero = false,
+  layout = "panel",
 }: {
   designId: string;
   tab: DesignDetailTab;
   onTabChange: (tab: DesignDetailTab) => void;
   compactHero?: boolean;
+  /** Full design page: current task is stated once, then each tab is only its own content. */
+  layout?: "page" | "panel";
 }) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
-  const designQuery = useDesign(designId, true, { refetchInterval: 20_000 });
+  const designQuery = useDesign(designId, true);
   const [assignTask, setAssignTask] = useState<DesignTask | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [imageLightboxOpen, setImageLightboxOpen] = useState(false);
 
-  const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
+  const canAssign =
+    permissions.includes(PERMISSIONS.DESIGN_ASSIGN) ||
+    permissions.includes(PERMISSIONS.DESIGN_ASSIGN_MANUAL) ||
+    permissions.includes(PERMISSIONS.DESIGN_ASSIGN_AUTO);
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
-  const canRaise = permissions.includes(PERMISSIONS.CORRECTION_RAISE);
+  const canRaise =
+    permissions.includes(PERMISSIONS.CORRECTION_RAISE) ||
+    permissions.includes(PERMISSIONS.CORRECTION_REQUEST);
+  const canViewHistory = hasWorkflowHistoryPermission(permissions);
+  const visibleTabs = useMemo(
+    () =>
+      TAB_ITEMS.filter((item) => item.value !== "activity" || canViewHistory),
+    [canViewHistory],
+  );
   const canOverride = permissions.includes(PERMISSIONS.WORKFLOW_OVERRIDE);
   const canUpload = permissions.includes(PERMISSIONS.DESIGN_CREATE);
 
   const design = designQuery.data;
+  const pageLayout = layout === "page";
   const primaryImage = design?.images?.find((i) => i.isPrimary) ?? design?.images?.[0];
   const progress = design?.detailMeta?.progressPercent ?? 0;
-  const owner = design?.detailMeta?.currentOwner?.name ?? "—";
+  const owner = design?.detailMeta?.currentOwner?.name ?? "-";
   const due = formatDue(design?.detailMeta?.dueAt ?? null);
   const assignableTask = useMemo(() => {
     return (
@@ -84,6 +102,10 @@ export function DesignDetailTabsBody({
       null
     );
   }, [design?.tasks]);
+
+  const currentStage =
+    assignableTask?.subProcess?.name ?? design?.currentStage ?? "This design";
+  const currentHolder = assignableTask?.assignedEmployee?.name ?? owner;
 
   useEffect(() => {
     if (tab !== "corrections") setCorrectionOpen(false);
@@ -99,6 +121,23 @@ export function DesignDetailTabsBody({
     >
       {design ? (
         <div className="space-y-4">
+          {pageLayout ? (
+            <p className="design-detail-current">
+              Current task is <strong>{currentStage}</strong>
+              {currentHolder && currentHolder !== "-" ? (
+                <>
+                  {" "}
+                  with <strong>{currentHolder}</strong>
+                </>
+              ) : null}
+              {due !== "-" ? (
+                <>
+                  {" "}
+                  · due {due}
+                </>
+              ) : null}
+            </p>
+          ) : (
           <div
             className={cn(
               "grid gap-3",
@@ -163,7 +202,7 @@ export function DesignDetailTabsBody({
                 {!compactHero ? (
                   <div>
                     <dt className="text-muted-foreground">Design Head</dt>
-                    <dd className="font-medium">{design.designHead?.name ?? "—"}</dd>
+                    <dd className="font-medium">{design.designHead?.name ?? "-"}</dd>
                   </div>
                 ) : null}
                 <div>
@@ -212,6 +251,7 @@ export function DesignDetailTabsBody({
               </div>
             </div>
           </div>
+          )}
 
           <Tabs
             value={tab}
@@ -219,10 +259,10 @@ export function DesignDetailTabsBody({
           >
             <TabsList
               variant="line"
-              className="sticky top-0 z-10 h-auto w-full flex-wrap justify-start gap-1 overflow-x-auto bg-card/95 pb-1 backdrop-blur-sm"
+              className="design-detail-tablist"
             >
-              {TAB_ITEMS.map((item) => (
-                <TabsTrigger key={item.value} value={item.value} className="flex-none px-2.5">
+              {visibleTabs.map((item) => (
+                <TabsTrigger key={item.value} value={item.value}>
                   {item.label}
                 </TabsTrigger>
               ))}
@@ -234,6 +274,11 @@ export function DesignDetailTabsBody({
                 onEditComponents={() => setEditOpen(true)}
               />
             </TabsContent>
+            {canViewHistory ? (
+              <TabsContent value="activity" className="pt-3">
+                <ActivityTimelinePanel designId={String(design.id)} />
+              </TabsContent>
+            ) : null}
             <TabsContent value="corrections" className="pt-3">
               <CorrectionsPanel
                 design={design}
@@ -299,7 +344,7 @@ export function DesignDetailModal({
   tab: DesignDetailTab;
   onTabChange: (tab: DesignDetailTab) => void;
 }) {
-  const designQuery = useDesign(designId, open, { refetchInterval: open ? 20_000 : false });
+  const designQuery = useDesign(designId, open);
   const title = designQuery.data?.collectionName ?? "Design detail";
   const description = designQuery.data?.ideaRef;
 

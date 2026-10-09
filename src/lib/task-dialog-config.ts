@@ -276,12 +276,22 @@ export function buildHandoffContextFromTask(
       assigneeName?: string | null;
       fileCount?: number | null;
     } | null;
+    nextStage?: {
+      code?: string;
+      name: string;
+      status?: string | null;
+      assigneeName?: string | null;
+    } | null;
     blockers?: string[];
     openCorrections?: number | null;
     fileCount?: number | null;
     costingTotal?: number | null;
     costingEntryCount?: number | null;
     sampleOutcome?: string | null;
+    activeSeconds?: number | null;
+    holdSeconds?: number | null;
+    expectedMinutes?: number | null;
+    timeSectionTitle?: string | null;
   },
 ) {
   return {
@@ -296,11 +306,27 @@ export function buildHandoffContextFromTask(
     description: opts?.description ?? null,
     nextStepHint: opts?.nextStepHint ?? null,
     priorStage: opts?.priorStage ?? null,
+    nextStage: opts?.nextStage ?? null,
     blockers: opts?.blockers,
     openCorrections: opts?.openCorrections ?? null,
     fileCount: opts?.fileCount ?? null,
     costingTotal: opts?.costingTotal ?? null,
     costingEntryCount: opts?.costingEntryCount ?? null,
     sampleOutcome: opts?.sampleOutcome ?? null,
+    activeSeconds: opts?.activeSeconds ?? null,
+    holdSeconds: opts?.holdSeconds ?? null,
+    expectedMinutes: opts?.expectedMinutes ?? null,
+    timeSectionTitle: opts?.timeSectionTitle ?? null,
+  };
+}
+
+export function handoffTimeFromSummary(
+  summary?: { activeSeconds: number; holdSeconds: number } | null,
+  expectedMinutes?: number | null,
+) {
+  return {
+    activeSeconds: summary?.activeSeconds ?? null,
+    holdSeconds: summary?.holdSeconds ?? null,
+    expectedMinutes: expectedMinutes ?? null,
   };
 }

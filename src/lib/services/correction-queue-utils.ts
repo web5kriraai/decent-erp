@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 type CorrectionAccessRow = {
   responsibleEmployeeId?: number | null;
   raisedById?: number | null;
+  reviewerEmployeeId?: number | null;
   task?: { assignedEmployeeId?: number | null } | null;
 };
 
@@ -13,6 +14,7 @@ export function correctionVisibleToEmployee(
 ): boolean {
   if (correction.responsibleEmployeeId === employeeId) return true;
   if (correction.raisedById === employeeId) return true;
+  if (correction.reviewerEmployeeId === employeeId) return true;
   if (correction.task?.assignedEmployeeId === employeeId) return true;
   return false;
 }
@@ -88,7 +90,12 @@ export function buildCorrectionScopeForEmployee(
     OR: [
       { responsibleEmployeeId: employeeId },
       { raisedById: employeeId },
+      { reviewerEmployeeId: employeeId },
       { task: { assignedEmployeeId: employeeId } },
     ],
   };
+}
+
+export function buildCorrectionReviewerScope(employeeId: number): Prisma.DesignCorrectionWhereInput {
+  return { reviewerEmployeeId: employeeId };
 }

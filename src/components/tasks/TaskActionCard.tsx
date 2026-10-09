@@ -7,6 +7,7 @@ import type { DesignTask } from "@/lib/types/api";
 import {
   formatActionCenterListHint,
   formatDueHint,
+  taskCardMeta,
   resolveActionDesignLabels,
   resolveActionPriority,
   resolveListItemDisplayStatus,
@@ -51,8 +52,11 @@ export function TaskActionCard({
       designTitle={labels.designTitle}
       ideaRef={labels.ideaRef}
       stageName={task.subProcess.name}
+      imageUrl={task.design.primaryImageUrl}
+      imageFallback={task.design.productType?.name || "No image"}
       priority={priority}
       status={resolveListItemDisplayStatus(task)}
+      meta={taskCardMeta(task)}
       hint={hint}
       hintTone={hintTone}
       selected={selected}
@@ -101,8 +105,11 @@ export function TaskActionListItem({
         designTitle={labels.designTitle}
         ideaRef={labels.ideaRef}
         stageName={task.subProcess.name}
+        imageUrl={task.design.primaryImageUrl}
+        imageFallback={task.design.productType?.name || "No image"}
         priority={priority}
         status={resolveListItemDisplayStatus(task)}
+        meta={taskCardMeta(task)}
         hint={hint}
         hintTone={listHint && variant !== "active" ? "muted" : "default"}
         waiting={waiting}

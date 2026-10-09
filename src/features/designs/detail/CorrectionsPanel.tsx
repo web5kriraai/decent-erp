@@ -5,9 +5,9 @@ import { RaiseCorrectionModal } from "@/features/quality/RaiseCorrectionModal";
 import type { DesignCorrectionDetail, DesignSummary } from "@/lib/types/api";
 
 function formatDate(iso?: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleDateString(undefined, {
     day: "numeric",
     month: "short",

@@ -1,10 +1,10 @@
 # Full Workflow Testing Guide (Role-wise)
 
-Simple step-by-step guide to test the full Decent ERP design-to-production workflow — what to set up first, who does what, and in which order.
+Simple step-by-step guide to test the full Decent ERP design-to-production workflow - what to set up first, who does what, and in which order.
 
 ---
 
-## Part 0 — Start the app (do this first)
+## Part 0 - Start the app (do this first)
 
 1. Open terminal in the `decent-erp` folder.
 2. Run:
@@ -41,7 +41,7 @@ npm run dev
 
 ---
 
-## Part 1 — What Admin should check first (masters)
+## Part 1 - What Admin should check first (masters)
 
 Login: **System Admin** (`admin@decent-erp.local` / `Admin@123`)
 
@@ -59,7 +59,7 @@ You don’t need to create everything from scratch if seed already filled them. 
 
 ---
 
-## Part 2 — Who does what (role cheat sheet)
+## Part 2 - Who does what (role cheat sheet)
 
 | Role | Main job in the flow |
 |---|---|
@@ -71,15 +71,15 @@ You don’t need to create everything from scratch if seed already filled them. 
 | **Costing Team** | Enters costs (needed before final management approve) |
 | **Production Head** | Accepts handoff → writes instruction → releases |
 | **Management** | Final approval + marks design live |
-| **System Admin** | Setup, masters, employees — not daily design work |
+| **System Admin** | Setup, masters, employees - not daily design work |
 
 ---
 
-## Part 3 — Happy path (test one design end-to-end)
+## Part 3 - Happy path (test one design end-to-end)
 
 Follow this order. After each step, check the design status moved forward.
 
-### Step 1 — Design Head creates the concept
+### Step 1 - Design Head creates the concept
 
 Login: `designhead@decent-erp.local` / `Demo@123`
 
@@ -99,7 +99,7 @@ Login: `designhead@decent-erp.local` / `Demo@123`
 
 ---
 
-### Step 2 — Sketch Designer finishes sketch
+### Step 2 - Sketch Designer finishes sketch
 
 Login: `sketch@decent-erp.local` / `Demo@123`
 
@@ -116,7 +116,7 @@ Login: `sketch@decent-erp.local` / `Demo@123`
 
 ---
 
-### Step 3 — Design Head approves sketch
+### Step 3 - Design Head approves sketch
 
 Login: Design Head again
 
@@ -127,11 +127,11 @@ Login: Design Head again
 
 - Punching stage becomes available next
 
-*(If you return sketch instead: Sketch Designer must rework — good negative test later.)*
+*(If you return sketch instead: Sketch Designer must rework - good negative test later.)*
 
 ---
 
-### Step 4 — Punching Designer finishes punch
+### Step 4 - Punching Designer finishes punch
 
 Login: `punch@decent-erp.local` / `Demo@123`
 
@@ -144,7 +144,7 @@ Login: `punch@decent-erp.local` / `Demo@123`
 
 ---
 
-### Step 5 — Sample Checker approves punch
+### Step 5 - Sample Checker approves punch
 
 Login: `checker@decent-erp.local` / `Demo@123`
 
@@ -157,7 +157,7 @@ Login: `checker@decent-erp.local` / `Demo@123`
 
 ---
 
-### Step 6 — Material + fabric stages
+### Step 6 - Material + fabric stages
 
 Usually Design Head or the assigned person completes:
 
@@ -176,7 +176,7 @@ On **Materials** (`/work/materials`), if needed:
 
 ---
 
-### Step 7 — Machine Operator runs sample
+### Step 7 - Machine Operator runs sample
 
 Login: `machine@decent-erp.local` / `Demo@123`
 
@@ -189,7 +189,7 @@ Login: `machine@decent-erp.local` / `Demo@123`
 
 ---
 
-### Step 8 — Sample Checker approves sample
+### Step 8 - Sample Checker approves sample
 
 Login: Sample Checker
 
@@ -202,7 +202,7 @@ Login: Sample Checker
 
 ---
 
-### Step 9 — Costing Team enters costs
+### Step 9 - Costing Team enters costs
 
 Login: `costing@decent-erp.local` / `Demo@123`
 
@@ -217,7 +217,7 @@ Login: `costing@decent-erp.local` / `Demo@123`
 
 ---
 
-### Step 10 — Design Head requests management approval
+### Step 10 - Design Head requests management approval
 
 Login: Design Head
 
@@ -230,7 +230,7 @@ Login: Design Head
 
 ---
 
-### Step 11 — Approval chain (3 levels)
+### Step 11 - Approval chain (3 levels)
 
 Do in this order:
 
@@ -247,7 +247,7 @@ Do in this order:
 
 ---
 
-### Step 12 — Production handoff + release
+### Step 12 - Production handoff + release
 
 Login: Design Head  
 → Complete **production handoff**
@@ -265,7 +265,7 @@ Login: `production@decent-erp.local` / `Demo@123`
 
 ---
 
-### Step 13 — Management marks live
+### Step 13 - Management marks live
 
 Login: Management (`management@decent-erp.local` / `Demo@123`)
 
@@ -278,7 +278,7 @@ Login: Management (`management@decent-erp.local` / `Demo@123`)
 
 ---
 
-## Part 4 — Extra tests (after happy path works)
+## Part 4 - Extra tests (after happy path works)
 
 | Test | Who | What to do | Expected |
 |---|---|---|---|
@@ -293,7 +293,7 @@ Login: Management (`management@decent-erp.local` / `Demo@123`)
 
 ---
 
-## Part 5 — Simple day-to-day “who opens what”
+## Part 5 - Simple day-to-day “who opens what”
 
 | Screen | Main roles |
 |---|---|
@@ -310,7 +310,7 @@ Login: Management (`management@decent-erp.local` / `Demo@123`)
 
 ---
 
-## Part 6 — Fast smoke checklist (one sitting)
+## Part 6 - Fast smoke checklist (one sitting)
 
 1. Admin: masters + users OK
 2. Design Head: create design
@@ -341,6 +341,6 @@ That runs the pipeline in Playwright. Still do the manual role walk once so you 
 
 ## Related docs
 
-- [`docs/business-flows/design-to-production-journey.md`](business-flows/design-to-production-journey.md) — detailed business flow + QA paths
-- [`docs/UAT_SIGN_OFF_CHECKLIST.md`](UAT_SIGN_OFF_CHECKLIST.md) — UAT sign-off checklist
-- [`README.md`](../README.md) — setup, roles, and demo accounts
+- [`docs/business-flows/design-to-production-journey.md`](business-flows/design-to-production-journey.md) - detailed business flow + QA paths
+- [`docs/UAT_SIGN_OFF_CHECKLIST.md`](UAT_SIGN_OFF_CHECKLIST.md) - UAT sign-off checklist
+- [`README.md`](../README.md) - setup, roles, and demo accounts

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useSession } from "next-auth/react";
 import { ROLE_CODES } from "@/lib/permissions";
 import { DesignKanbanView } from "@/features/designs/DesignKanbanView";
@@ -12,29 +13,34 @@ import { CostingTeamDashboard } from "@/features/dashboard/CostingTeamDashboard"
 
 /**
  * Home dashboard by role.
- * Design Head + Admin: Design Workflow Dashboard (kanban) — same UI as former Pipeline Board.
+ * Design Head + Admin: Design Workflow Dashboard (kanban) - same UI as former Pipeline Board.
  * Other roles keep their role workbenches. DesignHeadDashboard.tsx remains in the repo unused here.
  */
 export function DailyWorkbench() {
   const { data: session } = useSession();
   const roleCode = session?.user?.roleCode;
+  const lastRoleRef = useRef<string | undefined>(undefined);
+  if (roleCode) lastRoleRef.current = roleCode;
+  const role = roleCode ?? lastRoleRef.current;
 
-  if (roleCode === ROLE_CODES.DESIGN_HEAD || roleCode === ROLE_CODES.ADMIN) {
+  if (!role) return null;
+
+  if (role === ROLE_CODES.DESIGN_HEAD || role === ROLE_CODES.ADMIN) {
     return <DesignKanbanView />;
   }
-  if (roleCode === ROLE_CODES.PRODUCTION_HEAD) {
+  if (role === ROLE_CODES.PRODUCTION_HEAD) {
     return <ProductionHeadDashboard />;
   }
-  if (roleCode === ROLE_CODES.MANAGEMENT) {
+  if (role === ROLE_CODES.MANAGEMENT) {
     return <ManagementDashboard />;
   }
-  if (roleCode === ROLE_CODES.SAMPLE_CHECKER) {
+  if (role === ROLE_CODES.SAMPLE_CHECKER) {
     return <CheckerWorkbench />;
   }
-  if (roleCode === ROLE_CODES.MACHINE_OPERATOR) {
+  if (role === ROLE_CODES.MACHINE_OPERATOR) {
     return <MachineOperatorWorkbench />;
   }
-  if (roleCode === ROLE_CODES.COSTING_TEAM) {
+  if (role === ROLE_CODES.COSTING_TEAM) {
     return <CostingTeamDashboard />;
   }
 

@@ -35,7 +35,17 @@ const STATUS_OPTIONS = STATUS_FILTERS.map((s) => ({
 }));
 
 function designSearchText(row: DesignSummary) {
-  return `${row.ideaRef} ${row.collectionName} ${row.productType?.name ?? ""} ${row.designHead?.name ?? ""}`;
+  return [
+    row.ideaRef,
+    row.collectionName,
+    row.productType?.name,
+    row.designHead?.name,
+    row.listMeta?.currentStageName,
+    row.listMeta?.currentAssigneeName,
+    row.listMeta?.pendingReviewerName,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function DesignListView() {
@@ -81,7 +91,7 @@ export function DesignListView() {
       search={{
         value: list.search,
         onChange: list.setSearch,
-        placeholder: "Search idea ref or collection…",
+        placeholder: "Search idea, stage, or assignee…",
         "aria-label": "Search designs",
       }}
       filters={
@@ -140,7 +150,7 @@ export function DesignListView() {
           {
             key: "product",
             header: "Product",
-            render: (row) => row.productType?.name ?? "—",
+            render: (row) => row.productType?.name ?? "-",
           },
           {
             key: "status",
@@ -148,9 +158,39 @@ export function DesignListView() {
             render: (row) => <StatusBadge status={row.status} />,
           },
           {
+            key: "stage",
+            header: "Current stage",
+            render: (row) => row.listMeta?.currentStageName?.trim() || "-",
+          },
+          {
+            key: "workflow",
+            header: "Workflow",
+            render: (row) => row.listMeta?.workflowTypeLabel ?? row.assignmentMode ?? "-",
+          },
+          {
+            key: "assignee",
+            header: "Assignee",
+            render: (row) => row.listMeta?.currentAssigneeName ?? "-",
+          },
+          {
+            key: "reviewer",
+            header: "Reviewer",
+            render: (row) => row.listMeta?.pendingReviewerName ?? "-",
+          },
+          {
+            key: "corrections",
+            header: "Corrections",
+            render: (row) => {
+              const open = row.listMeta?.openCorrectionCount ?? 0;
+              const cycle = row.listMeta?.maxCorrectionCycle ?? 0;
+              if (open === 0 && cycle === 0) return "-";
+              return cycle > 0 ? `${open} open · cycle ${cycle}` : `${open} open`;
+            },
+          },
+          {
             key: "owner",
             header: "Owner",
-            render: (row) => row.designHead?.name ?? "—",
+            render: (row) => row.designHead?.name ?? "-",
           },
           {
             key: "priority",

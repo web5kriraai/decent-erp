@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ROLE_PERMISSIONS,
+  hasAssignAutoPermission,
+  hasAssignManualPermission,
   hasPermission,
   PERMISSIONS,
   ROLE_CODES,
@@ -11,6 +13,13 @@ import {
 } from "@/lib/services/task-dependency";
 
 describe("permissions", () => {
+  it("treats legacy DESIGN_ASSIGN as both manual and auto", () => {
+    expect(hasAssignManualPermission([PERMISSIONS.DESIGN_ASSIGN])).toBe(true);
+    expect(hasAssignAutoPermission([PERMISSIONS.DESIGN_ASSIGN])).toBe(true);
+    expect(hasAssignManualPermission([PERMISSIONS.DESIGN_ASSIGN_MANUAL])).toBe(true);
+    expect(hasAssignAutoPermission([PERMISSIONS.DESIGN_ASSIGN_AUTO])).toBe(true);
+  });
+
   it("grants access when user has any of the required permissions", () => {
     const userPerms = Object.values(PERMISSIONS);
     expect(hasPermission(userPerms, PERMISSIONS.TASK_EXECUTE)).toBe(true);

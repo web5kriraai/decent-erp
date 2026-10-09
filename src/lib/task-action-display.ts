@@ -12,6 +12,8 @@ export type ActionCenterDisplayTask = {
   waitingOnStage?: string | null;
   waitingOnAssignee?: string | null;
   isWaitingOnOthers?: boolean;
+  isApproval?: boolean;
+  subProcess?: { isApproval?: boolean } | null;
 };
 
 export type ActionDesignLabels = {
@@ -26,7 +28,7 @@ export function resolveActionDesignLabels(design: {
   collectionName?: string | null;
   ideaRef?: string | null;
 }): ActionDesignLabels {
-  const ideaRef = design.ideaRef?.trim() || "—";
+  const ideaRef = design.ideaRef?.trim() || "-";
   const raw = design.collectionName?.trim() || "";
   const isNoise = !raw || /^workday\s+\d{10,}/i.test(raw) || raw === ideaRef;
   return {
@@ -40,6 +42,84 @@ export function resolveActionPriority(
   designPriority?: string | null,
 ): Priority {
   return resolveEffectiveTaskPriority(taskPriority || "MEDIUM", designPriority);
+}
+
+function asDate(value?: string | Date | null): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** When this task was handed over. Before it is started, the last update is that handover. */
+export function resolveTaskAssignedAt(task: {
+  startedAt?: string | Date | null;
+  updatedAtUtc?: string | Date | null;
+  design?: { createdAtUtc?: string | Date | null };
+}): Date | null {
+  if (!task.startedAt) {
+    return asDate(task.updatedAtUtc) ?? asDate(task.design?.createdAtUtc);
+  }
+  return asDate(task.design?.createdAtUtc) ?? asDate(task.updatedAtUtc);
+}
+
+export function formatTaskStamp(value?: string | Date | null): string | null {
+  const date = asDate(value);
+  if (!date) return null;
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function formatTaskDeadline(dueAt?: string | Date | null): string | null {
+  const date = asDate(dueAt);
+  if (!date) return null;
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export function taskCardMeta(task: {
+  startedAt?: string | Date | null;
+  updatedAtUtc?: string | Date | null;
+  dueAt?: string | Date | null;
+  assignedEmployee?: { name?: string | null } | null;
+  design?: { createdAtUtc?: string | Date | null };
+  subProcess?: { defaultRole?: { name?: string | null } | null };
+}): Array<{ label: string; value: string }> {
+  const assigned = formatTaskStamp(resolveTaskAssignedAt(task));
+  const deadline = formatTaskDeadline(task.dueAt);
+  return [
+    { label: "Role", value: task.subProcess?.defaultRole?.name?.trim() || "-" },
+    { label: "Assignee", value: task.assignedEmployee?.name?.trim() || "-" },
+    { label: "Assigned", value: assigned || "-" },
+    { label: "Deadline", value: deadline || "Not set" },
+  ];
+}
+
+export function taskCardDetailLines(task: {
+  startedAt?: string | Date | null;
+  updatedAtUtc?: string | Date | null;
+  dueAt?: string | Date | null;
+  assignedEmployee?: { name?: string | null } | null;
+  design?: { createdAtUtc?: string | Date | null };
+  subProcess?: { defaultRole?: { name?: string | null } | null };
+}): string[] {
+  const role = task.subProcess?.defaultRole?.name;
+  const person = task.assignedEmployee?.name;
+  const who = [role, person].filter(Boolean).join(" · ");
+  const assigned = formatTaskStamp(resolveTaskAssignedAt(task));
+  const deadline = formatTaskDeadline(task.dueAt);
+  return [
+    who || null,
+    assigned ? `Assigned ${assigned}` : null,
+    deadline ? `Deadline ${deadline}` : "Deadline not set",
+  ].filter((line): line is string => Boolean(line));
 }
 
 export function formatDueHint(dueAt?: string | Date | null): string | null {
@@ -100,7 +180,19 @@ export function formatActionCenterListHint(
       return "Your stage is done · design continues in pipeline";
     }
     if (displayStatus === "PENDING") {
-      return "Starts when prior stages complete";
+      const approval = task.isApproval || task.subProcess?.isApproval;
+      const who = task.waitingOnAssignee;
+      const stage = task.waitingOnStage;
+      if (who || stage) {
+        const wait = who ?? "the previous person";
+        const stageLabel = stage ? ` (${stage})` : "";
+        return approval
+          ? `Pending approval · waiting on ${wait}${stageLabel}`
+          : `Pending · waiting on ${wait}${stageLabel}`;
+      }
+      return approval
+        ? "Pending approval · waiting on the previous stage"
+        : "Pending · starts when the previous stage finishes";
     }
   }
 

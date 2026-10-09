@@ -25,7 +25,7 @@ import {
 } from "@/features/dashboard/workbench-shared";
 
 import { isDashboardOpenTask } from "@/lib/task-list-filters";
-import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
+import { resolveListItemDisplayStatus, taskCardDetailLines } from "@/lib/task-action-display";
 const CLOSED_DESIGN = new Set(["CLOSED", "REJECTED", "PRODUCTION_RELEASED", "LIVE"]);
 
 export function DesignHeadDashboard() {
@@ -147,6 +147,7 @@ export function DesignHeadDashboard() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={`${task.design.ideaRef} · ${task.subProcess.name}`}
                     meta={`${task.process.name} · ${task.design.collectionName}`}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}

@@ -6,6 +6,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { RoleDayScore } from "@/features/dashboard/RoleDayScore";
 import { WorkbenchShell } from "@/features/dashboard/workbench-shared";
 import { IconPlus } from "@/components/icons";
 import { ROUTES } from "@/config/routes";
@@ -18,7 +19,7 @@ import { useApprovedDesigns } from "@/hooks/use-production";
 import { useAdminDashboardStats } from "@/hooks/use-admin-dashboard";
 import { formatDuration } from "@/lib/services/time-calculation";
 import { isDashboardOpenTask } from "@/lib/task-list-filters";
-import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
+import { resolveListItemDisplayStatus, taskCardDetailLines } from "@/lib/task-action-display";
 import { compareTasksByPriority, resolveEffectiveTaskPriority } from "@/lib/task-priority";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 
@@ -121,6 +122,7 @@ export function ExecutorWorkbench() {
       onRetry={refetchAll}
     >
         <div className="workbench-overview">
+          {canExecute ? <RoleDayScore /> : null}
           <div className="stat-grid workbench-pulse">
             {canExecute && (
               <>
@@ -131,6 +133,7 @@ export function ExecutorWorkbench() {
                     label="Active Today"
                     value={formatDuration(timeSummary.totals.activeSeconds)}
                     trend={timeSummary.workdayClosed ? "Workday closed" : "Workday open"}
+                    tone={timeSummary.workdayClosed ? "warning" : "success"}
                   />
                 )}
               </>
@@ -178,11 +181,14 @@ export function ExecutorWorkbench() {
                   {openTasks.length === 0 ? (
                     <QueueEmpty message="No tasks ready yet - prior stages must finish first." />
                   ) : (
-                    <ul className="detail-task-list">
+                    <ul className="detail-task-list workbench-task-scroll">
                       {[...openTasks]
                         .sort((a, b) => {
                           if (a.status === "RUNNING" && b.status !== "RUNNING") return -1;
                           if (b.status === "RUNNING" && a.status !== "RUNNING") return 1;
+                          const aGiven = new Date(a.design.createdAtUtc ?? a.updatedAtUtc ?? 0).getTime();
+                          const bGiven = new Date(b.design.createdAtUtc ?? b.updatedAtUtc ?? 0).getTime();
+                          if (aGiven !== bGiven) return bGiven - aGiven;
                           return compareTasksByPriority(
                             {
                               priority: resolveEffectiveTaskPriority(a.priority, a.design.priority),
@@ -196,7 +202,6 @@ export function ExecutorWorkbench() {
                             },
                           );
                         })
-                        .slice(0, 6)
                         .map((task) => (
                           <li key={task.id}>
                             <div>
@@ -217,6 +222,11 @@ export function ExecutorWorkbench() {
                               <p className="workbench-row-meta">
                                 {task.process.name} · {task.design.collectionName}
                               </p>
+                              {taskCardDetailLines(task).map((line) => (
+                                <p key={line} className="workbench-row-meta">
+                                  {line}
+                                </p>
+                              ))}
                             </div>
                             <StatusBadge status={resolveListItemDisplayStatus(task)} />
                           </li>

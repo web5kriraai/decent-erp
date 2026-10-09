@@ -16,9 +16,15 @@ import { DragHandle } from "@/components/ui/DragHandle";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { useRowDragReorder } from "@/hooks/use-row-drag-reorder";
-import { useProcessMasters, useProductTypes, useSkills } from "@/hooks/use-masters";
+import {
+  useProcessMasters,
+  useProductTypes,
+  useSkills,
+  type ProcessMaster,
+  type SkillOption,
+} from "@/hooks/use-masters";
 import { moveArrayItem } from "@/lib/reorder";
-import type { CreateWorkflowPatternPayload, Priority, WorkflowPattern } from "@/lib/types/api";
+import type { CreateWorkflowPatternPayload, WorkflowPattern } from "@/lib/types/api";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import { parseStageCapabilities } from "@/lib/workflow/stage-capabilities";
 
@@ -28,50 +34,33 @@ type TaskDraft = {
   subProcessId: number | "";
   defaultRoleId: number | "";
   defaultSkillId: number | "";
-  expectedMinutes: string;
-  /** YYYY-MM-DD deadline; stored as relative dayOffset on save. */
-  deadline: string;
-  priority: Priority | "";
   dependencySequence: string;
 };
 
-const PRIORITY_OPTIONS: Array<{ value: Priority; label: string }> = [
-  { value: "LOW", label: "Low" },
-  { value: "MEDIUM", label: "Medium" },
-  { value: "HIGH", label: "High" },
-  { value: "URGENT", label: "Urgent" },
-];
+/** Textile design chain used as the starting pattern (concept through final approval). */
+const INDUSTRY_SAMPLE_STAGE_CODES = [
+  "CONCEPT_REVIEW",
+  "SKETCH",
+  "SKETCH_APPROVAL",
+  "PUNCH",
+  "MACHINE_SAMPLE",
+  "SAMPLE_CHECK",
+  "COSTING",
+  "FINAL_APPROVAL",
+] as const;
 
-const NO_SPINNER_CLASS =
-  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+const INDUSTRY_SAMPLE_SKILL: Record<string, string> = {
+  CONCEPT_REVIEW: "DESIGN_LEAD",
+  SKETCH: "SKETCH",
+  SKETCH_APPROVAL: "DESIGN_LEAD",
+  PUNCH: "PUNCH",
+  MACHINE_SAMPLE: "MACHINE_SAMPLE",
+  SAMPLE_CHECK: "SAMPLE_CHECK",
+  COSTING: "COSTING",
+  FINAL_APPROVAL: "DESIGN_LEAD",
+};
 
-function toLocalDateString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function addLocalDays(base: Date, days: number): Date {
-  const next = new Date(base.getFullYear(), base.getMonth(), base.getDate());
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function dayOffsetToDeadline(dayOffset: number): string {
-  return toLocalDateString(addLocalDays(new Date(), Math.max(0, dayOffset)));
-}
-
-function deadlineToDayOffset(deadline: string): number {
-  if (!deadline.trim()) return 0;
-  const [year, month, day] = deadline.split("-").map(Number);
-  if (!year || !month || !day) return 0;
-  const target = new Date(year, month - 1, day);
-  const today = new Date();
-  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const end = Date.UTC(target.getFullYear(), target.getMonth(), target.getDate());
-  return Math.max(0, Math.round((end - start) / 86_400_000));
-}
+const INDUSTRY_SAMPLE_NAME = "Standard Design Chain";
 
 function emptyTask(index: number): TaskDraft {
   return {
@@ -80,11 +69,45 @@ function emptyTask(index: number): TaskDraft {
     subProcessId: "",
     defaultRoleId: "",
     defaultSkillId: "",
-    expectedMinutes: "60",
-    deadline: dayOffsetToDeadline(0),
-    priority: "MEDIUM",
     dependencySequence: "",
   };
+}
+
+function buildIndustrySampleTasks(processes: ProcessMaster[], skills: SkillOption[]): TaskDraft[] {
+  const byCode = new Map<
+    string,
+    { processId: number; subProcessId: number; defaultRoleId: number | "" }
+  >();
+  for (const process of processes) {
+    for (const sub of process.subProcesses ?? []) {
+      byCode.set(sub.code, {
+        processId: process.id,
+        subProcessId: sub.id,
+        defaultRoleId: sub.defaultRoleId ?? "",
+      });
+    }
+  }
+
+  const drafts: TaskDraft[] = [];
+  for (const code of INDUSTRY_SAMPLE_STAGE_CODES) {
+    const stage = byCode.get(code);
+    if (!stage) continue;
+    const skillCode = INDUSTRY_SAMPLE_SKILL[code];
+    const skill =
+      skills.find((row) => row.code === skillCode) ??
+      (stage.defaultRoleId !== ""
+        ? skills.find((row) => row.defaultRoleId === stage.defaultRoleId)
+        : undefined);
+    drafts.push({
+      id: `sample-${code}`,
+      processId: stage.processId,
+      subProcessId: stage.subProcessId,
+      defaultRoleId: stage.defaultRoleId,
+      defaultSkillId: skill?.id ?? "",
+      dependencySequence: drafts.length === 0 ? "" : String(drafts.length),
+    });
+  }
+  return drafts;
 }
 
 type CreateWorkflowPatternModalProps = {
@@ -120,6 +143,7 @@ export function CreateWorkflowPatternModal({
   const [tasks, setTasks] = useState<TaskDraft[]>(() => [emptyTask(0)]);
   const [formError, setFormError] = useState<string | null>(null);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [samplePending, setSamplePending] = useState(false);
 
   const processes = processesQuery.data ?? [];
   const roles = rolesQuery.data ?? [];
@@ -138,6 +162,18 @@ export function CreateWorkflowPatternModal({
     [processes],
   );
 
+  function applyIndustrySample(options?: { fillName?: boolean }) {
+    const sample = buildIndustrySampleTasks(processes, skills);
+    if (sample.length === 0) {
+      setTasks([emptyTask(0)]);
+      setSamplePending(true);
+      return;
+    }
+    setTasks(sample);
+    setSamplePending(false);
+    if (options?.fillName) setName(INDUSTRY_SAMPLE_NAME);
+  }
+
   function resetForm() {
     setName("");
     setProductTypeId("");
@@ -145,6 +181,7 @@ export function CreateWorkflowPatternModal({
     setTasks([emptyTask(0)]);
     setFormError(null);
     setAttemptedSubmit(false);
+    setSamplePending(false);
   }
 
   const formMode = open ? (editPattern ? `edit-${editPattern.id}` : "create") : "closed";
@@ -163,18 +200,44 @@ export function CreateWorkflowPatternModal({
           subProcessId: task.subProcessId,
           defaultRoleId: task.defaultRoleId,
           defaultSkillId: task.defaultSkillId ?? "",
-          expectedMinutes: String(task.expectedMinutes),
-          deadline: dayOffsetToDeadline(task.dayOffset ?? 0),
-          priority: task.priority ?? "MEDIUM",
           dependencySequence:
             task.dependencySequence != null ? String(task.dependencySequence) : "",
         })),
       );
       setFormError(null);
+      setSamplePending(false);
     } else if (formMode === "create") {
-      resetForm();
+      setProductTypeId("");
+      setVersionNo("1");
+      setFormError(null);
+      setAttemptedSubmit(false);
+      const mastersReady = processesQuery.isSuccess && skillsQuery.isSuccess;
+      const sample = mastersReady ? buildIndustrySampleTasks(processes, skills) : [];
+      if (sample.length > 0) {
+        setName(INDUSTRY_SAMPLE_NAME);
+        setTasks(sample);
+        setSamplePending(false);
+      } else {
+        setName("");
+        setTasks([emptyTask(0)]);
+        setSamplePending(!mastersReady);
+      }
     } else {
       resetForm();
+    }
+  }
+
+  if (
+    formMode === "create" &&
+    samplePending &&
+    processesQuery.isSuccess &&
+    skillsQuery.isSuccess
+  ) {
+    const sample = buildIndustrySampleTasks(processes, skills);
+    setSamplePending(false);
+    if (sample.length > 0) {
+      setTasks(sample);
+      setName((current) => (current.trim() ? current : INDUSTRY_SAMPLE_NAME));
     }
   }
 
@@ -184,8 +247,7 @@ export function CreateWorkflowPatternModal({
       (task) =>
         task.processId &&
         task.subProcessId &&
-        task.defaultRoleId &&
-        Number(task.expectedMinutes) > 0,
+        task.defaultRoleId,
     );
   }, [name, tasks]);
 
@@ -352,10 +414,10 @@ export function CreateWorkflowPatternModal({
           subProcessId: Number(task.subProcessId),
           defaultRoleId: Number(task.defaultRoleId),
           defaultSkillId: task.defaultSkillId === "" ? null : Number(task.defaultSkillId),
-          expectedMinutes: Number(task.expectedMinutes),
+          expectedMinutes: 60,
           sequence,
-          dayOffset: deadlineToDayOffset(task.deadline),
-          priority: (task.priority || "MEDIUM") as Priority,
+          dayOffset: 0,
+          priority: "MEDIUM",
           dependencySequence,
         };
       });
@@ -458,10 +520,24 @@ export function CreateWorkflowPatternModal({
         <div>
           <div className="form-row-header">
             <h3 className="pattern-task-list__title">Task Steps</h3>
-            <AppButton type="button" appVariant="outline" size="sm" onClick={addTaskRow}>
-              + Add Step
-            </AppButton>
+            <div className="inline-actions">
+              <AppButton
+                type="button"
+                appVariant="outline"
+                size="sm"
+                onClick={() => applyIndustrySample()}
+              >
+                Industry sample
+              </AppButton>
+              <AppButton type="button" appVariant="outline" size="sm" onClick={addTaskRow}>
+                + Add Step
+              </AppButton>
+            </div>
           </div>
+          <p className="m-0 mb-2 text-xs text-muted-foreground">
+            One line per step. New patterns start with the standard design chain. Hours, due date,
+            and priority are entered when a design uses this pattern.
+          </p>
 
           <div className="pattern-task-list">
             {tasks.map((task, index) => {
@@ -506,7 +582,7 @@ export function CreateWorkflowPatternModal({
                       value: String(role.id),
                       label: role.displayName,
                     }))}
-                    placeholder="Select…"
+                    placeholder="Select role…"
                     error={
                       attemptedSubmit && !task.defaultRoleId ? "Role is required" : undefined
                     }
@@ -524,44 +600,8 @@ export function CreateWorkflowPatternModal({
                       value: String(skill.id),
                       label: skill.name,
                     }))}
-                    placeholder={task.defaultRoleId ? "Any" : "Select role first"}
+                    placeholder={task.defaultRoleId ? "Any" : "Role first"}
                     disabled={!task.defaultRoleId}
-                  />
-                  <FormTextField
-                    id={`task-${task.id}-minutes`}
-                    label="Mins"
-                    required
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    className={NO_SPINNER_CLASS}
-                    value={task.expectedMinutes}
-                    onChange={(e) => updateTask(task.id, { expectedMinutes: e.target.value })}
-                    error={
-                      attemptedSubmit &&
-                      (!Number(task.expectedMinutes) || Number(task.expectedMinutes) <= 0)
-                        ? "Required"
-                        : undefined
-                    }
-                  />
-                  <FormTextField
-                    id={`task-${task.id}-deadline`}
-                    label="Deadline"
-                    type="date"
-                    value={task.deadline}
-                    onChange={(e) => updateTask(task.id, { deadline: e.target.value })}
-                  />
-                  <FormSelect
-                    id={`task-${task.id}-priority`}
-                    label="Priority"
-                    value={task.priority || "MEDIUM"}
-                    onValueChange={(v) =>
-                      updateTask(task.id, { priority: (v as Priority) || "MEDIUM" })
-                    }
-                    options={PRIORITY_OPTIONS.map((p) => ({
-                      value: p.value,
-                      label: p.label,
-                    }))}
                   />
                   <FormSelect
                     id={`task-${task.id}-dependency`}
@@ -573,6 +613,7 @@ export function CreateWorkflowPatternModal({
                       label: `Step ${i + 1}`,
                     }))}
                     placeholder="None"
+                    disabled={index === 0}
                   />
                   <div className="pattern-task-row__actions">
                     {tasks.length > 1 ? (

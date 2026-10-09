@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignTask } from "@/lib/types/api";
@@ -29,24 +29,41 @@ export type ActionCenterBlockedItem = {
   blockedMessage: string;
 };
 
+export type ActionCenterParams = {
+  page: number;
+  pageSize: number;
+  q?: string;
+  priority?: string;
+  stage?: string;
+};
+
 export type ActionCenterData = {
   actionRequired: DesignTask[];
+  activeTimerTask: DesignTask | null;
   waitingForOthers: ActionCenterWaitingItem[];
   blocked: ActionCenterBlockedItem[];
   upcoming: DesignTask[];
   completed: DesignTask[];
+  stages: string[];
+  laneCounts: Record<"READY" | "CORRECTION_REQUIRED" | "RUNNING" | "ON_HOLD", number>;
+  totals: { actionRequired: number; blocked: number; upcoming: number; completed: number };
+  tabTotals: { actionRequired: number; blocked: number; upcoming: number; completed: number };
+  pagination: { page: number; pageSize: number; total: number };
+  workdayClosed?: boolean;
 };
 
-export function useActionCenter(enabled = true) {
+export function useActionCenter(params: ActionCenterParams, enabled = true) {
+  const search = new URLSearchParams();
+  search.set("page", String(params.page));
+  search.set("pageSize", String(params.pageSize));
+  if (params.q) search.set("q", params.q);
+  if (params.priority && params.priority !== "ALL") search.set("priority", params.priority);
+  if (params.stage && params.stage !== "ALL") search.set("stage", params.stage);
   return useQuery({
-    queryKey: queryKeys.tasks.actionCenter,
-    queryFn: () => apiGet<ActionCenterData>("/api/tasks/action-center"),
+    queryKey: [...queryKeys.tasks.actionCenter, params],
+    queryFn: () => apiGet<ActionCenterData>(`/api/tasks/action-center?${search.toString()}`),
     enabled,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      const hasRunning = data?.actionRequired?.some((t) => t.status === "RUNNING");
-      return hasRunning ? 15_000 : false;
-    },
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -55,11 +72,29 @@ export function useMyTasks(enabled = true) {
     queryKey: queryKeys.tasks.my,
     queryFn: () => apiGet<DesignTask[]>("/api/tasks/my"),
     enabled,
-    refetchInterval: (query) => {
-      const tasks = query.state.data;
-      const hasRunning = tasks?.some((t) => t.status === "RUNNING");
-      return hasRunning ? 15_000 : false;
-    },
+  });
+}
+
+export type RoleDayKpi = {
+  from: string;
+  to: string;
+  title: string;
+  description: string;
+  cards: Array<{
+    label: string;
+    value: number | string;
+    trend: string;
+    tone: "default" | "accent" | "warning" | "danger" | "success";
+  }>;
+};
+
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+export function useMyDayKpi(from: string, to: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.tasks.myDay(from, to),
+    queryFn: () => apiGet<RoleDayKpi>(`/api/tasks/my-day?from=${from}&to=${to}`),
+    enabled: enabled && DAY_KEY.test(from) && DAY_KEY.test(to),
   });
 }
 
@@ -141,6 +176,7 @@ export function useTaskMutations() {
       checklist,
       checklistNote,
       sampleOutcome,
+      correctionRoute,
       costEntries,
     }: {
       taskId: string;
@@ -150,6 +186,7 @@ export function useTaskMutations() {
       checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
       checklistNote?: string;
       sampleOutcome?: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE";
+      correctionRoute?: "SKETCH" | "PUNCH" | "MACHINE_SAMPLE";
       costEntries?: Array<{
         costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION";
         description?: string;
@@ -163,6 +200,7 @@ export function useTaskMutations() {
         checklist,
         checklistNote,
         sampleOutcome,
+        correctionRoute,
         costEntries,
       }),
     onSuccess: () => {

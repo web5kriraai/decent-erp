@@ -22,11 +22,20 @@ async function listDesignImages(designId: bigint) {
   const images = await prisma.designImage.findMany({
     where: { designId },
     orderBy: [{ isPrimary: "desc" }, { uploadedAtUtc: "desc" }],
+    include: {
+      component: {
+        select: {
+          id: true,
+          componentType: { select: { name: true, code: true } },
+        },
+      },
+    },
   });
 
   return Promise.all(
     images.map(async (image) => ({
       ...image,
+      componentName: image.component?.componentType.name ?? null,
       downloadUrl: await getPresignedDownloadUrl(image.storageKey),
     })),
   );
@@ -129,7 +138,7 @@ export async function POST(
 
       const storageKey = buildStorageKey(id, file.name);
       try {
-        // Already scanned above — skip duplicate ClamAV round-trip.
+        // Already scanned above - skip duplicate ClamAV round-trip.
         await uploadObject(storageKey, buffer, contentType, { skipMalwareScan: true });
       } catch (error) {
         if (error instanceof StorageError) {

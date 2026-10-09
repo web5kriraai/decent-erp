@@ -26,7 +26,21 @@ import {
 } from "@/lib/services/task-date-mode";
 import { resolveAssigneesForPatternTasks } from "@/lib/services/assignment-service";
 import { requireMasterOfType } from "@/lib/services/master-catalog-service";
+import { assertComponentsAllowedForProductCategory } from "@/lib/services/product-category-component-service";
 import { MASTER_TYPES } from "@/lib/master-catalog-types";
+import {
+  assertAllowedDesignStatusTransition,
+  DesignStatusTransitionError,
+} from "@/lib/services/design-status-transitions";
+import { buildKanbanWorkflowInfo } from "@/lib/design-workflow";
+import type { DesignTask, KanbanDesignItem } from "@/lib/types/api";
+import {
+  WORKFLOW_LANES,
+  clampKanbanPageSize,
+  compareBoardCards,
+  resolveLaneId,
+  type WorkflowLaneId,
+} from "@/lib/workflow-lanes";
 
 export type CreateDesignInput = {
   productTypeId: number;
@@ -51,10 +65,20 @@ export type CreateDesignInput = {
   assignmentMode: AssignmentMode;
   workflowPatternId?: number;
   taskDateMode?: TaskDateMode;
+  targetEndDate?: string | Date | null;
+  patternSteps?: Array<{
+    sequence: number;
+    expectedMinutes: number;
+    dueAt: string | Date;
+    priority: Priority;
+    assignedEmployeeId?: number;
+    instructionNote?: string | null;
+  }>;
   manualTasks?: Array<{
     processId: number;
     subProcessId: number;
     assignedEmployeeId?: number;
+    instructionNote?: string | null;
     expectedMinutes: number;
     sequence?: number;
     dueAt?: string | Date;
@@ -96,6 +120,10 @@ export async function createDesignWithTasks(
       input.componentTypeIds.map((id) =>
         requireMasterOfType(id, MASTER_TYPES.PRODUCT_COMPONENT),
       ),
+    );
+    await assertComponentsAllowedForProductCategory(
+      input.productTypeId,
+      input.componentTypeIds,
     );
   }
 
@@ -148,6 +176,11 @@ export async function createDesignWithTasks(
         standardCost: input.standardCost,
         assignmentMode: input.assignmentMode,
         workflowPatternId: input.workflowPatternId,
+        targetEndDate: input.targetEndDate
+          ? input.targetEndDate instanceof Date
+            ? input.targetEndDate
+            : new Date(input.targetEndDate)
+          : null,
         createdById,
         status: "DRAFT",
         currentStage: "CONCEPT",
@@ -160,12 +193,22 @@ export async function createDesignWithTasks(
       const patternTasks = await tx.workflowPatternTask.findMany({
         where: { workflowPatternId: input.workflowPatternId },
         orderBy: { sequence: "asc" },
-        include: { subProcess: { select: { isApproval: true } } },
+        include: { subProcess: { select: { isApproval: true, code: true } } },
       });
       tasksToCreate = await buildTasksFromPatternTasks(design.id, patternTasks, {
         firstAssigneeId: input.designHeadEmployeeId,
         designPriority: input.priority,
         taskDateMode: input.taskDateMode ?? "SEQUENTIAL",
+        companyId: creator.companyId,
+        productTypeId: input.productTypeId,
+        stepOverrides: input.patternSteps?.map((step) => ({
+          sequence: step.sequence,
+          expectedMinutes: step.expectedMinutes,
+          dueAt: step.dueAt instanceof Date ? step.dueAt : new Date(step.dueAt),
+          priority: step.priority,
+          assignedEmployeeId: step.assignedEmployeeId,
+          instructionNote: step.instructionNote,
+        })),
       });
     }
 
@@ -213,6 +256,7 @@ export async function createDesignWithTasks(
           dependencySequence: seq,
           plannedStart: base,
           dueAt,
+          instructionNote: mt.instructionNote?.trim() || null,
           status: "PENDING",
           isApproval: subProcess.isApproval,
         });
@@ -327,12 +371,38 @@ export async function listDesigns(filters: {
         productType: true,
         season: true,
         designHead: { select: { id: true, name: true } },
+        tasks: {
+          orderBy: { sequence: "asc" },
+          select: {
+            id: true,
+            status: true,
+            sequence: true,
+            dependencySequence: true,
+            assignedEmployeeId: true,
+            assignedEmployee: { select: { id: true, name: true } },
+            subProcess: {
+              select: {
+                code: true,
+                name: true,
+                isApproval: true,
+                defaultRole: { select: { code: true } },
+              },
+            },
+          },
+        },
+        corrections: {
+          select: { status: true, cycleNo: true },
+        },
       },
     }),
     prisma.designConcept.count({ where }),
   ]);
 
-  return { items, total };
+  const { attachListMeta } = await import("@/lib/design-list-meta");
+  return {
+    items: items.map((row) => attachListMeta(row)),
+    total,
+  };
 }
 
 export async function getDesignById(
@@ -387,6 +457,11 @@ export async function getDesignById(
               machineFormat: true,
               sampleQty: true,
               wastageQty: true,
+              needleCount: true,
+              colorCount: true,
+              hoopSize: true,
+              softwareName: true,
+              stitchDensity: true,
               fileName: true,
               storageKey: true,
               contentType: true,
@@ -413,6 +488,7 @@ export async function getDesignById(
         include: {
           raisedBy: { select: { id: true, name: true } },
           responsibleEmployee: { select: { id: true, name: true } },
+          reviewerEmployee: { select: { id: true, name: true } },
           routeToSubProcess: { select: { id: true, code: true, name: true } },
         },
       },
@@ -774,7 +850,14 @@ export async function updateDesignStatus(
       throw new ApiError("Concurrency conflict - refresh and retry", 409);
     }
 
-    assertAllowedDesignStatusTransition(existing.status, status);
+    try {
+      assertAllowedDesignStatusTransition(existing.status, status);
+    } catch (error) {
+      if (error instanceof DesignStatusTransitionError) {
+        throw new ApiError(error.message, error.status);
+      }
+      throw error;
+    }
 
     if (status === "ACTIVE" && existing.status !== "ACTIVE") {
       await assertDesignHasPrimaryImage(id, tx);
@@ -799,67 +882,55 @@ export async function updateDesignStatus(
   });
 }
 
-/** Kanban/API-safe transitions. Gate statuses (APPROVED / PRODUCTION_RELEASED / LIVE) use dedicated services. */
-const DESIGN_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
-  DRAFT: ["ACTIVE", "ON_HOLD", "CLOSED"],
-  ACTIVE: ["ON_HOLD", "APPROVAL_PENDING", "DRAFT", "CLOSED"],
-  ON_HOLD: ["ACTIVE", "DRAFT", "CLOSED"],
-  APPROVAL_PENDING: ["ACTIVE", "ON_HOLD", "REJECTED"],
-  APPROVED: ["ON_HOLD", "CLOSED"],
-  PRODUCTION_ACCEPTED: ["ON_HOLD", "CLOSED"],
-  REJECTED: ["ACTIVE", "DRAFT", "CLOSED"],
-  PRODUCTION_RELEASED: ["CLOSED"],
-  LIVE: ["CLOSED"],
-  CLOSED: [],
-};
+export {
+  assertAllowedDesignStatusTransition,
+  DESIGN_STATUS_TRANSITIONS,
+} from "@/lib/services/design-status-transitions";
 
-export function assertAllowedDesignStatusTransition(
-  from: string,
-  to: string,
-): void {
-  if (from === to) return;
-  const allowed = DESIGN_STATUS_TRANSITIONS[from] ?? [];
-  if (!allowed.includes(to)) {
-    throw new ApiError(
-      `Cannot change design status from ${from} to ${to}. Use the approval or production release flows for gated transitions.`,
-      422,
-    );
-  }
-}
+const KANBAN_OPEN_CORRECTION = ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"] as const;
 
+/** Slim rows for lane placement. Card images are signed only for the current page. */
 export async function listDesignsForKanban(companyId: number) {
   return prisma.designConcept.findMany({
     where: { companyId, status: { notIn: ["CLOSED", "REJECTED"] } },
-    orderBy: { updatedAtUtc: "desc" },
-    include: {
+    orderBy: { createdAtUtc: "desc" },
+    select: {
+      id: true,
+      ideaRef: true,
+      collectionName: true,
+      status: true,
+      currentStage: true,
+      priority: true,
+      version: true,
+      estimatedCost: true,
+      createdAtUtc: true,
+      updatedAtUtc: true,
       productType: { select: { name: true, code: true } },
       season: { select: { id: true, name: true } },
-      designHead: { select: { id: true, name: true } },
+      designHead: { select: { name: true } },
       images: {
         where: { mediaKind: "IMAGE" },
         orderBy: [{ isPrimary: "desc" }, { uploadedAtUtc: "desc" }],
         take: 1,
-        select: { storageKey: true, isPrimary: true },
+        select: { storageKey: true },
       },
       corrections: {
-        where: { status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS", "CHECKING"] } },
+        where: { status: { in: [...KANBAN_OPEN_CORRECTION] } },
         select: { id: true },
       },
       tasks: {
         orderBy: { sequence: "asc" },
-        include: {
-          assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
+        select: {
+          id: true,
+          status: true,
+          sequence: true,
+          dependencySequence: true,
+          dueAt: true,
+          assignedEmployeeId: true,
+          assignedEmployee: { select: { id: true, name: true } },
           process: { select: { id: true, name: true, code: true } },
           subProcess: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              isApproval: true,
-              isFileRequired: true,
-              capabilities: true,
-              defaultRole: { select: { id: true, code: true, name: true } },
-            },
+            select: { id: true, name: true, code: true, isApproval: true },
           },
         },
       },
@@ -887,12 +958,25 @@ function nearestOpenDueAt(
   return dates.reduce((soonest, d) => (d < soonest ? d : soonest));
 }
 
+export type KanbanDashboardQuery = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  product?: string;
+  seasonId?: string;
+  owner?: string;
+  priority?: string;
+};
+
 /**
- * Enriched kanban payload for the Design Workflow Dashboard:
- * cards + KPI summary (presigned primary image URLs included).
+ * Workflow board payload. Summary uses every open design.
+ * Only the current page of each column is returned, with image URLs signed for those cards.
  */
-export async function getDesignWorkflowDashboard(companyId: number): Promise<{
-  items: Array<Record<string, unknown>>;
+export async function getDesignWorkflowDashboard(
+  companyId: number,
+  query: KanbanDashboardQuery = {},
+): Promise<{
+  items: KanbanDesignItem[];
   summary: {
     totalIdeas: number;
     createdThisMonth: number;
@@ -906,54 +990,73 @@ export async function getDesignWorkflowDashboard(companyId: number): Promise<{
     estimatedCostSum: number;
     avgDevelopmentDays: number | null;
   };
+  laneCounts: Record<WorkflowLaneId, number>;
+  owners: string[];
+  pagination: { page: number; pageSize: number; total: number };
 }> {
   const { getPresignedDownloadUrl } = await import("@/lib/storage");
   const designs = await listDesignsForKanban(companyId);
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const pageSize = clampKanbanPageSize(query.pageSize ?? 10);
 
-  const items = await Promise.all(
-    designs.map(async (design) => {
-      const primary = design.images[0];
-      let primaryImageUrl: string | null = null;
-      if (primary?.storageKey) {
-        try {
-          primaryImageUrl = await getPresignedDownloadUrl(primary.storageKey);
-        } catch {
-          primaryImageUrl = null;
-        }
-      }
-      const dueAt = nearestOpenDueAt(design.tasks);
-      const estimatedCost = toNumberCost(design.estimatedCost);
-      const openCorrectionCount =
-        design.corrections.length +
-        design.tasks.filter((t) => t.status === "CORRECTION_REQUIRED").length;
-
-      return {
+  const items = designs.map((design) => {
+    const dueAt = nearestOpenDueAt(design.tasks);
+    const estimatedCost = toNumberCost(design.estimatedCost);
+    const openCorrectionCount =
+      design.corrections.length +
+      design.tasks.filter((t) => t.status === "CORRECTION_REQUIRED").length;
+    const tasks = design.tasks.map((task) => ({
+      id: task.id.toString(),
+      status: task.status,
+      sequence: task.sequence,
+      dependencySequence: task.dependencySequence,
+      dueAt: task.dueAt ? task.dueAt.toISOString() : null,
+      assignedEmployeeId: task.assignedEmployeeId,
+      assignedEmployee: task.assignedEmployee
+        ? {
+            id: task.assignedEmployee.id,
+            name: task.assignedEmployee.name,
+            employeeCode: "",
+          }
+        : null,
+      process: task.process,
+      subProcess: task.subProcess,
+      priority: design.priority,
+      expectedMinutes: 0,
+      version: 0,
+      design: {
         id: design.id.toString(),
         ideaRef: design.ideaRef,
         collectionName: design.collectionName,
-        status: design.status,
-        currentStage: design.currentStage,
         priority: design.priority,
-        version: design.version,
-        productType: {
-          name: design.productType.name,
-          code: design.productType.code,
-        },
-        designHead: { name: design.designHead.name },
-        season: design.season
-          ? { id: design.season.id, name: design.season.name }
-          : null,
-        estimatedCost,
-        createdAtUtc: design.createdAtUtc.toISOString(),
-        dueAt: dueAt ? dueAt.toISOString() : null,
-        primaryImageUrl,
-        openCorrectionCount,
-        tasks: design.tasks,
-      };
-    }),
-  );
+      },
+    })) as DesignTask[];
+
+    const card: KanbanDesignItem & { storageKey: string | null } = {
+      id: design.id.toString(),
+      ideaRef: design.ideaRef,
+      collectionName: design.collectionName,
+      status: design.status,
+      currentStage: design.currentStage,
+      priority: design.priority,
+      version: design.version,
+      productType: {
+        name: design.productType.name,
+        code: design.productType.code,
+      },
+      designHead: { name: design.designHead.name },
+      season: design.season ? { id: design.season.id, name: design.season.name } : null,
+      estimatedCost,
+      createdAtUtc: design.createdAtUtc.toISOString(),
+      dueAt: dueAt ? dueAt.toISOString() : null,
+      primaryImageUrl: null,
+      openCorrectionCount,
+      storageKey: design.images[0]?.storageKey ?? null,
+      workflow: buildKanbanWorkflowInfo({ status: design.status, tasks }),
+    };
+    return card;
+  });
 
   const totalIdeas = items.length;
   const createdThisMonth = items.filter(
@@ -1010,8 +1113,81 @@ export async function getDesignWorkflowDashboard(companyId: number): Promise<{
       Math.round((days.reduce((a, b) => a + b, 0) / days.length) * 10) / 10;
   }
 
+  const q = (query.q ?? "").trim().toLowerCase();
+  const product = query.product && query.product !== "ALL" ? query.product : "";
+  const seasonId = query.seasonId && query.seasonId !== "ALL" ? query.seasonId : "";
+  const owner = query.owner && query.owner !== "ALL" ? query.owner : "";
+  const priority = query.priority && query.priority !== "ALL" ? query.priority : "";
+
+  const filtered = items.filter((design) => {
+    if (product && design.productType?.name !== product) return false;
+    if (seasonId && String(design.season?.id ?? "") !== seasonId) return false;
+    if (owner && design.designHead?.name !== owner) return false;
+    if (priority && design.priority !== priority) return false;
+    if (!q) return true;
+    const priorityLabel = design.priority.toLowerCase();
+    const haystack = [
+      design.ideaRef,
+      design.collectionName,
+      design.productType?.name,
+      design.productType?.code,
+      design.season?.name,
+      design.designHead?.name,
+      design.workflow.currentOwner,
+      design.workflow.currentStage,
+      design.currentStage,
+      priorityLabel,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(q);
+  });
+
+  const lanes = Object.fromEntries(
+    WORKFLOW_LANES.map((lane) => [lane.id, [] as typeof filtered]),
+  ) as Record<WorkflowLaneId, typeof filtered>;
+  for (const design of filtered) {
+    lanes[resolveLaneId(design)].push(design);
+  }
+  for (const lane of WORKFLOW_LANES) {
+    lanes[lane.id].sort(compareBoardCards);
+  }
+
+  const laneCounts = Object.fromEntries(
+    WORKFLOW_LANES.map((lane) => [lane.id, lanes[lane.id].length]),
+  ) as Record<WorkflowLaneId, number>;
+  const fullest = Math.max(0, ...Object.values(laneCounts));
+  const pageCount = Math.max(1, Math.ceil(fullest / pageSize) || 1);
+  const page = Math.min(Math.max(query.page ?? 1, 1), pageCount);
+  const start = (page - 1) * pageSize;
+
+  const pageItems = WORKFLOW_LANES.flatMap((lane) => {
+    const rows = lanes[lane.id];
+    if (rows.length <= pageSize) return rows;
+    return rows.slice(start, start + pageSize);
+  });
+  await Promise.all(
+    pageItems.map(async (design) => {
+      if (!design.storageKey) return;
+      try {
+        design.primaryImageUrl = await getPresignedDownloadUrl(design.storageKey);
+      } catch {
+        design.primaryImageUrl = null;
+      }
+    }),
+  );
+
+  const owners = [
+    ...new Set(
+      items
+        .map((design) => design.designHead?.name)
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
   return {
-    items,
+    items: pageItems.map(({ storageKey: _storageKey, ...design }) => design),
     summary: {
       totalIdeas,
       createdThisMonth,
@@ -1025,6 +1201,9 @@ export async function getDesignWorkflowDashboard(companyId: number): Promise<{
       estimatedCostSum,
       avgDevelopmentDays,
     },
+    laneCounts,
+    owners,
+    pagination: { page, pageSize, total: fullest },
   };
 }
 
@@ -1074,6 +1253,8 @@ export async function generateTasksFromPattern(
       firstAssigneeId: design.designHeadEmployeeId,
       designPriority: design.priority,
       taskDateMode: "SEQUENTIAL",
+      companyId: design.companyId,
+      productTypeId: design.productTypeId,
     });
 
     await createDesignProcessInstances(tx, designId, tasksToCreate);

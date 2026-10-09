@@ -37,7 +37,7 @@ export type ListPageProps = {
   filters?: ReactNode;
   /** Extra toolbar content after filters (counts, secondary links). */
   toolbarExtra?: ReactNode;
-  /** Refresh handler — always shown when provided. */
+  /** Refresh handler - always shown when provided. */
   onRefresh?: () => void;
   isRefreshing?: boolean;
   /** Stats / summary row above the table (flex-shrink: 0). */

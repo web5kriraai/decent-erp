@@ -85,6 +85,7 @@ export async function previewWorkflowPattern(
       stage: pt.subProcess?.name ?? `Step ${pt.sequence}`,
       assigneeName,
       assignedEmployeeId: resolvedId,
+      roleId: pt.defaultRole?.id ?? null,
       roleName,
       hours: expectedMinutesToHoursLabel(pt.expectedMinutes),
       expectedMinutes: pt.expectedMinutes,

@@ -53,7 +53,7 @@ export function ConceptMediaPanel({
         </p>
       ) : null}
 
-      {/* Drop zone is the upload control — no separate Upload button */}
+      {/* Drop zone is the upload control - no separate Upload button */}
       <div className="flex w-full flex-wrap gap-2">
         {tab === "record" ? (
           <AppButton

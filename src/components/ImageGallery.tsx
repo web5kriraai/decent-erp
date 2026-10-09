@@ -18,6 +18,8 @@ type ImageGalleryProps = {
   components?: Array<{ id: string; label: string }>;
   /** Hide the upload/record panel when parent already renders ConceptMediaPanel. */
   showUploader?: boolean;
+  /** Hide Download, Show outside, and Remove. The outside image stays highlighted. */
+  showActions?: boolean;
 };
 
 type MediaFilter = "ALL" | "IMAGE" | "AUDIO" | "VIDEO" | "FILE";
@@ -36,6 +38,7 @@ export function ImageGallery({
   highlightImageId = null,
   components,
   showUploader = true,
+  showActions = true,
 }: ImageGalleryProps) {
   const toast = useApiToast();
   const queryClient = useQueryClient();
@@ -57,6 +60,20 @@ export function ImageGallery({
     if (filter === "ALL") return all;
     return all.filter((r) => (r.mediaKind ?? "IMAGE") === filter);
   }, [filter, imagesQuery.data]);
+
+  const componentLabel = useMemo(
+    () => new Map((components ?? []).map((c) => [c.id, c.label])),
+    [components],
+  );
+
+  function labelFor(image: DesignImageRecord) {
+    return (
+      image.componentName ??
+      (image.designComponentId
+        ? (componentLabel.get(image.designComponentId) ?? "Component")
+        : "Concept")
+    );
+  }
 
   useEffect(() => {
     if (!highlightImageId || !imagesQuery.data?.length) return;
@@ -80,7 +97,7 @@ export function ImageGallery({
       );
       return;
     }
-    toast.success("Primary image updated");
+    toast.success("Outside image updated");
     await queryClient.invalidateQueries({ queryKey: queryKeys.designs.images(designId) });
   }
 
@@ -120,6 +137,7 @@ export function ImageGallery({
           const isRejected = image.reviewStatus === "REJECTED";
           const isHighlighted = highlightImageId === image.id;
           const kind = image.mediaKind ?? "IMAGE";
+          const componentName = labelFor(image);
           const sizeLabel = formatBytes(image.fileSize);
           const ext = image.fileName?.includes(".")
             ? image.fileName.split(".").pop()?.toUpperCase()
@@ -131,10 +149,14 @@ export function ImageGallery({
               id={`design-file-${image.id}`}
               ref={isHighlighted ? highlightRef : undefined}
               className={`image-gallery-item${isRejected ? " image-gallery-item--rejected" : ""}${
-                isHighlighted ? " ring-2 ring-primary" : ""
-              }`}
+                image.isPrimary ? " image-gallery-item--outside" : ""
+              }${isHighlighted ? " ring-2 ring-primary" : ""}`}
             >
-              <div className="image-gallery-preview">
+              <div
+                className={`image-gallery-preview${
+                  kind === "IMAGE" ? " image-gallery-preview--photo" : ""
+                }`}
+              >
                 {isRejected ? (
                   <div className="image-gallery-rejected">
                     <IconAlertCircle className="image-gallery-rejected-icon" aria-hidden />
@@ -179,50 +201,53 @@ export function ImageGallery({
               </div>
 
               <div className="image-gallery-meta">
+                <p className="image-gallery-component">{componentName}</p>
                 <p className="image-gallery-name" title={image.fileName}>
                   {image.fileName}
                 </p>
-                <div className="image-gallery-footer">
-                  <span className="badge">{kind}</span>
-                  {image.isPrimary && <span className="badge">Primary</span>}
-                  {!isRejected && image.downloadUrl ? (
-                    <a
-                      href={image.downloadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download={image.fileName}
-                      className="image-gallery-download"
-                    >
-                      Download
-                    </a>
-                  ) : null}
-                  {canUpload && kind === "IMAGE" && !image.isPrimary && !isRejected && (
-                    <AppButton
-                      type="button"
-                      appVariant="ghost"
-                      size="sm"
-                      onClick={() => void handleSetPrimary(image.id)}
-                    >
-                      Set primary
-                    </AppButton>
-                  )}
-                  {canUpload && (
-                    <AppButton
-                      type="button"
-                      appVariant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(image.id)}
-                    >
-                      Remove
-                    </AppButton>
-                  )}
-                </div>
+                {image.isPrimary ? <p className="image-gallery-outside">Shown outside</p> : null}
+                {showActions ? (
+                  <div className="image-gallery-footer">
+                    <span className="badge">{kind}</span>
+                    {!isRejected && image.downloadUrl ? (
+                      <a
+                        href={image.downloadUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={image.fileName}
+                        className="image-gallery-download"
+                      >
+                        Download
+                      </a>
+                    ) : null}
+                    {canUpload && kind === "IMAGE" && !image.isPrimary && !isRejected && (
+                      <AppButton
+                        type="button"
+                        appVariant="ghost"
+                        size="sm"
+                        onClick={() => void handleSetPrimary(image.id)}
+                      >
+                        Show outside
+                      </AppButton>
+                    )}
+                    {canUpload && (
+                      <AppButton
+                        type="button"
+                        appVariant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(image.id)}
+                      >
+                        Remove
+                      </AppButton>
+                    )}
+                  </div>
+                ) : null}
               </div>
             </div>
           );
         })}
         {!imagesQuery.isLoading && rows.length === 0 && (
-          <p className="m-0 text-sm text-[var(--color-neutral-500)]">No files uploaded yet</p>
+          <p className="image-gallery-empty">No files uploaded yet</p>
         )}
       </div>
       <ImageLightboxModal

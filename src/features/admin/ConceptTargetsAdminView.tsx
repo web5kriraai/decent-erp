@@ -9,11 +9,9 @@ import { QueryState } from "@/components/ui/QueryState";
 import { PageToolbar } from "@/components/ui/PageToolbar";
 import { ListSearch } from "@/components/ui/ListSearch";
 import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
-import { ListPeriodFilter } from "@/components/ui/ListPeriodFilter";
-import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
-import { ListFilterField } from "@/components/ui/ListFilterField";
 import { PaginationBar } from "@/components/ui/PaginationBar";
-import { Input } from "@/components/ui/input";
+import { FormSelect } from "@/components/ui/form-select";
+import { FormTextField } from "@/components/ui/form-text-field";
 import { apiPost } from "@/lib/api-client";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { useClientList } from "@/hooks/use-client-list";
@@ -26,6 +24,21 @@ import type { ConceptTargetsResponse } from "@/hooks/use-masters";
 
 type ConceptTargetRow = ConceptTargetsResponse["targets"][number];
 
+const MONTH_OPTIONS = [
+  { value: "1", label: "January" },
+  { value: "2", label: "February" },
+  { value: "3", label: "March" },
+  { value: "4", label: "April" },
+  { value: "5", label: "May" },
+  { value: "6", label: "June" },
+  { value: "7", label: "July" },
+  { value: "8", label: "August" },
+  { value: "9", label: "September" },
+  { value: "10", label: "October" },
+  { value: "11", label: "November" },
+  { value: "12", label: "December" },
+];
+
 function conceptTargetSearchText(row: ConceptTargetRow) {
   return `${row.season?.name ?? ""} ${row.productType?.name ?? ""} ${row.note ?? ""} ${row.targetCount}`;
 }
@@ -37,8 +50,8 @@ export function ConceptTargetsAdminView() {
   const [year, setYear] = useState(now.getUTCFullYear());
   const [month, setMonth] = useState(now.getUTCMonth() + 1);
   const [targetCount, setTargetCount] = useState("10");
-  const [seasonId, setSeasonId] = useState("");
-  const [productTypeId, setProductTypeId] = useState("");
+  const [seasonId, setSeasonId] = useState("ALL");
+  const [productTypeId, setProductTypeId] = useState("ALL");
   const [note, setNote] = useState("");
 
   const targetsQuery = useConceptTargets(true, year, month);
@@ -58,7 +71,7 @@ export function ConceptTargetsAdminView() {
 
   const seasonOptions = useMemo(
     () => [
-      { value: "", label: "All seasons" },
+      { value: "ALL", label: "All seasons" },
       ...(seasons.data ?? []).map((s) => ({
         value: String(s.id),
         label: s.name,
@@ -69,7 +82,7 @@ export function ConceptTargetsAdminView() {
 
   const productOptions = useMemo(
     () => [
-      { value: "", label: "All categories" },
+      { value: "ALL", label: "All categories" },
       ...(productTypes.data ?? []).map((p) => ({
         value: String(p.id),
         label: p.name,
@@ -78,14 +91,17 @@ export function ConceptTargetsAdminView() {
     [productTypes.data],
   );
 
+  const periodLabel = `${MONTH_OPTIONS[month - 1]?.label ?? month} ${year}`;
+
   const save = useMutation({
     mutationFn: () =>
       apiPost("/api/masters/concept-targets", {
         periodYear: year,
         periodMonth: month,
         targetCount: Number(targetCount) || 0,
-        seasonId: seasonId ? Number(seasonId) : null,
-        productTypeId: productTypeId ? Number(productTypeId) : null,
+        seasonId: seasonId && seasonId !== "ALL" ? Number(seasonId) : null,
+        productTypeId:
+          productTypeId && productTypeId !== "ALL" ? Number(productTypeId) : null,
         note: note.trim() || null,
       }),
     onSuccess: () => {
@@ -97,87 +113,76 @@ export function ConceptTargetsAdminView() {
   });
 
   return (
-    <div className="vstack vstack--tight concept-targets-admin">
+    <div className="vstack vstack--tight">
       <AppCard
         title="Set concept target"
-        description="Period applies to both the form below and the targets list."
-        headerAction={
-          attainment ? (
-            <span
-              className="concept-targets-admin__attainment"
-              title="Created vs target for this period"
-            >
-              Attainment {attainment.createdCount}/{attainment.targetCount || 0}
-              <span className="concept-targets-admin__attainment-pct">
-                {attainment.percent}%
-              </span>
-            </span>
-          ) : null
-        }
+        description="Monthly quota of new design concepts. Optional season and category split the quota. Design Head KPI compares concepts created in the month against this number."
       >
-        <div className="concept-targets-admin__form">
-          <div className="concept-targets-admin__filters" role="group" aria-label="Concept target period and filters">
-            <ListPeriodFilter
-              yearId="ct-year"
-              monthId="ct-month"
-              year={year}
-              month={month}
-              onYearChange={setYear}
-              onMonthChange={setMonth}
+        <div className="form-grid">
+          <div className="form-grid form-grid--2">
+            <FormTextField
+              id="ct-year"
+              label="Year"
+              type="number"
+              min={2000}
+              max={2100}
+              value={String(year)}
+              onChange={(e) => setYear(Number(e.target.value) || year)}
             />
-            <ListSelectFilter
+            <FormSelect
+              id="ct-month"
+              label="Month"
+              value={String(month)}
+              onValueChange={(v) => setMonth(Number(v) || month)}
+              options={MONTH_OPTIONS}
+            />
+          </div>
+          <div className="form-grid form-grid--2">
+            <FormSelect
               id="ct-season"
               label="Season"
               value={seasonId}
-              onChange={setSeasonId}
+              onValueChange={(v) => setSeasonId(v || "ALL")}
               options={seasonOptions}
-              className="concept-targets-admin__select"
+              hint="Leave as all seasons for a company-wide quota."
             />
-            <ListSelectFilter
+            <FormSelect
               id="ct-product"
-              label="Category"
+              label="Product category"
               value={productTypeId}
-              onChange={setProductTypeId}
+              onValueChange={(v) => setProductTypeId(v || "ALL")}
               options={productOptions}
-              className="concept-targets-admin__select"
+              hint="Leave as all categories, or set a quota for one product."
             />
-            <ListFilterField
-              id="ct-count"
-              label="Target"
-              className="concept-targets-admin__count"
-            >
-              <Input
-                id="ct-count"
-                type="number"
-                min={0}
-                value={targetCount}
-                onChange={(e) => setTargetCount(e.target.value)}
-                className="list-filter-control list-filter-control--year !w-auto"
-                aria-label="Target count"
-              />
-            </ListFilterField>
           </div>
-
-          <div className="concept-targets-admin__actions" role="group" aria-label="Concept target note and save">
-            <ListFilterField
+          <div className="form-grid form-grid--2">
+            <FormTextField
+              id="ct-count"
+              label="Target count"
+              required
+              type="number"
+              min={0}
+              value={targetCount}
+              onChange={(e) => setTargetCount(e.target.value)}
+              hint="How many new concepts should be created this month."
+            />
+            <FormTextField
               id="ct-note"
               label="Note"
-              className="concept-targets-admin__note"
-            >
-              <Input
-                id="ct-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Optional"
-                className="list-filter-control concept-targets-admin__note-input"
-                aria-label="Note"
-              />
-            </ListFilterField>
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="m-0 text-xs text-muted-foreground">
+              {attainment && attainment.targetCount > 0
+                ? `${periodLabel}: ${attainment.createdCount} created of ${attainment.targetCount} targeted (${attainment.percent}%).`
+                : `${periodLabel}: no target saved yet.`}
+            </p>
             <AppButton
               type="button"
-              size="sm"
-              className="concept-targets-admin__save"
-              disabled={save.isPending}
+              disabled={save.isPending || Number(targetCount) < 0}
               onClick={() => save.mutate()}
             >
               {save.isPending ? "Saving…" : "Save target"}
@@ -186,63 +191,66 @@ export function ConceptTargetsAdminView() {
         </div>
       </AppCard>
 
-      <PageToolbar className="!mb-0">
-        <ListSearch
-          value={list.search}
-          onChange={list.setSearch}
-          placeholder="Search season, product, or note…"
-          aria-label="Search concept targets"
-        />
-        <ListRefreshButton
-          onRefresh={() => targetsQuery.refetch()}
-          isRefreshing={targetsQuery.isFetching}
-          className="ml-auto"
-        />
-      </PageToolbar>
+      <AppCard title={`Targets for ${periodLabel}`}>
+        <PageToolbar className="!mb-0">
+          <ListSearch
+            value={list.search}
+            onChange={list.setSearch}
+            placeholder="Search season, product, or note…"
+            aria-label="Search concept targets"
+          />
+          <ListRefreshButton
+            onRefresh={() => targetsQuery.refetch()}
+            isRefreshing={targetsQuery.isFetching}
+            className="ml-auto"
+          />
+        </PageToolbar>
 
-      <QueryState
-        isLoading={targetsQuery.isLoading}
-        isError={targetsQuery.isError}
-        error={targetsQuery.error}
-        onRetry={() => targetsQuery.refetch()}
-        skeletonVariant="table"
-      >
-        <DataTable
-          flush
-          columns={[
-            {
-              key: "season",
-              header: "Season",
-              render: (row) => row.season?.name ?? "All",
-            },
-            {
-              key: "product",
-              header: "Product",
-              render: (row) => row.productType?.name ?? "All",
-            },
-            { key: "targetCount", header: "Target" },
-            {
-              key: "note",
-              header: "Note",
-              render: (row) => row.note ?? "—",
-            },
-          ]}
-          rows={list.pageItems}
-          getRowKey={(row) => String(row.id)}
-          emptyTitle={
-            list.search ? "No targets match your search" : "No targets for this period"
-          }
-        />
-      </QueryState>
+        <QueryState
+          isLoading={targetsQuery.isLoading}
+          isError={targetsQuery.isError}
+          error={targetsQuery.error}
+          onRetry={() => targetsQuery.refetch()}
+          skeletonVariant="table"
+        >
+          <DataTable
+            flush
+            columns={[
+              {
+                key: "season",
+                header: "Season",
+                render: (row) => row.season?.name ?? "All seasons",
+              },
+              {
+                key: "product",
+                header: "Product category",
+                render: (row) => row.productType?.name ?? "All categories",
+              },
+              { key: "targetCount", header: "Target" },
+              {
+                key: "note",
+                header: "Note",
+                render: (row) => row.note ?? "-",
+              },
+            ]}
+            rows={list.pageItems}
+            getRowKey={(row) => String(row.id)}
+            emptyTitle={
+              list.search ? "No targets match your search" : "No targets for this period"
+            }
+            emptyDescription="Save a target above. Saving the same season and category again updates that row."
+          />
+        </QueryState>
 
-      <PaginationBar
-        total={list.total}
-        page={list.page}
-        pageSize={list.pageSize}
-        onPageChange={list.setPage}
-        onPageSizeChange={list.setPageSize}
-        pageSizeSelectId="concept-targets-page-size"
-      />
+        <PaginationBar
+          total={list.total}
+          page={list.page}
+          pageSize={list.pageSize}
+          onPageChange={list.setPage}
+          onPageSizeChange={list.setPageSize}
+          pageSizeSelectId="concept-targets-page-size"
+        />
+      </AppCard>
     </div>
   );
 }

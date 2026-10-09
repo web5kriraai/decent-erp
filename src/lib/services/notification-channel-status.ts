@@ -32,17 +32,17 @@ export function getNotificationChannelStatus(): {
         id: "in_app",
         label: "In-app notifications",
         configured: true,
-        detail: "Always on — bell + employee notification inbox",
+        detail: "Always on - bell + employee notification inbox",
       },
       {
         id: "queue",
         label: "Notification queue (Redis)",
         configured: redisUrl && !queueDisabled,
         detail: queueDisabled
-          ? "NOTIFICATIONS_QUEUE_DISABLED=true — deliveries run inline when enqueued"
+          ? "NOTIFICATIONS_QUEUE_DISABLED=true - deliveries run inline when enqueued"
           : redisUrl
-            ? "REDIS_URL set — start the notification worker for async delivery + due/ERP scanners"
-            : "REDIS_URL unset — set it and run the worker for email/WhatsApp/push and scheduled jobs",
+            ? "REDIS_URL set - start the notification worker for async delivery + due/ERP scanners"
+            : "REDIS_URL unset - set it and run the worker for email/WhatsApp/push and scheduled jobs",
       },
       {
         id: "email",
@@ -85,8 +85,8 @@ export function getNotificationChannelStatus(): {
         configured: erpMode === "live",
         detail:
           erpMode === "live"
-            ? "ERP_API_BASE_URL set — live handoff + design-success ingest"
-            : "Simulated — set ERP_API_BASE_URL (+ optional ERP_API_KEY) for live partner sync",
+            ? "ERP_API_BASE_URL set - live handoff + design-success ingest"
+            : "Simulated - set ERP_API_BASE_URL (+ optional ERP_API_KEY) for live partner sync",
       },
     ],
   };

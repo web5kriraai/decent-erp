@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api-client";
+import { DataTable } from "@/components/DataTable";
 import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { QueryState } from "@/components/ui/QueryState";
@@ -54,43 +56,54 @@ export function DesignBomPanel({ designId }: { designId: string }) {
     onError: (e) => toast.errorFromApi(e, "Could not add BOM line"),
   });
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="font-semibold text-sm">Engineering BOM</h3>
-        <p className="text-xs text-muted-foreground">
-          Multi-level bill of materials (qty × unit cost, optional waste %). Estimated total:{" "}
-          <strong>{query.data?.rollup.estimatedTotal ?? 0}</strong>
-        </p>
-      </div>
+  const lines = (query.data?.lines ?? []).map((line) => ({
+    ...line,
+    label: `${line.parentLineId ? "↳ " : ""}${line.itemName}${line.itemCode ? ` (${line.itemCode})` : ""}`,
+  }));
+  const estimatedTotal = query.data?.rollup.estimatedTotal ?? 0;
 
+  return (
+    <AppCard
+      title="Material list"
+      description="Cloth, embroidery, and other items for this design. Quantity times unit cost is the material estimate."
+      flush
+    >
       <QueryState
         isLoading={query.isLoading}
         isError={query.isError}
         error={query.error}
         onRetry={() => query.refetch()}
       >
-        <ul className="space-y-1 text-sm">
-          {(query.data?.lines ?? []).map((line) => (
-            <li key={line.id} className="flex justify-between gap-2 border-b py-1">
-              <span>
-                {line.parentLineId ? "↳ " : ""}
-                {line.itemName}
-                {line.itemCode ? ` (${line.itemCode})` : ""}
-              </span>
-              <span className="text-muted-foreground whitespace-nowrap">
-                {line.quantity} {line.unit}
-                {line.estimatedUnitCost != null ? ` · ₹${line.estimatedUnitCost}` : ""}
-              </span>
-            </li>
-          ))}
-          {(query.data?.lines.length ?? 0) === 0 ? (
-            <li className="text-muted-foreground">No BOM lines yet.</li>
-          ) : null}
-        </ul>
+        <DataTable<(typeof lines)[number] & Record<string, unknown>>
+          flush
+          columns={[
+            { key: "label", header: "Item" },
+            {
+              key: "quantity",
+              header: "Qty",
+              render: (row) => `${row.quantity} ${row.unit}`,
+            },
+            {
+              key: "estimatedUnitCost",
+              header: "Unit cost",
+              align: "right",
+              render: (row) =>
+                row.estimatedUnitCost != null ? `₹${row.estimatedUnitCost}` : "-",
+            },
+          ]}
+          rows={lines as ((typeof lines)[number] & Record<string, unknown>)[]}
+          getRowKey={(row) => row.id}
+          emptyTitle="No materials yet"
+          emptyDescription="Add cloth, embroidery, or trims below. The total updates from quantity times unit cost."
+        />
       </QueryState>
 
-      <div className="grid gap-2 sm:grid-cols-4">
+      <div className="space-y-3 border-t border-border px-4 py-4 sm:px-5">
+        <p className="m-0 text-sm text-foreground">
+          Estimated material total:{" "}
+          <strong>₹{Math.round(estimatedTotal).toLocaleString("en-IN")}</strong>
+        </p>
+        <div className="grid gap-2 sm:grid-cols-4">
         <FormTextField
           id={`bom-name-${designId}`}
           label="Item"
@@ -124,8 +137,9 @@ export function DesignBomPanel({ designId }: { designId: string }) {
         disabled={!itemName.trim() || create.isPending}
         onClick={() => create.mutate()}
       >
-        Add BOM line
+        Add material
       </AppButton>
-    </div>
+      </div>
+    </AppCard>
   );
 }

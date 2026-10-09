@@ -20,8 +20,8 @@ import {
   isStageApprovalCode,
 } from "@/lib/stage-approval-rbac";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
-import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
 import type { HandoffContext } from "@/lib/handoff-context";
+import { computeTimeSummary } from "@/lib/services/time-calculation";
 import { IconCheckCircle2, IconRotateCcw, IconXCircle } from "@/components/icons";
 
 type InlineStageApprovalCardProps = {
@@ -35,6 +35,15 @@ type InlineStageApprovalCardProps = {
   costingEntryCount?: number | null;
   sampleOutcome?: string | null;
 };
+
+function nextTaskAfter(current: DesignTask, tasks: DesignTask[] | undefined): DesignTask | null {
+  if (!tasks?.length) return null;
+  return (
+    tasks
+      .filter((task) => task.id !== current.id && task.sequence > current.sequence)
+      .sort((a, b) => a.sequence - b.sequence)[0] ?? null
+  );
+}
 
 function nextStepHintForApproval(code: string): string {
   switch (code) {
@@ -98,6 +107,10 @@ export function InlineStageApprovalCard({
   const showCorrection = uiConfig.actions.includes("correction");
   const showReject = uiConfig.actions.includes("reject");
 
+  const nextTask = nextTaskAfter(approvalTask, design.tasks);
+  const workTime = workTask?.timeEvents?.length
+    ? computeTimeSummary(workTask.timeEvents)
+    : null;
   const handoff: HandoffContext = {
     ideaRef: design.ideaRef,
     collectionName: design.collectionName,
@@ -106,7 +119,15 @@ export function InlineStageApprovalCard({
     stageCode: approvalCode,
     stageName,
     status: approvalTask.status,
-    nextStepHint: nextStepHintForApproval(approvalCode),
+    nextStepHint: nextTask ? null : nextStepHintForApproval(approvalCode),
+    nextStage: nextTask
+      ? {
+          code: nextTask.subProcess?.code,
+          name: nextTask.subProcess?.name ?? "Next stage",
+          status: nextTask.status,
+          assigneeName: nextTask.assignedEmployee?.name ?? null,
+        }
+      : null,
     priorStage: workTask
       ? {
           code: workTask.subProcess?.code,
@@ -115,6 +136,12 @@ export function InlineStageApprovalCard({
           outputRemark: workTask.outputRemark,
           assigneeName: workTask.assignedEmployee?.name,
         }
+      : null,
+    activeSeconds: workTime?.activeSeconds ?? null,
+    holdSeconds: workTime?.holdSeconds ?? null,
+    expectedMinutes: workTime ? (workTask?.expectedMinutes ?? null) : null,
+    timeSectionTitle: workTask
+      ? `${workTask.subProcess?.name ?? "Submitted work"} time`
       : null,
     costingTotal: costingTotal ?? null,
     costingEntryCount: costingEntryCount ?? null,
@@ -220,15 +247,10 @@ export function InlineStageApprovalCard({
       className="mb-4"
       title={cardTitle}
       description={!canApprove ? approvalBlockedMessage : undefined}
-      headerAction={
-        <div className="flex flex-wrap gap-1.5">
-          <StatusBadge status={approvalTask.status} />
-          {workTask ? <StatusBadge status={resolveListItemDisplayStatus(workTask)} /> : null}
-        </div>
-      }
+      headerAction={<StatusBadge status={approvalTask.status} />}
     >
       <div className="space-y-4">
-        <ActionHandoffBanner context={handoff} dense />
+        <ActionHandoffBanner context={handoff} />
 
         {uiConfig.showCompare ? <TaskCompareVersionsPanel designId={designId} /> : null}
 

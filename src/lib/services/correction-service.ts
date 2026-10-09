@@ -10,6 +10,7 @@ import {
 } from "@/lib/services/task-dependency";
 import {
   buildCorrectionScopeForEmployee,
+  buildCorrectionReviewerScope,
   correctionVisibleToEmployee,
   getAllowedCorrectionStatusOptions,
   isRoutedReworkSatisfied,
@@ -17,6 +18,10 @@ import {
   OPEN_CORRECTION_STATUSES,
 } from "@/lib/services/correction-queue-utils";
 import { designImagesRejectWhere } from "@/lib/services/design-image-reject";
+import {
+  hasCorrectionApprovePermission,
+  PERMISSIONS,
+} from "@/lib/permissions";
 
 function ratingImpactForType(type: CorrectionType): number {
   return MISTAKE_CORRECTION_TYPES.includes(type as (typeof MISTAKE_CORRECTION_TYPES)[number])
@@ -48,8 +53,24 @@ const correctionInclude = {
   },
   raisedBy: { select: { id: true, name: true, employeeCode: true } },
   responsibleEmployee: { select: { id: true, name: true, employeeCode: true } },
+  reviewerEmployee: { select: { id: true, name: true, employeeCode: true } },
   routeToSubProcess: { select: { id: true, code: true, name: true } },
 } as const;
+
+async function nextCorrectionCycleNo(
+  tx: Tx,
+  designId: bigint,
+  routeToSubProcessId: number | null | undefined,
+): Promise<number> {
+  const agg = await tx.designCorrection.aggregate({
+    where: {
+      designId,
+      routeToSubProcessId: routeToSubProcessId ?? null,
+    },
+    _max: { cycleNo: true },
+  });
+  return (agg._max.cycleNo ?? 0) + 1;
+}
 
 type Tx = Prisma.TransactionClient;
 
@@ -229,11 +250,16 @@ export async function listCorrections(filters: {
   employeeId: number;
   designId?: bigint;
   status?: CorrectionStatus;
+  reviewerInbox?: boolean;
 }) {
+  const scope = filters.reviewerInbox
+    ? buildCorrectionReviewerScope(filters.employeeId)
+    : buildCorrectionScopeForEmployee(filters.employeeId);
+
   return prisma.designCorrection.findMany({
     where: {
       AND: [
-        buildCorrectionScopeForEmployee(filters.employeeId),
+        scope,
         ...(filters.designId ? [{ designId: filters.designId }] : []),
         ...(filters.status ? [{ status: filters.status }] : []),
       ],
@@ -284,6 +310,12 @@ export async function raiseCorrectionInTransaction(
     routedTaskId = routed.id;
   }
 
+  const cycleNo = await nextCorrectionCycleNo(
+    tx,
+    input.designId,
+    input.routeToSubProcessId,
+  );
+
   const correction = await tx.designCorrection.create({
     data: {
       designId: input.designId,
@@ -293,6 +325,8 @@ export async function raiseCorrectionInTransaction(
       routeToSubProcessId: input.routeToSubProcessId ?? null,
       routedTaskId,
       raisedById,
+      reviewerEmployeeId: raisedById,
+      cycleNo,
       rootCause: input.rootCause,
       extraMinutes: input.extraMinutes,
       extraCost: input.extraCost,
@@ -527,6 +561,41 @@ export async function updateCorrection(
   });
 }
 
+function assertCanReviewCorrection(
+  correction: { reviewerEmployeeId?: number | null; raisedById: number },
+  userId: number,
+  permissions: string[],
+): void {
+  if (correction.reviewerEmployeeId === userId) return;
+  if (correction.raisedById === userId && hasCorrectionApprovePermission(permissions)) return;
+  if (permissions.includes(PERMISSIONS.MASTER_ADMIN)) return;
+  throw new ApiError("Only the assigned reviewer may approve or reject this correction", 403);
+}
+
+export async function approveCorrection(
+  id: bigint,
+  userId: number,
+  permissions: string[],
+  correlationId: string,
+) {
+  const existing = await prisma.designCorrection.findUnique({ where: { id } });
+  if (!existing) throw new ApiError("Correction not found", 404);
+  assertCanReviewCorrection(existing, userId, permissions);
+  return updateCorrection(id, { status: "DONE" }, userId, correlationId);
+}
+
+export async function rejectCorrection(
+  id: bigint,
+  userId: number,
+  permissions: string[],
+  correlationId: string,
+) {
+  const existing = await prisma.designCorrection.findUnique({ where: { id } });
+  if (!existing) throw new ApiError("Correction not found", 404);
+  assertCanReviewCorrection(existing, userId, permissions);
+  return updateCorrection(id, { status: "REJECTED" }, userId, correlationId);
+}
+
 /** Mark open corrections for a design/task as DONE (e.g. after Sample Approve). */
 export async function closeOpenCorrectionsForTask(
   tx: Tx,
@@ -579,6 +648,20 @@ export async function reopenSourceCheckAfterRoutedRework(
     include: { subProcess: { select: { code: true, isApproval: true } } },
   });
   if (!sourceTask) return null;
+
+  const routedTask = await tx.designTask.findUnique({
+    where: { id: input.routedTaskId },
+    include: { subProcess: { select: { code: true } } },
+  });
+  // A design or punching problem is not ready for the sample checker until
+  // the stages between that problem and Sample Checking have been redone.
+  if (
+    sourceTask.subProcess.code === "SAMPLE_CHECK" &&
+    routedTask &&
+    (routedTask.subProcess.code === "SKETCH" || routedTask.subProcess.code === "PUNCH")
+  ) {
+    return null;
+  }
 
   if (
     !["CORRECTION_REQUIRED", "COMPLETED", "CHECKING", "PENDING"].includes(sourceTask.status)

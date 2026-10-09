@@ -2,6 +2,7 @@ import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { resumeTask } from "@/lib/services/task-service";
+import { assertTimerIdempotency } from "@/lib/timer-route-utils";
 
 const schema = z.object({
   version: z.number().int().nonnegative().optional(),
@@ -19,7 +20,13 @@ export async function POST(
       const body = await parseBody(request, schema);
       version = body.version;
     }
-    const task = await resumeTask(BigInt(id), ctx.employeeId, ctx.correlationId, version);
+    const taskId = BigInt(id);
+    await assertTimerIdempotency(request, {
+      taskId,
+      employeeId: ctx.employeeId,
+      action: "RESUME",
+    });
+    const task = await resumeTask(taskId, ctx.employeeId, ctx.correlationId, version);
     return jsonOk(serializeBigInt(task), ctx.correlationId);
   });
 }

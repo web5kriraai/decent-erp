@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -12,8 +12,14 @@ import { TaskActionCard } from "@/components/tasks/TaskActionCard";
 import { ActionCenterRecordsTable } from "@/components/tasks/ActionCenterRecordsTable";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
+import { earlierDesignerStages } from "@/components/tasks/DesignerTimePanel";
+import type { SampleCorrectionRoute } from "@/lib/services/sample-outcome-utils";
 import { CloseWorkdayConfirm } from "@/components/tasks/CloseWorkdayConfirm";
+import { WorkdayStatusBanner } from "@/features/time/WorkdayStatusBanner";
 import { AppButton } from "@/components/ui/AppButton";
+import { ListSearch } from "@/components/ui/ListSearch";
+import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,7 +29,7 @@ import {
   useTaskMutations,
 } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
-import { useTaskTimeDetail } from "@/hooks/use-time";
+import { useMyTimeSummary, useTaskTimeDetail } from "@/hooks/use-time";
 import {
   useErpStageAction,
   useErpStageChainForDesign,
@@ -34,16 +40,17 @@ import {
   floorProgressFromChain,
 } from "@/features/production/ErpStageOperator";
 import { PERMISSIONS } from "@/lib/permissions";
-import type { DesignTask } from "@/lib/types/api";
-import { computeElapsedSeconds } from "@/lib/types/api";
+import type { DesignTask, Priority } from "@/lib/types/api";
+import { useLiveTimeSummary } from "@/hooks/use-live-time-summary";
 import { groupActionCenterTasks } from "@/lib/task-priority";
 import { resolveTaskContextActions, WORKFLOW_ACTION_CODES } from "@/lib/workflow-actions";
 import {
   getTaskEndDialogConfig,
   getTaskHoldDialogConfig,
   buildHandoffContextFromTask,
+  handoffTimeFromSummary,
 } from "@/lib/task-dialog-config";
-import { findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
+import { findNextPeerForHandoff, findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
 import { getTimerControlFlags } from "@/lib/task-control-capability";
 import { resolveWorkOpenHref } from "@/lib/resolve-work-open-href";
 import { usesStageApprovalActionsNotTimerEnd } from "@/lib/stage-approval-rbac";
@@ -57,8 +64,13 @@ const KANBAN_COLUMNS = [
   ["ON_HOLD", "On Hold"],
 ] as const;
 
-/** Max task cards per lane before "+ N more" (matches pipeline board). */
-const WORKSPACE_LANE_PREVIEW = 15;
+const PRIORITY_FILTER_OPTIONS: { value: Priority | "ALL"; label: string }[] = [
+  { value: "ALL", label: "All Priority" },
+  { value: "URGENT", label: "Urgent" },
+  { value: "HIGH", label: "High" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "LOW", label: "Low" },
+];
 
 type ActionTab = "actionRequired" | "blocked" | "upcoming" | "completed";
 
@@ -75,14 +87,40 @@ export function TaskWorkspace() {
   const permissions = session?.user?.permissions ?? [];
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
 
-  const centerQuery = useActionCenter(canExecute);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<Priority | "ALL">("ALL");
+  const [stageFilter, setStageFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, priorityFilter, stageFilter, pageSize]);
+
+  const timeSummaryQuery = useMyTimeSummary(canExecute);
+  const workdayClosed = !!timeSummaryQuery.data?.workdayClosed;
+  const centerQuery = useActionCenter(
+    {
+      page,
+      pageSize,
+      q: searchQuery,
+      priority: priorityFilter,
+      stage: stageFilter,
+    },
+    canExecute,
+  );
   const holdReasons = useHoldReasons(canExecute);
   const checklistQuery = useChecklistItems(canExecute);
-  const { start, hold, resume, end, closeWorkday, isPending } = useTaskMutations();
+  const { start, hold, resume, end, closeWorkday, openWorkday, isPending } = useTaskMutations();
   const canViewErp = canViewErpChain(permissions);
 
   const [activeTab, setActiveTab] = useState<ActionTab>("actionRequired");
-  const [expandedKanbanLanes, setExpandedKanbanLanes] = useState<Set<string>>(new Set());
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [holdModalOpen, setHoldModalOpen] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
@@ -96,14 +134,22 @@ export function TaskWorkspace() {
   const [sampleOutcome, setSampleOutcome] = useState<
     "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE" | ""
   >("");
+  const [correctionRoute, setCorrectionRoute] = useState<SampleCorrectionRoute | "">("");
   const [costEntries, setCostEntries] = useState<
     Array<{ costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION"; description?: string; amount: number }>
   >([]);
 
   const center = centerQuery.data;
   const selectedTask = (center?.actionRequired ?? []).find((t) => t.id === selectedTaskId) ?? null;
-  const runningTask = (center?.actionRequired ?? []).find((t) => t.status === "RUNNING");
-  const onHoldTask = (center?.actionRequired ?? []).find((t) => t.status === "ON_HOLD");
+  const timerTask = center?.activeTimerTask ?? null;
+  const runningTask =
+    timerTask?.status === "RUNNING"
+      ? timerTask
+      : (center?.actionRequired ?? []).find((t) => t.status === "RUNNING");
+  const onHoldTask =
+    timerTask?.status === "ON_HOLD"
+      ? timerTask
+      : (center?.actionRequired ?? []).find((t) => t.status === "ON_HOLD");
   const activeTask = runningTask ?? onHoldTask ?? selectedTask;
   const isTimerActive = !!(runningTask || onHoldTask);
   const activeDetailQuery = useTaskTimeDetail(
@@ -151,11 +197,19 @@ export function TaskWorkspace() {
 
   const fileRequired = !!activeTask?.subProcess?.isFileRequired;
   const isSampleCheck = activeTask?.subProcess?.code === "SAMPLE_CHECK";
+  const dialogDesign = activeTask
+    ? {
+        ideaRef: activeTask.design.ideaRef,
+        collectionName: activeTask.design.collectionName,
+        priority: activeTask.design.priority,
+        productType: activeDetail?.design.productType ?? activeTask.design.productType?.name ?? null,
+      }
+    : undefined;
   const holdDialogConfig = activeTask
     ? getTaskHoldDialogConfig({
         status: activeTask.status,
         subProcess: activeTask.subProcess,
-        design: activeTask.design,
+        design: dialogDesign,
         assignedEmployee: activeTask.assignedEmployee,
       })
     : null;
@@ -164,7 +218,7 @@ export function TaskWorkspace() {
         {
           status: activeTask.status,
           subProcess: activeTask.subProcess,
-          design: activeTask.design,
+          design: dialogDesign,
           assignedEmployee: activeTask.assignedEmployee,
         },
         session?.user?.roleCode,
@@ -195,6 +249,25 @@ export function TaskWorkspace() {
         assigneeName: priorPeer.assignedEmployee?.name,
       }
     : null;
+  const nextPeer = activeDetail
+    ? findNextPeerForHandoff(
+        { id: activeDetail.id, sequence: activeDetail.sequence },
+        activeDetail.workflowPeers,
+      )
+    : null;
+  const nextStage = nextPeer
+    ? {
+        code: nextPeer.subProcess.code,
+        name: nextPeer.subProcess.name,
+        assigneeName: nextPeer.assignedEmployee?.name ?? null,
+      }
+    : null;
+
+  const liveSummary = useLiveTimeSummary(
+    activeDetail?.timeline,
+    activeDetail?.status === "RUNNING" || activeDetail?.status === "ON_HOLD",
+  );
+  const elapsedSeconds = liveSummary?.activeSeconds ?? 0;
 
   const holdHandoff =
     activeTask && holdDialogConfig
@@ -213,6 +286,8 @@ export function TaskWorkspace() {
             description: holdDialogConfig.description,
             nextStepHint: holdDialogConfig.nextStepHint,
             priorStage,
+            ...handoffTimeFromSummary(liveSummary ?? activeDetail?.timeSummary, activeTask.expectedMinutes),
+            nextStage,
           },
         )
       : null;
@@ -234,40 +309,30 @@ export function TaskWorkspace() {
             description: endDialogConfig.description,
             nextStepHint: endDialogConfig.nextStepHint,
             priorStage,
+            ...handoffTimeFromSummary(liveSummary ?? activeDetail?.timeSummary, activeTask.expectedMinutes),
+            nextStage,
           },
         )
       : null;
-
-  const elapsedSeconds = activeTask?.timeEvents
-    ? computeElapsedSeconds(activeTask.timeEvents)
-    : 0;
 
   const kanbanGroups = useMemo(
     () => groupActionCenterTasks(center?.actionRequired ?? []),
     [center?.actionRequired],
   );
 
-  const tabCounts = useMemo(
-    () => ({
-      actionRequired: center?.actionRequired.length ?? 0,
-      blocked: center?.blocked.length ?? 0,
-      upcoming: center?.upcoming.length ?? 0,
-      completed: center?.completed.length ?? 0,
-    }),
-    [center],
-  );
+  const tabCounts = center?.tabTotals ?? {
+    actionRequired: 0,
+    blocked: 0,
+    upcoming: 0,
+    completed: 0,
+  };
+  const pageTotal =
+    activeTab === "actionRequired"
+      ? (center?.pagination.total ?? 0)
+      : tabCounts[activeTab];
 
   const taskChecklistItems =
     checklistQuery.data?.filter((item) => item.subProcessId === activeTask?.subProcess?.id) ?? [];
-
-  function toggleKanbanLaneExpanded(bucket: string) {
-    setExpandedKanbanLanes((current) => {
-      const next = new Set(current);
-      if (next.has(bucket)) next.delete(bucket);
-      else next.add(bucket);
-      return next;
-    });
-  }
 
   if (!canExecute) {
     return (
@@ -307,9 +372,17 @@ export function TaskWorkspace() {
   }
 
   async function handleEndSubmit() {
-    if (!activeTask || !endRemark.trim()) return;
-    if (isSampleCheck && !sampleOutcome) return;
+    if (!activeTask) return;
     const isCosting = endDialogConfig?.costingEntry === true;
+    if (isCosting && !endRemark.trim()) return;
+    if (isSampleCheck && !sampleOutcome) return;
+    if (
+      isSampleCheck &&
+      sampleOutcome === "REJECT" &&
+      (!correctionRoute || !endRemark.trim())
+    ) {
+      return;
+    }
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -330,7 +403,7 @@ export function TaskWorkspace() {
     await end.mutateAsync({
       taskId: activeTask.id,
       version: activeTask.version,
-      outputRemark: endRemark.trim(),
+      outputRemark: endRemark.trim() || "Completed",
       completionStatus: isSampleCheck
         ? sampleOutcome === "REJECT"
           ? "CHECKING"
@@ -343,6 +416,10 @@ export function TaskWorkspace() {
         : undefined,
       checklistNote: note,
       sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+      correctionRoute:
+        isSampleCheck && sampleOutcome === "REJECT" && correctionRoute
+          ? correctionRoute
+          : undefined,
       costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
     });
     setEndModalOpen(false);
@@ -350,6 +427,7 @@ export function TaskWorkspace() {
     setChecklistResults({});
     setChecklistNote("");
     setSampleOutcome("");
+    setCorrectionRoute("");
     setCostEntries([]);
     setSelectedTaskId(null);
   }
@@ -366,8 +444,13 @@ export function TaskWorkspace() {
     }
   }
 
-  const hasAnyWork =
-    tabCounts.actionRequired + tabCounts.blocked + tabCounts.upcoming + tabCounts.completed > 0;
+  const hasAnyWork = center
+    ? center.totals.actionRequired +
+        center.totals.blocked +
+        center.totals.upcoming +
+        center.totals.completed >
+      0
+    : false;
 
   return (
     <div className="page-shell page-shell--wide list-page">
@@ -380,19 +463,32 @@ export function TaskWorkspace() {
               onRefresh={() => centerQuery.refetch()}
               isRefreshing={centerQuery.isFetching}
             />
-            <AppButton
-              type="button"
-              appVariant="outline"
-              size="sm"
-              onClick={() => setCloseWorkdayOpen(true)}
-              disabled={closeWorkday.isPending || !!runningTask}
-              title={runningTask ? "Stop running task before closing workday" : undefined}
-            >
-              Close Workday
-            </AppButton>
+            {workdayClosed ? (
+              <AppButton
+                type="button"
+                size="sm"
+                onClick={() => openWorkday.mutate()}
+                disabled={openWorkday.isPending}
+              >
+                {openWorkday.isPending ? "Opening…" : "Open Workday"}
+              </AppButton>
+            ) : (
+              <AppButton
+                type="button"
+                appVariant="outline"
+                size="sm"
+                onClick={() => setCloseWorkdayOpen(true)}
+                disabled={closeWorkday.isPending || !!runningTask}
+                title={runningTask ? "Stop running task before closing workday" : undefined}
+              >
+                Close Workday
+              </AppButton>
+            )}
           </>
         }
       />
+
+      <WorkdayStatusBanner />
 
       <QueryState
         isLoading={centerQuery.isLoading}
@@ -416,6 +512,38 @@ export function TaskWorkspace() {
               </TabsTrigger>
             ))}
           </TabsList>
+
+          <div
+            className="workflow-dash-filters list-filter-group mb-4"
+            role="group"
+            aria-label="Task filters"
+          >
+            <ListSearch
+              id="my-tasks-search"
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search idea, collection, or stage…"
+              aria-label="Search tasks"
+              className="workflow-dash-search"
+            />
+            <ListSelectFilter
+              id="my-tasks-priority"
+              label="Priority"
+              value={priorityFilter}
+              onChange={(value) => setPriorityFilter((value || "ALL") as Priority | "ALL")}
+              options={PRIORITY_FILTER_OPTIONS}
+            />
+            <ListSelectFilter
+              id="my-tasks-stage"
+              label="Stage"
+              value={stageFilter}
+              onChange={(value) => setStageFilter(value || "ALL")}
+              options={[
+                { value: "ALL", label: "All stages" },
+                ...(center?.stages ?? []).map((stage) => ({ value: stage, label: stage })),
+              ]}
+            />
+          </div>
 
           <TabsContent value="actionRequired">
             <div className="task-workspace-layout">
@@ -504,7 +632,7 @@ export function TaskWorkspace() {
                 </AppCard>
               ) : null}
 
-              {(center?.actionRequired ?? []).length === 0 ? (
+              {tabCounts.actionRequired === 0 ? (
                 <p className="action-center-empty action-center-empty--inline">
                   No tasks ready for you right now. Check Blocked or Upcoming tabs.
                 </p>
@@ -513,60 +641,37 @@ export function TaskWorkspace() {
                   <div className="kanban kanban--workspace">
                     {KANBAN_COLUMNS.map(([bucket, label]) => {
                       const laneTasks = kanbanGroups[bucket] ?? [];
-                      const laneExpanded = expandedKanbanLanes.has(bucket);
-                      const visibleTasks = laneExpanded
-                        ? laneTasks
-                        : laneTasks.slice(0, WORKSPACE_LANE_PREVIEW);
-                      const hiddenCount = laneExpanded
-                        ? 0
-                        : Math.max(0, laneTasks.length - WORKSPACE_LANE_PREVIEW);
+                      const laneTotal = center?.laneCounts?.[bucket] ?? laneTasks.length;
 
                       return (
                         <div key={bucket} className="kanban-column">
                           <div className="kanban-column-header">
                             <span className="kanban-column-title">{label}</span>
-                            <span className="kanban-column-count">{laneTasks.length}</span>
+                            <span className="kanban-column-count">{laneTotal}</span>
                           </div>
                           <div className="kanban-cards">
-                            {visibleTasks.map((task) => {
-                              const isActiveCard = task.id === activeTask?.id && isTimerActive;
-                              const showStartButton =
-                                bucket === "READY" || bucket === "CORRECTION_REQUIRED";
-                              return (
-                                <TaskActionCard
-                                  key={task.id}
-                                  task={task}
-                                  selected={selectedTaskId === task.id}
-                                  active={isActiveCard}
-                                  showStartButton={showStartButton}
-                                  isPending={isPending}
-                                  onSelect={() => setSelectedTaskId(task.id)}
-                                  onStart={() => void handleStart(task)}
-                                  onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
-                                />
-                              );
-                            })}
-                            {laneTasks.length === 0 ? (
+                            {laneTotal === 0 ? (
                               <p className="kanban-empty">No tasks</p>
-                            ) : null}
-                            {hiddenCount > 0 ? (
-                              <button
-                                type="button"
-                                className="kanban-lane-more"
-                                onClick={() => toggleKanbanLaneExpanded(bucket)}
-                              >
-                                +{hiddenCount} more tasks
-                              </button>
-                            ) : null}
-                            {laneExpanded && laneTasks.length > WORKSPACE_LANE_PREVIEW ? (
-                              <button
-                                type="button"
-                                className="kanban-lane-more"
-                                onClick={() => toggleKanbanLaneExpanded(bucket)}
-                              >
-                                Show fewer tasks
-                              </button>
-                            ) : null}
+                            ) : (
+                              laneTasks.map((task) => {
+                                const isActiveCard = task.id === activeTask?.id && isTimerActive;
+                                const showStartButton =
+                                  bucket === "READY" || bucket === "CORRECTION_REQUIRED";
+                                return (
+                                  <TaskActionCard
+                                    key={task.id}
+                                    task={task}
+                                    selected={selectedTaskId === task.id}
+                                    active={isActiveCard}
+                                    showStartButton={showStartButton}
+                                    isPending={isPending}
+                                    onSelect={() => setSelectedTaskId(task.id)}
+                                    onStart={() => void handleStart(task)}
+                                    onKeyDown={(e) => handleTaskCardKeyDown(e, task)}
+                                  />
+                                );
+                              })
+                            )}
                           </div>
                         </div>
                       );
@@ -612,6 +717,15 @@ export function TaskWorkspace() {
               isRefreshing={centerQuery.isFetching}
             />
           </TabsContent>
+          <PaginationBar
+            total={pageTotal}
+            page={center?.pagination.page ?? page}
+            pageSize={center?.pagination.pageSize ?? pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeSelectId="my-tasks-page-size"
+            className="list-page__pagination"
+          />
         </Tabs>
       </QueryState>
 
@@ -658,12 +772,23 @@ export function TaskWorkspace() {
         isSampleCheck={endDialogConfig?.showSampleOutcomes ?? isSampleCheck}
         sampleOutcome={sampleOutcome || undefined}
         onSampleOutcomeChange={setSampleOutcome}
+        correctionRoute={correctionRoute}
+        onCorrectionRouteChange={setCorrectionRoute}
         gateForcesChecking={endDialogConfig?.forceChecking}
         dialogTitle={endDialogConfig?.title}
         dialogDescription={endDialogConfig?.description}
         remarkLabel={endDialogConfig?.remarkLabel}
         remarkPlaceholder={endDialogConfig?.remarkPlaceholder}
         handoff={endHandoff}
+        priorPunching={activeDetail?.priorPunching}
+        designerStages={
+          activeDetail && activeTask?.subProcess.code === "COSTING"
+            ? earlierDesignerStages(activeDetail.workflowPeers, {
+                id: activeDetail.id,
+                sequence: activeDetail.sequence,
+              })
+            : undefined
+        }
         showStatusSelect={endDialogConfig?.showStatusSelect}
         costEntries={costEntries}
         onCostEntriesChange={setCostEntries}

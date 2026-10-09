@@ -181,6 +181,36 @@ export function formatDuration(totalSeconds: number): string {
   return `${s}s`;
 }
 
+/** Active-work units. A day is 8 hours, a week is 6 days, a month is 4 weeks. */
+const WORK_HOUR_SECONDS = 60 * 60;
+const WORK_DAY_SECONDS = 8 * WORK_HOUR_SECONDS;
+const WORK_WEEK_SECONDS = 6 * WORK_DAY_SECONDS;
+const WORK_MONTH_SECONDS = 4 * WORK_WEEK_SECONDS;
+
+/**
+ * Active time in the largest unit that fits.
+ * 55 min stays "55 min". 60 min becomes "1 hr". A remainder is kept in the next unit.
+ * A day is 8 hours, a week is 6 days, and a month is 4 weeks.
+ */
+export function formatWorkingTotals(totalSeconds: number): string {
+  let remaining = Math.max(0, Math.floor(totalSeconds));
+  const units: Array<[number, string]> = [
+    [WORK_MONTH_SECONDS, "mo"],
+    [WORK_WEEK_SECONDS, "wk"],
+    [WORK_DAY_SECONDS, "day"],
+    [WORK_HOUR_SECONDS, "hr"],
+    [60, "min"],
+  ];
+  const parts: string[] = [];
+  for (const [size, label] of units) {
+    if (remaining < size) continue;
+    const count = Math.floor(remaining / size);
+    remaining -= count * size;
+    parts.push(`${count} ${label}`);
+  }
+  return parts.length > 0 ? parts.join(" ") : "0 min";
+}
+
 export function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }

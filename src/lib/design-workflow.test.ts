@@ -231,6 +231,7 @@ describe("design workflow actions", () => {
     expect(current[0]?.code).toBe("MACHINE_SAMPLE");
     expect(isWorkflowStepAssignable("CHECKING")).toBe(false);
     expect(isWorkflowStepAssignable("ASSIGNED")).toBe(true);
+    expect(isWorkflowStepAssignable("CORRECTION_REQUIRED")).toBe(true);
   });
 
   it("does not show request final approval while a stage approval is still open", () => {

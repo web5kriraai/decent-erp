@@ -4,6 +4,7 @@ import {
   validateConceptMediaClient,
 } from "@/lib/file-upload-policy";
 import { ApiClientError } from "@/lib/api-client";
+import { compressImageForStorage } from "@/lib/compress-image-client";
 
 export type PendingConceptMedia = {
   id: string;
@@ -44,7 +45,10 @@ export async function uploadConceptMediaFile(options: {
     designComponentId = null,
   } = options;
 
-  const preflight = validateConceptMediaClient(file, mediaKind);
+  const storedFile =
+    mediaKind === "IMAGE" ? await compressImageForStorage(file) : file;
+
+  const preflight = validateConceptMediaClient(storedFile, mediaKind);
   if (!preflight.ok) {
     throw new ApiClientError(
       preflight.message,
@@ -56,7 +60,7 @@ export async function uploadConceptMediaFile(options: {
   }
 
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", storedFile);
   formData.append("mediaKind", mediaKind);
   if (mediaKind === "IMAGE") {
     formData.append("category", "PRODUCT_IMAGE");

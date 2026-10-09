@@ -3,12 +3,13 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { StatusBadge } from "@/components/StatusBadge";
-import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
+import { resolveListItemDisplayStatus, taskCardDetailLines } from "@/lib/task-action-display";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useCorrections } from "@/hooks/use-corrections";
+import { RoleDayScore } from "@/features/dashboard/RoleDayScore";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -114,6 +115,7 @@ export function CheckerWorkbench() {
       }}
     >
       <div className="workbench-overview">
+        <RoleDayScore />
         <div className="stat-grid workbench-pulse">
           <StatCard label="Pending quality checks" value={pendingTotal} />
           <StatCard label="Punch checks waiting" value={queues.pendingPunch.length} />
@@ -141,6 +143,7 @@ export function CheckerWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}
@@ -164,6 +167,7 @@ export function CheckerWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}
@@ -187,6 +191,7 @@ export function CheckerWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status="CORRECTION_REQUIRED" />}
                   />
                 ))}
@@ -219,6 +224,7 @@ export function CheckerWorkbench() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={task.design.ideaRef}
                     meta={task.subProcess.name}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status="COMPLETED" />}
                   />
                 ))}

@@ -24,7 +24,7 @@ export async function buildReportPdfBuffer(table: ReportExportTable): Promise<Bu
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    doc.fontSize(16).text(`Decent ERP — ${table.title}`, { continued: false });
+    doc.fontSize(16).text(`Decent ERP - ${table.title}`, { continued: false });
     doc
       .fontSize(9)
       .fillColor("#555555")

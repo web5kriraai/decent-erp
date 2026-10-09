@@ -163,29 +163,28 @@ export function TaskStageApprovalPanel({
   };
 
   return (
-    <>
+    <AppCard
+      className="mb-4 border-primary/20"
+      title={panelTitle}
+      headerAction={<StatusBadge status={status} />}
+      contentClassName="space-y-4"
+    >
+      <ActionHandoffBanner context={bannerContext} />
+
       {showCompare && uiConfig.showCompare ? (
         <TaskCompareVersionsPanel designId={designId} />
       ) : null}
 
-      <AppCard
-        className="mb-4 border-primary/20"
-        title={panelTitle}
-        headerAction={<StatusBadge status={status} />}
-        contentClassName="space-y-4"
-      >
-        <ActionHandoffBanner context={bannerContext} dense />
+      {uiConfig.showGallery ? (
+        <ImageGallery designId={designId} canUpload={false} />
+      ) : null}
 
-        {uiConfig.showGallery ? (
-          <ImageGallery designId={designId} canUpload={false} />
-        ) : null}
-
-        {!canApprove && approvalBlockedMessage ? (
-          <p className="text-sm text-muted-foreground" role="status">
-            {approvalBlockedMessage}
-          </p>
-        ) : null}
-        <FormTextArea
+      {!canApprove && approvalBlockedMessage ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {approvalBlockedMessage}
+        </p>
+      ) : null}
+      <FormTextArea
           id={`stage-decision-${taskId}`}
           label="Notes for the next worker (required for reject / correction)"
           value={remark}
@@ -236,7 +235,6 @@ export function TaskStageApprovalPanel({
             </AppButton>
           ) : null}
         </div>
-      </AppCard>
-    </>
+    </AppCard>
   );
 }

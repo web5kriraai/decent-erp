@@ -8,7 +8,7 @@ type DragHandleProps = ComponentProps<"button"> & {
   label?: string;
 };
 
-/** Grabber for row reorder — use with useRowDragReorder handle props. */
+/** Grabber for row reorder - use with useRowDragReorder handle props. */
 export function DragHandle({
   label = "Drag to reorder",
   className,

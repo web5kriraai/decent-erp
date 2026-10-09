@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,20 @@ export function Modal({
   size = "md",
   description,
 }: ModalProps) {
+  const popupRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const body = bodyRef.current;
+    if (!body) return;
+    body.scrollTop = 0;
+    const frame = requestAnimationFrame(() => {
+      body.scrollTop = 0;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
   return (
     <Dialog
       open={open}
@@ -52,20 +66,26 @@ export function Modal({
       modal="trap-focus"
     >
       <DialogContent
+        ref={popupRef}
+        initialFocus={() => popupRef.current}
         className={cn(
-          "max-h-[min(92dvh,56rem)] gap-0 p-0",
+          "h-auto max-h-[min(92dvh,56rem)] justify-start gap-0 p-0",
           sizeClasses[size],
         )}
+        style={{ height: "auto", maxHeight: "min(92dvh, 56rem)" }}
         showCloseButton
       >
         <DialogHeader className="shrink-0 gap-1 border-b border-border px-4 py-3 pr-12 sm:px-5 sm:py-4">
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 pb-5 sm:px-5 sm:py-4 sm:pb-6">
+        <div
+          ref={bodyRef}
+          className="max-h-[calc(min(92dvh,56rem)-8.5rem)] min-h-0 shrink overflow-y-auto overscroll-contain px-4 py-3 pb-5 [overflow-anchor:none] sm:px-5 sm:py-4 sm:pb-6"
+        >
           {children}
         </div>
-        {footer ? <DialogFooter>{footer}</DialogFooter> : null}
+        {footer ? <DialogFooter className="mt-0 shrink-0">{footer}</DialogFooter> : null}
       </DialogContent>
     </Dialog>
   );
@@ -75,11 +95,17 @@ export function Modal({
 export function ModalForm({
   className,
   children,
+  id,
 }: {
   className?: string;
   children: ReactNode;
+  id?: string;
 }) {
-  return <div className={cn("flex flex-col gap-4", className)}>{children}</div>;
+  return (
+    <div id={id} className={cn("flex flex-col gap-4", className)}>
+      {children}
+    </div>
+  );
 }
 
 /** Responsive form grid inside modals - 1 col phone, 2 col tablet+, never 3 by default. */

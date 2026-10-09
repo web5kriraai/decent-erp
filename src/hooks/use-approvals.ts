@@ -11,8 +11,6 @@ import type {
 } from "@/lib/types/api";
 import { useApiToast } from "@/components/ui/ToastProvider";
 
-const APPROVALS_REFETCH_MS = 30_000;
-
 export type SubmitApprovalPayload = {
   designId: string;
   taskId?: string;
@@ -44,7 +42,6 @@ export function useApprovalsHub(enabled = true) {
     queryKey: queryKeys.approvals.hub,
     queryFn: () => apiGet<ApprovalsHubData>("/api/approvals?view=hub"),
     enabled,
-    refetchInterval: APPROVALS_REFETCH_MS,
   });
 }
 
@@ -53,7 +50,6 @@ export function usePendingApprovals(enabled = true) {
     queryKey: queryKeys.approvals.pending,
     queryFn: () => apiGet<PendingApprovalItem[]>("/api/approvals"),
     enabled,
-    refetchInterval: APPROVALS_REFETCH_MS,
   });
 }
 

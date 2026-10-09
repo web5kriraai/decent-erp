@@ -6,12 +6,12 @@ Priorities confirmed from Spec Understanding & Gap Analysis. **Status: implement
 2. Due-soon / overdue scheduled notifications + material/machine hold notifications
 3. ERP design-success sync hardening
 
-## 1. Component types on create — done
+## 1. Component types on create - done
 
 - Shared `DesignComponentTypePicker` wired into `DesignCreateForm` and `DesignCreateModal`
 - Sends `componentTypeIds` on create (API already supported)
 
-## 2. Notifications — done
+## 2. Notifications - done
 
 - `MATERIAL_HOLD` / `MACHINE_HOLD` message subjects
 - Post-commit notify from `holdTask` for `WAIT_MATERIAL` / `MACHINE_NA`
@@ -20,7 +20,7 @@ Priorities confirmed from Spec Understanding & Gap Analysis. **Status: implement
 - Dedup via recent `notification_outbox` rows (12h)
 - Env: `TASK_DUE_SOON_HOURS` (default 24)
 
-## 3. Design-success ERP sync — done
+## 3. Design-success ERP sync - done
 
 - Partial upserts (only defined fields)
 - Live ingest after each `syncAllErpModules` batch (logged, not swallowed)

@@ -1,6 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { login, USERS, apiGetJson, apiPostJson, fetchMasters } from "./helpers/auth";
 
+function futureDate(daysAhead: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysAhead);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 test.describe("Manual assignment + due date", () => {
   test("creates design with manual tasks and persisted dueAt", async ({ page }) => {
     await login(page, USERS.designHead.email, USERS.designHead.password);
@@ -19,8 +27,8 @@ test.describe("Manual assignment + due date", () => {
     const subA = process.subProcesses[0];
     const subB = process.subProcesses[1] ?? process.subProcesses[0];
 
-    const dueA = "2026-08-05";
-    const dueB = "2026-08-08";
+    const dueA = futureDate(7);
+    const dueB = futureDate(10);
 
     const design = await apiPostJson<{ id: string; ideaRef: string }>(page, "/api/designs", {
       productTypeId: masters.productTypeId,

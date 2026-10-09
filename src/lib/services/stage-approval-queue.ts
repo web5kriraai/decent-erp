@@ -84,14 +84,26 @@ export type PeerTaskForHandoff = {
   fileCount?: number | null;
 };
 
-export function findPriorPeerForHandoff(
+export function findPriorPeerForHandoff<T extends PeerTaskForHandoff>(
   stageCode: string,
-  peers?: PeerTaskForHandoff[] | null,
-): PeerTaskForHandoff | null {
+  peers?: T[] | null,
+): T | null {
   if (!peers?.length) return null;
   const priorCode = priorSubProcessCodeForStage(stageCode);
   if (!priorCode) return null;
   return peers.find((p) => p.subProcess.code === priorCode) ?? null;
+}
+
+/** The next workflow stage after this task, including who it is assigned to. */
+export function findNextPeerForHandoff<
+  T extends { id?: string; sequence?: number },
+>(current: { id?: string; sequence: number }, peers?: T[] | null): T | null {
+  if (!peers?.length) return null;
+  return (
+    peers
+      .filter((peer) => peer.id !== current.id && (peer.sequence ?? 0) > current.sequence)
+      .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))[0] ?? null
+  );
 }
 
 function relatedWorkTaskName(

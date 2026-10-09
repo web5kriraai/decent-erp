@@ -510,7 +510,7 @@ export function DesignHeadKpiView() {
 
                 value={
 
-                  data.avgLeadTimeDays != null ? `${data.avgLeadTimeDays}d` : "—"
+                  data.avgLeadTimeDays != null ? `${data.avgLeadTimeDays}d` : "-"
 
                 }
 
@@ -522,7 +522,7 @@ export function DesignHeadKpiView() {
 
                 value={
 
-                  data.teamFtrPercent != null ? `${data.teamFtrPercent}%` : "—"
+                  data.teamFtrPercent != null ? `${data.teamFtrPercent}%` : "-"
 
                 }
 
@@ -538,7 +538,7 @@ export function DesignHeadKpiView() {
 
                     ? `${data.teamCorrectionRatePercent}%`
 
-                    : "—"
+                    : "-"
 
                 }
 
@@ -554,7 +554,7 @@ export function DesignHeadKpiView() {
 
                     ? `${data.costVsBudget.variancePercent}%`
 
-                    : "—"
+                    : "-"
 
                 }
 

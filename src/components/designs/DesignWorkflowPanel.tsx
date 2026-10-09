@@ -11,6 +11,7 @@ import {
   getDesignWorkflowContext,
   getWorkflowPanelHeaderStatus,
 } from "@/lib/design-workflow";
+import { canControlTask } from "@/lib/task-control-capability";
 import type { DesignSummary, DesignTask } from "@/lib/types/api";
 import { cn } from "@/lib/utils";
 import {
@@ -20,15 +21,25 @@ import {
   IconLock,
 } from "@/components/icons";
 import {
+  formatTaskDeadline,
+  formatTaskStamp,
+  resolveTaskAssignedAt,
+} from "@/lib/task-action-display";
+import {
   formatMachineOutputSummary,
   isMachineOutputTask,
 } from "@/lib/services/task-machine-output-utils";
+import { computeTimeSummary, formatWorkingTotals } from "@/lib/services/time-calculation";
 
 type DesignWorkflowPanelProps = {
   design: DesignSummary;
   designId: string;
   canAssign: boolean;
   onAssignTask?: (task: DesignTask) => void;
+  /** Logged-in employee. Open is shown only when this person can do the task. */
+  viewerEmployeeId?: number;
+  viewerPermissions?: string[];
+  viewerRoleCode?: string | null;
   /** Optional; management sign-off CTA lives on Approvals hub / request-sign-off page. */
   showSignOffCta?: boolean;
   /** Secondary workflow tools (e.g. override) - sits in the card header. */
@@ -39,6 +50,9 @@ export function DesignWorkflowPanel({
   design,
   canAssign,
   onAssignTask,
+  viewerEmployeeId,
+  viewerPermissions = [],
+  viewerRoleCode,
   headerActions,
 }: DesignWorkflowPanelProps) {
   const steps = useMemo(() => buildWorkflowSteps(design.tasks), [design.tasks]);
@@ -72,6 +86,16 @@ export function DesignWorkflowPanel({
           .join(" ")
       : null);
 
+  const currentStep = steps.find((step) => step.isCurrent);
+  const stageActiveSeconds = useMemo(
+    () =>
+      steps.map(
+        (step) => computeTimeSummary(step.task.timeEvents ?? []).activeSeconds,
+      ),
+    [steps],
+  );
+  const totalActiveSeconds = stageActiveSeconds.reduce((sum, seconds) => sum + seconds, 0);
+
   const showNowStrip =
     Boolean(workflowContext.currentStage) ||
     Boolean(statusLine) ||
@@ -103,20 +127,38 @@ export function DesignWorkflowPanel({
               </p>
             ) : null}
             {statusLine ? <p className="workflow-now-meta">{statusLine}</p> : null}
+            {currentStep ? (
+              <p className="workflow-now-meta">
+                {currentStep.task.subProcess?.defaultRole?.name
+                  ? `${currentStep.task.subProcess.defaultRole.name} · `
+                  : ""}
+                {`Assigned ${formatTaskStamp(resolveTaskAssignedAt(currentStep.task)) ?? "-"}`}
+                {" · "}
+                {`Deadline ${formatTaskDeadline(currentStep.task.dueAt) ?? "not set"}`}
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
 
       <div className="workflow-stages">
         <div className="workflow-stages-head">
-          <p className="workflow-stages-label">Pipeline stages</p>
+          <div className="min-w-0">
+            <p className="workflow-stages-label">Pipeline stages</p>
+            <p
+              className="workflow-step-meta"
+              title="Active work. A day is 8 hours, a week is 6 days, and a month is 4 weeks."
+            >
+              Total working {formatWorkingTotals(totalActiveSeconds)}
+            </p>
+          </div>
           <p className="workflow-stages-count">{steps.length}</p>
         </div>
         {steps.length === 0 ? (
           <p className="workflow-stages-empty">No workflow tasks yet.</p>
         ) : (
           <ol className="workflow-step-grid">
-            {steps.map((step) => (
+            {steps.map((step, index) => (
               <li
                 key={step.task.id}
                 className={cn(
@@ -133,8 +175,16 @@ export function DesignWorkflowPanel({
                       {step.label}
                     </p>
                     <p className="workflow-step-meta">
-                      {step.assigneeName ?? "Unassigned"}
-                      {step.isApproval ? " · Approval" : ""}
+                      {[
+                        step.task.subProcess?.defaultRole?.name,
+                        step.displayStatus === "SCHEDULED" && step.assigneeName
+                          ? `Scheduled · ${step.assigneeName}`
+                          : step.isApproval && !step.isDone
+                            ? `Pending approval · ${step.assigneeName ?? "Unassigned"}`
+                            : (step.assigneeName ?? "Unassigned"),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                       {step.task.skipReason ? ` · ${step.task.skipReason}` : ""}
                       {step.displayStatus === "ON_HOLD" && step.holdReasonName
                         ? ` · Hold · ${step.holdReasonName}`
@@ -142,6 +192,16 @@ export function DesignWorkflowPanel({
                           ? " · On hold"
                           : ""}
                     </p>
+                    <p className="workflow-step-meta">
+                      {`Assigned ${formatTaskStamp(resolveTaskAssignedAt(step.task)) ?? "-"}`}
+                      {" · "}
+                      {`Deadline ${formatTaskDeadline(step.task.dueAt) ?? "not set"}`}
+                    </p>
+                    {(stageActiveSeconds[index] ?? 0) > 0 ? (
+                      <p className="workflow-step-meta">
+                        Worked {formatWorkingTotals(stageActiveSeconds[index] ?? 0)}
+                      </p>
+                    ) : null}
                     {isMachineOutputTask(step.task.subProcess?.code) ? (
                       <p className="workflow-step-meta">
                         {formatMachineOutputSummary(step.task.artifacts?.[0]) ??
@@ -164,7 +224,23 @@ export function DesignWorkflowPanel({
                       Reassign
                     </AppButton>
                   ) : null}
-                  {step.isCurrent && step.task.id ? (
+                  {step.isCurrent &&
+                  step.task.id &&
+                  canControlTask({
+                    permissions: viewerPermissions,
+                    employeeId: viewerEmployeeId,
+                    roleCode: viewerRoleCode,
+                    task: {
+                      status: step.task.status,
+                      assignedEmployeeId: step.task.assignedEmployeeId,
+                      subProcess: {
+                        code: step.task.subProcess?.code ?? "",
+                        isApproval: step.task.subProcess?.isApproval,
+                        capabilities: step.task.subProcess?.capabilities,
+                        defaultRole: step.task.subProcess?.defaultRole,
+                      },
+                    },
+                  }) ? (
                     <Link
                       href={ROUTES.work.taskDetail(step.task.id)}
                       className="workflow-step-open"

@@ -6,6 +6,7 @@ import { ROUTES } from "@/config/routes";
 
 export type DesignDetailTab =
   | "overview"
+  | "activity"
   | "corrections"
   | "costing"
   | "kra-kpi"

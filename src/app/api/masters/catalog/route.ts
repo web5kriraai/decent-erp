@@ -8,6 +8,11 @@ import {
   listMasterCatalog,
   toLegacyActiveShape,
 } from "@/lib/services/master-catalog-service";
+import {
+  listComponentSummariesByCategory,
+  setComponentsForProductCategory,
+} from "@/lib/services/product-category-component-service";
+import { MASTER_TYPES } from "@/lib/master-catalog-types";
 
 const createSchema = z.object({
   masterType: z.string().min(1).max(50),
@@ -16,6 +21,7 @@ const createSchema = z.object({
   description: z.string().max(5000).optional().nullable(),
   sortOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
+  componentIds: z.array(z.number().int().positive()).optional(),
 });
 
 export async function GET(request: Request) {
@@ -32,8 +38,24 @@ export async function GET(request: Request) {
 
     const masterType = url.searchParams.get("masterType") ?? undefined;
     const rows = await listMasterCatalog({ masterType, includeInactive });
+    const summaries =
+      masterType === MASTER_TYPES.PRODUCT_CATEGORY
+        ? await listComponentSummariesByCategory(rows.map((row) => row.id))
+        : null;
     return jsonOk(
-      serializeBigInt(rows.map(toLegacyActiveShape)),
+      serializeBigInt(
+        rows.map((row) => {
+          const shape = toLegacyActiveShape(row);
+          const summary = summaries?.get(row.id);
+          return summary
+            ? {
+                ...shape,
+                componentIds: summary.componentIds,
+                componentNames: summary.componentNames,
+              }
+            : shape;
+        }),
+      ),
       ctx.correlationId,
     );
   });
@@ -43,6 +65,13 @@ export async function POST(request: Request) {
   return withApiHandler(PERMISSIONS.MASTER_ADMIN, async (ctx) => {
     const body = await parseBody(request, createSchema);
     const created = await createMasterCatalog(body);
+    let componentIds: number[] | undefined;
+    if (
+      body.componentIds != null &&
+      created.masterType === MASTER_TYPES.PRODUCT_CATEGORY
+    ) {
+      componentIds = await setComponentsForProductCategory(created.id, body.componentIds);
+    }
     await writeAuditLogDirect({
       entityType: "MasterCatalog",
       entityId: String(created.id),
@@ -51,6 +80,13 @@ export async function POST(request: Request) {
       correlationId: ctx.correlationId,
       after: created,
     });
-    return jsonOk(serializeBigInt(toLegacyActiveShape(created)), ctx.correlationId, 201);
+    return jsonOk(
+      serializeBigInt({
+        ...toLegacyActiveShape(created),
+        ...(componentIds != null ? { componentIds } : {}),
+      }),
+      ctx.correlationId,
+      201,
+    );
   });
 }

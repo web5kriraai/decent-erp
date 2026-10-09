@@ -56,7 +56,7 @@ export function NotificationChannelsAdminView() {
   return (
     <ListPage
       title="Notification channels"
-      subtitle="Readiness of outbound channels. Secrets are never shown — configure values in .env and restart the app/worker."
+      subtitle="Readiness of outbound channels. Secrets are never shown - configure values in .env and restart the app/worker."
       search={{
         value: list.search,
         onChange: list.setSearch,

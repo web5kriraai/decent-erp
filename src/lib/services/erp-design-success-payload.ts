@@ -31,7 +31,7 @@ export type NormalizedDesignSuccessMetrics = {
 
 const optionalNumber = z.coerce.number().finite().optional();
 
-/** Loose Zod schema — unknown partner fields ignored; numbers coerced when present. */
+/** Loose Zod schema - unknown partner fields ignored; numbers coerced when present. */
 export const erpDesignSuccessPayloadSchema = z
   .object({
     productionQty: optionalNumber,

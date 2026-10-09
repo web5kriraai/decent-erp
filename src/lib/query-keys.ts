@@ -5,6 +5,7 @@ export const queryKeys = {
     list: (filters?: { status?: string; search?: string }) =>
       ["designs", "list", filters] as const,
     detail: (id: string) => ["designs", "detail", id] as const,
+    history: (id: string) => ["designs", "history", id] as const,
     completionSummary: (id: string) => ["designs", "completion-summary", id] as const,
     productionReadiness: (id: string) => ["designs", "production-readiness", id] as const,
     images: (id: string) => ["designs", "images", id] as const,
@@ -13,6 +14,7 @@ export const queryKeys = {
   tasks: {
     all: ["tasks"] as const,
     my: ["tasks", "my"] as const,
+    myDay: (from: string, to: string) => ["tasks", "my-day", from, to] as const,
     actionCenter: ["tasks", "action-center"] as const,
     detail: (id: string) => ["tasks", "detail", id] as const,
   },
@@ -36,7 +38,8 @@ export const queryKeys = {
     productTypesAdmin: ["masters", "product-types", "all"] as const,
     seasons: ["masters", "seasons"] as const,
     seasonsAdmin: ["masters", "seasons", "all"] as const,
-    componentTypes: ["masters", "component-types"] as const,
+    componentTypes: (scope?: number | null | "pending") =>
+      ["masters", "component-types", scope ?? "all"] as const,
     checklistItems: ["masters", "checklist-items"] as const,
     employees: ["masters", "employees"] as const,
     fabrics: ["masters", "fabrics"] as const,
@@ -74,8 +77,12 @@ export const queryKeys = {
   },
   corrections: {
     all: ["corrections"] as const,
-    list: (filters?: { designId?: string; mine?: boolean; status?: string }) =>
-      ["corrections", "list", filters] as const,
+    list: (filters?: {
+      designId?: string;
+      mine?: boolean;
+      status?: string;
+      reviewerInbox?: boolean;
+    }) => ["corrections", "list", filters] as const,
   },
   approvals: {
     pending: ["approvals", "pending"] as const,

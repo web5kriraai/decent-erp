@@ -9,13 +9,38 @@ import {
 import { enrichActionCenterTaskList, enrichActionCenterHistoricalList } from "@/lib/services/action-center-enrichment";
 import { reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
 import { resolveEffectiveTaskStatus } from "@/lib/services/workflow-stage-gate";
+import {
+  compareTasksByAssignmentThenPriority,
+  resolveEffectiveTaskPriority,
+} from "@/lib/task-priority";
+import { clampKanbanPageSize } from "@/lib/workflow-lanes";
+import { startOfUtcDay } from "@/lib/services/time-calculation";
+
+const BOARD_LANES = ["READY", "CORRECTION_REQUIRED", "RUNNING", "ON_HOLD"] as const;
+type BoardLane = (typeof BOARD_LANES)[number];
 
 const taskInclude = {
-  design: { select: { id: true, ideaRef: true, collectionName: true, priority: true } },
+  design: {
+    select: {
+      id: true,
+      ideaRef: true,
+      collectionName: true,
+      priority: true,
+      createdAtUtc: true,
+      productType: { select: { name: true, code: true } },
+      images: {
+        where: { mediaKind: "IMAGE" as const },
+        orderBy: [{ isPrimary: "desc" as const }, { uploadedAtUtc: "desc" as const }],
+        take: 1,
+        select: { storageKey: true },
+      },
+    },
+  },
   process: true,
-  subProcess: true,
+  subProcess: {
+    include: { defaultRole: { select: { id: true, code: true, name: true } } },
+  },
   assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
-  timeEvents: { orderBy: { eventTimeUtc: "asc" as const } },
 };
 
 export type ActionCenterWaitingItem = {
@@ -49,12 +74,27 @@ export type ActionCenterTask = Awaited<ReturnType<typeof prisma.designTask.findM
   waitingOnAssignee?: string | null;
 };
 
+export type ActionCenterQuery = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  priority?: string;
+  stage?: string;
+};
+
 export type ActionCenterResponse = {
   actionRequired: ActionCenterTask[];
+  /** Running or held task, even when it is not on the current page. */
+  activeTimerTask: ActionCenterTask | null;
   waitingForOthers: ActionCenterWaitingItem[];
   blocked: ActionCenterBlockedItem[];
   upcoming: ActionCenterTask[];
   completed: ActionCenterTask[];
+  stages: string[];
+  laneCounts: Record<BoardLane, number>;
+  totals: { actionRequired: number; blocked: number; upcoming: number; completed: number };
+  tabTotals: { actionRequired: number; blocked: number; upcoming: number; completed: number };
+  pagination: { page: number; pageSize: number; total: number };
 };
 
 function toDepSibling(
@@ -79,7 +119,66 @@ function toDepSibling(
   };
 }
 
-export async function getActionCenter(employeeId: number): Promise<ActionCenterResponse> {
+function boardLane(status: string): BoardLane | null {
+  if (status === "ASSIGNED" || status === "PENDING") return "READY";
+  if (status === "CORRECTION_REQUIRED") return "CORRECTION_REQUIRED";
+  if (status === "RUNNING") return "RUNNING";
+  if (status === "ON_HOLD") return "ON_HOLD";
+  return null;
+}
+
+function matchesQuery(
+  task: {
+    priority: string;
+    subProcess: { name: string };
+    design: { ideaRef: string; collectionName: string; priority?: string | null };
+  },
+  query: ActionCenterQuery,
+): boolean {
+  if (query.priority && query.priority !== "ALL") {
+    const effective = resolveEffectiveTaskPriority(task.priority, task.design.priority);
+    if (effective !== query.priority) return false;
+  }
+  if (query.stage && query.stage !== "ALL" && task.subProcess.name !== query.stage) return false;
+  const q = query.q?.trim().toLowerCase();
+  if (q) {
+    const hay = `${task.design.ideaRef} ${task.design.collectionName} ${task.subProcess.name}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function pageSlice<T>(rows: T[], page: number, pageSize: number): T[] {
+  if (rows.length <= pageSize) return rows;
+  const start = (page - 1) * pageSize;
+  return rows.slice(start, start + pageSize);
+}
+
+async function attachPageImages(
+  tasks: Array<{ design: { images?: { storageKey: string }[]; primaryImageUrl?: string | null } }>,
+) {
+  const { getPresignedDownloadUrl } = await import("@/lib/storage");
+  await Promise.all(
+    tasks.map(async (task) => {
+      const key = task.design.images?.[0]?.storageKey;
+      if (!key) {
+        task.design.primaryImageUrl = null;
+      } else {
+        try {
+          task.design.primaryImageUrl = await getPresignedDownloadUrl(key);
+        } catch {
+          task.design.primaryImageUrl = null;
+        }
+      }
+      delete task.design.images;
+    }),
+  );
+}
+
+export async function getActionCenter(
+  employeeId: number,
+  query: ActionCenterQuery = {},
+): Promise<ActionCenterResponse> {
   await reconcileEmployeeTasksReadiness(employeeId, `action-center-${employeeId}`);
 
   const myTasks = await prisma.designTask.findMany({
@@ -178,26 +277,112 @@ export async function getActionCenter(employeeId: number): Promise<ActionCenterR
     }
   }
 
-  const completedRecent = completed
-    .sort((a, b) => {
-      const aTime = a.completedAt?.getTime() ?? 0;
-      const bTime = b.completedAt?.getTime() ?? 0;
-      return bTime - aTime;
-    })
-    .slice(0, 20);
+  const completedSorted = completed.sort((a, b) => {
+    const aTime = a.completedAt?.getTime() ?? 0;
+    const bTime = b.completedAt?.getTime() ?? 0;
+    return bTime - aTime;
+  });
 
   const runningTask = actionRequired.find((t) => t.status === "RUNNING") ?? null;
+  const activeTimerTask =
+    runningTask ?? actionRequired.find((t) => t.status === "ON_HOLD") ?? null;
 
-  return {
-    actionRequired: enrichActionCenterTaskList(actionRequired, siblingsByDesign, runningTask?.id ?? null),
-    waitingForOthers: [],
-    blocked,
-    upcoming: enrichActionCenterHistoricalList(upcoming, siblingsByDesign),
-    completed: enrichActionCenterHistoricalList(completedRecent, siblingsByDesign).map((task) => ({
+  const enrichedRequired = enrichActionCenterTaskList(
+    actionRequired,
+    siblingsByDesign,
+    runningTask?.id ?? null,
+  );
+  const enrichedUpcoming = enrichActionCenterHistoricalList(upcoming, siblingsByDesign);
+  const enrichedCompleted = enrichActionCenterHistoricalList(completedSorted, siblingsByDesign).map(
+    (task) => ({
       ...task,
       canStart: false,
       startBlockedReason: undefined,
-    })),
+    }),
+  );
+
+  const stages = [
+    ...new Set(
+      [...enrichedRequired, ...enrichedUpcoming, ...enrichedCompleted, ...blocked.map((item) => ({
+        subProcess: { name: item.stage },
+      }))].map((task) => task.subProcess.name),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
+  const filteredRequired = enrichedRequired.filter((task) => matchesQuery(task, query));
+  const filteredUpcoming = enrichedUpcoming.filter((task) => matchesQuery(task, query));
+  const filteredCompleted = enrichedCompleted.filter((task) => matchesQuery(task, query));
+  const filteredBlocked = blocked.filter((item) =>
+    matchesQuery(
+      {
+        priority: item.priority ?? "MEDIUM",
+        subProcess: { name: item.stage },
+        design: {
+          ideaRef: item.design.ideaRef,
+          collectionName: item.design.collectionName,
+          priority: item.designPriority,
+        },
+      },
+      query,
+    ),
+  );
+
+  const lanes = Object.fromEntries(BOARD_LANES.map((lane) => [lane, [] as typeof filteredRequired])) as Record<
+    BoardLane,
+    typeof filteredRequired
+  >;
+  for (const task of filteredRequired) {
+    const lane = boardLane(task.status);
+    if (lane) lanes[lane].push(task);
+  }
+  for (const lane of BOARD_LANES) {
+    lanes[lane].sort(compareTasksByAssignmentThenPriority);
+  }
+
+  const laneCounts = Object.fromEntries(
+    BOARD_LANES.map((lane) => [lane, lanes[lane].length]),
+  ) as Record<BoardLane, number>;
+  const fullest = Math.max(0, ...BOARD_LANES.map((lane) => lanes[lane].length));
+  const pageSize = clampKanbanPageSize(query.pageSize ?? 10);
+  const pageCount = Math.max(1, Math.ceil(fullest / pageSize) || 1);
+  const page = Math.min(Math.max(query.page ?? 1, 1), pageCount);
+
+  const pageRequired = BOARD_LANES.flatMap((lane) => pageSlice(lanes[lane], page, pageSize));
+  const pageBlocked = pageSlice(filteredBlocked, page, pageSize);
+  const pageUpcoming = pageSlice(filteredUpcoming, page, pageSize);
+  const pageCompleted = pageSlice(filteredCompleted, page, pageSize);
+
+  const imageTasks: Array<{
+    id: bigint;
+    design: { images?: { storageKey: string }[]; primaryImageUrl?: string | null };
+  }> = [...pageRequired, ...pageUpcoming, ...pageCompleted];
+  if (activeTimerTask && !imageTasks.some((task) => task.id === activeTimerTask.id)) {
+    imageTasks.push(activeTimerTask);
+  }
+  await attachPageImages(imageTasks);
+
+  return {
+    actionRequired: pageRequired,
+    activeTimerTask,
+    waitingForOthers: [],
+    blocked: pageBlocked,
+    upcoming: pageUpcoming,
+    completed: pageCompleted,
+    stages,
+    laneCounts,
+    totals: {
+      actionRequired: actionRequired.length,
+      blocked: blocked.length,
+      upcoming: upcoming.length,
+      completed: completed.length,
+    },
+    tabTotals: {
+      actionRequired: filteredRequired.length,
+      blocked: filteredBlocked.length,
+      upcoming: filteredUpcoming.length,
+      completed: filteredCompleted.length,
+    },
+    pagination: { page, pageSize, total: fullest },
   };
 }
 
@@ -209,6 +394,7 @@ async function buildWaitingForOthersItems(employeeId: number): Promise<ActionCen
       assignedEmployeeId: employeeId,
       status: { not: "CANCELLED" },
     },
+    workdayClosed: !!workdaySession,
     orderBy: [{ dueAt: "asc" }, { priority: "desc" }],
     include: taskInclude,
   });

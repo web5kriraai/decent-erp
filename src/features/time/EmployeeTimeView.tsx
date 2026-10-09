@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { TimeMetricGrid } from "@/components/time/TaskTimeTimeline";
 import { CloseWorkdayConfirm } from "@/components/tasks/CloseWorkdayConfirm";
+import { WorkdayStatusBanner } from "@/features/time/WorkdayStatusBanner";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { DataTable } from "@/components/DataTable";
@@ -37,7 +38,7 @@ export function EmployeeTimeView() {
   const permissions = session?.user?.permissions ?? [];
   const enabled = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const summaryQuery = useMyTimeSummary(enabled);
-  const { closeWorkday, openWorkday } = useTaskMutations();
+  const { closeWorkday } = useTaskMutations();
   const [closeWorkdayOpen, setCloseWorkdayOpen] = useState(false);
 
   const data = summaryQuery.data;
@@ -78,19 +79,6 @@ export function EmployeeTimeView() {
           >
             Close Workday
           </AppButton>
-        ) : data?.workdayClosed ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status="COMPLETED" label="Workday closed" />
-            <AppButton
-              type="button"
-              appVariant="outline"
-              size="sm"
-              disabled={openWorkday.isPending}
-              onClick={() => openWorkday.mutate()}
-            >
-              {openWorkday.isPending ? "Opening…" : "Open Workday"}
-            </AppButton>
-          </div>
         ) : undefined
       }
       search={{
@@ -104,6 +92,7 @@ export function EmployeeTimeView() {
       beforeTable={
         data ? (
           <div className="my-time-today__before">
+            <WorkdayStatusBanner />
             <TimeMetricGrid
               className="time-metric-grid--today"
               activeSeconds={data.totals.activeSeconds}

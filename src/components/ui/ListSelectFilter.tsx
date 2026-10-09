@@ -1,6 +1,7 @@
 "use client";
 
 import { ListFilterField } from "@/components/ui/ListFilterField";
+import { SearchSelect } from "@/components/ui/search-select";
 import { cn } from "@/lib/utils";
 
 export type ListSelectOption = {
@@ -19,7 +20,7 @@ export type ListSelectFilterProps = {
   labelHidden?: boolean;
 };
 
-/** Compact native select for list toolbars (status, entity type, etc.). */
+/** Compact custom select for list toolbars. Search appears when the list is long. */
 export function ListSelectFilter({
   id,
   label,
@@ -36,19 +37,15 @@ export function ListSelectFilter({
       labelHidden={labelHidden}
       className={cn("list-select-filter", className)}
     >
-      <select
+      <SearchSelect
         id={id}
-        className="list-filter-control list-filter-control--select"
+        size="filter"
+        searchable
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onValueChange={onChange}
+        options={options}
         aria-label={label}
-      >
-        {options.map((opt) => (
-          <option key={opt.value || "__all"} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      />
     </ListFilterField>
   );
 }

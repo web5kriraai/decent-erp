@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { buildNotificationMessage } from "@/lib/notifications/messages";
+import { publishRealtime } from "@/lib/realtime";
 import { ROUTES } from "@/config/routes";
 import { approvalsHubHrefForRole } from "@/lib/stage-approval-rbac";
 
@@ -33,11 +34,19 @@ export async function createEmployeeNotification(
 
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
-    select: { role: { select: { code: true } } },
+    select: { companyId: true, role: { select: { code: true } } },
   });
   const href = resolveNotificationHref(eventType, payload, employee?.role?.code);
 
-  return prisma.employeeNotification.create({
+  if (href) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const existing = await prisma.employeeNotification.findFirst({
+      where: { employeeId, eventType, href, createdAtUtc: { gte: since } },
+    });
+    if (existing) return existing;
+  }
+
+  const created = await prisma.employeeNotification.create({
     data: {
       employeeId,
       eventType,
@@ -46,6 +55,27 @@ export async function createEmployeeNotification(
       href,
     },
   });
+
+  if (employee?.companyId) {
+    try {
+      await publishRealtime({
+        companyId: employee.companyId,
+        employeeIds: [employeeId],
+        topics: ["notifications"],
+      });
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "Notification realtime publish skipped",
+          employeeId,
+          error: String(error),
+        }),
+      );
+    }
+  }
+
+  return created;
 }
 
 export async function listEmployeeNotifications(employeeId: number, limit = 20) {
@@ -61,10 +91,19 @@ export async function markNotificationRead(notificationId: bigint, employeeId: n
     where: { id: notificationId, employeeId },
   });
   if (!row) return null;
+  if (row.readAtUtc) return row;
   return prisma.employeeNotification.update({
     where: { id: notificationId },
     data: { readAtUtc: new Date() },
   });
+}
+
+export async function markAllNotificationsRead(employeeId: number) {
+  const result = await prisma.employeeNotification.updateMany({
+    where: { employeeId, readAtUtc: null },
+    data: { readAtUtc: new Date() },
+  });
+  return { updated: result.count };
 }
 
 export async function countUnreadNotifications(employeeId: number) {

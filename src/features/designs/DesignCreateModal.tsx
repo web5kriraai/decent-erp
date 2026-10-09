@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -38,6 +38,8 @@ import {
   type WorkType,
 } from "@/lib/types/api";
 import { ROUTES } from "@/config/routes";
+import { isBeforeToday, todayDateInput } from "@/lib/ui/date-input";
+import { scrollToFirstFormError } from "@/lib/ui/scroll-to-form-error";
 import { filterWorkflowPatternsForProductType } from "@/lib/workflow-patterns";
 import type { TaskDateMode } from "@/lib/services/task-date-mode";
 import {
@@ -46,6 +48,7 @@ import {
   hoursToMinutes,
   type AssignmentMode,
   type ManualTaskDraft,
+  type PatternStepDraft,
 } from "@/features/designs/DesignAssignmentPanel";
 import { DesignComponentTypePicker } from "@/features/designs/DesignComponentTypePicker";
 
@@ -89,28 +92,34 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>("AUTOMATIC");
   const [workflowPatternId, setWorkflowPatternId] = useState<number | "">("");
   const [taskDateMode, setTaskDateMode] = useState<TaskDateMode>("SEQUENTIAL");
+  const [patternSteps, setPatternSteps] = useState<PatternStepDraft[]>([]);
   const [manualTasks, setManualTasks] = useState<ManualTaskDraft[]>(() => [
     emptyManualTask(0, "MEDIUM"),
   ]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [errorScrollTick, setErrorScrollTick] = useState(0);
   const [pendingMedia, setPendingMedia] = useState<PendingConceptMedia[]>([]);
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaProgress, setMediaProgress] = useState<ConceptMediaUploadProgress | null>(
     null,
   );
   const [componentTypeIds, setComponentTypeIds] = useState<number[]>([]);
+  const [createdDate] = useState(todayDateInput);
+  const [targetEndDate, setTargetEndDate] = useState("");
 
   const productTypes = useProductTypes(open);
   const seasons = useSeasons(open);
   const patterns = useWorkflowPatterns(open);
-  const componentTypes = useComponentTypes(open);
+  const componentCategoryId =
+    productTypeId === "" ? null : productTypeId;
+  const componentTypes = useComponentTypes(open, componentCategoryId);
   const styles = useMasterCatalog("STYLE", open);
   const celebrities = useMasterCatalog("CELEBRITY", open);
   const themes = useMasterCatalog("THEME", open);
   const workTypesCatalog = useMasterCatalog("WORK_TYPE", open);
   const processes = useProcessMasters(open && assignmentMode === "MANUAL");
-  const employees = useMasterEmployees(open && assignmentMode === "MANUAL");
+  const employees = useMasterEmployees(open);
 
   const workTypeOptions = useMemo(() => {
     const fromCatalog = (workTypesCatalog.data ?? [])
@@ -126,6 +135,16 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         .map((c) => ({ id: String(c.id), label: c.name })),
     [componentTypes.data, componentTypeIds],
   );
+
+  useEffect(() => {
+    if (!open) return;
+    if (productTypeId === "") {
+      setComponentTypeIds([]);
+      return;
+    }
+    const allowed = new Set((componentTypes.data ?? []).map((c) => c.id));
+    setComponentTypeIds((prev) => prev.filter((id) => allowed.has(id)));
+  }, [open, productTypeId, componentTypes.data]);
 
   const availablePatterns = useMemo(
     () => filterWorkflowPatternsForProductType(patterns.data ?? [], productTypeId),
@@ -160,11 +179,45 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
   if (!conceptNote.trim()) validationErrors.conceptNote = "Concept note is required";
+  if (!targetEndDate) validationErrors.targetEndDate = "End date is required";
+  else if (isBeforeToday(targetEndDate)) {
+    validationErrors.targetEndDate = "End date cannot be in the past";
+  }
   if (assignmentMode === "AUTOMATIC" && !effectiveWorkflowPatternId) {
     validationErrors.workflowPatternId =
       availablePatterns.length === 0
         ? "No workflow pattern available"
         : "Workflow pattern is required";
+  }
+  if (assignmentMode === "AUTOMATIC" && effectiveWorkflowPatternId) {
+    if (patternSteps.length === 0) {
+      validationErrors.patternSteps = "Set hours, due date, and priority for each workflow step";
+    }
+    patternSteps.forEach((step, index) => {
+      if (!Number(step.hours) || Number(step.hours) <= 0) {
+        validationErrors[`patternSteps.${index}.expectedMinutes`] =
+          "Hours must be greater than zero";
+      }
+      if (!step.dueDate) {
+        validationErrors[`patternSteps.${index}.dueAt`] = "Due date is required";
+      } else if (isBeforeToday(step.dueDate)) {
+        validationErrors[`patternSteps.${index}.dueAt`] = "Due date cannot be in the past";
+      } else if (targetEndDate && step.dueDate > targetEndDate) {
+        validationErrors[`patternSteps.${index}.dueAt`] = "Due date must be on or before the end date";
+      }
+      if (!step.priority) {
+        validationErrors[`patternSteps.${index}.priority`] = "Priority is required";
+      }
+      if (!step.assignedEmployeeId) {
+        validationErrors[`patternSteps.${index}.assignedEmployeeId`] = "Assign a person";
+      }
+    });
+    if (
+      Object.keys(validationErrors).some((key) => key.startsWith("patternSteps.")) &&
+      !validationErrors.patternSteps
+    ) {
+      validationErrors.patternSteps = "Complete hours, due date, and priority for each step";
+    }
   }
   if (!pendingMedia.some((item) => item.mediaKind === "IMAGE")) {
     validationErrors.productImage = "At least one product image is required";
@@ -181,6 +234,11 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
       }
       if (!task.dueDate) {
         validationErrors[`manualTasks.${index}.dueAt`] = "Due date is required";
+      } else if (isBeforeToday(task.dueDate)) {
+        validationErrors[`manualTasks.${index}.dueAt`] = "Due date cannot be in the past";
+      } else if (targetEndDate && task.dueDate > targetEndDate) {
+        validationErrors[`manualTasks.${index}.dueAt`] =
+          "Due date must be on or before the end date";
       }
       if (!task.priority) {
         validationErrors[`manualTasks.${index}.priority`] = "Priority is required";
@@ -195,6 +253,12 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   }
 
   const showErrors = attemptedSubmit;
+
+  useEffect(() => {
+    if (!errorScrollTick) return;
+    const frame = requestAnimationFrame(() => scrollToFirstFormError("design-create-modal"));
+    return () => cancelAnimationFrame(frame);
+  }, [errorScrollTick]);
   const busy = createDesign.isPending || mediaUploading;
   const ideaRefHint = `AUTO: ${session?.user?.name ? "ID" : "ID"}-${new Date().getFullYear()}-…`;
 
@@ -211,8 +275,10 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
     setAssignmentMode("AUTOMATIC");
     setWorkflowPatternId("");
     setTaskDateMode("SEQUENTIAL");
+    setPatternSteps([]);
     setManualTasks([emptyManualTask(0, "MEDIUM")]);
     setComponentTypeIds([]);
+    setTargetEndDate("");
     setFieldErrors({});
     setAttemptedSubmit(false);
     for (const item of pendingMedia) {
@@ -230,7 +296,11 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   async function handleSave() {
     setAttemptedSubmit(true);
     setFieldErrors({});
-    if (Object.keys(validationErrors).length > 0 || busy) return;
+    if (busy) return;
+    if (Object.keys(validationErrors).length > 0) {
+      setErrorScrollTick((tick) => tick + 1);
+      return;
+    }
 
     try {
       const design = await createDesign.mutateAsync({
@@ -238,6 +308,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         seasonId: Number(seasonId),
         collectionName: collectionName.trim(),
         conceptNote: conceptNote.trim(),
+        targetEndDate,
         styleName: styleName.trim() || undefined,
         workType: workType || undefined,
         trendReference: trendReference.trim() || undefined,
@@ -247,6 +318,19 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         taskDateMode: assignmentMode === "AUTOMATIC" ? taskDateMode : undefined,
         workflowPatternId:
           assignmentMode === "AUTOMATIC" ? Number(effectiveWorkflowPatternId) : undefined,
+        patternSteps:
+          assignmentMode === "AUTOMATIC"
+            ? patternSteps.map((step) => ({
+                sequence: step.sequence,
+                expectedMinutes: hoursToMinutes(step.hours),
+                dueAt: step.dueDate,
+                priority: step.priority,
+                assignedEmployeeId: step.assignedEmployeeId
+                  ? Number(step.assignedEmployeeId)
+                  : undefined,
+                instructionNote: step.note.trim() || undefined,
+              }))
+            : undefined,
         componentTypeIds: componentTypeIds.length ? componentTypeIds : undefined,
         manualTasks:
           assignmentMode === "MANUAL"
@@ -258,6 +342,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
                 assignedEmployeeId: task.assignedEmployeeId
                   ? Number(task.assignedEmployeeId)
                   : undefined,
+                instructionNote: task.note.trim() || undefined,
                 dueAt: task.dueDate,
                 priority: task.priority,
               }))
@@ -315,6 +400,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
       if (error instanceof ApiClientError && error.details) {
         setFieldErrors(getFieldErrors(error.details));
       }
+      setErrorScrollTick((tick) => tick + 1);
     }
   }
 
@@ -346,7 +432,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         </ModalFooterActions>
       }
     >
-      <ModalForm>
+      <ModalForm id="design-create-modal">
         <ModalFormGrid>
           <FormTextField
             id="createIdeaRef"
@@ -360,7 +446,11 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
             label="Product"
             required
             value={productTypeId ? String(productTypeId) : null}
-            onValueChange={(v) => setProductTypeId(v ? Number(v) : "")}
+            onValueChange={(v) => {
+              const next = v ? Number(v) : "";
+              setProductTypeId(next);
+              if (!next) setComponentTypeIds([]);
+            }}
             options={(productTypes.data ?? []).map((pt) => ({
               value: String(pt.id),
               label: pt.name,
@@ -391,6 +481,26 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
             }))}
             placeholder="Select…"
             error={showErrors ? validationErrors.seasonId : undefined}
+          />
+        </ModalFormGrid>
+        <ModalFormGrid>
+          <FormTextField
+            id="createCreatedDate"
+            label="Created"
+            type="date"
+            value={createdDate}
+            readOnly
+          />
+          <FormTextField
+            id="createEndDate"
+            label="End date"
+            required
+            type="date"
+            min={todayDateInput()}
+            value={targetEndDate}
+            onChange={(event) => setTargetEndDate(event.target.value)}
+            hint="Task due dates follow this date."
+            error={showErrors ? validationErrors.targetEndDate : undefined}
           />
         </ModalFormGrid>
         <ModalFormGrid>
@@ -458,6 +568,8 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         />
 
         <DesignComponentTypePicker
+          requiresProductType
+          productTypeSelected={productTypeId !== ""}
           options={componentTypes.data ?? []}
           value={componentTypeIds}
           onChange={(ids) => {
@@ -486,9 +598,11 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
           onManualTasksChange={setManualTasks}
           stageOptions={stageOptions}
           employees={employees.data ?? []}
+          onPatternStepsChange={setPatternSteps}
           showErrors={showErrors}
           validationErrors={validationErrors}
           fieldErrors={fieldErrors}
+          targetEndDate={targetEndDate}
         />
 
         <div className="form-section-label">

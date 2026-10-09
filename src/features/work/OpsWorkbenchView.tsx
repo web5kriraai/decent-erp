@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ListPage } from "@/components/ui/ListPage";
+import { WorkdayStatusBanner } from "@/features/time/WorkdayStatusBanner";
 import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { apiGet } from "@/lib/api-client";
@@ -82,6 +83,7 @@ export function OpsWorkbenchView({
         placeholder: "Search design, stage, owner…",
         "aria-label": "Search workbench queue",
       }}
+      beforeTable={<WorkdayStatusBanner />}
       onRefresh={() => listQuery.refetch()}
       isRefreshing={listQuery.isFetching}
       query={{
@@ -114,7 +116,7 @@ export function OpsWorkbenchView({
           {
             key: "stage",
             header: "Stage",
-            render: (row) => row.subProcess?.name ?? row.subProcess?.code ?? "—",
+            render: (row) => row.subProcess?.name ?? row.subProcess?.code ?? "-",
           },
           {
             key: "owner",
@@ -124,14 +126,14 @@ export function OpsWorkbenchView({
           {
             key: "machine",
             header: "Machine",
-            render: (row) => row.sampleMachine?.name ?? "—",
+            render: (row) => row.sampleMachine?.name ?? "-",
           },
           {
             key: "meta",
             header: "Output",
             render: (row) => {
               const preferred = pickPreferredSampleOutput(row.artifacts ?? []);
-              return formatMachineOutputSummary(preferred) ?? "—";
+              return formatMachineOutputSummary(preferred) ?? "-";
             },
           },
           {

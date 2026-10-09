@@ -11,6 +11,7 @@ import { FormSelect } from "@/components/ui/form-select";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton } from "@/components/ui/AppButton";
+import { todayDateInput } from "@/lib/ui/date-input";
 import { useUpdateDesign, useUpdateDesignTaskSchedule } from "@/hooks/use-designs";
 import {
   useDesignGrades,
@@ -378,6 +379,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
                   id={`${task.taskId}-due`}
                   label="Due Date"
                   type="date"
+                  min={todayDateInput()}
                   value={task.dueDate}
                   onChange={(e) => updateTaskDraft(task.taskId, { dueDate: e.target.value })}
                   disabled={!task.editable}

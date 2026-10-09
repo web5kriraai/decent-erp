@@ -156,7 +156,7 @@ export function ApprovalRequestPackagePanel({
         <dl className="approval-pkg-remarks approval-pkg-remarks--inline">
           <div>
             <dt>Remark</dt>
-            <dd>{requesterRemark ?? "—"}</dd>
+            <dd>{requesterRemark ?? "-"}</dd>
           </div>
           {summaryNote ? (
             <div>

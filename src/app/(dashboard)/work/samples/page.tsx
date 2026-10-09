@@ -13,6 +13,7 @@ import { apiGet, apiPatch } from "@/lib/api-client";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { useClientList } from "@/hooks/use-client-list";
 import { ROUTES } from "@/config/routes";
+import { WorkdayStatusBanner } from "@/features/time/WorkdayStatusBanner";
 
 type WorkbenchTask = {
   id: string;
@@ -111,6 +112,7 @@ export default function SampleWorkbenchPage() {
           </div>
         ) : undefined
       }
+      beforeTable={<WorkdayStatusBanner />}
       onRefresh={() => listQuery.refetch()}
       isRefreshing={listQuery.isFetching}
       query={{
@@ -143,12 +145,12 @@ export default function SampleWorkbenchPage() {
           {
             key: "stage",
             header: "Stage",
-            render: (row) => row.subProcess?.name ?? "—",
+            render: (row) => row.subProcess?.name ?? "-",
           },
           {
             key: "machine",
             header: "Machine",
-            render: (row) => row.sampleMachine?.name ?? "—",
+            render: (row) => row.sampleMachine?.name ?? "-",
           },
           {
             key: "status",

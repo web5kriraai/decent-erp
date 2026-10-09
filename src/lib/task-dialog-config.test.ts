@@ -3,10 +3,12 @@ import {
   getTaskEndDialogConfig,
   getTaskHoldDialogConfig,
   buildHandoffContextFromTask,
+  handoffTimeFromSummary,
 } from "@/lib/task-dialog-config";
 import { ROLE_CODES } from "@/lib/permissions";
 import { hasHandoffFacts } from "@/lib/handoff-context";
 import {
+  findNextPeerForHandoff,
   findPriorPeerForHandoff,
   priorSubProcessCodeForStage,
 } from "@/lib/services/stage-approval-queue";
@@ -111,12 +113,49 @@ describe("task-dialog-config", () => {
     expect(hasHandoffFacts(ctx)).toBe(true);
     expect(ctx.ideaRef).toBe("IDEA-2");
     expect(ctx.nextStepHint).toBe("");
+    expect(ctx.activeSeconds).toBeNull();
+  });
+
+  it("copies this task's recorded time into the handoff", () => {
+    const ctx = buildHandoffContextFromTask(
+      {
+        status: "RUNNING",
+        subProcess: { code: "SKETCH", name: "Sketch Creation" },
+        design: { ideaRef: "IDEA-1" },
+      },
+      handoffTimeFromSummary({ activeSeconds: 125, holdSeconds: 40 }, 60),
+    );
+    expect(ctx.status).toBe("RUNNING");
+    expect(ctx.activeSeconds).toBe(125);
+    expect(ctx.holdSeconds).toBe(40);
+    expect(ctx.expectedMinutes).toBe(60);
   });
 });
 
 describe("prior stage handoff helpers", () => {
   it("maps punch check prior to punch", () => {
     expect(priorSubProcessCodeForStage("PUNCH_CHECK")).toBe("PUNCH");
+  });
+
+  it("finds the next stage and its assignee", () => {
+    const next = findNextPeerForHandoff({ id: "sketch", sequence: 2 }, [
+      {
+        id: "sketch",
+        sequence: 2,
+        status: "RUNNING",
+        subProcess: { code: "SKETCH", name: "Sketch Creation" },
+        assignedEmployee: { name: "Ravi Sketch" },
+      },
+      {
+        id: "approve",
+        sequence: 3,
+        status: "PENDING",
+        subProcess: { code: "SKETCH_APPROVAL", name: "Sketch Approval" },
+        assignedEmployee: { name: "Priya Design Head" },
+      },
+    ]);
+    expect(next?.subProcess.name).toBe("Sketch Approval");
+    expect(next?.assignedEmployee?.name).toBe("Priya Design Head");
   });
 
   it("finds prior peer by stage map", () => {

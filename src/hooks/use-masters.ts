@@ -69,6 +69,8 @@ export type CatalogMaster = {
   description?: string | null;
   sortOrder?: number;
   masterType?: string;
+  componentIds?: number[];
+  componentNames?: string[];
 };
 
 export function useMasterCatalog(masterType: string, enabled = true, includeInactive = false) {
@@ -103,11 +105,26 @@ export type ComponentTypeMaster = {
   sortOrder?: number;
 };
 
-export function useComponentTypes(enabled = true) {
+export function useComponentTypes(
+  enabled = true,
+  productCategoryId?: number | null,
+) {
+  /** `undefined` = all components (admin); `null` = no product selected yet; number = filtered. */
+  const fetchAll = productCategoryId === undefined;
+  const hasCategory =
+    typeof productCategoryId === "number" &&
+    Number.isInteger(productCategoryId) &&
+    productCategoryId > 0;
+
   return useQuery({
-    queryKey: queryKeys.masters.componentTypes,
+    queryKey: queryKeys.masters.componentTypes(
+      fetchAll ? null : hasCategory ? productCategoryId : "pending",
+    ),
     queryFn: async () => {
-      const rows = await apiGet<CatalogMaster[]>("/api/masters/component-types");
+      const url = fetchAll
+        ? "/api/masters/component-types"
+        : `/api/masters/component-types?productCategoryId=${productCategoryId}`;
+      const rows = await apiGet<CatalogMaster[]>(url);
       return rows.map((r) => ({
         id: r.id,
         code: r.code,
@@ -116,7 +133,7 @@ export function useComponentTypes(enabled = true) {
         active: r.active ?? r.isActive ?? true,
       })) as ComponentTypeMaster[];
     },
-    enabled,
+    enabled: enabled && (fetchAll || hasCategory),
     staleTime: 10 * 60_000,
   });
 }
@@ -140,7 +157,7 @@ export function useChecklistItems(enabled = true) {
   });
 }
 
-type ProcessMaster = {
+export type ProcessMaster = {
   id: number;
   code: string;
   name: string;
@@ -177,6 +194,8 @@ export type MasterEmployee = {
   name: string;
   employeeCode: string;
   active: boolean;
+  roleId?: number;
+  role?: { id: number; code: string; name: string };
 };
 
 export function useMasterEmployees(enabled = true) {

@@ -5,6 +5,7 @@ import { Sidebar, TopBar } from "@/components/layout/DashboardShell";
 import { BreadcrumbProvider } from "@/components/layout/BreadcrumbProvider";
 import { SidebarProvider, useSidebarState } from "@/components/layout/SidebarProvider";
 import { DesignDetailModalProvider } from "@/features/designs/DesignDetailModalProvider";
+import { RealtimeProvider } from "@/components/realtime/RealtimeProvider";
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebarState();
@@ -30,9 +31,11 @@ export function DashboardLayoutClient({ children }: { children: React.ReactNode 
     <SidebarProvider>
       <BreadcrumbProvider>
         <Suspense fallback={null}>
-          <DesignDetailModalProvider>
-            <DashboardShellInner>{children}</DashboardShellInner>
-          </DesignDetailModalProvider>
+          <RealtimeProvider>
+            <DesignDetailModalProvider>
+              <DashboardShellInner>{children}</DashboardShellInner>
+            </DesignDetailModalProvider>
+          </RealtimeProvider>
         </Suspense>
       </BreadcrumbProvider>
     </SidebarProvider>

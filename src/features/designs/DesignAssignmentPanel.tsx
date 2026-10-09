@@ -1,16 +1,27 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { AppButton } from "@/components/ui/AppButton";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
-import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { FormSelect } from "@/components/ui/form-select";
+import { FormTextArea } from "@/components/ui/form-text-area";
 import { FormTextField } from "@/components/ui/form-text-field";
 import type { Priority, WorkflowPattern } from "@/lib/types/api";
-import { TASK_DATE_MODES, type TaskDateMode } from "@/lib/services/task-date-mode";
+import type { TaskDateMode } from "@/lib/services/task-date-mode";
 import { useWorkflowPatternPreview } from "@/hooks/use-masters";
 import type { MasterEmployee } from "@/hooks/use-masters";
+import { todayDateInput } from "@/lib/ui/date-input";
 
 export type AssignmentMode = "AUTOMATIC" | "MANUAL";
+
+export type PatternStepDraft = {
+  sequence: number;
+  hours: string;
+  dueDate: string;
+  priority: Priority;
+  assignedEmployeeId: number | "";
+  note: string;
+};
 
 export type ManualTaskDraft = {
   id: string;
@@ -20,6 +31,7 @@ export type ManualTaskDraft = {
   dueDate: string;
   priority: Priority;
   assignedEmployeeId: number | "";
+  note: string;
 };
 
 export type StageOption = {
@@ -36,11 +48,6 @@ const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
   { value: "URGENT", label: "Urgent" },
 ];
 
-const TASK_DATE_MODE_OPTIONS: { value: TaskDateMode; label: string }[] = [
-  { value: "SEQUENTIAL", label: "Sequential by stage" },
-  { value: "SAME_DAY", label: "Same day (all stages)" },
-];
-
 export function emptyManualTask(index: number, priority: Priority = "MEDIUM"): ManualTaskDraft {
   return {
     id: `manual-task-${index}-${Date.now()}`,
@@ -50,6 +57,7 @@ export function emptyManualTask(index: number, priority: Priority = "MEDIUM"): M
     dueDate: "",
     priority,
     assignedEmployeeId: "",
+    note: "",
   };
 }
 
@@ -75,6 +83,9 @@ type DesignAssignmentPanelProps = {
   showErrors: boolean;
   validationErrors: Record<string, string>;
   fieldErrors?: Record<string, string[]>;
+  onPatternStepsChange?: (steps: PatternStepDraft[]) => void;
+  /** Concept end date. Empty step due dates follow this value. */
+  targetEndDate?: string;
 };
 
 export function DesignAssignmentPanel({
@@ -83,7 +94,6 @@ export function DesignAssignmentPanel({
   workflowPatternId,
   onWorkflowPatternIdChange,
   taskDateMode,
-  onTaskDateModeChange,
   availablePatterns,
   designPriority,
   manualTasks,
@@ -93,6 +103,8 @@ export function DesignAssignmentPanel({
   showErrors,
   validationErrors,
   fieldErrors = {},
+  onPatternStepsChange,
+  targetEndDate = "",
 }: DesignAssignmentPanelProps) {
   const effectivePatternId =
     workflowPatternId && availablePatterns.some((p) => p.id === workflowPatternId)
@@ -107,6 +119,65 @@ export function DesignAssignmentPanel({
     designPriority,
     assignmentMode === "AUTOMATIC" && !!effectivePatternId,
   );
+  const previewRows = preview.data?.tasks ?? [];
+  const stepSignature = previewRows.map((row) => row.sequence).join(",");
+  const [patternSteps, setPatternSteps] = useState<PatternStepDraft[]>([]);
+
+  useEffect(() => {
+    if (assignmentMode !== "AUTOMATIC" || !stepSignature) {
+      setPatternSteps([]);
+      return;
+    }
+    setPatternSteps(
+      previewRows.map((row) => ({
+        sequence: row.sequence,
+        hours: "",
+        dueDate: targetEndDate,
+        priority: designPriority,
+        assignedEmployeeId: row.assignedEmployeeId ?? "",
+        note: "",
+      })),
+    );
+    // Reset schedule fields when the selected pattern steps change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignmentMode, effectivePatternId, stepSignature]);
+
+  useEffect(() => {
+    onPatternStepsChange?.(patternSteps);
+  }, [onPatternStepsChange, patternSteps]);
+
+  const appliedEndDate = useRef(targetEndDate);
+  const manualTasksRef = useRef(manualTasks);
+  manualTasksRef.current = manualTasks;
+  const onManualTasksChangeRef = useRef(onManualTasksChange);
+  onManualTasksChangeRef.current = onManualTasksChange;
+
+  useEffect(() => {
+    const previous = appliedEndDate.current;
+    if (previous === targetEndDate) return;
+    appliedEndDate.current = targetEndDate;
+    if (!targetEndDate) return;
+
+    setPatternSteps((current) =>
+      current.map((step) =>
+        !step.dueDate || step.dueDate === previous ? { ...step, dueDate: targetEndDate } : step,
+      ),
+    );
+
+    const currentManual = manualTasksRef.current;
+    const nextManual = currentManual.map((task) =>
+      !task.dueDate || task.dueDate === previous ? { ...task, dueDate: targetEndDate } : task,
+    );
+    if (nextManual.some((task, index) => task.dueDate !== currentManual[index]?.dueDate)) {
+      onManualTasksChangeRef.current(nextManual);
+    }
+  }, [targetEndDate]);
+
+  function updatePatternStep(sequence: number, patch: Partial<PatternStepDraft>) {
+    setPatternSteps((current) =>
+      current.map((step) => (step.sequence === sequence ? { ...step, ...patch } : step)),
+    );
+  }
 
   function updateManualTask(id: string, patch: Partial<ManualTaskDraft>) {
     onManualTasksChange(
@@ -128,7 +199,10 @@ export function DesignAssignmentPanel({
   }
 
   function addManualTaskRow() {
-    onManualTasksChange([...manualTasks, emptyManualTask(manualTasks.length, designPriority)]);
+    onManualTasksChange([
+      ...manualTasks,
+      { ...emptyManualTask(manualTasks.length, designPriority), dueDate: targetEndDate },
+    ]);
   }
 
   function removeManualTaskRow(id: string) {
@@ -147,7 +221,6 @@ export function DesignAssignmentPanel({
   }
 
   const selectedPattern = availablePatterns.find((p) => p.id === effectivePatternId);
-  const previewRows = preview.data?.tasks ?? [];
 
   return (
     <div className="form-grid">
@@ -197,87 +270,159 @@ export function DesignAssignmentPanel({
 
       {assignmentMode === "AUTOMATIC" && (
         <>
-          <div className="form-grid form-grid--2">
-            <FormSelect
-              id="pattern"
-              label="Design Workflow Pattern"
-              required
-              value={
-                availablePatterns.length === 0
-                  ? null
-                  : effectivePatternId
-                    ? String(effectivePatternId)
-                    : null
-              }
-              onValueChange={(v) => onWorkflowPatternIdChange(v ? Number(v) : "")}
-              options={availablePatterns.map((p) => ({
-                value: String(p.id),
-                label: `${p.name} (v${p.versionNo})${p.productType ? ` · ${p.productType.name}` : ""}`,
-              }))}
-              placeholder="Select…"
-              disabled={availablePatterns.length === 0}
-              error={
-                showErrors
-                  ? (validationErrors.workflowPatternId ?? fieldErrors.workflowPatternId?.[0])
-                  : undefined
-              }
-            />
-            <FormSelect
-              id="taskDateMode"
-              label="Task Date Calculation"
-              value={taskDateMode}
-              onValueChange={(v) =>
-                onTaskDateModeChange(
-                  TASK_DATE_MODES.includes(v as TaskDateMode)
-                    ? (v as TaskDateMode)
-                    : "SEQUENTIAL",
-                )
-              }
-              options={TASK_DATE_MODE_OPTIONS}
-            />
-          </div>
+          <FormSelect
+            id="pattern"
+            label="Design Workflow Pattern"
+            required
+            value={
+              availablePatterns.length === 0
+                ? null
+                : effectivePatternId
+                  ? String(effectivePatternId)
+                  : null
+            }
+            onValueChange={(v) => onWorkflowPatternIdChange(v ? Number(v) : "")}
+            options={availablePatterns.map((p) => ({
+              value: String(p.id),
+              label: `${p.name} (v${p.versionNo})${p.productType ? ` · ${p.productType.name}` : ""}`,
+            }))}
+            placeholder="Select…"
+            disabled={availablePatterns.length === 0}
+            error={
+              showErrors
+                ? (validationErrors.workflowPatternId ?? fieldErrors.workflowPatternId?.[0])
+                : undefined
+            }
+          />
 
           {preview.isLoading ? (
-            <p className="m-0 text-sm text-[var(--color-neutral-600)]">Loading workflow preview…</p>
+            <p className="m-0 text-sm text-muted-foreground">Loading workflow steps…</p>
           ) : previewRows.length > 0 ? (
-            <div className="workflow-preview">
-              <div className="workflow-preview__scroll">
-                <table className="workflow-preview__table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Task Stage</th>
-                      <th>Assigned Person</th>
-                      <th>Hours</th>
-                      <th>Planned Date</th>
-                      <th>Priority</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewRows.map((row) => (
-                      <tr key={`${row.sequence}-${row.subProcessId}`}>
-                        <td>{row.sequence}</td>
-                        <td>{row.stage}</td>
-                        <td>{row.assigneeName}</td>
-                        <td>{row.hours}</td>
-                        <td>{row.plannedDate}</td>
-                        <td>
-                          <PriorityBadge priority={row.priority} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="workflow-preview__note">
-                {previewRows.length} tasks will be created automatically
-                {selectedPattern ? ` from “${selectedPattern.name}”` : ""} after saving the
-                design.
+            <div className="vstack vstack--tight">
+              <p className="m-0 text-xs text-muted-foreground">
+                This design uses {selectedPattern ? `“${selectedPattern.name}”` : "the pattern"}.
+                Choose who does each step, then set hours, due date, priority, and any note.
               </p>
+              {showErrors && validationErrors.patternSteps ? (
+                <span className="form-error text-xs text-destructive">
+                  {validationErrors.patternSteps}
+                </span>
+              ) : null}
+              <div className="manual-task-list">
+                {previewRows.map((row, index) => {
+                  const draft = patternSteps.find((step) => step.sequence === row.sequence);
+                  return (
+                    <div key={`${row.sequence}-${row.subProcessId}`} className="manual-task-row">
+                      <div className="form-field">
+                        <span className="form-label">Stage</span>
+                        <p className="m-0 text-sm text-foreground">{row.stage}</p>
+                        <p className="m-0 text-xs text-muted-foreground">
+                          {row.roleName || "Role from pattern"}
+                        </p>
+                      </div>
+                      <FormSelect
+                        id={`pattern-step-${row.sequence}-person`}
+                        label="Assign person"
+                        required
+                        value={
+                          draft?.assignedEmployeeId
+                            ? String(draft.assignedEmployeeId)
+                            : null
+                        }
+                        onValueChange={(value) =>
+                          updatePatternStep(row.sequence, {
+                            assignedEmployeeId: value ? Number(value) : "",
+                          })
+                        }
+                        options={(() => {
+                          const all = employees ?? [];
+                          const forRole = all.filter(
+                            (employee) =>
+                              employee.roleId === row.roleId || employee.role?.id === row.roleId,
+                          );
+                          const people = row.roleId == null || forRole.length === 0 ? all : forRole;
+                          return people.map((employee) => ({
+                            value: String(employee.id),
+                            label: employee.name,
+                          }));
+                        })()}
+                        placeholder="Select person…"
+                        error={
+                          showErrors
+                            ? validationErrors[`patternSteps.${index}.assignedEmployeeId`]
+                            : undefined
+                        }
+                      />
+                      <FormTextField
+                        id={`pattern-step-${row.sequence}-hours`}
+                        label="Hours"
+                        required
+                        type="number"
+                        min={0.25}
+                        step="0.25"
+                        value={draft?.hours ?? ""}
+                        onChange={(event) =>
+                          updatePatternStep(row.sequence, { hours: event.target.value })
+                        }
+                        error={
+                          showErrors
+                            ? validationErrors[`patternSteps.${index}.expectedMinutes`]
+                            : undefined
+                        }
+                      />
+                      <FormTextField
+                        id={`pattern-step-${row.sequence}-due`}
+                        label="Due date"
+                        required
+                        type="date"
+                        min={todayDateInput()}
+                        max={targetEndDate || undefined}
+                        value={draft?.dueDate ?? ""}
+                        onChange={(event) =>
+                          updatePatternStep(row.sequence, { dueDate: event.target.value })
+                        }
+                        error={
+                          showErrors
+                            ? validationErrors[`patternSteps.${index}.dueAt`]
+                            : undefined
+                        }
+                      />
+                      <FormSelect
+                        id={`pattern-step-${row.sequence}-priority`}
+                        label="Priority"
+                        required
+                        value={draft?.priority ?? designPriority}
+                        onValueChange={(value) =>
+                          updatePatternStep(row.sequence, {
+                            priority: (value as Priority) || "MEDIUM",
+                          })
+                        }
+                        options={PRIORITY_OPTIONS}
+                        error={
+                          showErrors
+                            ? validationErrors[`patternSteps.${index}.priority`]
+                            : undefined
+                        }
+                      />
+                      <FormTextArea
+                        id={`pattern-step-${row.sequence}-note`}
+                        label="Note"
+                        rows={2}
+                        value={draft?.note ?? ""}
+                        onChange={(event) =>
+                          updatePatternStep(row.sequence, { note: event.target.value })
+                        }
+                        placeholder="Optional instruction for this step"
+                        fieldClassName="pattern-step-note"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
-            <p className="m-0 text-sm text-[var(--color-neutral-600)]">
-              Select a workflow pattern to preview the automatic task list.
+            <p className="m-0 text-sm text-muted-foreground">
+              Select a workflow pattern, then set hours, due date, and priority for its steps.
             </p>
           )}
         </>
@@ -371,6 +516,8 @@ export function DesignAssignmentPanel({
                     label="Due Date"
                     required
                     type="date"
+                    min={todayDateInput()}
+                    max={targetEndDate || undefined}
                     value={task.dueDate}
                     onChange={(e) => updateManualTask(task.id, { dueDate: e.target.value })}
                     error={
@@ -396,6 +543,15 @@ export function DesignAssignmentPanel({
                         ? validationErrors[`manualTasks.${index}.priority`]
                         : undefined
                     }
+                  />
+                  <FormTextArea
+                    id={`${task.id}-note`}
+                    label="Note"
+                    rows={2}
+                    value={task.note}
+                    onChange={(event) => updateManualTask(task.id, { note: event.target.value })}
+                    placeholder="Optional instruction for this task"
+                    fieldClassName="pattern-step-note"
                   />
                   <div className="manual-task-row__actions">
                     <TableIconActionGroup>

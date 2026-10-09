@@ -31,10 +31,10 @@ function TechFileRow({
 }) {
   if (!artifact) {
     return (
-      <div className="flex items-center justify-between gap-3 text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium text-muted-foreground">—</span>
-      </div>
+      <article className="file-slot">
+        <p className="file-slot-label">{label}</p>
+        <p className="file-slot-empty">Not uploaded yet</p>
+      </article>
     );
   }
 
@@ -45,60 +45,51 @@ function TechFileRow({
   const isImage = !!artifact.contentType?.startsWith("image/");
 
   return (
-    <div className="flex items-start justify-between gap-3 text-sm">
-      <div className="min-w-0">
-        <p className="m-0 text-muted-foreground">{label}</p>
-        {href && isImage && onViewImage ? (
-          <button
-            type="button"
-            className="m-0 p-0 text-left font-semibold text-foreground underline-offset-2 hover:underline"
-            onClick={() => onViewImage(href, name)}
-          >
-            {name}
-          </button>
-        ) : href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-foreground underline-offset-2 hover:underline"
-            download={artifact.fileName ?? undefined}
-          >
-            {name}
-          </a>
-        ) : (
-          <p className="m-0 font-semibold">{name}</p>
-        )}
-        {artifact.contentType ? (
-          <p className="m-0 mt-0.5 text-xs text-muted-foreground">{artifact.contentType}</p>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        {href && isImage ? (
-          <button
-            type="button"
-            className="workflow-dash-card__img-btn size-12 overflow-hidden rounded border border-border"
-            title="View full image"
-            aria-label={`View ${name}`}
-            onClick={() => onViewImage?.(href, name)}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={href} alt={name} className="size-full object-contain" />
-          </button>
-        ) : null}
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-            download={artifact.fileName ?? undefined}
-          >
-            Download
-          </a>
-        ) : null}
-      </div>
-    </div>
+    <article className="file-slot">
+      <p className="file-slot-label">{label}</p>
+      {href && isImage ? (
+        <button
+          type="button"
+          className="file-slot-preview"
+          title="View full image"
+          aria-label={`View ${name}`}
+          onClick={() => onViewImage?.(href, name)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={href} alt={name} />
+        </button>
+      ) : null}
+      {href && isImage && onViewImage ? (
+        <button type="button" className="file-slot-name" onClick={() => onViewImage(href, name)}>
+          {name}
+        </button>
+      ) : href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="file-slot-name"
+          download={artifact.fileName ?? undefined}
+        >
+          {name}
+        </a>
+      ) : (
+        <p className="file-slot-name">{name}</p>
+      )}
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="file-slot-download"
+          download={artifact.fileName ?? undefined}
+        >
+          Download
+        </a>
+      ) : (
+        <p className="file-slot-empty">File is recorded, but not available to open.</p>
+      )}
+    </article>
   );
 }
 
@@ -145,57 +136,31 @@ export function FilesPanel({
     ]);
   }
 
+  const mediaSummary = [
+    `${imageCount} ${imageCount === 1 ? "image" : "images"}`,
+    `${audioCount} ${audioCount === 1 ? "voice note" : "voice notes"}`,
+    `${videoCount} ${videoCount === 1 ? "video" : "videos"}`,
+    `${fileCount} ${fileCount === 1 ? "other file" : "other files"}`,
+  ].join(" · ");
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <AppCard title="Reference Media">
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Images</dt>
-              <dd className="font-semibold">
-                {imageCount} {imageCount === 1 ? "file" : "files"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Voice Notes</dt>
-              <dd className="font-semibold">
-                {audioCount} {audioCount === 1 ? "file" : "files"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Videos</dt>
-              <dd className="font-semibold">
-                {videoCount} {videoCount === 1 ? "file" : "files"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Other files</dt>
-              <dd className="font-semibold">
-                {fileCount} {fileCount === 1 ? "file" : "files"}
-              </dd>
-            </div>
-          </dl>
-        </AppCard>
-        <AppCard title="Technical Files">
-          <div className="space-y-3">
-            <TechFileRow
-              label="Sketch"
-              artifact={sketch}
-              onViewImage={(url, title) => setLightbox({ url, title })}
-            />
-            <TechFileRow
-              label="Wilcom"
-              artifact={punching}
-              onViewImage={(url, title) => setLightbox({ url, title })}
-            />
-            <TechFileRow
-              label="Machine"
-              artifact={machine}
-              onViewImage={(url, title) => setLightbox({ url, title })}
-            />
-          </div>
-        </AppCard>
-      </div>
+      <AppCard
+        title="Photos and notes"
+        description={mediaSummary}
+      >
+        <ImageGallery
+          designId={design.id}
+          canUpload={!!canUpload}
+          showUploader={false}
+          showActions={false}
+          highlightImageId={highlightImageId}
+          components={(design.components ?? []).map((component) => ({
+            id: component.id,
+            label: component.componentType?.name ?? "Component",
+          }))}
+        />
+      </AppCard>
 
       {canUpload ? (
         <ConceptMediaPanel
@@ -205,13 +170,27 @@ export function FilesPanel({
         />
       ) : null}
 
-      <AppCard title="Media library" description="Preview, play, and download concept media.">
-        <ImageGallery
-          designId={design.id}
-          canUpload={!!canUpload}
-          showUploader={false}
-          highlightImageId={highlightImageId}
-        />
+      <AppCard
+        title="Stage files"
+        description="Sketch, Wilcom punch file, and machine output. Each one appears after that stage uploads it."
+      >
+        <div className="file-slot-grid">
+          <TechFileRow
+            label="Sketch"
+            artifact={sketch}
+            onViewImage={(url, title) => setLightbox({ url, title })}
+          />
+          <TechFileRow
+            label="Wilcom"
+            artifact={punching}
+            onViewImage={(url, title) => setLightbox({ url, title })}
+          />
+          <TechFileRow
+            label="Machine"
+            artifact={machine}
+            onViewImage={(url, title) => setLightbox({ url, title })}
+          />
+        </div>
       </AppCard>
 
       <ImageLightboxModal

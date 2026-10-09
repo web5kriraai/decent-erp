@@ -143,7 +143,7 @@ export function KpiBenchmarkView() {
           </h2>
           <p className="text-sm text-muted-foreground mb-3">
             {data?.employeeCount ?? 0} employees · team avg weighted{" "}
-            <strong>{data?.teamAverageWeighted ?? "—"}</strong>
+            <strong>{data?.teamAverageWeighted ?? "-"}</strong>
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -160,9 +160,9 @@ export function KpiBenchmarkView() {
                 {(data?.metrics ?? []).map((m) => (
                   <tr key={m.metricCode} className="border-t">
                     <td className="p-2">{m.label}</td>
-                    <td className="p-2 text-right">{m.average ?? "—"}</td>
-                    <td className="p-2 text-right">{m.p50 ?? "—"}</td>
-                    <td className="p-2 text-right">{m.p90 ?? "—"}</td>
+                    <td className="p-2 text-right">{m.average ?? "-"}</td>
+                    <td className="p-2 text-right">{m.p50 ?? "-"}</td>
+                    <td className="p-2 text-right">{m.p90 ?? "-"}</td>
                     <td className="p-2 text-right">{m.sampleSize}</td>
                   </tr>
                 ))}
@@ -194,7 +194,7 @@ export function KpiBenchmarkView() {
                     <td className="p-2 text-right">{e.weightedTotal}</td>
                     <td className="p-2 text-right">
                       {e.vsTeamAvg == null
-                        ? "—"
+                        ? "-"
                         : e.vsTeamAvg > 0
                           ? `+${e.vsTeamAvg}`
                           : e.vsTeamAvg}

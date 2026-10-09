@@ -49,7 +49,7 @@ export function FormTextArea({
         required={required}
         aria-required={required || undefined}
         aria-invalid={error ? true : undefined}
-        className={cn("resize-none", className)}
+        className={cn("field-sizing-fixed resize-none", className)}
         disabled={disabled}
         onKeyDown={handleKeyDown}
         {...props}

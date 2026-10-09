@@ -155,7 +155,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
     code: ROLE_CODES.MANAGEMENT,
     displayName: "Management (Owner)",
     summary:
-      "Business owner / executive — final approve, Live Review, KPIs, and read-only oversight.",
+      "Business owner / executive - final approve, Live Review, KPIs, and read-only oversight.",
     responsibilities: [
       "Complete Live Design Review stage after production release",
       "View KPI, team time reports, and costing summaries",

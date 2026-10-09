@@ -10,7 +10,11 @@ import {
   type UploadCategory,
   validateUploadFileClient,
 } from "@/lib/file-upload-policy";
-import { isMachineOutputTask, artifactsIncludeMachineMetrics } from "@/lib/services/task-machine-output-utils";
+import {
+  hasDigitizingMetrics,
+  hasSampleQuantity,
+  isMachineOutputTask,
+} from "@/lib/services/task-machine-output-utils";
 import { cn } from "@/lib/utils";
 import { IconFile, IconLoader2, IconUploadCloud } from "@/components/icons";
 
@@ -327,14 +331,22 @@ export function useTaskHasFiles(taskId: string, designId: string, enabled = true
   };
 }
 
-export function useTaskHasMachineMetrics(taskId: string, enabled = true) {
+export function useTaskHasMachineMetrics(
+  taskId: string,
+  enabled = true,
+  kind: "digitizing" | "sample" = "sample",
+) {
   const artifactsQuery = useQuery({
     queryKey: ["tasks", taskId, "artifacts"],
     queryFn: () => apiGet<TaskArtifact[]>(`/api/tasks/${taskId}/artifacts`),
     enabled: enabled && !!taskId,
   });
 
-  const hasMetrics = artifactsIncludeMachineMetrics(artifactsQuery.data ?? []);
+  const rows = artifactsQuery.data ?? [];
+  const hasMetrics =
+    kind === "digitizing"
+      ? rows.some((row) => row.artifactType === "PUNCHING_FILE" && hasDigitizingMetrics(row))
+      : rows.some((row) => row.artifactType === "SAMPLE_OUTPUT" && hasSampleQuantity(row));
 
   return {
     hasMetrics,

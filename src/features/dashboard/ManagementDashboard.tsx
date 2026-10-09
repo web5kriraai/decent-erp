@@ -11,6 +11,7 @@ import {
 } from "@/lib/stage-approval-rbac";
 import { useManagementWorkbench } from "@/hooks/use-workbench";
 import { useConceptTargets } from "@/hooks/use-masters";
+import { RoleDayScore } from "@/features/dashboard/RoleDayScore";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -48,6 +49,7 @@ export function ManagementDashboard() {
       }}
     >
       <div className="workbench-overview">
+        <RoleDayScore />
         <div className="stat-grid workbench-pulse">
           <StatCard label="Approved - production queue" value={summary?.approvedCount ?? 0} />
           <StatCard label="Released to production" value={summary?.releasedCount ?? 0} />

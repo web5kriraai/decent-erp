@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler, ApiError } from "@/lib/api-utils";
-import { PERMISSIONS } from "@/lib/permissions";
+import { hasAssignManualPermission, PERMISSIONS } from "@/lib/permissions";
 import { assignTask } from "@/lib/services/task-service";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -10,7 +10,13 @@ const schema = z.object({
 });
 
 export async function PATCH(request: Request, context: RouteContext) {
-  return withApiHandler(PERMISSIONS.DESIGN_ASSIGN, async (ctx) => {
+  return withApiHandler(null, async (ctx) => {
+    if (
+      !hasAssignManualPermission(ctx.permissions) &&
+      !ctx.permissions.includes(PERMISSIONS.DESIGN_REASSIGN)
+    ) {
+      throw new ApiError("You do not have permission to assign tasks", 403);
+    }
     const { id } = await context.params;
     if (!/^\d+$/.test(id)) throw new ApiError("Invalid task id", 400);
     const body = await parseBody(request, schema);

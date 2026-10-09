@@ -6,11 +6,12 @@ import { IconCosting } from "@/components/icons";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
+import { resolveListItemDisplayStatus, taskCardDetailLines } from "@/lib/task-action-display";
 import { ROUTES } from "@/config/routes";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { useDesignsList } from "@/hooks/use-designs";
 import { useMyTimeSummary } from "@/hooks/use-time";
+import { RoleDayScore } from "@/features/dashboard/RoleDayScore";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -87,6 +88,7 @@ export function CostingTeamDashboard() {
       }}
     >
       <div className="workbench-overview">
+        <RoleDayScore />
         <div className="stat-grid workbench-pulse">
           <StatCard label="My costing tasks" value={costingTasks.length} />
           <StatCard label="Awaiting approval" value={checkingTasks.length} />
@@ -121,6 +123,7 @@ export function CostingTeamDashboard() {
                     primaryHref={ROUTES.work.taskDetail(task.id)}
                     primaryLabel={`${task.design.ideaRef} · ${task.subProcess.name}`}
                     meta={task.design.collectionName}
+                    detail={taskCardDetailLines(task).join(" · ")}
                     trailing={<StatusBadge status={resolveListItemDisplayStatus(task)} />}
                   />
                 ))}

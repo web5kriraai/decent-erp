@@ -44,8 +44,8 @@ WeightedScore = SUM(MetricScore * WeightPercent / 100)
   ledger, and live `marksBalance`.
 
 ## Design contribution
-- `GET /api/designs/{id}/kpi-contribution` — per-contributor score breakdown on a design.
-- `POST /api/designs/{id}/creativity-ratings` — Design Head creativity/design-quality
+- `GET /api/designs/{id}/kpi-contribution` - per-contributor score breakdown on a design.
+- `POST /api/designs/{id}/creativity-ratings` - Design Head creativity/design-quality
   rating (`employeeId`, `score`, optional `remark`); feeds creativity KPI + marks.
 
 ## Design Head rollups

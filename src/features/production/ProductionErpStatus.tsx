@@ -96,7 +96,7 @@ export function ProductionErpHandoffsSection({
       className="production-desk-secondary-card overflow-visible"
       description={
         allLocal
-          ? "Simulated LOCAL sync — partner posts are stubbed until ERP_API_BASE_URL is set."
+          ? "Simulated LOCAL sync - partner posts are stubbed until ERP_API_BASE_URL is set."
           : "Sync status for modules pushed after production release."
       }
       headerAction={
@@ -179,7 +179,7 @@ export function ProductionErpHandoffsSection({
               row.payload?.error ? (
                 <span className="text-xs text-destructive">{row.payload.error}</span>
               ) : (
-                <span className="text-muted-foreground">—</span>
+                <span className="text-muted-foreground">-</span>
               ),
           },
           {

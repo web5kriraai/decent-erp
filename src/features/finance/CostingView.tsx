@@ -26,7 +26,7 @@ import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
 import { useClientList } from "@/hooks/use-client-list";
 
 function formatInr(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) return "—";
+  if (value == null || Number.isNaN(value)) return "-";
   return `₹${value.toFixed(2)}`;
 }
 
@@ -170,7 +170,7 @@ export function CostingView() {
               { value: "", label: "Choose a design…" },
               ...(designsQuery.data?.items ?? []).map((d) => ({
                 value: d.id,
-                label: `${d.ideaRef} — ${d.collectionName}`,
+                label: `${d.ideaRef} - ${d.collectionName}`,
               })),
             ]}
             className="costing-page__design-filter"
@@ -195,7 +195,7 @@ export function CostingView() {
                 <div className="costing-metric">
                   <span className="costing-metric__label">Total</span>
                   <span className="costing-metric__value">
-                    {summary ? formatInr(summary.totalDevCost) : "—"}
+                    {summary ? formatInr(summary.totalDevCost) : "-"}
                   </span>
                 </div>
                 <div className="costing-metric">
@@ -230,7 +230,7 @@ export function CostingView() {
                       <span className="costing-type-chip__share">
                         {summary && summary.totalDevCost > 0
                           ? `${((Number(typeAmount) / summary.totalDevCost) * 100).toFixed(0)}%`
-                          : "—"}
+                          : "-"}
                       </span>
                     </span>
                   ))}
@@ -410,12 +410,12 @@ export function CostingView() {
                 {
                   key: "costCategory",
                   header: "Category",
-                  render: (r) => r.costCategory?.replace(/_/g, " ") ?? "—",
+                  render: (r) => r.costCategory?.replace(/_/g, " ") ?? "-",
                 },
                 {
                   key: "description",
                   header: "Description",
-                  render: (r) => r.description ?? "—",
+                  render: (r) => r.description ?? "-",
                 },
                 {
                   key: "amount",

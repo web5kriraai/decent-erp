@@ -7,7 +7,13 @@ import {
 } from "@/lib/api-utils";
 import { DESIGN_LIST_VIEW_PERMISSIONS } from "@/lib/design-access";
 import { createDesignWithTasks, listDesigns } from "@/lib/services/design-service";
-import { PERMISSIONS } from "@/lib/permissions";
+import {
+  hasAssignAutoPermission,
+  hasAssignManualPermission,
+  PERMISSIONS,
+} from "@/lib/permissions";
+import { ApiError } from "@/lib/api-utils";
+import { isBeforeToday } from "@/lib/ui/date-input";
 
 const createDesignSchema = z
   .object({
@@ -26,10 +32,23 @@ const createDesignSchema = z
     machineId: z.number().int().positive().optional(),
     stitchingTypeId: z.number().int().positive().optional(),
     estimatedCost: z.number().nonnegative().optional(),
+    targetEndDate: z.string().min(1).optional(),
     assignmentMode: z.enum(["AUTOMATIC", "MANUAL"]),
     workflowPatternId: z.number().int().optional(),
     taskDateMode: z
       .enum(["SEQUENTIAL", "SAME_DAY"])
+      .optional(),
+    patternSteps: z
+      .array(
+        z.object({
+          sequence: z.number().int().positive(),
+          expectedMinutes: z.number().int().positive(),
+          dueAt: z.string().min(1),
+          priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
+          assignedEmployeeId: z.number().int().positive().optional(),
+          instructionNote: z.string().trim().max(2000).optional(),
+        }),
+      )
       .optional(),
     componentTypeIds: z.array(z.number().int().positive()).optional(),
     componentSpecs: z.record(z.string(), z.string()).optional(),
@@ -42,17 +61,59 @@ const createDesignSchema = z
           assignedEmployeeId: z.number().int().optional(),
           sequence: z.number().int().optional(),
           dueAt: z.string().min(1).optional(),
+          instructionNote: z.string().trim().max(2000).optional(),
           priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
         }),
       )
       .optional(),
   })
   .superRefine((body, ctx) => {
+    const endDay = body.targetEndDate?.slice(0, 10);
+    if (body.targetEndDate) {
+      const endDate = new Date(body.targetEndDate);
+      if (Number.isNaN(endDate.getTime())) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["targetEndDate"],
+          message: "End date is invalid",
+        });
+      } else if (isBeforeToday(body.targetEndDate)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["targetEndDate"],
+          message: "End date cannot be in the past",
+        });
+      }
+    }
     if (body.assignmentMode === "AUTOMATIC" && !body.workflowPatternId) {
       ctx.addIssue({
         code: "custom",
         path: ["workflowPatternId"],
         message: "Workflow pattern is required for automatic assignment",
+      });
+    }
+    if (body.assignmentMode === "AUTOMATIC" && body.patternSteps?.length) {
+      body.patternSteps.forEach((step, index) => {
+        const parsed = new Date(step.dueAt);
+        if (Number.isNaN(parsed.getTime())) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["patternSteps", index, "dueAt"],
+            message: "Due date is invalid",
+          });
+        } else if (isBeforeToday(step.dueAt)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["patternSteps", index, "dueAt"],
+            message: "Due date cannot be in the past",
+          });
+        } else if (endDay && step.dueAt.slice(0, 10) > endDay) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["patternSteps", index, "dueAt"],
+            message: "Due date must be on or before the end date",
+          });
+        }
       });
     }
     if (
@@ -102,6 +163,18 @@ const createDesignSchema = z
               path: ["manualTasks", index, "dueAt"],
               message: "Due date is invalid",
             });
+          } else if (isBeforeToday(task.dueAt)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["manualTasks", index, "dueAt"],
+              message: "Due date cannot be in the past",
+            });
+          } else if (endDay && task.dueAt.slice(0, 10) > endDay) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["manualTasks", index, "dueAt"],
+              message: "Due date must be on or before the end date",
+            });
           }
         }
         if (!task.priority) {
@@ -118,6 +191,12 @@ const createDesignSchema = z
 export async function POST(request: Request) {
   return withApiHandler(PERMISSIONS.DESIGN_CREATE, async (ctx) => {
     const body = await parseBody(request, createDesignSchema);
+    if (body.assignmentMode === "AUTOMATIC" && !hasAssignAutoPermission(ctx.permissions)) {
+      throw new ApiError("Automatic workflow assignment is not permitted for your role", 403);
+    }
+    if (body.assignmentMode === "MANUAL" && !hasAssignManualPermission(ctx.permissions)) {
+      throw new ApiError("Manual task assignment is not permitted for your role", 403);
+    }
     const design = await createDesignWithTasks(
       {
         ...body,

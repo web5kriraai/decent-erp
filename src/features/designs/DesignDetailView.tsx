@@ -182,31 +182,38 @@ export function DesignDetailView({
                 }
                 sampleOutcome={isFinalApproval ? sampleOutcomeForFinal : undefined}
               />
-            ) : (
-              <CompactDesignActions
-                design={designQuery.data}
-                permissions={permissions}
-                employeeId={employeeId}
-                roleCode={roleCode}
-                onAssignTask={(taskId) => {
-                  const task = designQuery.data.tasks?.find((t) => t.id === taskId);
-                  if (task) setAssignTask(task);
-                }}
-              />
-            )}
+            ) : null}
 
             <DesignWorkflowPanel
               design={designQuery.data}
               designId={designId}
               canAssign={canAssign}
+              viewerEmployeeId={employeeId}
+              viewerPermissions={permissions}
+              viewerRoleCode={roleCode}
               onAssignTask={setAssignTask}
               headerActions={
-                canOverrideWorkflow ? (
-                  <WorkflowOverrideActions
-                    designId={designId}
-                    design={designQuery.data}
-                  />
-                ) : null
+                <>
+                  {pendingStageApproval ? null : (
+                    <CompactDesignActions
+                      plain
+                      design={designQuery.data}
+                      permissions={permissions}
+                      employeeId={employeeId}
+                      roleCode={roleCode}
+                      onAssignTask={(taskId) => {
+                        const task = designQuery.data?.tasks?.find((t) => t.id === taskId);
+                        if (task) setAssignTask(task);
+                      }}
+                    />
+                  )}
+                  {canOverrideWorkflow ? (
+                    <WorkflowOverrideActions
+                      designId={designId}
+                      design={designQuery.data}
+                    />
+                  ) : null}
+                </>
               }
             />
 
@@ -223,12 +230,12 @@ export function DesignDetailView({
               enabled={canViewCompletion}
             />
 
-            <AppCard title="Design detail" id="design-files">
+            <AppCard id="design-files" contentClassName="design-detail-tabs">
               <DesignDetailTabsBody
                 designId={designId}
                 tab={detailTab}
                 onTabChange={setDetailTab}
-                compactHero
+                layout="page"
               />
             </AppCard>
 

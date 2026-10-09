@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DataTable } from "@/components/DataTable";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { FormSelect } from "@/components/ui/form-select";
@@ -9,12 +10,19 @@ import { ModalForm, ModalFormGrid } from "@/components/ui/Modal";
 import { useAddCostEntry, useDesignCosts } from "@/hooks/use-costing";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useSession } from "next-auth/react";
-import type { DesignSummary } from "@/lib/types/api";
+import type { DesignCostRecord, DesignSummary } from "@/lib/types/api";
 
 function inr(n: number | null | undefined) {
-  if (n == null || Number.isNaN(n)) return "—";
+  if (n == null || Number.isNaN(n)) return "Not entered";
   return `₹${Math.round(n).toLocaleString("en-IN")}`;
 }
+
+const COST_TYPE_LABEL: Record<string, string> = {
+  TIME: "Employee",
+  MATERIAL: "Material",
+  MACHINE: "Machine",
+  CORRECTION: "Correction",
+};
 
 export function CostingPanel({ design }: { design: DesignSummary }) {
   const { data: session } = useSession();
@@ -29,6 +37,8 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
   const [description, setDescription] = useState("");
 
   const summary = costsQuery.data?.summary;
+  const entries = costsQuery.data?.costs ?? [];
+  const hasEntries = (summary?.entryCount ?? entries.length) > 0;
   const byType = summary?.byType ?? {};
   const byCategory = summary?.byCategory ?? {};
   const employeeEst = (byCategory.SALARY ?? 0) || (byType.TIME ?? 0) || 0;
@@ -64,54 +74,94 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
     setDescription("");
   }
 
+  const money = (n: number) => (hasEntries && n > 0 ? inr(n) : "Not entered");
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <AppCard title="Estimated">
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Employee</dt>
-              <dd className="font-medium">{inr(employeeEst || null)}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Material</dt>
-              <dd className="font-medium">{inr(materialEst || null)}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Machine</dt>
-              <dd className="font-medium">{inr(machineEst || null)}</dd>
-            </div>
-            {estimated != null ? (
-              <div className="flex justify-between gap-3 border-t border-border pt-2">
-                <dt className="text-muted-foreground">Baseline</dt>
-                <dd className="font-semibold">{inr(estimated)}</dd>
+      <AppCard
+        title="Development cost"
+        description="Money spent to develop this design: employee time, cloth and trims, machine time, and extra cost when a sample is corrected. Margin compares that total with the baseline estimate."
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <p className="m-0 mb-2 text-sm font-semibold text-foreground">Estimated</p>
+            <dl className="design-detail-facts">
+              <div>
+                <dt>Employee</dt>
+                <dd>{money(employeeEst)}</dd>
               </div>
-            ) : null}
-          </dl>
+              <div>
+                <dt>Material</dt>
+                <dd>{money(materialEst)}</dd>
+              </div>
+              <div>
+                <dt>Machine</dt>
+                <dd>{money(machineEst)}</dd>
+              </div>
+              <div>
+                <dt>Baseline</dt>
+                <dd>{estimated != null ? inr(estimated) : "Not set"}</dd>
+              </div>
+            </dl>
+          </div>
+          <div>
+            <p className="m-0 mb-2 text-sm font-semibold text-foreground">Actual</p>
+            <dl className="design-detail-facts">
+              <div>
+                <dt>Total cost</dt>
+                <dd>{hasEntries ? inr(total) : "Not entered"}</dd>
+              </div>
+              <div>
+                <dt>Correction cost</dt>
+                <dd>{hasEntries && correctionCost > 0 ? inr(correctionCost) : "Not entered"}</dd>
+              </div>
+              <div>
+                <dt>Margin</dt>
+                <dd>{margin != null ? `${margin}%` : "Not entered"}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+        {!hasEntries ? (
+          <p className="m-0 mt-3 text-sm text-muted-foreground">
+            Nothing has been costed yet. Figures appear when work is logged, or when the costing team adds an entry.
+          </p>
+        ) : null}
+      </AppCard>
+
+      {hasEntries ? (
+        <AppCard title="Cost entries" flush>
+          <DataTable<DesignCostRecord & Record<string, unknown>>
+            flush
+            columns={[
+              {
+                key: "costType",
+                header: "Type",
+                render: (row) => COST_TYPE_LABEL[row.costType] ?? row.costType,
+              },
+              {
+                key: "description",
+                header: "Note",
+                render: (row) => row.description?.trim() || "-",
+              },
+              {
+                key: "amount",
+                header: "Amount",
+                align: "right",
+                render: (row) => inr(row.amount),
+              },
+              {
+                key: "enteredBy",
+                header: "Entered by",
+                render: (row) => row.enteredBy?.name ?? "-",
+              },
+            ]}
+            rows={entries as (DesignCostRecord & Record<string, unknown>)[]}
+            getRowKey={(row) => row.id}
+            emptyTitle="No cost entries"
+          />
         </AppCard>
-        <AppCard title="Actual">
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Total Cost</dt>
-              <dd className="font-medium">{inr(total)}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Correction Cost</dt>
-              <dd className="font-medium">{inr(correctionCost)}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Margin</dt>
-              <dd
-                className={`font-semibold ${
-                  margin != null && margin >= 0 ? "text-emerald-600" : "text-destructive"
-                }`}
-              >
-                {margin != null ? `${margin}%` : "—"}
-              </dd>
-            </div>
-          </dl>
-        </AppCard>
-      </div>
+      ) : null}
 
       {canCost && !open ? (
         <AppButton type="button" appVariant="primary" size="sm" onClick={() => setOpen(true)}>

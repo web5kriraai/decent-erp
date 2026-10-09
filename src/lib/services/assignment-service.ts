@@ -35,6 +35,9 @@ const OPEN_WORKLOAD_STATUSES = [
 export type ResolveAssigneeOptions = {
   /** Optional skill gate (spec §6.2 SkillId). When set, only employees with this skill are eligible. */
   skillId?: number | null;
+  companyId?: number;
+  productTypeId?: number;
+  subProcessCode?: string;
   /** Prefer not to reuse these employees within the same generation batch (round-robin). */
   excludeEmployeeIds?: number[];
   /** Virtual open-task counts already assigned in this batch (employeeId → count). */
@@ -51,9 +54,39 @@ export async function resolveEmployeeForRole(
   options?: ResolveAssigneeOptions,
 ): Promise<number | null> {
   const db = options?.tx ?? prisma;
-  const skillId = options?.skillId ?? null;
+  let skillId = options?.skillId ?? null;
   const exclude = new Set(options?.excludeEmployeeIds ?? []);
   const delta = options?.workloadDelta;
+
+  if (options?.companyId != null) {
+    const { findActiveAssignmentRule } = await import(
+      "@/lib/services/assignment-rule-service"
+    );
+    const rule = await findActiveAssignmentRule(options.companyId, {
+      productTypeId: options.productTypeId,
+      subProcessCode: options.subProcessCode,
+    });
+    const criteria = (rule?.criteriaJson ?? {}) as {
+      preferredEmployeeId?: number;
+      skillId?: number;
+    };
+    if (criteria.preferredEmployeeId != null) {
+      const preferred = await db.employee.findFirst({
+        where: {
+          id: criteria.preferredEmployeeId,
+          roleId,
+          active: true,
+        },
+        select: { id: true },
+      });
+      if (preferred && !exclude.has(preferred.id)) {
+        return preferred.id;
+      }
+    }
+    if (criteria.skillId != null && skillId == null) {
+      skillId = criteria.skillId;
+    }
+  }
 
   const candidates = await db.employee.findMany({
     where: {
@@ -139,12 +172,17 @@ export async function resolveEmployeesForRoles(
 export type PatternAssigneeInput = {
   defaultRoleId: number;
   defaultSkillId?: number | null;
+  subProcessCode?: string | null;
 };
 
 /** Per-task resolution preserving skill + in-batch load balancing. */
 export async function resolveAssigneesForPatternTasks(
   tasks: PatternAssigneeInput[],
-  options?: { tx?: Prisma.TransactionClient | typeof prisma },
+  options?: {
+    tx?: Prisma.TransactionClient | typeof prisma;
+    companyId?: number;
+    productTypeId?: number;
+  },
 ): Promise<Array<number | null>> {
   const workloadDelta = new Map<number, number>();
   const result: Array<number | null> = [];
@@ -153,6 +191,9 @@ export async function resolveAssigneesForPatternTasks(
       skillId: task.defaultSkillId,
       workloadDelta,
       tx: options?.tx,
+      companyId: options?.companyId,
+      productTypeId: options?.productTypeId,
+      subProcessCode: task.subProcessCode ?? undefined,
     });
     result.push(assignee);
     if (assignee != null) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignListResponse, DesignSummary, CreateDesignPayload, DesignCompletionSummary, DesignTaskScheduleUpdatePayload, DesignWorkflowDashboardResponse } from "@/lib/types/api";
@@ -14,20 +14,40 @@ export function useDesignsList(enabled = true) {
   });
 }
 
-export function useDesign(id: string, enabled = true, options?: { refetchInterval?: number | false }) {
+export function useDesign(id: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.designs.detail(id),
     queryFn: () => apiGet<DesignSummary>(`/api/designs/${id}`),
     enabled: enabled && !!id,
-    refetchInterval: options?.refetchInterval,
   });
 }
 
-export function useDesignKanban(enabled = true) {
+export type DesignKanbanQuery = {
+  page: number;
+  pageSize: number;
+  q: string;
+  product: string;
+  seasonId: string;
+  owner: string;
+  priority: string;
+};
+
+export function useDesignKanban(params: DesignKanbanQuery, enabled = true) {
+  const search = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+    q: params.q,
+    product: params.product,
+    seasonId: params.seasonId,
+    owner: params.owner,
+    priority: params.priority,
+  });
   return useQuery({
-    queryKey: queryKeys.designs.kanban,
-    queryFn: () => apiGet<DesignWorkflowDashboardResponse>("/api/designs/kanban"),
+    queryKey: [...queryKeys.designs.kanban, params],
+    queryFn: () =>
+      apiGet<DesignWorkflowDashboardResponse>(`/api/designs/kanban?${search.toString()}`),
     enabled,
+    placeholderData: keepPreviousData,
   });
 }
 

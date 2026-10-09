@@ -146,7 +146,7 @@ export function AudioRecorder({
         mediaKind: "AUDIO",
         previewUrl: previewUrl ?? URL.createObjectURL(previewBlob),
       });
-      // Keep previewUrl ownership with pending item — don't revoke here.
+      // Keep previewUrl ownership with pending item - don't revoke here.
       setPreviewUrl(null);
       setPreviewBlob(null);
       setSeconds(0);

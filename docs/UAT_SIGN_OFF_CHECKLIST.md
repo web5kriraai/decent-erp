@@ -1,4 +1,4 @@
-# UAT Sign-off Checklist — E2E Prototype Parity + Master Catalog
+# UAT Sign-off Checklist - E2E Prototype Parity + Master Catalog
 
 Use after migrate + seed (`npx prisma migrate deploy` && `npx prisma db seed`).
 
@@ -7,7 +7,7 @@ Use after migrate + seed (`npx prisma migrate deploy` && `npx prisma db seed`).
 - [ ] Admin → Master Data → Master Catalog shows grouped tile grid (product, materials, specs, quality, related)
 - [ ] Hub search filters master types; record counts load via `?summary=1`
 - [ ] Deep link `?tab=catalog&type=SEASON` (or other type) opens that master list; Back clears `type`
-- [ ] Open Product Category / Season / Fabric / Machine / Correction Type — create + deactivate works
+- [ ] Open Product Category / Season / Fabric / Machine / Correction Type - create + deactivate works
 - [ ] Detail view filter by code/name and Active / Inactive works
 - [ ] New Design form: product, season, fabric, machine, stitching, grade, style, theme, celebrity, work type from catalog
 - [ ] Component types selectable with per-component specs saved on create

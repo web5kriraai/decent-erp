@@ -24,12 +24,13 @@ export type RaiseCorrectionPayload = {
 };
 
 export function useCorrections(
-  filters?: { designId?: string; status?: string },
+  filters?: { designId?: string; status?: string; reviewerInbox?: boolean },
   enabled = true,
 ) {
   const params = new URLSearchParams();
   if (filters?.designId) params.set("designId", filters.designId);
   if (filters?.status) params.set("status", filters.status);
+  if (filters?.reviewerInbox) params.set("reviewerInbox", "true");
   const qs = params.toString();
 
   return useQuery({

@@ -29,7 +29,7 @@ export function FormField({
         <Label htmlFor={id} className="inline-flex items-center gap-1">
           <span>{label}</span>
           {required ? (
-            <>
+            <span className="relative inline-flex">
               <span
                 className="font-semibold text-[var(--color-danger)]"
                 aria-hidden="true"
@@ -37,7 +37,7 @@ export function FormField({
                 *
               </span>
               <span className="sr-only">(required)</span>
-            </>
+            </span>
           ) : null}
         </Label>
       ) : null}

@@ -5,8 +5,12 @@ import {
 import { isProductionPostApprovalCode } from "@/lib/services/production-workflow";
 import { isStageApprovalCode } from "@/lib/stage-approval-rbac";
 
-/** Statuses where a manager may (re)assign an employee. */
-export const WORKFLOW_ASSIGNABLE_STATUSES = new Set(["PENDING", "ASSIGNED"]);
+/** Statuses where a manager may (re)assign an employee. Rework stays assignable so a correction can be sent to another person. */
+export const WORKFLOW_ASSIGNABLE_STATUSES = new Set([
+  "PENDING",
+  "ASSIGNED",
+  "CORRECTION_REQUIRED",
+]);
 
 export type StageGateTask = {
   id: string;

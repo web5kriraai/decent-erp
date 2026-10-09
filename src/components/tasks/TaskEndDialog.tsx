@@ -22,6 +22,7 @@ import { isMachineOutputTask } from "@/lib/services/task-machine-output-utils";
 import { useDesignCosts } from "@/hooks/use-costing";
 import { apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+import type { SampleCorrectionRoute } from "@/lib/services/sample-outcome-utils";
 import type { CostType } from "@/lib/services/costing-end-utils";
 import type { CostEntryInput } from "@/lib/services/costing-end-utils";
 import {
@@ -31,6 +32,15 @@ import {
   totalFromByType,
 } from "@/lib/services/costing-end-utils";
 import type { HandoffContext } from "@/lib/handoff-context";
+import type { PriorPunchingDetails } from "@/lib/types/api";
+import {
+  DesignerTimePanel,
+  type DesignerTimeStage,
+} from "@/components/tasks/DesignerTimePanel";
+import {
+  hasPriorPunchingDetails,
+  PunchingDetailsFacts,
+} from "@/components/tasks/PunchingDetailsFacts";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 
 export type { CostEntryInput };
@@ -58,6 +68,8 @@ type TaskEndDialogProps = {
   onSampleOutcomeChange?: (
     outcome: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE",
   ) => void;
+  correctionRoute?: SampleCorrectionRoute | "";
+  onCorrectionRouteChange?: (route: SampleCorrectionRoute | "") => void;
   /** When true, server will force CHECKING. */
   gateForcesChecking?: boolean;
   dialogTitle?: string;
@@ -65,6 +77,9 @@ type TaskEndDialogProps = {
   remarkLabel?: string;
   remarkPlaceholder?: string;
   handoff?: HandoffContext | null;
+  priorPunching?: PriorPunchingDetails | null;
+  /** Earlier-stage active work, shown on Costing so the time cost can follow it. */
+  designerStages?: DesignerTimeStage[];
   /** Shown for PROD_RELEASE - readiness lines */
   releaseReadinessItems?: string[];
   /** When false, hide Send for Checking / Mark Completed select (forced complete or checking). */
@@ -103,12 +118,16 @@ export function TaskEndDialog({
   isSampleCheck,
   sampleOutcome,
   onSampleOutcomeChange,
+  correctionRoute,
+  onCorrectionRouteChange,
   gateForcesChecking,
   dialogTitle,
   dialogDescription,
   remarkLabel = "Output Remark",
   remarkPlaceholder = "Describe work completed…",
   handoff,
+  priorPunching,
+  designerStages,
   releaseReadinessItems,
   showStatusSelect,
   costEntries = [],
@@ -172,9 +191,11 @@ export function TaskEndDialog({
 
   const showFileUpload = !!fileRequired && !!taskId && !!designId;
   const showMachineOutput = isMachineOutputTask(subProcessCode) && !!taskId;
+  const digitizingStage = subProcessCode === "PUNCH" || subProcessCode === "PUNCH_CHECK";
   const { hasMetrics, isLoading: metricsLoading } = useTaskHasMachineMetrics(
     taskId ?? "",
     open && showMachineOutput && !!taskId,
+    digitizingStage ? "digitizing" : "sample",
   );
   const filesBlocking = showFileUpload && (filesLoading || isUploading || !hasFiles);
   const metricsBlocking = showMachineOutput && (metricsLoading || !hasMetrics);
@@ -226,6 +247,9 @@ export function TaskEndDialog({
   const notesRequired = isPartialChecklist;
   const notesOk = !notesRequired || !!checklistNote.trim();
   const sampleOk = !isSampleCheck || !!sampleOutcome;
+  const rejectNeedsRoute = !!isSampleCheck && sampleOutcome === "REJECT";
+  const routeOk = !rejectNeedsRoute || !!correctionRoute;
+  const rejectReasonOk = !rejectNeedsRoute || !!endRemark.trim();
   const sampleApproveBlocked =
     !!isSampleCheck &&
     (sampleOutcome === "APPROVE" || sampleOutcome === "PASS") &&
@@ -240,6 +264,8 @@ export function TaskEndDialog({
     !nonePassed &&
     (allChecklistPassed || (isPartialChecklist && notesOk)) &&
     sampleOk &&
+    routeOk &&
+    rejectReasonOk &&
     !sampleApproveBlocked &&
     (!isCosting || costingOk) &&
     !costingLoading;
@@ -261,10 +287,9 @@ export function TaskEndDialog({
   function submitLabel() {
     if (isPending) return "Submitting…";
     if (machineOutputBusy) return "Saving…";
-    if (metricsBlocking) return "Add machine metrics";
+    if (metricsBlocking) return digitizingStage ? "Add punching details" : "Add sample qty";
     if (filesBlocking) return isUploading ? "Uploading…" : "Upload a file";
     if (remarkRequired && !endRemark.trim()) return "Add note";
-    if (isPartialChecklist) return "Submit with notes";
     return "Submit Completion";
   }
 
@@ -294,7 +319,13 @@ export function TaskEndDialog({
       title={dialogTitle ?? (isSampleCheck ? "Complete Sample Check" : "Complete Task")}
       description={dialogDescription}
       onClose={handleClose}
-      size={denseDeliverables || isCosting || isProdRelease ? "xl" : "md"}
+      size={
+        isCosting || isProdRelease
+          ? "xl"
+          : denseDeliverables && digitizingStage
+            ? "lg"
+            : "md"
+      }
       footer={
         <ModalFooterActions>
           <AppButton
@@ -318,6 +349,15 @@ export function TaskEndDialog({
     >
       <ModalForm className="gap-3 pb-1">
         <ActionHandoffBanner context={handoff} />
+
+        {isCosting ? (
+          <ModalSection
+            title="Designer time"
+            description="Active work from earlier stages. Price the time cost from this total."
+          >
+            <DesignerTimePanel stages={designerStages ?? []} />
+          </ModalSection>
+        ) : null}
 
         {isProdRelease ? (
           <ModalSection title="Release readiness">
@@ -353,34 +393,22 @@ export function TaskEndDialog({
           </ModalSection>
         ) : null}
 
+        {!digitizingStage && hasPriorPunchingDetails(priorPunching) && priorPunching ? (
+          <ModalSection
+            title="Punching / Wilcom"
+            description={
+              priorPunching.recordedByName
+                ? `Recorded by ${priorPunching.recordedByName}`
+                : "Recorded by the punching designer."
+            }
+          >
+            <PunchingDetailsFacts details={priorPunching} framed />
+          </ModalSection>
+        ) : null}
+
         {(showMachineOutput || showFileUpload) && (
           <ModalSection title="Deliverables">
-            <div
-              className={cn(
-                "grid gap-3",
-                denseDeliverables && "sm:grid-cols-2 sm:items-start",
-              )}
-            >
-              {showMachineOutput ? (
-                <div className="min-w-0 space-y-2">
-                  <p className="text-sm font-medium text-foreground">
-                    {subProcessCode === "PUNCH" || subProcessCode === "PUNCH_CHECK"
-                      ? "Punching / Wilcom output"
-                      : "Machine output"}
-                  </p>
-                  <TaskMachineOutputPanel
-                    taskId={taskId!}
-                    canEdit={canUpload && !isPending}
-                    compact
-                    preferredArtifactType={
-                      subProcessCode === "PUNCH" || subProcessCode === "PUNCH_CHECK"
-                        ? "PUNCHING_FILE"
-                        : "SAMPLE_OUTPUT"
-                    }
-                    onBusyChange={setMachineOutputBusy}
-                  />
-                </div>
-              ) : null}
+            <div className="grid gap-4">
               {showFileUpload ? (
                 <div className="min-w-0 space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -400,6 +428,24 @@ export function TaskEndDialog({
                     subProcessCode={subProcessCode}
                     compact
                     onUploadingChange={setIsUploading}
+                  />
+                </div>
+              ) : null}
+              {showMachineOutput ? (
+                <div className="min-w-0 space-y-2">
+                  {digitizingStage ? (
+                    <p className="text-sm font-medium text-foreground">Punching / Wilcom output</p>
+                  ) : null}
+                  <TaskMachineOutputPanel
+                    taskId={taskId!}
+                    canEdit={canUpload && !isPending}
+                    compact
+                    preferredArtifactType={
+                      subProcessCode === "PUNCH" || subProcessCode === "PUNCH_CHECK"
+                        ? "PUNCHING_FILE"
+                        : "SAMPLE_OUTPUT"
+                    }
+                    onBusyChange={setMachineOutputBusy}
                   />
                 </div>
               ) : null}
@@ -550,11 +596,12 @@ export function TaskEndDialog({
             label="Sample decision (Pass / Hold / Reject)"
             required
             value={sampleOutcome ?? ""}
-            onValueChange={(v) =>
+            onValueChange={(v) => {
               onSampleOutcomeChange?.(
                 v as "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE",
-              )
-            }
+              );
+              if (v !== "REJECT") onCorrectionRouteChange?.("");
+            }}
             options={[
               { value: "PASS", label: "Pass - continue to costing" },
               { value: "HOLD", label: "Hold - park design (reason required)" },
@@ -562,6 +609,25 @@ export function TaskEndDialog({
               { value: "RESAMPLE", label: "Re-sample - quality loop" },
             ]}
             placeholder="Select commercial outcome…"
+            disabled={isPending || isUploading}
+          />
+        ) : null}
+
+        {rejectNeedsRoute ? (
+          <FormSelect
+            id="correctionRoute"
+            label="Problem is in"
+            required
+            value={correctionRoute ?? ""}
+            onValueChange={(v) =>
+              onCorrectionRouteChange?.(v as SampleCorrectionRoute)
+            }
+            options={[
+              { value: "SKETCH", label: "Design" },
+              { value: "PUNCH", label: "Punching" },
+              { value: "MACHINE_SAMPLE", label: "Machine sample" },
+            ]}
+            placeholder="Select where the problem is…"
             disabled={isPending || isUploading}
           />
         ) : null}
@@ -595,12 +661,12 @@ export function TaskEndDialog({
         ) : !isCosting ? (
           <FormTextArea
             id="endRemark"
-            label={remarkLabel}
-            required={remarkRequired}
+            label={rejectNeedsRoute ? "Reason" : remarkLabel}
+            required={remarkRequired || rejectNeedsRoute}
             rows={2}
             value={endRemark}
             onChange={(e) => onEndRemarkChange(e.target.value)}
-            placeholder={remarkPlaceholder}
+            placeholder={rejectNeedsRoute ? "What needs to change" : remarkPlaceholder}
             disabled={isPending || isUploading}
             onEnterSubmit={canSubmit ? onSubmit : undefined}
           />
@@ -629,10 +695,7 @@ export function TaskEndDialog({
                   <label
                     key={item.id}
                     className={cn(
-                      "flex cursor-pointer items-center gap-2.5 rounded-md border px-2.5 py-1.5 text-sm transition-colors",
-                      passed
-                        ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/40 dark:bg-emerald-950/20"
-                        : "border-border bg-background hover:bg-muted/40",
+                      "relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-md border border-border bg-background px-2.5 py-1.5 text-sm",
                       (isPending || isUploading) && "pointer-events-none opacity-60",
                     )}
                   >
@@ -640,7 +703,7 @@ export function TaskEndDialog({
                       className={cn(
                         "flex size-4 shrink-0 items-center justify-center rounded border",
                         passed
-                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          ? "border-primary bg-primary text-primary-foreground"
                           : "border-input bg-background",
                       )}
                       aria-hidden
@@ -649,7 +712,7 @@ export function TaskEndDialog({
                     </span>
                     <input
                       type="checkbox"
-                      className="sr-only"
+                      className="absolute inset-0 m-0 cursor-pointer opacity-0"
                       checked={passed}
                       disabled={isPending || isUploading}
                       onChange={(e) => onChecklistChange(item.id, e.target.checked)}
@@ -666,24 +729,17 @@ export function TaskEndDialog({
               </p>
             )}
 
-            {isPartialChecklist && (
-              <FormTextArea
-                id="checklistNote"
-                label="Notes for items that did not pass"
-                required
-                rows={2}
-                value={checklistNote}
-                onChange={(e) => onChecklistNoteChange(e.target.value)}
-                placeholder="Message for your checker or team…"
-                disabled={isPending || isUploading}
-                onEnterSubmit={canSubmit ? onSubmit : undefined}
-                error={
-                  !checklistNote.trim()
-                    ? "Required"
-                    : undefined
-                }
-              />
-            )}
+            <FormTextArea
+              id="checklistNote"
+              label="Notes for items that did not pass"
+              required={isPartialChecklist}
+              rows={2}
+              value={checklistNote}
+              onChange={(e) => onChecklistNoteChange(e.target.value)}
+              placeholder="Message for your checker or team…"
+              disabled={isPending || isUploading}
+              onEnterSubmit={canSubmit ? onSubmit : undefined}
+            />
           </ModalSection>
         )}
 
@@ -696,7 +752,9 @@ export function TaskEndDialog({
         )}
         {!canSubmit && formComplete && metricsBlocking && !filesBlocking && !isPending && (
           <p className="text-xs text-muted-foreground" role="status">
-            Enter at least one machine output field (sample qty, format, or stitch count).
+            {digitizingStage
+              ? "Enter at least one punching field (stitch count, format, hoop, or software)."
+              : "Enter sample qty."}
           </p>
         )}
       </ModalForm>

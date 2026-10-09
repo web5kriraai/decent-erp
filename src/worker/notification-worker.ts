@@ -16,7 +16,7 @@ import { batchSyncDesignSuccessFromErp } from "@/lib/services/design-success-bat
 import { prisma } from "@/lib/db";
 
 async function processNotification(job: Job<NotificationJobPayload>) {
-  const { eventType, payload, correlationId, outboxId } = job.data;
+  const { eventType, payload, correlationId, outboxId, skipInApp } = job.data;
 
   if (eventType === SCAN_TASK_DUES_EVENT) {
     const result = await scanAndNotifyTaskDues(correlationId ?? `scan-${job.id}`);
@@ -57,7 +57,7 @@ async function processNotification(job: Job<NotificationJobPayload>) {
     return;
   }
 
-  const result = await deliverNotification(eventType, payload);
+  const result = await deliverNotification(eventType, payload, { skipInApp });
 
   if (outboxId) {
     await prisma.notificationOutbox.updateMany({

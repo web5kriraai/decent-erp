@@ -2,6 +2,7 @@ import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { endTask } from "@/lib/services/task-service";
+import { assertTimerIdempotency } from "@/lib/timer-route-utils";
 
 const schema = z.object({
   completionStatus: z.enum(["COMPLETED", "CHECKING"]),
@@ -18,6 +19,7 @@ const schema = z.object({
     .optional(),
   checklistNote: z.string().optional(),
   sampleOutcome: z.enum(["APPROVE", "PASS", "HOLD", "REJECT", "RESAMPLE"]).optional(),
+  correctionRoute: z.enum(["SKETCH", "PUNCH", "MACHINE_SAMPLE"]).optional(),
   costEntries: z
     .array(
       z.object({
@@ -37,8 +39,14 @@ export async function POST(
   return withApiHandler(PERMISSIONS.TASK_EXECUTE, async (ctx) => {
     const { id } = await params;
     const body = await parseBody(request, schema);
+    const taskId = BigInt(id);
+    await assertTimerIdempotency(request, {
+      taskId,
+      employeeId: ctx.employeeId,
+      action: "END",
+    });
     const task = await endTask(
-      BigInt(id),
+      taskId,
       ctx.employeeId,
       {
         completionStatus: body.completionStatus,
@@ -48,6 +56,7 @@ export async function POST(
         checklist: body.checklist,
         checklistNote: body.checklistNote,
         sampleOutcome: body.sampleOutcome,
+        correctionRoute: body.correctionRoute,
         costEntries: body.costEntries,
       },
       ctx.correlationId,

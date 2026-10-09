@@ -10,6 +10,7 @@ import { ProductionReturnModal } from "@/features/production/ProductionReturnMod
 import { AcceptHandoffConfirm } from "@/features/production/AcceptHandoffConfirm";
 import { useAcceptProductionHandoff } from "@/hooks/use-production";
 import { useProductionInbox } from "@/hooks/use-workbench";
+import { RoleDayScore } from "@/features/dashboard/RoleDayScore";
 import {
   WorkbenchEmpty,
   WorkbenchListItem,
@@ -127,6 +128,7 @@ export function ProductionHeadDashboard() {
       }}
     >
       <div className="workbench-overview">
+        <RoleDayScore />
         <div className="stat-grid workbench-pulse">
           <StatCard
             label="Ready for acceptance"

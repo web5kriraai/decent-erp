@@ -40,7 +40,7 @@ type FileUploaderProps = {
   queueComponentByTypeId?: boolean;
   /** Infer IMAGE/AUDIO/VIDEO/FILE from each file (default true). */
   autoDetectMediaKind?: boolean;
-  /** Queue mode for create form — do not upload yet. */
+  /** Queue mode for create form - do not upload yet. */
   queueMode?: boolean;
   pendingItems?: PendingConceptMedia[];
   onPendingChange?: (items: PendingConceptMedia[]) => void;
@@ -406,11 +406,11 @@ export function FileUploader({
                     appVariant="ghost"
                     onClick={() => setPendingPrimary(item.id)}
                   >
-                    Primary
+                    Show outside
                   </AppButton>
                 ) : null}
                 {item.isPrimary && item.mediaKind === "IMAGE" ? (
-                  <span className="badge">Primary</span>
+                  <span className="badge">Show outside</span>
                 ) : null}
                 <AppButton
                   type="button"

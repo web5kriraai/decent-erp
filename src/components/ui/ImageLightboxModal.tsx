@@ -38,7 +38,7 @@ export function ImageLightboxModal({
       modal="trap-focus"
     >
       <DialogContent
-        className="image-lightbox-dialog max-h-[min(94dvh,56rem)] max-w-[calc(100%-1rem)] gap-0 p-0 sm:max-w-[min(96vw,56rem)]"
+        className="image-lightbox-dialog h-auto max-h-[min(90dvh,48rem)] w-fit max-w-[min(92vw,40rem)] gap-0 p-0 sm:max-w-[min(92vw,40rem)]"
         showCloseButton
       >
         <DialogHeader className="shrink-0 gap-1 border-b border-border px-4 py-3 pr-12 sm:px-5 sm:py-4">

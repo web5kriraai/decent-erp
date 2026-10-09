@@ -128,27 +128,51 @@ export function TaskMachineOutputPanel({
   });
 
   const machineArtifact = useMemo(
-    () => pickPreferredSampleOutput(artifactsQuery.data ?? []),
-    [artifactsQuery.data],
+    () => pickPreferredSampleOutput(artifactsQuery.data ?? [], preferredArtifactType),
+    [artifactsQuery.data, preferredArtifactType],
   );
 
-  const artifactSeed = machineArtifact?.id ?? "none";
+  const serverSnap = snapshotFromArtifact(machineArtifact);
+  const artifactSeed = [
+    machineArtifact?.id ?? "none",
+    serverSnap.sampleQty,
+    serverSnap.wastageQty,
+    serverSnap.stitchCount,
+    serverSnap.machineFormat ?? "",
+    serverSnap.needleCount,
+    serverSnap.colorCount,
+    serverSnap.hoopSize,
+    serverSnap.softwareName,
+    serverSnap.stitchDensity,
+  ].join("|");
   const [syncedArtifactSeed, setSyncedArtifactSeed] = useState(artifactSeed);
   if (artifactSeed !== syncedArtifactSeed) {
     setSyncedArtifactSeed(artifactSeed);
-    const next = snapshotFromArtifact(machineArtifact);
-    setStitchCount(next.stitchCount);
-    setMachineFormat(next.machineFormat);
-    setSampleQty(next.sampleQty);
-    setWastageQty(next.wastageQty);
-    setNeedleCount(next.needleCount);
-    setColorCount(next.colorCount);
-    setHoopSize(next.hoopSize);
-    setSoftwareName(next.softwareName);
-    setStitchDensity(next.stitchDensity);
-    lastSavedRef.current = next;
+    const localDraft: DraftSnapshot = {
+      stitchCount,
+      machineFormat,
+      sampleQty,
+      wastageQty,
+      needleCount,
+      colorCount,
+      hoopSize,
+      softwareName,
+      stitchDensity,
+    };
     artifactIdRef.current = machineArtifact?.id ?? null;
-    setSaveState("idle");
+    if (draftsEqual(localDraft, lastSavedRef.current)) {
+      setStitchCount(serverSnap.stitchCount);
+      setMachineFormat(serverSnap.machineFormat);
+      setSampleQty(serverSnap.sampleQty);
+      setWastageQty(serverSnap.wastageQty);
+      setNeedleCount(serverSnap.needleCount);
+      setColorCount(serverSnap.colorCount);
+      setHoopSize(serverSnap.hoopSize);
+      setSoftwareName(serverSnap.softwareName);
+      setStitchDensity(serverSnap.stitchDensity);
+      lastSavedRef.current = serverSnap;
+      setSaveState(hasAnyValue(serverSnap) ? "saved" : "idle");
+    }
   }
 
   const draft: DraftSnapshot = {
@@ -162,6 +186,9 @@ export function TaskMachineOutputPanel({
     softwareName,
     stitchDensity,
   };
+
+  const showDigitizing = preferredArtifactType === "PUNCHING_FILE";
+  const showProductionQty = !showDigitizing;
 
   useEffect(() => {
     onBusyChange?.(saveState === "saving");
@@ -186,17 +213,20 @@ export function TaskMachineOutputPanel({
 
     const timer = window.setTimeout(() => {
       void (async () => {
-        const payload = {
-          stitchCount: parseOptionalInt(draft.stitchCount) ?? null,
-          machineFormat: draft.machineFormat?.trim() || null,
-          sampleQty: parseOptionalInt(draft.sampleQty) ?? null,
-          wastageQty: parseOptionalInt(draft.wastageQty) ?? null,
-          needleCount: parseOptionalInt(draft.needleCount) ?? null,
-          colorCount: parseOptionalInt(draft.colorCount) ?? null,
-          hoopSize: draft.hoopSize.trim() || null,
-          softwareName: draft.softwareName.trim() || null,
-          stitchDensity: parseOptionalFloat(draft.stitchDensity) ?? null,
-        };
+        const payload = showDigitizing
+          ? {
+              stitchCount: parseOptionalInt(draft.stitchCount) ?? null,
+              machineFormat: draft.machineFormat?.trim() || null,
+              needleCount: parseOptionalInt(draft.needleCount) ?? null,
+              colorCount: parseOptionalInt(draft.colorCount) ?? null,
+              hoopSize: draft.hoopSize.trim() || null,
+              softwareName: draft.softwareName.trim() || null,
+              stitchDensity: parseOptionalFloat(draft.stitchDensity) ?? null,
+            }
+          : {
+              sampleQty: parseOptionalInt(draft.sampleQty) ?? null,
+              wastageQty: parseOptionalInt(draft.wastageQty) ?? null,
+            };
 
         try {
           if (artifactIdRef.current) {
@@ -236,6 +266,7 @@ export function TaskMachineOutputPanel({
     machineArtifact?.artifactType,
     preferredArtifactType,
     queryClient,
+    showDigitizing,
     taskId,
     toast,
   ]);
@@ -246,7 +277,7 @@ export function TaskMachineOutputPanel({
       : saveState === "saved"
         ? "Saved"
         : saveState === "error"
-          ? "Save failed — edit to retry"
+          ? "Save failed - edit to retry"
           : canEdit
             ? "Changes save automatically"
             : null;
@@ -255,102 +286,110 @@ export function TaskMachineOutputPanel({
     <div className="space-y-2">
       <div
         className={cn(
-          "grid min-w-0 gap-3",
+          "grid min-w-0 items-start gap-3",
           compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
         )}
       >
-        <FormTextField
-          id={`machine-stitch-${taskId}`}
-          label="Stitch count"
-          type="number"
-          min={0}
-          inputMode="numeric"
-          value={stitchCount}
-          onChange={(e) => setStitchCount(e.target.value)}
-          disabled={!canEdit}
-          placeholder="e.g. 12500"
-        />
-        <FormSelect
-          id={`machine-format-${taskId}`}
-          label="Machine format"
-          value={machineFormat}
-          onValueChange={setMachineFormat}
-          options={[...MACHINE_FORMAT_OPTIONS]}
-          placeholder="Select format…"
-          disabled={!canEdit}
-        />
-        <FormTextField
-          id={`machine-needles-${taskId}`}
-          label="Needle count"
-          type="number"
-          min={0}
-          inputMode="numeric"
-          value={needleCount}
-          onChange={(e) => setNeedleCount(e.target.value)}
-          disabled={!canEdit}
-          placeholder="Wilcom needles"
-        />
-        <FormTextField
-          id={`machine-colors-${taskId}`}
-          label="Color count"
-          type="number"
-          min={0}
-          inputMode="numeric"
-          value={colorCount}
-          onChange={(e) => setColorCount(e.target.value)}
-          disabled={!canEdit}
-          placeholder="Thread colors"
-        />
-        <FormTextField
-          id={`machine-hoop-${taskId}`}
-          label="Hoop size"
-          value={hoopSize}
-          onChange={(e) => setHoopSize(e.target.value)}
-          disabled={!canEdit}
-          placeholder="e.g. 130x180"
-        />
-        <FormTextField
-          id={`machine-software-${taskId}`}
-          label="Software"
-          value={softwareName}
-          onChange={(e) => setSoftwareName(e.target.value)}
-          disabled={!canEdit}
-          placeholder="Wilcom / Hatch"
-        />
-        <FormTextField
-          id={`machine-density-${taskId}`}
-          label="Stitch density"
-          type="number"
-          min={0}
-          step="0.01"
-          inputMode="decimal"
-          value={stitchDensity}
-          onChange={(e) => setStitchDensity(e.target.value)}
-          disabled={!canEdit}
-          placeholder="stitches/mm"
-        />
-        <FormTextField
-          id={`machine-sample-qty-${taskId}`}
-          label="Sample qty"
-          type="number"
-          min={0}
-          inputMode="numeric"
-          value={sampleQty}
-          onChange={(e) => setSampleQty(e.target.value)}
-          disabled={!canEdit}
-          placeholder="Pieces produced"
-        />
-        <FormTextField
-          id={`machine-wastage-${taskId}`}
-          label="Wastage qty"
-          type="number"
-          min={0}
-          inputMode="numeric"
-          value={wastageQty}
-          onChange={(e) => setWastageQty(e.target.value)}
-          disabled={!canEdit}
-          placeholder="Rejected / scrap"
-        />
+        {showDigitizing ? (
+          <>
+            <FormTextField
+              id={`machine-stitch-${taskId}`}
+              label="Stitch count"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={stitchCount}
+              onChange={(e) => setStitchCount(e.target.value)}
+              disabled={!canEdit}
+              placeholder="e.g. 12500"
+            />
+            <FormSelect
+              id={`machine-format-${taskId}`}
+              label="Machine format"
+              value={machineFormat}
+              onValueChange={setMachineFormat}
+              options={[...MACHINE_FORMAT_OPTIONS]}
+              placeholder="Select format…"
+              disabled={!canEdit}
+            />
+            <FormTextField
+              id={`machine-needles-${taskId}`}
+              label="Needle count"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={needleCount}
+              onChange={(e) => setNeedleCount(e.target.value)}
+              disabled={!canEdit}
+              placeholder="Wilcom needles"
+            />
+            <FormTextField
+              id={`machine-colors-${taskId}`}
+              label="Color count"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={colorCount}
+              onChange={(e) => setColorCount(e.target.value)}
+              disabled={!canEdit}
+              placeholder="Thread colors"
+            />
+            <FormTextField
+              id={`machine-hoop-${taskId}`}
+              label="Hoop size"
+              value={hoopSize}
+              onChange={(e) => setHoopSize(e.target.value)}
+              disabled={!canEdit}
+              placeholder="130x180 mm"
+            />
+            <FormTextField
+              id={`machine-density-${taskId}`}
+              label="Stitch density"
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              value={stitchDensity}
+              onChange={(e) => setStitchDensity(e.target.value)}
+              disabled={!canEdit}
+              placeholder="stitches/mm"
+            />
+            <FormTextField
+              id={`machine-software-${taskId}`}
+              label="Software"
+              value={softwareName}
+              onChange={(e) => setSoftwareName(e.target.value)}
+              disabled={!canEdit}
+              placeholder="Wilcom / Hatch"
+            />
+          </>
+        ) : null}
+        {showProductionQty ? (
+          <>
+            <FormTextField
+              id={`machine-sample-qty-${taskId}`}
+              label="Sample qty"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={sampleQty}
+              onChange={(e) => setSampleQty(e.target.value)}
+              disabled={!canEdit}
+              placeholder="Pieces produced"
+            />
+            <FormTextField
+              id={`machine-wastage-${taskId}`}
+              label="Wastage qty"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={wastageQty}
+              onChange={(e) => setWastageQty(e.target.value)}
+              disabled={!canEdit}
+              placeholder="Rejected / scrap"
+            />
+          </>
+        ) : null}
       </div>
       {statusLabel ? (
         <p

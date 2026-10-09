@@ -4,6 +4,9 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { requireMasterOfType } from "@/lib/services/master-catalog-service";
 import { MASTER_TYPES } from "@/lib/master-catalog-types";
+import { assertTaskAssignedToEmployee } from "@/lib/services/task-service";
+import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
+import { notFound } from "@/lib/errors/create-app-error";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -21,6 +24,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       throw new ApiError("Invalid task id", 400);
     }
     const body = await parseBody(request, schema);
+    const existing = await prisma.designTask.findUnique({
+      where: { id: taskId },
+      select: { design: { select: { companyId: true } } },
+    });
+    if (!existing || existing.design.companyId !== ctx.companyId) {
+      throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
+    }
+    await assertTaskAssignedToEmployee(taskId, ctx.employeeId);
     if (body.sampleMachineId != null) {
       await requireMasterOfType(body.sampleMachineId, MASTER_TYPES.MACHINE);
     }

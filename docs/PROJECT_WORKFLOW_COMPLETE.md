@@ -1,7 +1,7 @@
-# Decent ERP — Complete Project Workflow & Feature Guide
+# Decent ERP - Complete Project Workflow & Feature Guide
 
 **Audience:** Product owners, business users, QA, and developers  
-**Scope:** Full design-to-production module — what it does, who uses what, every major and minor rule  
+**Scope:** Full design-to-production module - what it does, who uses what, every major and minor rule  
 **App:** Next.js design-operations ERP for Decent Technologies (textile / embroidery design pipeline)
 
 ---
@@ -18,7 +18,7 @@
 8. [Workflow stages and patterns](#8-workflow-stages-and-patterns)
 9. [End-to-end happy path (step by step)](#9-end-to-end-happy-path-step-by-step)
 10. [Task execution rules (timer, hold, files)](#10-task-execution-rules-timer-hold-files)
-11. [Quality — corrections and sample outcomes](#11-quality--corrections-and-sample-outcomes)
+11. [Quality - corrections and sample outcomes](#11-quality--corrections-and-sample-outcomes)
 12. [Approvals (stage + management chain)](#12-approvals-stage--management-chain)
 13. [Materials and engineering BOM](#13-materials-and-engineering-bom)
 14. [Costing](#14-costing)
@@ -427,7 +427,7 @@ flowchart LR
   K --> L[Live Review + Mark Live]
 ```
 
-### Step 1 — Design Head creates the concept
+### Step 1 - Design Head creates the concept
 
 **Login:** `designhead@decent-erp.local` / `Demo@123`
 
@@ -447,7 +447,7 @@ flowchart LR
 
 ---
 
-### Step 2 — Sketch Designer finishes sketch
+### Step 2 - Sketch Designer finishes sketch
 
 **Login:** `sketch@decent-erp.local`
 
@@ -460,7 +460,7 @@ flowchart LR
 
 ---
 
-### Step 3 — Design Head approves sketch
+### Step 3 - Design Head approves sketch
 
 **Login:** Design Head
 
@@ -471,7 +471,7 @@ flowchart LR
 
 ---
 
-### Step 4 — Punching Designer finishes punch
+### Step 4 - Punching Designer finishes punch
 
 **Login:** `punch@decent-erp.local`
 
@@ -483,7 +483,7 @@ flowchart LR
 
 ---
 
-### Step 5 — Sample Checker approves punch (full pattern)
+### Step 5 - Sample Checker approves punch (full pattern)
 
 **Login:** `checker@decent-erp.local`
 
@@ -494,7 +494,7 @@ flowchart LR
 
 ---
 
-### Step 6 — Material + fabric stages
+### Step 6 - Material + fabric stages
 
 Usually Design Head or assigned person:
 
@@ -512,7 +512,7 @@ Usually Design Head or assigned person:
 
 ---
 
-### Step 7 — Machine Operator runs sample
+### Step 7 - Machine Operator runs sample
 
 **Login:** `machine@decent-erp.local`
 
@@ -524,7 +524,7 @@ Usually Design Head or assigned person:
 
 ---
 
-### Step 8 — Sample Checker approves sample
+### Step 8 - Sample Checker approves sample
 
 **Login:** Sample Checker
 
@@ -535,12 +535,12 @@ Usually Design Head or assigned person:
 
 ---
 
-### Step 9 — Costing Team enters costs
+### Step 9 - Costing Team enters costs
 
 **Login:** `costing@decent-erp.local`
 
 1. Open design → **Costing** (or Finance → Costing desk).
-2. Add cost lines (types and categories — see [Costing](#14-costing)).
+2. Add cost lines (types and categories - see [Costing](#14-costing)).
 3. Finish costing stage if shown.
 4. Optionally maintain **Engineering BOM** on the design costing tab.
 
@@ -548,7 +548,7 @@ Usually Design Head or assigned person:
 
 ---
 
-### Step 10 — Design Head requests management approval
+### Step 10 - Design Head requests management approval
 
 **Login:** Design Head
 
@@ -560,7 +560,7 @@ Usually Design Head or assigned person:
 
 ---
 
-### Step 11 — Approval chain (3 levels)
+### Step 11 - Approval chain (3 levels)
 
 | Order | Login | Level | Action |
 |---|---|---|---|
@@ -577,7 +577,7 @@ Bulk approve is supported for management sign-offs.
 
 ---
 
-### Step 12 — Production handoff + release
+### Step 12 - Production handoff + release
 
 **Login:** Design Head → complete **PROD_HANDOFF**.
 
@@ -591,11 +591,11 @@ Bulk approve is supported for management sign-offs.
 
 **Check:** Design released; Management sees live-review queue.
 
-**Alternate:** Production Head can **Return for clarification** with structured reasons — history is kept; correction path opens without erasing prior work.
+**Alternate:** Production Head can **Return for clarification** with structured reasons - history is kept; correction path opens without erasing prior work.
 
 ---
 
-### Step 13 — Management marks live
+### Step 13 - Management marks live
 
 **Login:** `management@decent-erp.local`
 
@@ -625,11 +625,11 @@ These rules are enforced on the server; the client clock is not trusted for dura
 
 ### Hold delay categories (seed examples)
 
-EMPLOYEE / BREAK / APPROVAL / MATERIAL / MACHINE / OFFICE — used for delay ownership reporting and notifications (e.g. material/machine holds notify Design Head).
+EMPLOYEE / BREAK / APPROVAL / MATERIAL / MACHINE / OFFICE - used for delay ownership reporting and notifications (e.g. material/machine holds notify Design Head).
 
 ---
 
-## 11. Quality — corrections and sample outcomes
+## 11. Quality - corrections and sample outcomes
 
 ### Corrections
 
@@ -712,7 +712,7 @@ Flow:
 | Design fields | Estimated / standard / expected MRP and related totals |
 | UI | `/finance/costing` and design detail Costing tab |
 
-Without costs, Management final approve is blocked — this is intentional so designs do not go to production without cost visibility.
+Without costs, Management final approve is blocked - this is intentional so designs do not go to production without cost visibility.
 
 ---
 
@@ -996,7 +996,7 @@ If all 10 work, the **whole workflow is healthy**.
 
 ---
 
-## Appendix A — Feature modules in code
+## Appendix A - Feature modules in code
 
 | Folder under `src/features` | Purpose |
 |---|---|
@@ -1012,7 +1012,7 @@ If all 10 work, the **whole workflow is healthy**.
 | `analytics` | KPI, benchmark, reports |
 | `admin` | Masters, patterns, employees, roles, audit, notifications |
 
-## Appendix B — Key services (business logic map)
+## Appendix B - Key services (business logic map)
 
 | Service area | Responsibility |
 |---|---|

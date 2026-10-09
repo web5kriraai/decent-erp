@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { publishRealtime } from "@/lib/realtime";
 import { writeAuditLogDirect } from "@/lib/audit";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { createAppError, notFound, conflict } from "@/lib/errors/create-app-error";
@@ -13,6 +14,7 @@ import { MY_TASKS_VISIBLE_STATUSES } from "@/lib/services/task-dependency";
 import { buildBlockedContext } from "@/lib/services/action-center";
 import { getTaskStartAvailability } from "@/lib/action-availability";
 import { reconcileTaskReadiness } from "@/lib/services/task-readiness";
+import { decideWorkTaskAccess } from "@/lib/task-access";
 import {
   resolveEffectiveTaskStatus,
   type StageGateSibling,
@@ -22,9 +24,47 @@ const taskTimeInclude = {
   design: {
     select: {
       id: true,
+      companyId: true,
       ideaRef: true,
+      designNumber: true,
       collectionName: true,
-      productType: { select: { name: true } },
+      styleName: true,
+      conceptNote: true,
+      workType: true,
+      trendReference: true,
+      celebrityReference: true,
+      priority: true,
+      status: true,
+      currentStage: true,
+      targetEndDate: true,
+      productType: { select: { name: true, code: true } },
+      season: { select: { name: true } },
+      designHead: { select: { name: true } },
+      location: { select: { name: true } },
+      fabric: { select: { name: true } },
+      machine: { select: { name: true } },
+      stitchingType: { select: { name: true } },
+      designGrade: { select: { name: true } },
+      images: {
+        where: { mediaKind: "IMAGE", designComponentId: null },
+        orderBy: [{ isPrimary: "desc" as const }, { uploadedAtUtc: "desc" as const }],
+        take: 8,
+        select: { id: true, fileName: true, storageKey: true, isPrimary: true },
+      },
+      components: {
+        where: { active: true },
+        orderBy: { sequence: "asc" as const },
+        select: {
+          id: true,
+          specification: true,
+          componentType: { select: { name: true } },
+          images: {
+            where: { mediaKind: "IMAGE" },
+            orderBy: { uploadedAtUtc: "asc" as const },
+            select: { id: true, fileName: true, storageKey: true },
+          },
+        },
+      },
     },
   },
   process: { select: { id: true, name: true, code: true } },
@@ -285,50 +325,268 @@ export async function getEmployeeTimeReport(from: Date, to: Date, employeeId?: n
   return { from: rangeStart.toISOString().slice(0, 10), to: rangeEnd.toISOString().slice(0, 10), rows };
 }
 
+async function signedDownloadUrl(storageKey: string | null | undefined): Promise<string | null> {
+  if (!storageKey) return null;
+  try {
+    const { getPresignedDownloadUrl } = await import("@/lib/storage");
+    return await getPresignedDownloadUrl(storageKey);
+  } catch {
+    return null;
+  }
+}
+
+function inferArtifactContentType(fileName: string | null, contentType: string | null): string | null {
+  if (contentType && contentType !== "application/octet-stream") return contentType;
+  const ext = fileName?.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    case "pdf":
+      return "application/pdf";
+    default:
+      return contentType;
+  }
+}
+
+function priorWorkFileFallback(artifactType: string): string {
+  if (artifactType === "PUNCHING_FILE") return "Punching file";
+  if (artifactType === "SAMPLE_OUTPUT") return "Sample file";
+  return "Sketch file";
+}
+
+/**
+ * Files submitted on earlier stages of the same design.
+ * Each later role sees sketch, punching, and sample files already turned in.
+ * Signed URLs only - no storage keys.
+ */
+async function loadPriorWorkFiles(designId: bigint, taskId: bigint, sequence: number) {
+  const artifacts = await prisma.taskArtifact.findMany({
+    where: {
+      storageKey: { not: null },
+      artifactType: { in: ["SKETCH_VERSION", "PUNCHING_FILE", "SAMPLE_OUTPUT"] },
+      task: {
+        designId,
+        id: { not: taskId },
+        sequence: { lt: sequence },
+      },
+    },
+    orderBy: [{ task: { sequence: "asc" } }, { uploadedAtUtc: "asc" }],
+    select: {
+      id: true,
+      artifactType: true,
+      fileName: true,
+      contentType: true,
+      storageKey: true,
+      uploadedAtUtc: true,
+      uploadedBy: { select: { name: true } },
+      task: {
+        select: {
+          subProcess: { select: { code: true, name: true } },
+        },
+      },
+    },
+  });
+
+  return Promise.all(
+    artifacts.map(async (artifact) => ({
+      id: artifact.id.toString(),
+      fileName: artifact.fileName?.trim() || priorWorkFileFallback(artifact.artifactType),
+      contentType: inferArtifactContentType(artifact.fileName, artifact.contentType),
+      downloadUrl: await signedDownloadUrl(artifact.storageKey),
+      uploadedAtUtc: artifact.uploadedAtUtc.toISOString(),
+      uploadedByName: artifact.uploadedBy.name,
+      stageName: artifact.task.subProcess.name,
+      stageCode: artifact.task.subProcess.code,
+      artifactType: artifact.artifactType,
+    })),
+  );
+}
+
+async function loadPriorPunchingDetails(designId: bigint, taskId: bigint, sequence: number) {
+  const artifact = await prisma.taskArtifact.findFirst({
+    where: {
+      artifactType: "PUNCHING_FILE",
+      task: {
+        designId,
+        id: { not: taskId },
+        sequence: { lt: sequence },
+        subProcess: { code: "PUNCH" },
+      },
+      OR: [
+        { stitchCount: { not: null } },
+        { machineFormat: { not: null } },
+        { needleCount: { not: null } },
+        { colorCount: { not: null } },
+        { hoopSize: { not: null } },
+        { softwareName: { not: null } },
+        { stitchDensity: { not: null } },
+      ],
+    },
+    orderBy: { uploadedAtUtc: "desc" },
+    select: {
+      stitchCount: true,
+      machineFormat: true,
+      needleCount: true,
+      colorCount: true,
+      hoopSize: true,
+      softwareName: true,
+      stitchDensity: true,
+      uploadedBy: { select: { name: true } },
+    },
+  });
+  if (!artifact) return null;
+  const density = artifact.stitchDensity?.toString() ?? null;
+  return {
+    stitchCount: artifact.stitchCount,
+    machineFormat: artifact.machineFormat,
+    needleCount: artifact.needleCount,
+    colorCount: artifact.colorCount,
+    hoopSize: artifact.hoopSize,
+    softwareName: artifact.softwareName,
+    stitchDensity: density?.includes(".")
+      ? density.replace(/0+$/, "").replace(/\.$/, "")
+      : density,
+    recordedByName: artifact.uploadedBy.name,
+  };
+}
+
+async function presentTaskDesign(design: {
+  id: bigint;
+  ideaRef: string;
+  designNumber: string | null;
+  collectionName: string;
+  styleName: string | null;
+  conceptNote: string | null;
+  workType: string | null;
+  trendReference: string | null;
+  celebrityReference: string | null;
+  priority: string;
+  status: string;
+  currentStage: string | null;
+  targetEndDate: Date | null;
+  productType: { name: string } | null;
+  season: { name: string } | null;
+  designHead: { name: string } | null;
+  location: { name: string } | null;
+  fabric: { name: string } | null;
+  machine: { name: string } | null;
+  stitchingType: { name: string } | null;
+  designGrade: { name: string } | null;
+  images: Array<{ fileName: string; storageKey: string }>;
+  components: Array<{
+    id: bigint;
+    specification: string | null;
+    componentType: { name: string };
+    images: Array<{ id: bigint; fileName: string; storageKey: string }>;
+  }>;
+}) {
+  const primary = design.images[0];
+  const components = await Promise.all(
+    design.components.map(async (component) => ({
+      id: component.id.toString(),
+      name: component.componentType.name,
+      specification: component.specification,
+      images: (
+        await Promise.all(
+          component.images.map(async (image) => ({
+            id: image.id.toString(),
+            fileName: image.fileName,
+            downloadUrl: await signedDownloadUrl(image.storageKey),
+          })),
+        )
+      ).filter((image) => image.downloadUrl),
+    })),
+  );
+
+  return {
+    id: design.id.toString(),
+    ideaRef: design.ideaRef,
+    designNumber: design.designNumber,
+    collectionName: design.collectionName,
+    styleName: design.styleName,
+    conceptNote: design.conceptNote,
+    workType: design.workType,
+    trendReference: design.trendReference,
+    celebrityReference: design.celebrityReference,
+    priority: design.priority,
+    status: design.status,
+    currentStage: design.currentStage,
+    targetEndDate: design.targetEndDate?.toISOString() ?? null,
+    productType: design.productType?.name ?? null,
+    season: design.season?.name ?? null,
+    designHead: design.designHead?.name ?? null,
+    location: design.location?.name ?? null,
+    fabric: design.fabric?.name ?? null,
+    machine: design.machine?.name ?? null,
+    stitchingType: design.stitchingType?.name ?? null,
+    designGrade: design.designGrade?.name ?? null,
+    primaryImageUrl: await signedDownloadUrl(primary?.storageKey),
+    primaryImageName: primary?.fileName ?? null,
+    components,
+  };
+}
+
 export async function getTaskTimeDetail(
   taskId: bigint,
   viewerEmployeeId: number,
   viewerPermissions: string[],
+  viewerCompanyId: number,
   correlationId = "task-detail",
 ) {
-  if (viewerPermissions.includes(PERMISSIONS.TASK_EXECUTE)) {
-    await reconcileTaskReadiness(taskId, viewerEmployeeId, correlationId);
-  }
-
-  const peek = await prisma.designTask.findUnique({
-    where: { id: taskId },
-    select: {
-      designId: true,
-      subProcess: { select: { code: true } },
-    },
-  });
-  if (
-    peek &&
-    (peek.subProcess.code === "PROD_RELEASE" || peek.subProcess.code === "LIVE_REVIEW")
-  ) {
-    const { healStuckProdReleaseChecking } = await import(
-      "@/lib/services/production-service"
-    );
-    await healStuckProdReleaseChecking(
-      peek.designId,
-      viewerEmployeeId,
-      `${correlationId}-heal-prod-release`,
-    );
-  }
-
-  const task = await prisma.designTask.findUnique({
+  let task = await prisma.designTask.findUnique({
     where: { id: taskId },
     include: taskTimeInclude,
   });
 
   if (!task) throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
 
-  const isAssignee = task.assignedEmployeeId === viewerEmployeeId;
-  const canViewTeam = viewerPermissions.includes(PERMISSIONS.TIME_VIEW_TEAM);
-
-  if (!isAssignee && !canViewTeam) {
+  const access = decideWorkTaskAccess({
+    permissions: viewerPermissions,
+    employeeId: viewerEmployeeId,
+    companyId: viewerCompanyId,
+    taskCompanyId: task.design.companyId,
+    assignedEmployeeId: task.assignedEmployeeId,
+  });
+  if (access === "hidden") throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
+  if (access === "forbidden") {
+    throw createAppError(APP_ERROR_CODES.PERMISSION_DENIED, 403);
+  }
+  if (access === "not-assigned") {
     throw createAppError(APP_ERROR_CODES.TASK_NOT_ASSIGNED, 403);
   }
+
+  if (viewerPermissions.includes(PERMISSIONS.TASK_EXECUTE)) {
+    await reconcileTaskReadiness(taskId, viewerEmployeeId, correlationId);
+  }
+
+  if (
+    task.subProcess.code === "PROD_RELEASE" ||
+    task.subProcess.code === "LIVE_REVIEW"
+  ) {
+    const { healStuckProdReleaseChecking } = await import(
+      "@/lib/services/production-service"
+    );
+    await healStuckProdReleaseChecking(
+      task.designId,
+      viewerEmployeeId,
+      `${correlationId}-heal-prod-release`,
+    );
+  }
+
+  task = await prisma.designTask.findUnique({
+    where: { id: taskId },
+    include: taskTimeInclude,
+  });
+  if (!task) throw notFound(APP_ERROR_CODES.TASK_NOT_FOUND);
+
+  const isAssignee = true;
 
   const peerTasks = await prisma.designTask.findMany({
     where: { designId: task.designId },
@@ -340,18 +598,50 @@ export async function getTaskTimeDetail(
       status: true,
       assignedEmployeeId: true,
       outputRemark: true,
-      subProcess: { select: { name: true, code: true, isApproval: true } },
+      dueAt: true,
+      startedAt: true,
+      updatedAtUtc: true,
+      instructionNote: true,
+      expectedMinutes: true,
+      timeEvents: {
+        orderBy: { eventTimeUtc: "asc" },
+        select: {
+          eventType: true,
+          eventTimeUtc: true,
+          holdReason: {
+            select: { code: true, name: true, excludeFromActiveTime: true },
+          },
+        },
+      },
+      subProcess: {
+        select: {
+          name: true,
+          code: true,
+          isApproval: true,
+          defaultRole: { select: { name: true } },
+        },
+      },
       assignedEmployee: { select: { name: true } },
     },
   });
 
-  const runningTask =
-    isAssignee
-      ? await prisma.designTask.findFirst({
+  const [runningTask, workdaySession] = isAssignee
+    ? await Promise.all([
+        prisma.designTask.findFirst({
           where: { assignedEmployeeId: viewerEmployeeId, status: "RUNNING" },
           select: { id: true },
-        })
-      : null;
+        }),
+        prisma.workdaySession.findUnique({
+          where: {
+            employeeId_workDate: {
+              employeeId: viewerEmployeeId,
+              workDate: startOfUtcDay(new Date()),
+            },
+          },
+          select: { closedAtUtc: true },
+        }),
+      ])
+    : [null, null];
 
   const now = new Date();
   const summary = computeTimeSummary(mapEvents(task.timeEvents), now);
@@ -362,7 +652,11 @@ export async function getTaskTimeDetail(
     sequence: peer.sequence,
     status: peer.status,
     assignedEmployeeId: peer.assignedEmployeeId,
-    subProcess: peer.subProcess,
+    subProcess: {
+      name: peer.subProcess.name,
+      code: peer.subProcess.code,
+      isApproval: peer.subProcess.isApproval,
+    },
     assignedEmployee: peer.assignedEmployee,
   }));
 
@@ -377,16 +671,31 @@ export async function getTaskTimeDetail(
     stageSiblings,
   );
 
-  const workflowPeers = peerTasks.map((peer) => ({
-    id: peer.id.toString(),
-    sequence: peer.sequence,
-    dependencySequence: peer.dependencySequence,
-    status: peer.status,
-    assignedEmployeeId: peer.assignedEmployeeId,
-    outputRemark: peer.outputRemark,
-    subProcess: peer.subProcess,
-    assignedEmployee: peer.assignedEmployee,
-  }));
+  const workflowPeers = peerTasks.map((peer) => {
+    const peerTime = computeTimeSummary(peer.timeEvents, now);
+    return {
+      id: peer.id.toString(),
+      sequence: peer.sequence,
+      dependencySequence: peer.dependencySequence,
+      status: peer.status,
+      assignedEmployeeId: peer.assignedEmployeeId,
+      outputRemark: peer.outputRemark,
+      dueAt: peer.dueAt?.toISOString() ?? null,
+      startedAt: peer.startedAt?.toISOString() ?? null,
+      updatedAtUtc: peer.updatedAtUtc.toISOString(),
+      instructionNote: peer.instructionNote,
+      expectedMinutes: peer.expectedMinutes,
+      activeSeconds: peerTime.activeSeconds,
+      holdSeconds: peerTime.holdSeconds,
+      subProcess: {
+        name: peer.subProcess.name,
+        code: peer.subProcess.code,
+        isApproval: peer.subProcess.isApproval,
+        defaultRole: peer.subProcess.defaultRole,
+      },
+      assignedEmployee: peer.assignedEmployee,
+    };
+  });
 
   const taskRow = {
     id: task.id.toString(),
@@ -418,13 +727,12 @@ export async function getTaskTimeDetail(
     expectedMinutes: task.expectedMinutes,
     version: task.version,
     outputRemark: task.outputRemark,
+    instructionNote: task.instructionNote,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    startedAt: task.startedAt?.toISOString() ?? null,
+    updatedAtUtc: task.updatedAtUtc.toISOString(),
     assignedEmployeeId: task.assignedEmployeeId,
-    design: {
-      id: task.design.id.toString(),
-      ideaRef: task.design.ideaRef,
-      collectionName: task.design.collectionName,
-      productType: task.design.productType?.name ?? null,
-    },
+    design: await presentTaskDesign(task.design),
     process: task.process,
     subProcess: task.subProcess,
     assignedEmployee: task.assignedEmployee,
@@ -443,6 +751,8 @@ export async function getTaskTimeDetail(
     canStart: startAvailability.available,
     startBlockedReason: startAvailability.reason,
     blockedMessage: blockedContext?.blockedMessage ?? null,
+    priorWorkFiles: await loadPriorWorkFiles(task.designId, task.id, task.sequence),
+    priorPunching: await loadPriorPunchingDetails(task.designId, task.id, task.sequence),
   };
 }
 
@@ -507,6 +817,7 @@ export async function persistWorkdayClose(employeeId: number, correlationId: str
     });
   }
 
+  await publishEmployeeTime(employeeId);
   return {
     closed: true,
     employeeId,
@@ -551,6 +862,7 @@ export async function persistWorkdayReopen(employeeId: number, correlationId: st
     after: null,
   });
 
+  await publishEmployeeTime(employeeId);
   return {
     closed: false,
     reopened: true,
@@ -558,4 +870,24 @@ export async function persistWorkdayReopen(employeeId: number, correlationId: st
     workDate: workDate.toISOString().slice(0, 10),
     correlationId,
   };
+}
+
+async function publishEmployeeTime(employeeId: number) {
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { companyId: true },
+    });
+    if (!employee) return;
+    await publishRealtime({ companyId: employee.companyId, topics: ["time"] });
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "Workday realtime publish skipped",
+        employeeId,
+        error: String(error),
+      }),
+    );
+  }
 }

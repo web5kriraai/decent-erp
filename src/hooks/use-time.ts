@@ -24,10 +24,6 @@ export function useMyTimeSummary(enabled = true) {
     queryKey: queryKeys.time.mySummary,
     queryFn: () => apiGet<EmployeeTimeSummary>("/api/time/my-summary"),
     enabled,
-    refetchInterval: (query) => {
-      const hasRunning = query.state.data?.currentTask?.status === "RUNNING";
-      return hasRunning ? 15_000 : 60_000;
-    },
   });
 }
 
@@ -42,7 +38,6 @@ export function useLiveTeamTime(enabled = true) {
         employees: LiveTeamTimeRow[];
       }>("/api/admin/time/live"),
     enabled,
-    refetchInterval: 15_000,
   });
 }
 
@@ -62,9 +57,5 @@ export function useTaskTimeDetail(taskId: string, enabled = true) {
     queryKey: queryKeys.tasks.detail(taskId),
     queryFn: () => apiGet<TaskTimeDetail>(`/api/tasks/${taskId}`),
     enabled: enabled && !!taskId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "RUNNING" ? 15_000 : false;
-    },
   });
 }

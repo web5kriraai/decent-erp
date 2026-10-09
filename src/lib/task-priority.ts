@@ -17,6 +17,43 @@ export function priorityRank(priority: string): number {
   return PRIORITY_RANK[priority as Priority] ?? PRIORITY_RANK.MEDIUM;
 }
 
+function assignmentMillis(
+  task: TaskPrioritySortable & {
+    startedAt?: string | Date | null;
+    updatedAtUtc?: string | Date | null;
+    design?: { createdAtUtc?: string | Date | null; ideaRef?: string; priority?: string | null };
+  },
+): number {
+  const updated = task.updatedAtUtc ? new Date(task.updatedAtUtc).getTime() : 0;
+  const created = task.design?.createdAtUtc ? new Date(task.design.createdAtUtc).getTime() : 0;
+  const updatedOk = Number.isNaN(updated) ? 0 : updated;
+  const createdOk = Number.isNaN(created) ? 0 : created;
+  if (!task.startedAt && updatedOk) return updatedOk;
+  return createdOk || updatedOk;
+}
+
+/** Newest handover first. The same moment keeps Urgent above High above Medium above Low. */
+export function compareTasksByAssignmentThenPriority(
+  a: TaskPrioritySortable & {
+    startedAt?: string | Date | null;
+    updatedAtUtc?: string | Date | null;
+    design?: { createdAtUtc?: string | Date | null; ideaRef?: string; priority?: string | null };
+  },
+  b: TaskPrioritySortable & {
+    startedAt?: string | Date | null;
+    updatedAtUtc?: string | Date | null;
+    design?: { createdAtUtc?: string | Date | null; ideaRef?: string; priority?: string | null };
+  },
+): number {
+  const timeDiff = assignmentMillis(b) - assignmentMillis(a);
+  if (timeDiff !== 0) return timeDiff;
+  const aPriority = resolveEffectiveTaskPriority(String(a.priority), a.design?.priority);
+  const bPriority = resolveEffectiveTaskPriority(String(b.priority), b.design?.priority);
+  const rankDiff = priorityRank(aPriority) - priorityRank(bPriority);
+  if (rankDiff !== 0) return rankDiff;
+  return compareTasksByPriority(a, b);
+}
+
 export function compareTasksByPriority(a: TaskPrioritySortable, b: TaskPrioritySortable): number {
   const rankDiff = priorityRank(a.priority) - priorityRank(b.priority);
   if (rankDiff !== 0) return rankDiff;
@@ -89,9 +126,9 @@ export function groupActionCenterTasks<T extends TaskPrioritySortable & { status
   }
 
   return {
-    READY: sortTasksByEffectivePriority(groups.READY),
-    CORRECTION_REQUIRED: sortTasksByEffectivePriority(groups.CORRECTION_REQUIRED),
-    RUNNING: sortTasksByEffectivePriority(groups.RUNNING),
-    ON_HOLD: sortTasksByEffectivePriority(groups.ON_HOLD),
+    READY: [...groups.READY].sort(compareTasksByAssignmentThenPriority),
+    CORRECTION_REQUIRED: [...groups.CORRECTION_REQUIRED].sort(compareTasksByAssignmentThenPriority),
+    RUNNING: [...groups.RUNNING].sort(compareTasksByAssignmentThenPriority),
+    ON_HOLD: [...groups.ON_HOLD].sort(compareTasksByAssignmentThenPriority),
   };
 }

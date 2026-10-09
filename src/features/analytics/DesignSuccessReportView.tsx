@@ -182,7 +182,7 @@ export function DesignSuccessReportView() {
       title="Design Success Report"
         subtitle={
           isSimulated
-            ? "Simulated ERP — complete in-app stages at /production/erp to auto-fill metrics, or enter them manually. Partner Sync needs ERP_API_BASE_URL."
+            ? "Simulated ERP - complete in-app stages at /production/erp to auto-fill metrics, or enter them manually. Partner Sync needs ERP_API_BASE_URL."
             : "Live ERP feed - sync partner metrics or adjust rows manually."
         }
         wide
@@ -296,7 +296,7 @@ export function DesignSuccessReportView() {
                   {lastBatchSync.ingested}, skipped {lastBatchSync.skipped}, failed{" "}
                   {lastBatchSync.failed}
                   {lastBatchSync.errors[0]?.reason
-                    ? ` — ${lastBatchSync.errors[0].reason}`
+                    ? ` - ${lastBatchSync.errors[0].reason}`
                     : ""}
                 </p>
               ) : null}

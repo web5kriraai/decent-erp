@@ -18,8 +18,15 @@ export type HandoffContext = {
   stageName?: string | null;
   assigneeName?: string | null;
   status?: string | null;
+  /** Server time already recorded on this task, or on the work being reviewed. */
+  activeSeconds?: number | null;
+  holdSeconds?: number | null;
+  expectedMinutes?: number | null;
+  /** Label for the time row. Defaults to "This task". */
+  timeSectionTitle?: string | null;
   /** Who / which stage receives this action next */
   nextStepHint?: string | null;
+  nextStage?: HandoffPriorStage | null;
   /** Short guidance (often from dialog config description) */
   description?: string | null;
   priorStage?: HandoffPriorStage | null;
@@ -39,6 +46,7 @@ export function hasHandoffFacts(ctx?: HandoffContext | null): boolean {
       ctx.nextStepHint ||
       ctx.description ||
       ctx.priorStage ||
+      ctx.nextStage ||
       (ctx.blockers && ctx.blockers.length > 0) ||
       ctx.assigneeName ||
       ctx.collectionName ||

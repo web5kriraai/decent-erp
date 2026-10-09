@@ -39,6 +39,7 @@ export type TaskCreateRow = {
   dependencySequence?: number | null;
   plannedStart?: Date;
   dueAt?: Date;
+  instructionNote?: string | null;
   isApproval?: boolean;
 };
 
@@ -82,6 +83,16 @@ export async function buildTasksFromPatternTasks(
     firstAssigneeId?: number;
     designPriority?: Priority;
     taskDateMode?: TaskDateMode;
+    stepOverrides?: Array<{
+      sequence: number;
+      expectedMinutes: number;
+      dueAt: Date;
+      priority: Priority;
+      assignedEmployeeId?: number;
+      instructionNote?: string | null;
+    }>;
+    companyId?: number;
+    productTypeId?: number;
   },
 ): Promise<TaskCreateRow[]> {
   const base = options?.baseDate ?? new Date();
@@ -90,16 +101,27 @@ export async function buildTasksFromPatternTasks(
     patternTasks.map((pt) => ({
       defaultRoleId: pt.defaultRoleId,
       defaultSkillId: pt.defaultSkillId ?? null,
+      subProcessCode: pt.subProcess?.code ?? null,
     })),
+    {
+      companyId: options?.companyId,
+      productTypeId: options?.productTypeId,
+    },
   );
 
   const rows: TaskCreateRow[] = patternTasks.map((pt, index) => {
+    const override = options?.stepOverrides?.find((step) => step.sequence === pt.sequence);
     const dayOffset = effectiveDayOffset(mode, pt.dayOffset, index);
-    const plannedStart = addUtcDays(base, dayOffset);
-    const dueAt = plannedDueAt(plannedStart, pt.expectedMinutes);
+    const plannedStart = override ? override.dueAt : addUtcDays(base, dayOffset);
+    const dueAt = override
+      ? override.dueAt
+      : plannedDueAt(plannedStart, pt.expectedMinutes);
     const resolvedEmployee = assignees[index] ?? undefined;
     const isFirst = index === 0;
-    const assignee = isFirst && options?.firstAssigneeId ? options.firstAssigneeId : resolvedEmployee;
+    const assignee =
+      override?.assignedEmployeeId ??
+      resolvedEmployee ??
+      (isFirst ? options?.firstAssigneeId : undefined);
 
     return {
       designId,
@@ -108,13 +130,13 @@ export async function buildTasksFromPatternTasks(
       assignedRoleId: pt.defaultRoleId,
       requiredSkillId: pt.defaultSkillId ?? null,
       assignedEmployeeId: assignee ?? undefined,
-      expectedMinutes: pt.expectedMinutes,
-      // Pattern step priority wins; design priority is the fallback default.
-      priority: pt.priority ?? options?.designPriority ?? "MEDIUM",
+      expectedMinutes: override?.expectedMinutes ?? pt.expectedMinutes,
+      priority: override?.priority ?? pt.priority ?? options?.designPriority ?? "MEDIUM",
       sequence: pt.sequence,
       dependencySequence: pt.dependencySequence,
       plannedStart,
       dueAt,
+      instructionNote: override?.instructionNote?.trim() || null,
       status: "PENDING",
       isApproval: pt.subProcess?.isApproval ?? false,
     };

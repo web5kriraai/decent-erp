@@ -13,7 +13,7 @@ export type ListSearchProps = {
   id?: string;
 };
 
-/** Canonical list search field — search icon + input. */
+/** Canonical list search field - search icon + input. */
 export function ListSearch({
   value,
   onChange,

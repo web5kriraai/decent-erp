@@ -4,7 +4,7 @@
 export function masterDisplayName(
   name?: string | null,
   code?: string | null,
-  emptyFallback = "—",
+  emptyFallback = "-",
 ): string {
   const trimmedName = name?.trim();
   if (trimmedName) return trimmedName;

@@ -4,15 +4,19 @@ import { useMemo, useState } from "react";
 import { TimerWidget } from "@/components/TimerWidget";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
+import { earlierDesignerStages } from "@/components/tasks/DesignerTimePanel";
+import type { SampleCorrectionRoute } from "@/lib/services/sample-outcome-utils";
 import { useTaskMutations } from "@/hooks/use-tasks";
 import { useHoldReasons, useChecklistItems } from "@/hooks/use-masters";
 import { useTaskTimeDetail } from "@/hooks/use-time";
+import { useLiveTimeSummary } from "@/hooks/use-live-time-summary";
 import {
   getTaskEndDialogConfig,
   getTaskHoldDialogConfig,
   buildHandoffContextFromTask,
+  handoffTimeFromSummary,
 } from "@/lib/task-dialog-config";
-import { findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
+import { findNextPeerForHandoff, findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
 import {
   findControllableActiveTask,
   getTimerControlFlags,
@@ -48,6 +52,10 @@ export function DesignActiveTaskTimer({
 
   const detailQuery = useTaskTimeDetail(activeSummaryTask?.id ?? "", !!activeSummaryTask);
   const task = detailQuery.data;
+  const liveSummary = useLiveTimeSummary(
+    task?.timeline,
+    task?.status === "RUNNING" || task?.status === "ON_HOLD",
+  );
   const holdReasons = useHoldReasons(!!activeSummaryTask);
   const checklistQuery = useChecklistItems(!!activeSummaryTask);
   const { hold, resume, end } = useTaskMutations();
@@ -65,6 +73,7 @@ export function DesignActiveTaskTimer({
   >(
     "",
   );
+  const [correctionRoute, setCorrectionRoute] = useState<SampleCorrectionRoute | "">("");
   const [costEntries, setCostEntries] = useState<
     Array<{ costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION"; description?: string; amount: number }>
   >([]);
@@ -115,6 +124,17 @@ export function DesignActiveTaskTimer({
         assigneeName: priorPeer.assignedEmployee?.name,
       }
     : null;
+  const nextPeer = findNextPeerForHandoff(
+    { id: activeTask.id, sequence: activeTask.sequence },
+    activeTask.workflowPeers,
+  );
+  const nextStage = nextPeer
+    ? {
+        code: nextPeer.subProcess.code,
+        name: nextPeer.subProcess.name,
+        assigneeName: nextPeer.assignedEmployee?.name ?? null,
+      }
+    : null;
 
   const holdHandoff = buildHandoffContextFromTask(
     {
@@ -131,6 +151,8 @@ export function DesignActiveTaskTimer({
       description: holdDialogConfig.description,
       nextStepHint: holdDialogConfig.nextStepHint,
       priorStage,
+      ...handoffTimeFromSummary(liveSummary ?? task.timeSummary, task.expectedMinutes),
+      nextStage,
     },
   );
   const endHandoff = buildHandoffContextFromTask(
@@ -148,6 +170,8 @@ export function DesignActiveTaskTimer({
       description: endDialogConfig.description,
       nextStepHint: endDialogConfig.nextStepHint,
       priorStage,
+      ...handoffTimeFromSummary(liveSummary ?? task.timeSummary, task.expectedMinutes),
+      nextStage,
     },
   );
 
@@ -167,6 +191,13 @@ export function DesignActiveTaskTimer({
     const isCosting = endDialogConfig.costingEntry;
     if (isCosting && !endRemark.trim()) return;
     if (isSampleCheck && !sampleOutcome) return;
+    if (
+      isSampleCheck &&
+      sampleOutcome === "REJECT" &&
+      (!correctionRoute || !endRemark.trim())
+    ) {
+      return;
+    }
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -200,6 +231,10 @@ export function DesignActiveTaskTimer({
         : undefined,
       checklistNote: note,
       sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+      correctionRoute:
+        isSampleCheck && sampleOutcome === "REJECT" && correctionRoute
+          ? correctionRoute
+          : undefined,
       costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
     });
     setEndModalOpen(false);
@@ -207,6 +242,7 @@ export function DesignActiveTaskTimer({
     setChecklistResults({});
     setChecklistNote("");
     setSampleOutcome("");
+    setCorrectionRoute("");
     setCostEntries([]);
   }
 
@@ -219,7 +255,7 @@ export function DesignActiveTaskTimer({
       <TimerWidget
         compact
         status={timerFlags.isRunning ? "RUNNING" : "ON_HOLD"}
-        elapsedSeconds={task.timeSummary.activeSeconds}
+        elapsedSeconds={liveSummary?.activeSeconds ?? task.timeSummary.activeSeconds}
         taskLabel={`${task.process.name} → ${task.subProcess.name}`}
         onHold={
           timerFlags.showHold
@@ -250,7 +286,7 @@ export function DesignActiveTaskTimer({
 
       {timerFlags.blocksTimerEnd ? (
         <p className="design-active-timer__hint">
-          Finish with stage approval actions — not the timer End dialog. Hold still works.{" "}
+          Finish with stage approval actions - not the timer End dialog. Hold still works.{" "}
           <AppButtonLink href={taskOpenHref} appVariant="ghost" size="sm">
             Open task approval
           </AppButtonLink>
@@ -301,12 +337,23 @@ export function DesignActiveTaskTimer({
         isSampleCheck={endDialogConfig.showSampleOutcomes ?? isSampleCheck}
         sampleOutcome={sampleOutcome || undefined}
         onSampleOutcomeChange={setSampleOutcome}
+        correctionRoute={correctionRoute}
+        onCorrectionRouteChange={setCorrectionRoute}
         gateForcesChecking={endDialogConfig.forceChecking}
         dialogTitle={endDialogConfig.title}
         dialogDescription={endDialogConfig.description}
         remarkLabel={endDialogConfig.remarkLabel}
         remarkPlaceholder={endDialogConfig.remarkPlaceholder}
         handoff={endHandoff}
+        priorPunching={task.priorPunching}
+        designerStages={
+          task.subProcess.code === "COSTING"
+            ? earlierDesignerStages(task.workflowPeers, {
+                id: task.id,
+                sequence: task.sequence,
+              })
+            : undefined
+        }
         showStatusSelect={endDialogConfig.showStatusSelect}
         costEntries={costEntries}
         onCostEntriesChange={setCostEntries}

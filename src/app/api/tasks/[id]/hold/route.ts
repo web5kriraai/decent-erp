@@ -2,6 +2,7 @@ import { z } from "zod";
 import { jsonOk, parseBody, serializeBigInt, withApiHandler } from "@/lib/api-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { holdTask } from "@/lib/services/task-service";
+import { assertTimerIdempotency } from "@/lib/timer-route-utils";
 
 const schema = z.object({
   holdReasonId: z.number().int().positive(),
@@ -16,8 +17,14 @@ export async function POST(
   return withApiHandler(PERMISSIONS.TASK_EXECUTE, async (ctx) => {
     const { id } = await params;
     const body = await parseBody(request, schema);
+    const taskId = BigInt(id);
+    await assertTimerIdempotency(request, {
+      taskId,
+      employeeId: ctx.employeeId,
+      action: "HOLD",
+    });
     const task = await holdTask(
-      BigInt(id),
+      taskId,
       ctx.employeeId,
       body.holdReasonId,
       body.remark,

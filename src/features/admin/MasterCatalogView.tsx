@@ -25,7 +25,7 @@ import { useClientList } from "@/hooks/use-client-list";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
-import type { CatalogMaster } from "@/hooks/use-masters";
+import { useComponentTypes, useProductTypes, type CatalogMaster } from "@/hooks/use-masters";
 import {
   MASTER_HUB_GROUPS,
   MASTER_TYPE_LABELS,
@@ -43,6 +43,53 @@ import { cn } from "@/lib/utils";
 import type { RegisterMasterDataPrimaryAction } from "@/features/admin/master-data-primary-action";
 
 type StatusFilter = "all" | "active" | "inactive";
+
+function ComponentAttachPicker({
+  idPrefix,
+  options,
+  value,
+  onChange,
+  legend,
+  hint,
+}: {
+  idPrefix: string;
+  options: Array<{ id: number; name: string }>;
+  value: number[];
+  onChange: (ids: number[]) => void;
+  legend: string;
+  hint: string;
+}) {
+  return (
+    <fieldset className="form-field">
+      <legend className="form-label">{legend}</legend>
+      <p className="m-0 mb-2 text-xs text-muted-foreground">{hint}</p>
+      <div className="form-grid form-grid--checkboxes" role="group">
+        {options.map((item) => {
+          const inputId = `${idPrefix}-${item.id}`;
+          const checked = value.includes(item.id);
+          return (
+            <label key={item.id} htmlFor={inputId} className="form-checkbox-row">
+              <input
+                id={inputId}
+                type="checkbox"
+                checked={checked}
+                onChange={() =>
+                  onChange(
+                    checked ? value.filter((id) => id !== item.id) : [...value, item.id],
+                  )
+                }
+              />
+              <span>{item.name}</span>
+            </label>
+          );
+        })}
+      </div>
+      {options.length === 0 ? (
+        <p className="m-0 mt-1 text-xs text-muted-foreground">No items in masters.</p>
+      ) : null}
+    </fieldset>
+  );
+}
 
 function catalogSearchText(row: CatalogMaster) {
   return `${row.code} ${row.name} ${row.description ?? ""}`;
@@ -94,6 +141,12 @@ export function MasterCatalogView({
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editSortOrder, setEditSortOrder] = useState("0");
+  const [editProductCategoryIds, setEditProductCategoryIds] = useState<number[]>([]);
+  const [createComponentIds, setCreateComponentIds] = useState<number[]>([]);
+  const [editComponentIds, setEditComponentIds] = useState<number[]>([]);
+
+  const productCategories = useProductTypes(selectedType === MASTER_TYPES.PRODUCT_COMPONENT);
+  const productComponents = useComponentTypes(selectedType === MASTER_TYPES.PRODUCT_CATEGORY);
 
   function setSelectedType(next: MasterType | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -133,15 +186,20 @@ export function MasterCatalogView({
         name,
         description: description || null,
         sortOrder: Number(sortOrder) || 0,
+        ...(selectedType === MASTER_TYPES.PRODUCT_CATEGORY
+          ? { componentIds: createComponentIds }
+          : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["masters", "catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["masters", "component-types"] });
       toast.success("Master item created");
       setCreateOpen(false);
       setCode("");
       setName("");
       setDescription("");
       setSortOrder("0");
+      setCreateComponentIds([]);
     },
     onError: (e) => toast.errorFromApi(e, "Could not create master item"),
   });
@@ -153,6 +211,8 @@ export function MasterCatalogView({
       description?: string | null;
       sortOrder?: number;
       isActive?: boolean;
+      productCategoryIds?: number[];
+      componentIds?: number[];
     }) =>
       apiPatch<{
         id: number;
@@ -160,6 +220,7 @@ export function MasterCatalogView({
       }>(`/api/masters/catalog/${payload.id}`, payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["masters", "catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["masters", "component-types"] });
       const warnings = data?.warnings ?? [];
       if (warnings.length > 0) {
         toast.success(
@@ -229,7 +290,10 @@ export function MasterCatalogView({
     if (selectedType) {
       registerPrimaryAction({
         label: "Add item",
-        onClick: () => setCreateOpen(true),
+        onClick: () => {
+          setCreateComponentIds([]);
+          setCreateOpen(true);
+        },
       });
     } else {
       registerPrimaryAction(null);
@@ -419,8 +483,18 @@ export function MasterCatalogView({
               {
                 key: "description",
                 header: "Description",
-                render: (row) => row.description || "—",
+                render: (row) => row.description || "-",
               },
+              ...(selectedType === MASTER_TYPES.PRODUCT_CATEGORY
+                ? [
+                    {
+                      key: "components",
+                      header: "Components",
+                      render: (row: CatalogMaster) =>
+                        row.componentNames?.length ? row.componentNames.join(", ") : "-",
+                    },
+                  ]
+                : []),
               {
                 key: "sortOrder",
                 header: "Sort",
@@ -444,11 +518,28 @@ export function MasterCatalogView({
                     <TableIconAction
                       action="edit"
                       label="Edit"
-                      onClick={() => {
+                      onClick={async () => {
                         setEditItem(row);
                         setEditName(row.name);
                         setEditDescription(row.description ?? "");
                         setEditSortOrder(String(row.sortOrder ?? 0));
+                        if (selectedType === MASTER_TYPES.PRODUCT_COMPONENT) {
+                          try {
+                            const detail = await apiGet<CatalogMaster & {
+                              productCategoryIds?: number[];
+                            }>(`/api/masters/catalog/${row.id}`);
+                            setEditProductCategoryIds(detail.productCategoryIds ?? []);
+                          } catch {
+                            setEditProductCategoryIds([]);
+                          }
+                          setEditComponentIds([]);
+                        } else if (selectedType === MASTER_TYPES.PRODUCT_CATEGORY) {
+                          setEditComponentIds(row.componentIds ?? []);
+                          setEditProductCategoryIds([]);
+                        } else {
+                          setEditProductCategoryIds([]);
+                          setEditComponentIds([]);
+                        }
                       }}
                     />
                     <TableIconAction
@@ -523,7 +614,7 @@ export function MasterCatalogView({
               }}
               options={WORK_TYPE_OPTIONS.map((o) => ({
                 value: o.value,
-                label: `${o.value} — ${o.label}`,
+                label: `${o.value} - ${o.label}`,
               }))}
               placeholder="Select work type code…"
             />
@@ -555,6 +646,16 @@ export function MasterCatalogView({
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
           />
+          {selectedType === MASTER_TYPES.PRODUCT_CATEGORY ? (
+            <ComponentAttachPicker
+              idPrefix="mc-create-comp"
+              legend="Product components"
+              hint="These parts appear when this category is chosen on a new design."
+              options={productComponents.data ?? []}
+              value={createComponentIds}
+              onChange={setCreateComponentIds}
+            />
+          ) : null}
         </ModalForm>
       </Modal>
 
@@ -576,6 +677,12 @@ export function MasterCatalogView({
                   name: editName,
                   description: editDescription || null,
                   sortOrder: Number(editSortOrder) || 0,
+                  ...(selectedType === MASTER_TYPES.PRODUCT_COMPONENT
+                    ? { productCategoryIds: editProductCategoryIds }
+                    : {}),
+                  ...(selectedType === MASTER_TYPES.PRODUCT_CATEGORY
+                    ? { componentIds: editComponentIds }
+                    : {}),
                 })
               }
             >
@@ -604,6 +711,26 @@ export function MasterCatalogView({
             value={editSortOrder}
             onChange={(e) => setEditSortOrder(e.target.value)}
           />
+          {selectedType === MASTER_TYPES.PRODUCT_CATEGORY ? (
+            <ComponentAttachPicker
+              idPrefix="mc-edit-comp"
+              legend="Product components"
+              hint="These parts appear when this category is chosen on a new design."
+              options={productComponents.data ?? []}
+              value={editComponentIds}
+              onChange={setEditComponentIds}
+            />
+          ) : null}
+          {selectedType === MASTER_TYPES.PRODUCT_COMPONENT ? (
+            <ComponentAttachPicker
+              idPrefix="mc-edit-cat"
+              legend="Product categories"
+              hint="This component appears on design create when one of these product types is selected."
+              options={productCategories.data ?? []}
+              value={editProductCategoryIds}
+              onChange={setEditProductCategoryIds}
+            />
+          ) : null}
         </ModalForm>
       </Modal>
     </div>

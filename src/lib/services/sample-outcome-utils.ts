@@ -30,6 +30,24 @@ export function isResampleSampleOutcome(outcome: string | null | undefined): boo
   return outcome === "RESAMPLE";
 }
 
+/** Where a sample-check reject sends the work. */
+export const SAMPLE_CORRECTION_ROUTES = ["SKETCH", "PUNCH", "MACHINE_SAMPLE"] as const;
+export type SampleCorrectionRoute = (typeof SAMPLE_CORRECTION_ROUTES)[number];
+
+export function isSampleCorrectionRoute(
+  value: string | null | undefined,
+): value is SampleCorrectionRoute {
+  return value === "SKETCH" || value === "PUNCH" || value === "MACHINE_SAMPLE";
+}
+
+/**
+ * A machine-sample problem returns to the checker as soon as that sample is
+ * redone. Design and punching problems walk the stages in between first.
+ */
+export function sampleCorrectionReturnsToChecker(routeCode: string): boolean {
+  return routeCode === "MACHINE_SAMPLE";
+}
+
 /** Map commercial outcome to DesignConcept.sampleDecision (null for RESAMPLE loop). */
 export function sampleDecisionForOutcome(
   outcome: CanonicalSampleOutcome,

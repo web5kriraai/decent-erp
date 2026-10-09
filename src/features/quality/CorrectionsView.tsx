@@ -8,9 +8,11 @@ import { AppButton } from "@/components/ui/AppButton";
 import { ListPage } from "@/components/ui/ListPage";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/StatusBadge";
+import { SearchSelect } from "@/components/ui/search-select";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { ContextualActionsPanel } from "@/components/ui/ContextualActionsPanel";
 import { RaiseCorrectionModal } from "@/features/quality/RaiseCorrectionModal";
+import { WorkdayStatusBanner } from "@/features/time/WorkdayStatusBanner";
 import {
   useCorrections,
   useUpdateCorrectionStatus,
@@ -67,11 +69,21 @@ function correctionSearchText(row: CorrectionRecord) {
 export function CorrectionsView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
-  const canRaise = permissions.includes(PERMISSIONS.CORRECTION_RAISE);
+  const canView =
+    permissions.includes(PERMISSIONS.CORRECTION_RAISE) ||
+    permissions.includes(PERMISSIONS.CORRECTION_REQUEST) ||
+    permissions.includes(PERMISSIONS.CORRECTION_EXECUTE);
+  const canRaise =
+    permissions.includes(PERMISSIONS.CORRECTION_RAISE) ||
+    permissions.includes(PERMISSIONS.CORRECTION_REQUEST);
 
   const [raiseOpen, setRaiseOpen] = useState(false);
+  const [reviewerInbox, setReviewerInbox] = useState(false);
 
-  const correctionsQuery = useCorrections(undefined, canRaise);
+  const correctionsQuery = useCorrections(
+    reviewerInbox ? { reviewerInbox: true } : undefined,
+    canView,
+  );
   const updateStatus = useUpdateCorrectionStatus();
 
   const pageActions = useMemo(
@@ -114,10 +126,10 @@ export function CorrectionsView() {
     getSearchText,
   });
 
-  if (!canRaise) {
+  if (!canView) {
     return (
       <div className="page-shell">
-        <PermissionDenied permission={PERMISSIONS.CORRECTION_RAISE} />
+        <PermissionDenied permission={PERMISSIONS.CORRECTION_REQUEST} />
       </div>
     );
   }
@@ -155,8 +167,19 @@ export function CorrectionsView() {
         }}
         onRefresh={() => correctionsQuery.refetch()}
         isRefreshing={correctionsQuery.isFetching}
+        toolbarExtra={
+          <AppButton
+            type="button"
+            appVariant={reviewerInbox ? "primary" : "outline"}
+            size="sm"
+            onClick={() => setReviewerInbox((v) => !v)}
+          >
+            {reviewerInbox ? "Reviewer inbox" : "All corrections"}
+          </AppButton>
+        }
         beforeTable={
           <>
+            <WorkdayStatusBanner />
             <div className="stat-grid">
               <StatCard
                 label="Open Corrections"
@@ -193,7 +216,7 @@ export function CorrectionsView() {
                     <li key={row.id} className="event-timeline-item">
                       <span className="event-timeline-dot" aria-hidden />
                       <p className="event-timeline-title">
-                        COR-{row.id.slice(-4)} —{" "}
+                        COR-{row.id.slice(-4)} -{" "}
                         {row.rootCause?.trim() ||
                           row.correctionType.replace(/_/g, " ")}
                       </p>
@@ -271,7 +294,12 @@ export function CorrectionsView() {
               header: "Cost",
               align: "right",
               render: (row) =>
-                row.extraCost != null ? Number(row.extraCost).toFixed(0) : "—",
+                row.extraCost != null ? Number(row.extraCost).toFixed(0) : "-",
+            },
+            {
+              key: "cycleNo",
+              header: "Cycle",
+              render: (row) => (row.cycleNo != null ? String(row.cycleNo) : "1"),
             },
             {
               key: "status",
@@ -284,21 +312,20 @@ export function CorrectionsView() {
                 return (
                   <div className="vstack vstack--tight">
                     <StatusBadge status={displayStatus} />
-                    <select
-                      className="form-select form-select--compact"
+                    <SearchSelect
+                      size="compact"
+                      searchable={false}
                       value={displayStatus}
                       disabled={
                         updateStatus.isPending || terminal || options.length <= 1
                       }
-                      onChange={(e) => handleStatusChange(row, e.target.value)}
+                      onValueChange={(next) => handleStatusChange(row, next)}
                       aria-label={`Status for correction ${row.id}`}
-                    >
-                      {options.map((s) => (
-                        <option key={s} value={s}>
-                          {s.replace(/_/g, " ")}
-                        </option>
-                      ))}
-                    </select>
+                      options={options.map((s) => ({
+                        value: s,
+                        label: s.replace(/_/g, " "),
+                      }))}
+                    />
                   </div>
                 );
               },

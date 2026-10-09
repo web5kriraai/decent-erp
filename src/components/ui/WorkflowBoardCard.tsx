@@ -90,7 +90,7 @@ export function WorkflowBoardCard({
           ) : (
             <div className="workflow-dash-card__fallback" aria-hidden>
               <span className="workflow-dash-card__fallback-label">
-                {productLabel === "—" ? "No image" : productLabel}
+                {productLabel === "-" ? "No image" : productLabel}
               </span>
             </div>
           )}
@@ -163,7 +163,7 @@ export function buildProductSeasonOwnerDueMeta(input: {
     },
     {
       label: "Owner",
-      value: input.ownerName?.trim() || "—",
+      value: input.ownerName?.trim() || "-",
     },
     {
       label: "Due",

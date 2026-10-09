@@ -221,7 +221,7 @@ export function KpiDashboardView() {
         <div className="kpi-dash-summary">
           <div className="kpi-dash-stat kpi-dash-stat--accent">
             <p className="kpi-dash-stat-label">Team score</p>
-            <p className="kpi-dash-stat-value">{teamScore != null ? teamScore : "—"}</p>
+            <p className="kpi-dash-stat-value">{teamScore != null ? teamScore : "-"}</p>
             <p className="kpi-dash-stat-meta">
               {summary?.employeeCount ?? 0} employees · {summary?.scoreRecordCount ?? 0} records
             </p>
@@ -229,21 +229,21 @@ export function KpiDashboardView() {
           <div className="kpi-dash-stat">
             <p className="kpi-dash-stat-label">On-time</p>
             <p className="kpi-dash-stat-value">
-              {highlight.onTime != null ? `${Math.round(highlight.onTime)}%` : "—"}
+              {highlight.onTime != null ? `${Math.round(highlight.onTime)}%` : "-"}
             </p>
             <p className="kpi-dash-stat-meta">Weight 20%</p>
           </div>
           <div className="kpi-dash-stat">
             <p className="kpi-dash-stat-label">First-time right</p>
             <p className="kpi-dash-stat-value">
-              {highlight.firstTime != null ? `${Math.round(highlight.firstTime)}%` : "—"}
+              {highlight.firstTime != null ? `${Math.round(highlight.firstTime)}%` : "-"}
             </p>
             <p className="kpi-dash-stat-meta">Weight 15%</p>
           </div>
           <div className="kpi-dash-stat">
             <p className="kpi-dash-stat-label">Quality</p>
             <p className="kpi-dash-stat-value">
-              {highlight.quality != null ? `${Math.round(highlight.quality)}%` : "—"}
+              {highlight.quality != null ? `${Math.round(highlight.quality)}%` : "-"}
             </p>
             <p className="kpi-dash-stat-meta">Weight 20%</p>
           </div>
@@ -335,7 +335,7 @@ export function KpiDashboardView() {
                           <span className="text-muted-foreground">
                             {score != null && Number.isFinite(score)
                               ? `${Math.round(score * 10) / 10}`
-                              : "—"}
+                              : "-"}
                             <span className="opacity-70"> · wt {metric.weight}%</span>
                           </span>
                         </div>
@@ -365,7 +365,7 @@ export function KpiDashboardView() {
                       <div className="kpi-dash-metric-head">
                         <span>{metric.label}</span>
                         <span className="text-muted-foreground">
-                          {metric.avg != null ? `${Math.round(metric.avg)}%` : "—"}
+                          {metric.avg != null ? `${Math.round(metric.avg)}%` : "-"}
                           <span className="opacity-70"> · {metric.scored} rows</span>
                         </span>
                       </div>

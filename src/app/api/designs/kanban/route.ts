@@ -1,34 +1,21 @@
 import { jsonOk, serializeBigInt, withApiHandler } from "@/lib/api-utils";
-import { buildKanbanWorkflowInfo } from "@/lib/design-workflow";
 import { PERMISSIONS } from "@/lib/permissions";
 import { getDesignWorkflowDashboard } from "@/lib/services/design-service";
-import type {
-  DesignTask,
-  DesignWorkflowDashboardResponse,
-  KanbanDesignItem,
-} from "@/lib/types/api";
 
-export async function GET() {
+export async function GET(request: Request) {
   return withApiHandler(PERMISSIONS.DESIGN_CREATE, async (ctx) => {
-    const dashboard = await getDesignWorkflowDashboard(ctx.companyId);
-    const items: KanbanDesignItem[] = dashboard.items.map((raw) => {
-      const serialized = serializeBigInt(raw) as unknown as Omit<
-        KanbanDesignItem,
-        "workflow"
-      > & {
-        tasks?: DesignTask[];
-      };
-      const { tasks, ...rest } = serialized;
-      return {
-        ...rest,
-        workflow: buildKanbanWorkflowInfo({ status: rest.status, tasks }),
-      };
+    const params = new URL(request.url).searchParams;
+    const page = Number(params.get("page") ?? "1");
+    const pageSize = Number(params.get("pageSize") ?? "10");
+    const dashboard = await getDesignWorkflowDashboard(ctx.companyId, {
+      page: Number.isFinite(page) ? page : 1,
+      pageSize: Number.isFinite(pageSize) ? pageSize : 10,
+      q: params.get("q") ?? "",
+      product: params.get("product") ?? "ALL",
+      seasonId: params.get("seasonId") ?? "ALL",
+      owner: params.get("owner") ?? "ALL",
+      priority: params.get("priority") ?? "ALL",
     });
-
-    const payload: DesignWorkflowDashboardResponse = {
-      items,
-      summary: dashboard.summary,
-    };
-    return jsonOk(payload, ctx.correlationId);
+    return jsonOk(serializeBigInt(dashboard), ctx.correlationId);
   });
 }

@@ -1,8 +1,5 @@
 import { PERMISSIONS } from "@/lib/permissions";
-import {
-  canRoleActOnStageApproval,
-  usesStageApprovalActionsNotTimerEnd,
-} from "@/lib/stage-approval-rbac";
+import { usesStageApprovalActionsNotTimerEnd } from "@/lib/stage-approval-rbac";
 
 export type TaskControlSubProcess = {
   code: string;
@@ -18,7 +15,9 @@ export type TaskControlSnapshot = {
 };
 
 /**
- * Same gate as TaskDetailView: execute permission + assignee OR stage-approval owner.
+ * Work-task controls and the Open link. Only the employee assigned on the task,
+ * with TASK_EXECUTE, may open or run it. Role ownership of a stage does not
+ * open a task assigned to someone else.
  */
 export function canControlTask(input: {
   permissions: string[];
@@ -26,32 +25,19 @@ export function canControlTask(input: {
   roleCode?: string | null;
   task: TaskControlSnapshot;
 }): boolean {
+  void input.roleCode;
   const canExecute = input.permissions.includes(PERMISSIONS.TASK_EXECUTE);
-  if (!canExecute) return false;
-
-  const isAssignee =
-    input.employeeId != null && input.task.assignedEmployeeId === input.employeeId;
-
-  const ownerRoleCode = input.task.subProcess.defaultRole?.code ?? null;
-  const isStageApproval = usesStageApprovalActionsNotTimerEnd(input.task.subProcess.code, {
-    isApproval: input.task.subProcess.isApproval,
-    capabilities: input.task.subProcess.capabilities,
-  });
-  const canActOnStage =
-    isStageApproval &&
-    !!input.roleCode &&
-    canRoleActOnStageApproval(input.roleCode, input.task.subProcess.code, {
-      ownerRoleCode,
-      capabilities: input.task.subProcess.capabilities,
-    });
-
-  return isAssignee || canActOnStage;
+  if (!canExecute || input.employeeId == null || input.task.assignedEmployeeId == null) {
+    return false;
+  }
+  return Number(input.task.assignedEmployeeId) === Number(input.employeeId);
 }
 
 export type TimerControlFlags = {
   isRunning: boolean;
   isOnHold: boolean;
   blocksTimerEnd: boolean;
+  showStart: boolean;
   showHold: boolean;
   showResume: boolean;
   showEnd: boolean;
@@ -74,6 +60,10 @@ export function getTimerControlFlags(
 ): TimerControlFlags {
   const isRunning = task.status === "RUNNING";
   const isOnHold = task.status === "ON_HOLD";
+  const showStart =
+    task.status === "ASSIGNED" ||
+    task.status === "CORRECTION_REQUIRED" ||
+    task.status === "PENDING";
   const blocksTimerEnd =
     usesStageApprovalActionsNotTimerEnd(task.subProcess.code, {
       isApproval: task.subProcess.isApproval,
@@ -84,6 +74,7 @@ export function getTimerControlFlags(
     isRunning,
     isOnHold,
     blocksTimerEnd,
+    showStart,
     showHold: isRunning,
     showResume: isOnHold,
     showEnd: !blocksTimerEnd && (isRunning || isOnHold),
@@ -91,8 +82,7 @@ export function getTimerControlFlags(
 }
 
 /**
- * Active RUNNING/ON_HOLD task the viewer may control on a design page
- * (assignee or stage-approval owner).
+ * Active RUNNING/ON_HOLD task assigned to the viewer on a design page.
  */
 export function findControllableActiveTask<
   T extends {

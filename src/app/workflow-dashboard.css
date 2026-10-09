@@ -30,6 +30,10 @@
   min-height: 0;
 }
 
+.workflow-dash-day {
+  flex-shrink: 0;
+}
+
 .workflow-dash-stats {
   flex-shrink: 0;
   margin-bottom: 0;
@@ -48,6 +52,26 @@
 .workflow-dash-filters.list-filter-group {
   flex: 0 0 auto;
   align-items: center;
+}
+
+.workflow-dash-skeleton-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workflow-dash-skeleton-photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.workflow-dash-skeleton-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem;
 }
 
 .workflow-dash-search {
@@ -184,14 +208,19 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-300) transparent;
 }
 
 .kanban--workflow-dash .kanban-cards::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  display: block;
+  width: 6px;
+  height: 6px;
+}
+
+.kanban--workflow-dash .kanban-cards::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: var(--radius-full);
 }
 
 .kanban--workflow-dash .kanban-cards > .workflow-dash-card {
@@ -502,27 +531,29 @@
 .image-lightbox-dialog {
   display: flex;
   flex-direction: column;
+  width: fit-content;
+  height: auto;
+  max-height: min(90dvh, 48rem);
   overflow: hidden;
 }
 
 .image-lightbox-body {
-  display: grid;
-  place-items: center;
-  min-height: min(70dvh, 36rem);
-  max-height: min(78dvh, 44rem);
-  padding: 0.75rem 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
   background: var(--color-neutral-100);
   overflow: auto;
 }
 
-.image-lightbox-img {
+.image-lightbox-body img.image-lightbox-img {
   display: block;
-  max-width: 100%;
-  max-height: min(72dvh, 40rem);
   width: auto;
   height: auto;
+  max-width: min(70vw, 36rem);
+  max-height: min(68dvh, 32rem);
   object-fit: contain;
-  border-radius: var(--radius-sm, 4px);
+  object-position: center;
 }
 
 /* ---- Breakpoints ---- */

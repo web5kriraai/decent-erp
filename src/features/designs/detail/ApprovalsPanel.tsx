@@ -31,10 +31,11 @@ export function ApprovalsPanel({ design }: { design: DesignSummary }) {
     return (design.tasks ?? [])
       .filter((t) => t.subProcess?.isApproval)
       .sort((a, b) => a.sequence - b.sequence)
-      .map((t) => ({
+        .map((t) => ({
         id: t.id,
         name: t.subProcess?.name ?? t.process?.name ?? `Step ${t.sequence}`,
         decision: t.status === "COMPLETED" ? "APPROVED" : t.status,
+        assignee: t.assignedEmployee?.name ?? null,
         kind: "stage" as const,
       }));
   }, [design.tasks]);
@@ -42,10 +43,11 @@ export function ApprovalsPanel({ design }: { design: DesignSummary }) {
   const managementRows = useMemo(() => {
     return [...(design.approvals ?? [])]
       .sort((a, b) => (a.level?.sequence ?? 0) - (b.level?.sequence ?? 0))
-      .map((a) => ({
+        .map((a) => ({
         id: a.id,
         name: a.level?.name ?? "Approval",
         decision: a.decision,
+        assignee: a.approver?.name ?? null,
         levelId: a.level?.id,
         kind: "management" as const,
       }));
@@ -75,6 +77,15 @@ export function ApprovalsPanel({ design }: { design: DesignSummary }) {
                 <span className="w-5 font-medium text-muted-foreground">{index + 1}.</span>
                 <span className="min-w-[10rem] font-medium text-foreground">{row.name}</span>
                 {statusBadge(row.decision)}
+                {row.decision !== "APPROVED" && row.decision !== "COMPLETED" ? (
+                  <span className="text-muted-foreground">
+                    {row.assignee
+                      ? `Pending approval with ${row.assignee}`
+                      : "Pending approval"}
+                  </span>
+                ) : row.assignee ? (
+                  <span className="text-muted-foreground">{row.assignee}</span>
+                ) : null}
               </li>
             ))}
           </ol>

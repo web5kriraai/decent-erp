@@ -14,7 +14,6 @@ export function useDesignKpiContribution(designId: string, enabled = true) {
         `/api/designs/${designId}/kpi-contribution`,
       ),
     enabled: enabled && !!designId,
-    refetchInterval: enabled ? 30_000 : false,
   });
 }
 

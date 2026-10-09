@@ -8,7 +8,7 @@ export function createQueryClient() {
       queries: {
         staleTime: 30_000,
         gcTime: 5 * 60_000,
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
         refetchOnReconnect: true,
         retry: (failureCount, error) => {
           if (error instanceof ApiClientError && error.status < 500) return false;

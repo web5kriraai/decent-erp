@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
+import { publishRealtime } from "@/lib/realtime";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import {
   businessRule,
@@ -32,7 +33,8 @@ import {
 import { formatProductionReleaseMissing } from "@/lib/services/production-workflow";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import {
-  artifactsIncludeMachineMetrics,
+  hasDigitizingMetrics,
+  hasSampleQuantity,
   isMachineOutputTask,
 } from "@/lib/services/task-machine-output-utils";
 import { resolveStatusAfterAssign, reconcileEmployeeTasksReadiness } from "@/lib/services/task-readiness";
@@ -120,9 +122,14 @@ export async function getMyTasks(employeeId: number) {
     },
     orderBy: [{ dueAt: "asc" }, { priority: "desc" }],
     include: {
-      design: { select: { id: true, ideaRef: true, collectionName: true, priority: true } },
+      design: {
+        select: { id: true, ideaRef: true, collectionName: true, priority: true, createdAtUtc: true },
+      },
+      assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
       process: true,
-      subProcess: true,
+      subProcess: {
+        include: { defaultRole: { select: { id: true, code: true, name: true } } },
+      },
       timeEvents: { orderBy: { eventTimeUtc: "asc" } },
     },
   });
@@ -437,6 +444,7 @@ export async function startTask(taskId: bigint, employeeId: number, correlationI
     return updated;
   });
 
+  await publishTimerChange(result.designId);
   return result;
 }
 
@@ -510,6 +518,7 @@ export async function holdTask(
     });
   }
 
+  await publishTimerChange(result.designId);
   return result.updated;
 }
 
@@ -519,7 +528,7 @@ export async function resumeTask(
   correlationId: string,
   version?: number,
 ) {
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     const { assertEmployeeHasNoOtherRunningTask } = await import(
       "@/lib/services/employee-task-lock"
     );
@@ -565,6 +574,32 @@ export async function resumeTask(
 
     return updated;
   });
+
+  await publishTimerChange(updated.designId);
+  return updated;
+}
+
+async function publishTimerChange(designId: bigint) {
+  try {
+    const design = await prisma.designConcept.findUnique({
+      where: { id: designId },
+      select: { companyId: true },
+    });
+    if (!design) return;
+    await publishRealtime({
+      companyId: design.companyId,
+      topics: ["tasks", "time", "designs"],
+    });
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "Timer realtime publish skipped",
+        designId: designId.toString(),
+        error: String(error),
+      }),
+    );
+  }
 }
 
 export async function endTask(
@@ -578,6 +613,7 @@ export async function endTask(
     checklist?: Array<{ itemId: number; result: boolean; remark?: string }>;
     checklistNote?: string;
     sampleOutcome?: "APPROVE" | "PASS" | "HOLD" | "REJECT" | "RESAMPLE";
+    correctionRoute?: "SKETCH" | "PUNCH" | "MACHINE_SAMPLE";
     costEntries?: Array<{
       costType: CostType;
       costCategory?: "FABRIC" | "EMBROIDERY" | "STITCHING" | "SALARY" | "OTHER" | null;
@@ -609,6 +645,8 @@ export async function endTask(
       isRejectSampleOutcome,
       isHoldSampleOutcome,
       isResampleSampleOutcome,
+      isSampleCorrectionRoute,
+      sampleCorrectionReturnsToChecker,
       sampleDecisionForOutcome,
     } = await import("@/lib/services/sample-outcome-utils");
 
@@ -656,12 +694,24 @@ export async function endTask(
         "Hold requires a reason in the output remark.",
       );
     }
+    let rejectRoute: "SKETCH" | "PUNCH" | "MACHINE_SAMPLE" | null = null;
+    let rejectRoutedTask: { id: bigint; sequence: number } | null = null;
     if (isSampleCheck && isRejectSampleOutcome(canonicalOutcome) && !input.outputRemark?.trim()) {
       throw businessRule(
         APP_ERROR_CODES.SAMPLE_OUTCOME_REQUIRED,
         undefined,
         "Reject requires a reason in the output remark.",
       );
+    }
+    if (isSampleCheck && isRejectSampleOutcome(canonicalOutcome)) {
+      if (!isSampleCorrectionRoute(input.correctionRoute)) {
+        throw businessRule(
+          APP_ERROR_CODES.SAMPLE_OUTCOME_REQUIRED,
+          undefined,
+          "Reject requires where the problem is: design, punching, or machine sample.",
+        );
+      }
+      rejectRoute = input.correctionRoute;
     }
 
     if (stageBehavior.onComplete.includes("unlockErp")) {
@@ -772,11 +822,22 @@ export async function endTask(
           stitchDensity: true,
         },
       });
-      if (!artifactsIncludeMachineMetrics(sampleArtifacts)) {
+      const digitizingStage =
+        task.subProcess.code === "PUNCH" || task.subProcess.code === "PUNCH_CHECK";
+      const metricsOk = digitizingStage
+        ? sampleArtifacts.some(
+            (row) => row.artifactType === "PUNCHING_FILE" && hasDigitizingMetrics(row),
+          )
+        : sampleArtifacts.some(
+            (row) => row.artifactType === "SAMPLE_OUTPUT" && hasSampleQuantity(row),
+          );
+      if (!metricsOk) {
         throw businessRule(
           APP_ERROR_CODES.VALIDATION_FAILED,
           undefined,
-          "Record machine output (sample qty, format, or stitch count) before ending this task.",
+          digitizingStage
+            ? "Record punching output (stitch count, format, hoop, or software) before ending this task."
+            : "Record sample qty before ending this task.",
         );
       }
     }
@@ -858,7 +919,9 @@ export async function endTask(
         // Commercial Hold: record decision, park design ON_HOLD, complete check stage.
         nextStatus = "COMPLETED";
       } else if (isRejectSampleOutcome(canonicalOutcome)) {
-        nextStatus = "CORRECTION_REQUIRED";
+        nextStatus = sampleCorrectionReturnsToChecker(rejectRoute ?? "")
+          ? "CORRECTION_REQUIRED"
+          : "PENDING";
         await tx.designImage.updateMany({
           where: designImagesRejectWhere(task.designId),
           data: {
@@ -867,17 +930,29 @@ export async function endTask(
           },
         });
 
-        const machineSample = await tx.designTask.findFirst({
-          where: { designId: task.designId, subProcess: { code: "MACHINE_SAMPLE" } },
+        const routeCode = rejectRoute ?? "MACHINE_SAMPLE";
+        const routedTask = await tx.designTask.findFirst({
+          where: { designId: task.designId, subProcess: { code: routeCode } },
           orderBy: { id: "desc" },
           include: { subProcess: { select: { id: true } } },
         });
         const routeSub =
-          machineSample?.subProcess ??
+          routedTask?.subProcess ??
           (await tx.designSubProcessMaster.findFirst({
-            where: { code: "MACHINE_SAMPLE", active: true },
+            where: { code: routeCode, active: true },
             select: { id: true },
           }));
+        if (!routedTask || !routeSub) {
+          throw businessRule(
+            APP_ERROR_CODES.VALIDATION_FAILED,
+            { stage: routeCode },
+            "That stage is not on this design.",
+          );
+        }
+        rejectRoutedTask = {
+          id: routedTask.id,
+          sequence: effectiveDependencySequence(routedTask),
+        };
 
         await raiseCorrectionInTransaction(
           tx,
@@ -885,8 +960,8 @@ export async function endTask(
             designId: task.designId,
             taskId: task.id,
             correctionType: "IMPROVEMENT",
-            responsibleEmployeeId: machineSample?.assignedEmployeeId ?? null,
-            routeToSubProcessId: routeSub?.id ?? null,
+            responsibleEmployeeId: routedTask?.assignedEmployeeId ?? null,
+            routeToSubProcessId: routeSub.id,
             rootCause: input.outputRemark || "Sample checking rejected - rework required",
           },
           employeeId,
@@ -1009,8 +1084,12 @@ export async function endTask(
           ? "SAMPLE_CHECK"
           : isResampleOutcome
             ? "RESAMPLE"
-            : siblingRows.find((s) => !["COMPLETED", "CHECKING", "CANCELLED"].includes(s.status))
-                ?.subProcess.code ?? task.subProcess.code,
+            : rejectRoute
+              ? rejectRoute
+              : siblingRows.find((s) => {
+                  const status = s.id === task.id ? nextStatus : s.status;
+                  return !["COMPLETED", "CHECKING", "CANCELLED"].includes(status);
+                })?.subProcess.code ?? task.subProcess.code,
         ...(isHoldSampleOutcome(canonicalOutcome)
           ? { status: "ON_HOLD" as const }
           : nextStatus === "CHECKING"
@@ -1019,13 +1098,43 @@ export async function endTask(
       },
     });
 
+    if (rejectRoute && rejectRoutedTask) {
+      await tx.designTask.update({
+        where: { id: rejectRoutedTask.id },
+        data: { outputRemark: input.outputRemark },
+      });
+      if (!sampleCorrectionReturnsToChecker(rejectRoute)) {
+        const between = await tx.designTask.findMany({
+          where: {
+            designId: task.designId,
+            id: { notIn: [rejectRoutedTask.id, task.id] },
+          },
+          select: { id: true, sequence: true, dependencySequence: true },
+        });
+        const checkSeq = effectiveDependencySequence(task);
+        const rewindIds = between
+          .filter((row) => {
+            const seq = effectiveDependencySequence(row);
+            return seq > rejectRoutedTask!.sequence && seq <= checkSeq;
+          })
+          .map((row) => row.id);
+        if (rewindIds.length > 0) {
+          await tx.designTask.updateMany({
+            where: { id: { in: rewindIds } },
+            data: { status: "PENDING", completedAt: null, version: { increment: 1 } },
+          });
+        }
+      }
+    }
+
     if (nextStatus === "COMPLETED" || nextStatus === "CHECKING") {
       if (isResampleOutcome) {
         // Costing / later stages stay locked until SAMPLE_CHECK is approved after re-sample.
       } else if (isResampleTask && nextStatus === "COMPLETED") {
         await reopenSampleCheckAfterResample(tx, task.designId, correlationId);
       } else {
-        // Machine (or other) rework finished for an open correction → reopen Sample Check.
+        // Machine-sample rework finished → reopen Sample Check.
+        // Sketch and punching rework return null so the next waiting stage unlocks instead.
         const reopenedCheck = await reopenSourceCheckAfterRoutedRework(tx, {
           designId: task.designId,
           routedTaskId: task.id,
@@ -1296,15 +1405,8 @@ export async function completeStageApproval(
     }
 
     if (status === "ASSIGNED") {
-      const { assertEmployeeHasNoOtherRunningTask } = await import(
-        "@/lib/services/employee-task-lock"
-      );
-      const lockCheck = await assertEmployeeHasNoOtherRunningTask(tx, employeeId, taskId);
-      if (!lockCheck.ok) {
-        throw conflict(APP_ERROR_CODES.TASK_ALREADY_RUNNING, {
-          runningTaskId: lockCheck.runningTaskId.toString(),
-        });
-      }
+      // The decision finishes in this same transaction, so it must not wait
+      // on the employee having no other running task.
       await tx.taskTimeEvent.create({
         data: {
           taskId,
@@ -1345,10 +1447,13 @@ export async function completeStageApproval(
     });
 
     if (decision === "REJECT" || decision === "CORRECTION_REQUIRED") {
-      const workCode = workSubProcessCodeForApproval(task.subProcess.code);
-      const workTask = workCode
+      const routedWorkCode = workSubProcessCodeForApproval(
+        task.subProcess.code,
+        task.subProcess.capabilities,
+      );
+      const workTask = routedWorkCode
         ? await tx.designTask.findFirst({
-            where: { designId: task.designId, subProcess: { code: workCode } },
+            where: { designId: task.designId, subProcess: { code: routedWorkCode } },
             orderBy: { id: "desc" },
             include: { subProcess: { select: { id: true } } },
           })
@@ -1376,8 +1481,25 @@ export async function completeStageApproval(
         correlationId,
       );
 
-      const updated = await tx.designTask.findUniqueOrThrow({
+      // Rework stays with the original worker and keeps the note. This approval
+      // waits as assigned until they submit again.
+      await tx.designTask.update({
+        where: { id: workTask.id },
+        data: {
+          assignedEmployeeId: workTask.assignedEmployeeId,
+          outputRemark: input.outputRemark,
+        },
+      });
+
+      const updated = await tx.designTask.update({
         where: { id: taskId },
+        data: {
+          status: "ASSIGNED",
+          assignedEmployeeId: employeeId,
+          completedAt: null,
+          outputRemark: input.outputRemark,
+          version: { increment: 1 },
+        },
         include: {
           assignedEmployee: { select: { id: true, name: true, employeeCode: true } },
           design: { select: { id: true, ideaRef: true, collectionName: true } },
@@ -1415,9 +1537,9 @@ export async function completeStageApproval(
       },
     });
 
-    await tx.designConcept.update({
-      where: { id: task.designId },
-      data: { currentStage: task.subProcess.code },
+    await closeOpenCorrectionsForTask(tx, {
+      designId: task.designId,
+      taskId: task.id,
     });
 
     await unlockNextDependentTasks(
@@ -1444,6 +1566,22 @@ export async function completeStageApproval(
       correlationId,
     );
 
+    const nextOpen = await tx.designTask.findFirst({
+      where: {
+        designId: task.designId,
+        status: { notIn: ["COMPLETED", "CANCELLED", "SKIPPED"] },
+      },
+      orderBy: { sequence: "asc" },
+      select: { subProcess: { select: { code: true } } },
+    });
+    await tx.designConcept.update({
+      where: { id: task.designId },
+      data: {
+        currentStage: nextOpen?.subProcess.code ?? task.subProcess.code,
+        status: "ACTIVE",
+      },
+    });
+
     await writeAuditLog(tx, {
       entityType: "DesignTask",
       entityId: taskId.toString(),
@@ -1464,11 +1602,19 @@ export async function completeStageApproval(
       correlationId,
     );
   } else {
+    const correction = await prisma.designCorrection.findFirst({
+      where: { designId: result.designId, taskId },
+      orderBy: { id: "desc" },
+      select: { responsibleEmployeeId: true },
+    });
     await enqueueOutboxAndNotify(
       "CORRECTION_RAISED",
       {
         designId: result.designId.toString(),
         taskId: taskId.toString(),
+        ...(correction?.responsibleEmployeeId != null
+          ? { responsibleEmployeeId: correction.responsibleEmployeeId }
+          : {}),
       },
       correlationId,
     );

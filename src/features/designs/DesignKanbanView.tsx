@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PermissionDenied } from "@/components/PermissionDenied";
@@ -9,137 +9,38 @@ import { StatCard } from "@/components/ui/StatCard";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
 import { ListSearch } from "@/components/ui/ListSearch";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import {
   WorkflowBoardCard,
   buildProductSeasonOwnerDueMeta,
 } from "@/components/ui/WorkflowBoardCard";
 import { ROUTES } from "@/config/routes";
 import { useDesignKanban } from "@/hooks/use-designs";
+import {
+  WORKFLOW_LANES,
+  compareBoardCards,
+  resolveLaneId,
+  type WorkflowLaneId,
+} from "@/lib/workflow-lanes";
+import { RoleDayScore } from "@/features/dashboard/RoleDayScore";
 import { useHorizontalMouseScroll } from "@/hooks/use-horizontal-mouse-scroll";
 import { useProductTypes, useSeasons } from "@/hooks/use-masters";
 import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { KanbanDesignItem, Priority } from "@/lib/types/api";
 
-/** Seven dashboard lanes mapped from real workflow stage codes. */
-const WORKFLOW_LANES = [
-  {
-    id: "new_idea",
-    label: "New Idea",
-    codes: ["CONCEPT_REVIEW", "CONCEPT"],
-  },
-  {
-    id: "sketch",
-    label: "Sketch",
-    codes: ["SKETCH", "SKETCH_APPROVAL"],
-  },
-  {
-    id: "punching",
-    label: "Punching",
-    codes: ["PUNCH", "PUNCH_CHECK"],
-  },
-  {
-    id: "machine_sample",
-    label: "Machine Sample",
-    codes: [
-      "MACHINE_SAMPLE",
-      "SAMPLE_CUTTING",
-      "SAMPLE_STITCHING",
-      "SAMPLE_RECEIVE",
-      "SAMPLE_CHECK",
-      "MAT_REQ",
-      "FABRIC_ISSUE",
-    ],
-  },
-  {
-    id: "correction",
-    label: "Correction",
-    codes: ["CORRECTION"],
-  },
-  {
-    id: "final_approval",
-    label: "Final Approval",
-    codes: ["COSTING", "FINAL_APPROVAL"],
-  },
-  {
-    id: "production_release",
-    label: "Production Release",
-    codes: [
-      "PROD_HANDOFF",
-      "PROD_INSTRUCTION",
-      "PROD_RELEASE",
-      "LIVE_REVIEW",
-      "DONE",
-    ],
-  },
-] as const;
-
-type LaneId = (typeof WORKFLOW_LANES)[number]["id"];
-
 const PRIORITY_FILTER_OPTIONS: { value: Priority | "ALL"; label: string }[] = [
   { value: "ALL", label: "All Priority" },
-  { value: "LOW", label: "Low" },
-  { value: "MEDIUM", label: "Medium" },
   { value: "HIGH", label: "High" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "LOW", label: "Low" },
   { value: "URGENT", label: "Urgent" },
 ];
 
-function resolveLaneId(design: KanbanDesignItem): LaneId {
-  if (
-    (design.openCorrectionCount ?? 0) > 0 ||
-    design.status === "ON_HOLD" ||
-    (design.workflow.currentStageCode ?? "").includes("CORRECTION") ||
-    (design.currentStage ?? "").includes("CORRECTION")
-  ) {
-    return "correction";
-  }
-
-  if (
-    ["APPROVED", "PRODUCTION_ACCEPTED", "PRODUCTION_RELEASED", "LIVE"].includes(
-      design.status,
-    )
-  ) {
-    return "production_release";
-  }
-
-  if (design.status === "APPROVAL_PENDING") {
-    return "final_approval";
-  }
-
-  const code = (
-    design.workflow.currentStageCode ??
-    design.currentStage ??
-    ""
-  ).toUpperCase();
-
-  if (!code || design.status === "DRAFT") {
-    return "new_idea";
-  }
-
-  for (const lane of WORKFLOW_LANES) {
-    if (lane.id === "correction") continue;
-    if (lane.codes.some((c) => code === c || code.startsWith(`${c}_`))) {
-      return lane.id;
-    }
-    if (lane.id === "machine_sample" && code.startsWith("SAMPLE_")) {
-      return "machine_sample";
-    }
-    if (lane.id === "production_release" && code.startsWith("PROD_")) {
-      return "production_release";
-    }
-  }
-
-  if (code.includes("SKETCH")) return "sketch";
-  if (code.includes("PUNCH")) return "punching";
-  if (code.includes("COST") || code.includes("APPROVAL")) return "final_approval";
-
-  return "new_idea";
-}
-
 function formatDueDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleDateString(undefined, {
     day: "2-digit",
     month: "short",
@@ -207,6 +108,14 @@ function WorkflowDesignCard({
               </div>
             </div>
           ) : null}
+          {design.workflow.currentOwner ? (
+            <p className="m-0 text-xs text-muted-foreground">
+              {design.workflow.pendingApproval
+                ? `Pending approval with ${design.workflow.currentOwner}`
+                : `Assigned to ${design.workflow.currentOwner}`}
+              {design.workflow.currentStage ? ` · ${design.workflow.currentStage}` : ""}
+            </p>
+          ) : null}
           {costLabel ? (
             <p className="workflow-dash-card__cost">{costLabel}</p>
           ) : null}
@@ -223,7 +132,6 @@ export function DesignKanbanView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const canView = permissions.includes(PERMISSIONS.DESIGN_CREATE);
-  const kanbanQuery = useDesignKanban(canView);
   const productTypes = useProductTypes(canView);
   const seasons = useSeasons(canView);
 
@@ -231,73 +139,69 @@ export function DesignKanbanView() {
   const [seasonFilter, setSeasonFilter] = useState<string>("ALL");
   const [ownerFilter, setOwnerFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<Priority | "ALL">("ALL");
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, productFilter, seasonFilter, ownerFilter, priorityFilter, pageSize]);
+
+  const kanbanQuery = useDesignKanban(
+    {
+      page,
+      pageSize,
+      q: searchQuery,
+      product: productFilter,
+      seasonId: seasonFilter,
+      owner: ownerFilter,
+      priority: priorityFilter,
+    },
+    canView,
+  );
 
   const items = kanbanQuery.data?.items ?? [];
   const summary = kanbanQuery.data?.summary;
+  const laneCounts = kanbanQuery.data?.laneCounts;
+  const pagination = kanbanQuery.data?.pagination;
 
-  const ownerOptions = useMemo(() => {
-    const names = new Set<string>();
-    for (const d of items) {
-      if (d.designHead?.name) names.add(d.designHead.name);
-    }
-    return [...names].sort((a, b) => a.localeCompare(b));
-  }, [items]);
-
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return items.filter((d) => {
-      if (productFilter !== "ALL" && d.productType?.name !== productFilter) return false;
-      if (seasonFilter !== "ALL" && String(d.season?.id ?? "") !== seasonFilter) return false;
-      if (ownerFilter !== "ALL" && d.designHead?.name !== ownerFilter) return false;
-      if (priorityFilter !== "ALL" && d.priority !== priorityFilter) return false;
-      if (q) {
-        const haystack = [
-          d.ideaRef,
-          d.collectionName,
-          d.productType?.name,
-          d.productType?.code,
-          d.season?.name,
-          d.designHead?.name,
-          d.priority,
-          d.workflow?.currentStage,
-          d.currentStage,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [items, productFilter, seasonFilter, ownerFilter, priorityFilter, searchQuery]);
+  const ownerOptions = kanbanQuery.data?.owners ?? [];
 
   const lanes = useMemo(() => {
     const map = Object.fromEntries(
       WORKFLOW_LANES.map((lane) => [lane.id, [] as KanbanDesignItem[]]),
-    ) as Record<LaneId, KanbanDesignItem[]>;
-    for (const design of filteredItems) {
+    ) as Record<WorkflowLaneId, KanbanDesignItem[]>;
+    for (const design of items) {
       map[resolveLaneId(design)].push(design);
     }
     return WORKFLOW_LANES.map((lane) => ({
       ...lane,
-      items: map[lane.id],
+      total: laneCounts?.[lane.id] ?? map[lane.id].length,
+      items: map[lane.id].sort(compareBoardCards),
     }));
-  }, [filteredItems]);
+  }, [items, laneCounts]);
 
   const filtersActive =
     productFilter !== "ALL" ||
     seasonFilter !== "ALL" ||
     ownerFilter !== "ALL" ||
     priorityFilter !== "ALL" ||
-    searchQuery.trim().length > 0;
+    searchInput.trim().length > 0;
 
   function resetFilters() {
     setProductFilter("ALL");
     setSeasonFilter("ALL");
     setOwnerFilter("ALL");
     setPriorityFilter("ALL");
+    setSearchInput("");
     setSearchQuery("");
+    setPage(1);
   }
 
   if (!canView) {
@@ -329,9 +233,10 @@ export function DesignKanbanView() {
         isError={kanbanQuery.isError}
         error={kanbanQuery.error}
         onRetry={() => kanbanQuery.refetch()}
-        skeletonVariant="pipeline-accordion"
+        skeletonVariant="workflow-dashboard"
       >
         <div className="workflow-dash-body">
+        <RoleDayScore compact />
         <div className="stat-grid workflow-dash-stats">
           <StatCard
             label="Total Ideas"
@@ -382,7 +287,7 @@ export function DesignKanbanView() {
             value={
               summary?.avgDevelopmentDays != null
                 ? `${summary.avgDevelopmentDays}d`
-                : "—"
+                : "-"
             }
             trend="Create → approved / released"
           />
@@ -393,6 +298,14 @@ export function DesignKanbanView() {
           role="group"
           aria-label="Workflow filters"
         >
+          <ListSearch
+            id="wf-search"
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search idea, product, owner…"
+            aria-label="Search designs"
+            className="workflow-dash-search"
+          />
           <ListSelectFilter
             id="wf-product"
             label="Product"
@@ -438,14 +351,6 @@ export function DesignKanbanView() {
             }
             options={PRIORITY_FILTER_OPTIONS}
           />
-          <ListSearch
-            id="wf-search"
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Idea ref, name, product…"
-            aria-label="Search designs"
-            className="workflow-dash-search"
-          />
           <AppButton
             type="button"
             appVariant="ghost"
@@ -471,7 +376,7 @@ export function DesignKanbanView() {
                 key={lane.id}
                 className="kanban-column"
                 role="listitem"
-                aria-label={`${lane.label}, ${lane.items.length} designs`}
+                aria-label={`${lane.label}, ${lane.total} designs`}
               >
                 <div className="kanban-column-header">
                   <span className="kanban-column-title">
@@ -481,10 +386,10 @@ export function DesignKanbanView() {
                     />
                     {lane.label}
                   </span>
-                  <span className="kanban-column-count">{lane.items.length}</span>
+                  <span className="kanban-column-count">{lane.total}</span>
                 </div>
                 <div className="kanban-cards">
-                  {lane.items.length === 0 ? (
+                  {lane.total === 0 ? (
                     <p className="workflow-dash-empty">No designs</p>
                   ) : (
                     lane.items.map((design) => (
@@ -502,6 +407,15 @@ export function DesignKanbanView() {
           </div>
           </div>
         </div>
+        <PaginationBar
+          total={pagination?.total ?? 0}
+          page={pagination?.page ?? page}
+          pageSize={pagination?.pageSize ?? pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          pageSizeSelectId="workflow-dash-page-size"
+          className="list-page__pagination"
+        />
         </div>
       </QueryState>
     </div>

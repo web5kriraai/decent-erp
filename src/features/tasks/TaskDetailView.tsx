@@ -1,27 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useBreadcrumbReplacement } from "@/components/layout/BreadcrumbProvider";
 import { QueryState } from "@/components/ui/QueryState";
 import { TimerWidget } from "@/components/TimerWidget";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { resolveListItemDisplayStatus } from "@/lib/task-action-display";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { SkeletonRows } from "@/components/SkeletonRows";
 import { TaskTimeTimeline } from "@/components/time/TaskTimeTimeline";
 import { TaskHoldDialog } from "@/components/tasks/TaskHoldDialog";
 import { TaskEndDialog } from "@/components/tasks/TaskEndDialog";
+import { earlierDesignerStages } from "@/components/tasks/DesignerTimePanel";
+import { useLiveTimeSummary } from "@/hooks/use-live-time-summary";
+import type { SampleCorrectionRoute } from "@/lib/services/sample-outcome-utils";
 import { TaskQualityContextPanel } from "@/components/tasks/TaskQualityContextPanel";
 import {
   isStageApprovalTask,
   TaskStageApprovalPanel,
 } from "@/components/tasks/TaskStageApprovalPanel";
-import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
 import { ActionUnavailable } from "@/components/ui/ActionUnavailable";
-import { AppButtonLink } from "@/components/ui/AppButton";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { ROUTES } from "@/config/routes";
 import { useTaskTimeDetail } from "@/hooks/use-time";
@@ -36,9 +39,13 @@ import {
   ErpStageOperator,
   floorProgressFromChain,
 } from "@/features/production/ErpStageOperator";
+import { ApiClientError } from "@/lib/api-client";
+import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { PERMISSIONS } from "@/lib/permissions";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import { formatDuration } from "@/lib/services/time-calculation";
+import { formatTaskDeadline, formatTaskStamp, resolveTaskAssignedAt } from "@/lib/task-action-display";
+import { TaskDesignBrief } from "@/features/tasks/TaskDesignBrief";
 import { workSubProcessCodeForApproval } from "@/lib/services/stage-approval-queue";
 import {
   canControlTask,
@@ -48,8 +55,9 @@ import {
   getTaskEndDialogConfig,
   getTaskHoldDialogConfig,
   buildHandoffContextFromTask,
+  handoffTimeFromSummary,
 } from "@/lib/task-dialog-config";
-import { findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
+import { findNextPeerForHandoff, findPriorPeerForHandoff } from "@/lib/services/stage-approval-queue";
 import { nextStepHintForStageApproval } from "@/lib/stage-approval-rbac";
 import { cn } from "@/lib/utils";
 
@@ -65,14 +73,13 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     [session?.user?.permissions],
   );
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
-  const canViewTeam = permissions.includes(PERMISSIONS.TIME_VIEW_TEAM);
   const canViewErp = canViewErpChain(permissions);
-  const enabled = sessionStatus === "authenticated" && (canExecute || canViewTeam);
+  const enabled = sessionStatus === "authenticated" && canExecute;
 
   const detailQuery = useTaskTimeDetail(taskId, enabled);
   const holdReasons = useHoldReasons(canExecute && enabled);
   const checklistQuery = useChecklistItems(canExecute && enabled);
-  const { hold, resume, end } = useTaskMutations();
+  const { start, hold, resume, end, openWorkday } = useTaskMutations();
 
   const [holdModalOpen, setHoldModalOpen] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
@@ -87,6 +94,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   >(
     "",
   );
+  const [correctionRoute, setCorrectionRoute] = useState<SampleCorrectionRoute | "">("");
   const [costEntries, setCostEntries] = useState<
     Array<{ costType: "TIME" | "MATERIAL" | "MACHINE" | "CORRECTION"; description?: string; amount: number }>
   >([]);
@@ -113,7 +121,6 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     taskId,
     task ? `${task.design.ideaRef} · ${task.subProcess.name}` : undefined,
   );
-  const isAssignee = task?.assignedEmployeeId === session?.user?.employeeId;
   const roleCode = session?.user?.roleCode;
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const isStageApproval = isStageApprovalTask(task?.subProcess?.code, {
@@ -129,13 +136,15 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         task,
       })
     : false;
-  const showComparePanel =
-    task?.subProcess?.code === "PUNCH_CHECK";
   const designMismatch =
     !!task && !!designId && task.designId !== designId && task.design.id !== designId;
 
-  // Server snapshot; TimerWidget ticks live while RUNNING.
-  const activeSeconds = task?.timeSummary.activeSeconds ?? 0;
+  const liveSummary = useLiveTimeSummary(
+    task?.timeline,
+    task?.status === "RUNNING" || task?.status === "ON_HOLD",
+  );
+  const activeSeconds = liveSummary?.activeSeconds ?? task?.timeSummary.activeSeconds ?? 0;
+  const holdSeconds = liveSummary?.holdSeconds ?? task?.timeSummary.holdSeconds ?? 0;
   const backHref = designId ? ROUTES.designs.detail(designId) : ROUTES.work.tasks;
   const backLabel = designId ? "Back to Design" : "Back to My Tasks";
 
@@ -160,7 +169,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     );
   }
 
-  if (sessionStatus === "authenticated" && !canExecute && !canViewTeam) {
+  if (sessionStatus === "authenticated" && !canExecute) {
     return (
       <div className="page-shell">
         <PermissionDenied permission={PERMISSIONS.TASK_EXECUTE} />
@@ -212,6 +221,17 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const priorPeer = task
     ? findPriorPeerForHandoff(task.subProcess.code, task.workflowPeers)
     : null;
+  const nextPeer = task
+    ? findNextPeerForHandoff({ id: task.id, sequence: task.sequence }, task.workflowPeers)
+    : null;
+  const nextStage = nextPeer
+    ? {
+        code: nextPeer.subProcess.code,
+        name: nextPeer.subProcess.name,
+        status: nextPeer.status,
+        assigneeName: nextPeer.assignedEmployee?.name ?? null,
+      }
+    : null;
 
   const holdHandoff = task && holdDialogConfig
     ? buildHandoffContextFromTask(
@@ -237,6 +257,11 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   assigneeName: priorPeer.assignedEmployee?.name,
                 }
               : null,
+            ...handoffTimeFromSummary(
+              { activeSeconds, holdSeconds },
+              task.expectedMinutes,
+            ),
+            nextStage,
           },
         )
     : null;
@@ -266,6 +291,11 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
               }
             : null,
           blockers: task.blockedMessage ? [task.blockedMessage] : undefined,
+          ...handoffTimeFromSummary(
+            { activeSeconds, holdSeconds },
+            task.expectedMinutes,
+          ),
+          nextStage,
         },
       )
     : null;
@@ -285,7 +315,8 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             assignedEmployee: task.assignedEmployee,
           },
           {
-            nextStepHint: nextStepHintForStageApproval(task.subProcess.code),
+            nextStepHint: nextStage ? null : nextStepHintForStageApproval(task.subProcess.code),
+            nextStage,
             priorStage: priorPeer
               ? {
                   code: priorPeer.subProcess.code,
@@ -295,14 +326,31 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   assigneeName: priorPeer.assignedEmployee?.name,
                 }
               : null,
+            activeSeconds: priorPeer?.activeSeconds ?? null,
+            holdSeconds: priorPeer?.holdSeconds ?? null,
+            expectedMinutes:
+              priorPeer?.activeSeconds != null || priorPeer?.holdSeconds != null
+                ? priorPeer.expectedMinutes ?? null
+                : null,
+            timeSectionTitle: priorPeer
+              ? `${priorPeer.subProcess.name} time`
+              : null,
           },
         )
       : null;
 
   async function handleEndSubmit() {
-    if (!task || !endRemark.trim()) return;
-    if (isSampleCheck && !sampleOutcome) return;
+    if (!task) return;
     const isCosting = endDialogConfig?.costingEntry === true;
+    if (isCosting && !endRemark.trim()) return;
+    if (isSampleCheck && !sampleOutcome) return;
+    if (
+      isSampleCheck &&
+      sampleOutcome === "REJECT" &&
+      (!correctionRoute || !endRemark.trim())
+    ) {
+      return;
+    }
     const checklist = taskChecklistItems.map((item) => ({
       itemId: item.id,
       result: checklistResults[item.id] ?? false,
@@ -323,7 +371,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     await end.mutateAsync({
       taskId: task.id,
       version: task.version,
-      outputRemark: endRemark.trim(),
+      outputRemark: endRemark.trim() || "Completed",
       completionStatus: isSampleCheck
         ? sampleOutcome === "REJECT"
           ? "CHECKING"
@@ -336,6 +384,10 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
         : undefined,
       checklistNote: note,
       sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+      correctionRoute:
+        isSampleCheck && sampleOutcome === "REJECT" && correctionRoute
+          ? correctionRoute
+          : undefined,
       costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
     });
     setEndModalOpen(false);
@@ -343,13 +395,38 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     setChecklistResults({});
     setChecklistNote("");
     setSampleOutcome("");
+    setCorrectionRoute("");
     setCostEntries([]);
+  }
+
+  const viewerEmployeeId = session?.user?.employeeId;
+  const openedSomeoneElsesTask =
+    !!task &&
+    viewerEmployeeId != null &&
+    Number(task.assignedEmployeeId) !== Number(viewerEmployeeId);
+  const notAssigned =
+    openedSomeoneElsesTask ||
+    (detailQuery.error instanceof ApiClientError &&
+      detailQuery.error.code === APP_ERROR_CODES.TASK_NOT_ASSIGNED);
+
+  if (notAssigned) {
+    return (
+      <div className="page-shell task-detail-page">
+        <AppCard title="Task">
+          <p className="text-sm" role="alert">
+            This task isn&apos;t assigned to you.
+          </p>
+          <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" className="mt-4">
+            Back to My Tasks
+          </AppButtonLink>
+        </AppCard>
+      </div>
+    );
   }
 
   const hasContextPanels =
     !!task &&
-    (showComparePanel ||
-      (canControl && !!task.blockedMessage && !task.canStart) ||
+    ((canControl && !!task.blockedMessage && !task.canStart) ||
       // Quality panel mounts for quality stages; may still render null while loading.
       task.subProcess.code === "SAMPLE_CHECK" ||
       task.subProcess.code === "PUNCH_CHECK");
@@ -414,16 +491,20 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
               }
             />
 
+            {task.status === "CORRECTION_REQUIRED" && task.outputRemark?.trim() ? (
+              <div className="alert alert-warning task-detail-page__alert" role="status">
+                <p className="m-0 text-sm">
+                  Correction from the reviewer: {task.outputRemark.trim()}
+                </p>
+              </div>
+            ) : null}
+
             {hasContextPanels ? (
               <div className="task-detail-page__context">
                 <TaskQualityContextPanel
                   designId={task.design.id}
                   subProcessCode={task.subProcess.code}
                 />
-
-                {showComparePanel ? (
-                  <TaskCompareVersionsPanel designId={task.design.id} />
-                ) : null}
 
                 {canControl && task.blockedMessage && !task.canStart ? (
                   <ActionUnavailable reason={task.blockedMessage} />
@@ -447,7 +528,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   capabilities={task.subProcess.capabilities}
                   isApproval={task.subProcess.isApproval}
                   canAssign={canAssign}
-                  showCompare={false}
+                  showCompare
                   workTaskStatus={linkedWorkTaskStatus}
                   handoff={stageApprovalHandoff}
                 />
@@ -462,7 +543,26 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                       compact
                       status={isRunning ? "RUNNING" : isOnHold ? "ON_HOLD" : "IDLE"}
                       elapsedSeconds={activeSeconds}
-                      taskLabel={`${task.process.name} — ${task.subProcess.name}`}
+                      taskLabel={`${task.process.name} - ${task.subProcess.name}`}
+                      onStart={
+                        timerFlags?.showStart
+                          ? () => {
+                              if (!task.canStart || start.isPending) return;
+                              start.mutate(task.id);
+                            }
+                          : undefined
+                      }
+                      startDisabled={!task.canStart || start.isPending || !!task.workdayClosed}
+                      startLabel={
+                        task.status === "CORRECTION_REQUIRED" ? "Restart" : "Start Task"
+                      }
+                      startHint={
+                        task.workdayClosed
+                          ? "Open the workday before starting this task."
+                          : timerFlags?.showStart && !task.canStart
+                            ? task.startBlockedReason ?? task.blockedMessage ?? undefined
+                            : undefined
+                      }
                       onHold={
                         timerFlags?.showHold
                           ? () => {
@@ -489,28 +589,33 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                           : undefined
                       }
                     />
+                    {task.workdayClosed ? (
+                      <div className="task-workday-reopen">
+                        <p className="task-detail-timer-hint" role="status">
+                          Today&apos;s workday is closed. Open it to start the timer again.
+                        </p>
+                        <AppButton
+                          type="button"
+                          size="sm"
+                          disabled={openWorkday.isPending}
+                          onClick={() => openWorkday.mutate()}
+                        >
+                          {openWorkday.isPending ? "Opening…" : "Open Workday"}
+                        </AppButton>
+                      </div>
+                    ) : null}
                     {timerFlags?.blocksTimerEnd && (isRunning || isOnHold) ? (
                       <p className="task-detail-timer-hint" role="status">
-                        Finish this stage with Approve / Request correction / Reject above — not
+                        Finish this stage with Approve / Request correction / Reject above - not
                         the timer End dialog. Hold and Resume still work for time tracking.
                       </p>
                     ) : null}
                   </div>
                 ) : (
                   <AppCard title="Time summary" className="task-detail-meta-card">
-                    {!isAssignee && canViewTeam && (
-                      <p className="mb-3 text-sm text-muted-foreground">
-                        Read-only view - you are not the assignee for this task.
-                      </p>
-                    )}
-                    {!isAssignee && !canViewTeam && (
-                      <p className="mb-3 text-sm text-muted-foreground">
-                        This task is not assigned to you.
-                      </p>
-                    )}
                     <dl className="detail-list detail-list--compact">
-                      <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
-                      <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
+                      <DetailItem label="Active work" value={formatDuration(activeSeconds)} />
+                      <DetailItem label="Hold time" value={formatDuration(holdSeconds)} />
                       <DetailItem label="Expected" value={`${task.expectedMinutes} min`} />
                     </dl>
                   </AppCard>
@@ -521,13 +626,34 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                   className="task-detail-meta-card"
                   contentClassName="task-detail-meta-card__content"
                 >
-                  <dl className="detail-list detail-list--compact">
+                  <dl className="task-fact-list">
                     <DetailItem label="Process" value={task.process.name} />
-                    <DetailItem label="Sub-process" value={task.subProcess.name} />
-                    <DetailItem label="Expected Time" value={`${task.expectedMinutes} min`} />
-                    <DetailItem label="Priority" value={task.priority} />
-                    <DetailItem label="Active work" value={formatDuration(task.timeSummary.activeSeconds)} />
-                    <DetailItem label="Hold time" value={formatDuration(task.timeSummary.holdSeconds)} />
+                    <DetailItem label="Stage" value={task.subProcess.name} />
+                    <DetailItem
+                      label="Role"
+                      value={task.subProcess.defaultRole?.name ?? "-"}
+                    />
+                    <DetailItem
+                      label="Assignee"
+                      value={task.assignedEmployee?.name ?? "-"}
+                    />
+                    <DetailItem
+                      label="Assigned"
+                      value={
+                        formatTaskStamp(
+                          resolveTaskAssignedAt({
+                            startedAt: task.startedAt,
+                            updatedAtUtc: task.updatedAtUtc,
+                            design: { createdAtUtc: undefined },
+                          }),
+                        ) ?? "-"
+                      }
+                    />
+                    <DetailItem label="Deadline" value={formatTaskDeadline(task.dueAt) ?? "Not set"} />
+                    <DetailItem label="Expected" value={`${task.expectedMinutes} min`} />
+                    <DetailItem label="Priority" value={<PriorityBadge priority={task.priority} />} />
+                    <DetailItem label="Active work" value={formatDuration(activeSeconds)} />
+                    <DetailItem label="Hold time" value={formatDuration(holdSeconds)} />
                   </dl>
                 </AppCard>
 
@@ -571,15 +697,16 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                 ) : null}
               </aside>
 
-              <section className="task-detail-workspace__timeline" aria-label="Time event timeline">
+              <div className="task-detail-workspace__main">
+                <TaskDesignBrief task={task} />
                 <AppCard
-                  title="Time event timeline"
+                  title="Time"
                   className="task-detail-timeline-card"
                   contentClassName="task-detail-timeline-card__content"
                 >
-                  <TaskTimeTimeline events={task.timeline} summary={task.timeSummary} fill />
+                  <TaskTimeTimeline events={task.timeline} summary={liveSummary ?? task.timeSummary} />
                 </AppCard>
-              </section>
+              </div>
             </div>
           </>
         )}
@@ -633,12 +760,23 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             isSampleCheck={endDialogConfig?.showSampleOutcomes ?? isSampleCheck}
             sampleOutcome={sampleOutcome || undefined}
             onSampleOutcomeChange={setSampleOutcome}
+            correctionRoute={correctionRoute}
+            onCorrectionRouteChange={setCorrectionRoute}
             gateForcesChecking={endDialogConfig?.forceChecking}
             dialogTitle={endDialogConfig?.title}
             dialogDescription={endDialogConfig?.description}
             remarkLabel={endDialogConfig?.remarkLabel}
             remarkPlaceholder={endDialogConfig?.remarkPlaceholder}
             handoff={endHandoff}
+            priorPunching={task.priorPunching}
+            designerStages={
+              task.subProcess.code === "COSTING"
+                ? earlierDesignerStages(task.workflowPeers, {
+                    id: task.id,
+                    sequence: task.sequence,
+                  })
+                : undefined
+            }
             showStatusSelect={endDialogConfig?.showStatusSelect}
             costEntries={costEntries}
             onCostEntriesChange={setCostEntries}
@@ -651,7 +789,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   );
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
+function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <dt>{label}</dt>

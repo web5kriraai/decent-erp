@@ -175,7 +175,7 @@ export function StructuredMastersAdminView({
       processesQuery.data?.flatMap((p) =>
         (p.subProcesses ?? []).map((sp) => ({
           value: String(sp.id),
-          label: `${p.code} / ${sp.code} — ${sp.name}`,
+          label: `${p.code} / ${sp.code} - ${sp.name}`,
         })),
       ) ?? [];
     return [{ value: "", label: "All stages (optional)" }, ...rows];

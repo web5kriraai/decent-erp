@@ -132,6 +132,7 @@ model Company {
   employees Employee[]
   designs   DesignConcept[]
   scorecards KpiScorecard[]
+  assignmentRules AssignmentRule[]
 
   @@map("companies")
 }
@@ -182,6 +183,7 @@ model Employee {
   createdTimeEvents    TaskTimeEvent[] @relation("TimeEventCreatedBy")
   raisedCorrections    DesignCorrection[] @relation("RaisedBy")
   responsibleCorrections DesignCorrection[] @relation("ResponsibleEmployee")
+  reviewerCorrections  DesignCorrection[] @relation("CorrectionReviewer")
   approvals            DesignApproval[]
   kpiScores            EmployeeKpiScore[]
   uploadedImages       DesignImage[]
@@ -202,6 +204,7 @@ model Employee {
   creativityRatingsGiven DesignCreativityRating[] @relation("CreativityRatedBy")
   creativityRatingsReceived DesignCreativityRating[] @relation("CreativityRatedEmployee")
   scorecardsCreated      KpiScorecard[] @relation("ScorecardCreatedBy")
+  timerIdempotencyKeys   TaskTimerIdempotency[]
 
   @@index([companyId, active])
   @@map("employees")
@@ -342,10 +345,28 @@ model MasterCatalog {
   materialLines          DesignMaterialLine[]     @relation("MaterialCatalogItem")
   bomLines               DesignBomLine[]          @relation("BomCatalogItem")
   sampleMachineTasks     DesignTask[]             @relation("TaskSampleMachine")
+  componentLinksAsCategory ProductCategoryComponentLink[] @relation("ProductCategoryComponentCategory")
+  componentLinksAsComponent ProductCategoryComponentLink[] @relation("ProductCategoryComponentComponent")
 
   @@unique([masterType, code])
   @@index([masterType, isActive, sortOrder])
   @@map("master_catalog")
+}
+
+/** Which product components apply to each product category (Saree → Pallu, etc.). */
+model ProductCategoryComponentLink {
+  id                Int      @id @default(autoincrement())
+  productCategoryId Int      @map("product_category_id")
+  componentId       Int      @map("component_id")
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  productCategory MasterCatalog @relation("ProductCategoryComponentCategory", fields: [productCategoryId], references: [id], onDelete: Cascade)
+  component       MasterCatalog @relation("ProductCategoryComponentComponent", fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@unique([productCategoryId, componentId])
+  @@index([productCategoryId, sortOrder])
+  @@map("product_category_component_link")
 }
 
 model DesignProcessMaster {
@@ -497,6 +518,8 @@ model DesignConcept {
   workflowPatternId    Int?         @map("workflow_pattern_id")
   /** Design Head management sign-off request package (remark + snapshot). */
   approvalRequestPackage Json?      @map("approval_request_package")
+  /** Planned finish date chosen when the concept is created. */
+  targetEndDate        DateTime?    @map("target_end_date")
   createdById          Int          @map("created_by")
   createdAtUtc         DateTime     @default(now()) @map("created_at_utc")
   updatedAtUtc         DateTime     @updatedAt @map("updated_at_utc")
@@ -553,7 +576,7 @@ model DesignImage {
   id                BigInt             @id @default(autoincrement()) @map("image_id")
   designId          BigInt             @map("design_id")
   designComponentId BigInt?            @map("design_component_id")
-  /** IMAGE | AUDIO | VIDEO | FILE — concept media kinds. */
+  /** IMAGE | AUDIO | VIDEO | FILE - concept media kinds. */
   mediaKind         String             @default("IMAGE") @map("media_kind") @db.VarChar(20)
   storageKey        String             @map("storage_key")
   fileName          String             @map("file_name")
@@ -625,6 +648,8 @@ model DesignTask {
   startedAt           DateTime?  @map("started_at")
   completedAt         DateTime?  @map("completed_at")
   outputRemark        String?    @map("output_remark") @db.Text
+  /** Note entered when the concept is created, before work starts. */
+  instructionNote     String?    @map("instruction_note") @db.Text
   updatedAtUtc        DateTime   @updatedAt @map("updated_at_utc")
   version             Int        @default(1)
 
@@ -648,6 +673,7 @@ model DesignTask {
   approvals        DesignApproval[]
   checklistResults TaskChecklistResult[]
   artifacts        TaskArtifact[]
+  timerIdempotencyKeys TaskTimerIdempotency[]
 
   @@index([assignedEmployeeId, status, dueAt], map: "IX_DesignTask_AssignedEmployee_Status_DueAt")
   @@index([designId, processId, subProcessId], map: "IX_DesignTask_DesignId_Process_SubProcess")
@@ -683,8 +709,11 @@ model DesignCorrection {
   correctionType        CorrectionType   @map("correction_type")
   responsibleEmployeeId Int?             @map("responsible_employee_id")
   raisedById            Int              @map("raised_by")
+  /** Reviewer who must approve/reject after rework (defaults to raiser on stage send-back). */
+  reviewerEmployeeId    Int?             @map("reviewer_employee_id")
   routeToSubProcessId   Int?             @map("route_to_sub_process_id")
   routedTaskId          BigInt?          @map("routed_task_id")
+  cycleNo               Int              @default(1) @map("cycle_no")
   rootCause             String?          @map("root_cause") @db.Text
   extraMinutes          Int?             @map("extra_minutes")
   extraCost             Decimal?         @map("extra_cost") @db.Decimal(18, 2)
@@ -699,10 +728,45 @@ model DesignCorrection {
   task                DesignTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   responsibleEmployee Employee?     @relation("ResponsibleEmployee", fields: [responsibleEmployeeId], references: [id])
   raisedBy            Employee      @relation("RaisedBy", fields: [raisedById], references: [id])
+  reviewerEmployee    Employee?     @relation("CorrectionReviewer", fields: [reviewerEmployeeId], references: [id])
   routeToSubProcess   DesignSubProcessMaster? @relation(fields: [routeToSubProcessId], references: [id])
 
   @@index([responsibleEmployeeId, status], map: "IX_DesignCorrection_ResponsibleEmployee_Status")
+  @@index([reviewerEmployeeId, status], map: "IX_DesignCorrection_ReviewerEmployee_Status")
+  @@index([designId, routeToSubProcessId, cycleNo], map: "IX_DesignCorrection_Design_Route_Cycle")
   @@map("design_corrections")
+}
+
+model AssignmentRule {
+  id           Int      @id @default(autoincrement()) @map("assignment_rule_id")
+  companyId    Int      @map("company_id")
+  name         String
+  priority     Int      @default(100)
+  active       Boolean  @default(true)
+  strategy     String   @default("WORKLOAD_SKILL")
+  criteriaJson Json     @default("{}") @map("criteria_json")
+  createdAtUtc DateTime @default(now()) @map("created_at_utc")
+  updatedAtUtc DateTime @updatedAt @map("updated_at_utc")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, active, priority], map: "IX_AssignmentRule_Company_Active_Priority")
+  @@map("assignment_rules")
+}
+
+model TaskTimerIdempotency {
+  id             BigInt   @id @default(autoincrement()) @map("timer_idempotency_id")
+  idempotencyKey String   @unique @map("idempotency_key")
+  taskId         BigInt   @map("task_id")
+  employeeId     Int      @map("employee_id")
+  action         String
+  createdAtUtc   DateTime @default(now()) @map("created_at_utc")
+
+  task     DesignTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employee Employee   @relation(fields: [employeeId], references: [id])
+
+  @@index([createdAtUtc], map: "IX_TaskTimerIdempotency_CreatedAt")
+  @@map("task_timer_idempotency")
 }
 
 model DesignApproval {

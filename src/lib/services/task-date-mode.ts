@@ -78,6 +78,7 @@ export type WorkflowPreviewRow = {
   stage: string;
   assigneeName: string;
   assignedEmployeeId: number | null;
+  roleId: number | null;
   roleName: string | null;
   hours: string;
   expectedMinutes: number;

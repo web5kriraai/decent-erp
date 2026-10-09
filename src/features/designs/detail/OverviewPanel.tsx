@@ -1,8 +1,13 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
-import type { DesignSummary } from "@/lib/types/api";
+import { ImageLightboxModal } from "@/components/ui/ImageLightboxModal";
+import { apiGet } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-keys";
+import type { DesignImageRecord, DesignSummary } from "@/lib/types/api";
+import { useState } from "react";
 
 export function OverviewPanel({
   design,
@@ -13,48 +18,100 @@ export function OverviewPanel({
   onEditComponents?: () => void;
   canEdit?: boolean;
 }) {
-  const stage =
-    design.currentStage ??
-    design.tasks?.find((t) =>
-      ["RUNNING", "ASSIGNED", "CHECKING"].includes(t.status),
-    )?.subProcess?.name ??
-    design.status;
+  const imagesQuery = useQuery({
+    queryKey: queryKeys.designs.images(design.id),
+    queryFn: () => apiGet<DesignImageRecord[]>(`/api/designs/${design.id}/images`),
+    enabled: !!design.id,
+  });
+  const [lightbox, setLightbox] = useState<{ url: string; title: string } | null>(null);
+  const imageRows = (imagesQuery.data ?? []).filter(
+    (image) => (image.mediaKind ?? "IMAGE") === "IMAGE",
+  );
+  const createdLabel = design.createdAtUtc
+    ? new Date(design.createdAtUtc).toLocaleDateString()
+    : "-";
+  const endLabel = design.targetEndDate
+    ? new Date(design.targetEndDate).toLocaleDateString()
+    : "-";
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      <AppCard title="Concept Information">
-        <dl className="space-y-2 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Product</dt>
-            <dd className="font-medium">{design.productType?.name ?? "—"}</dd>
+      <AppCard title="Concept information">
+        <dl className="design-detail-facts">
+          <div>
+            <dt>Product</dt>
+            <dd>{design.productType?.name ?? "-"}</dd>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Season</dt>
-            <dd className="font-medium">{design.season?.name ?? "—"}</dd>
+          <div>
+            <dt>Season</dt>
+            <dd>{design.season?.name ?? "-"}</dd>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Priority</dt>
-            <dd className="font-medium">{design.priority}</dd>
+          <div>
+            <dt>Priority</dt>
+            <dd>{design.priority}</dd>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Stage</dt>
-            <dd className="font-medium">{stage}</dd>
+          <div>
+            <dt>Created</dt>
+            <dd>{createdLabel}</dd>
+          </div>
+          <div>
+            <dt>End date</dt>
+            <dd>{endLabel}</dd>
+          </div>
+          <div>
+            <dt>Style</dt>
+            <dd>{design.styleName?.trim() || "-"}</dd>
+          </div>
+          <div className="sm:col-span-2">
+            <dt>Note</dt>
+            <dd>{design.conceptNote?.trim() || "-"}</dd>
           </div>
         </dl>
       </AppCard>
       <AppCard title="Components">
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-3">
           {(design.components ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No components yet.</p>
           ) : (
-            (design.components ?? []).map((c) => (
-              <span
-                key={c.id}
-                className="rounded-md border border-border bg-muted/40 px-2.5 py-1 text-sm font-medium"
-              >
-                {c.componentType?.name ?? "Component"}
-              </span>
-            ))
+            <div className="component-view-grid">
+              {(design.components ?? []).map((component) => {
+                const photos = imageRows.filter(
+                  (image) => image.designComponentId === component.id,
+                );
+                const name = component.componentType?.name ?? "Component";
+                return (
+                  <article key={component.id} className="component-view-card">
+                    <p className="component-view-name">{name}</p>
+                    {photos.length === 0 ? (
+                      <div className="component-view-empty">No image for this component.</div>
+                    ) : (
+                      <div className="component-view-photos">
+                        {photos.map((photo) => (
+                          <button
+                            key={photo.id}
+                            type="button"
+                            className="component-view-photo"
+                            title={photo.isPrimary ? `${name} · shown outside` : name}
+                            onClick={() =>
+                              setLightbox({
+                                url: photo.downloadUrl,
+                                title: `${name} · ${photo.fileName}`,
+                              })
+                            }
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={photo.downloadUrl} alt={name} />
+                            {photo.isPrimary ? (
+                              <span className="component-view-badge">Shown outside</span>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
           )}
         </div>
         {canEdit && onEditComponents ? (
@@ -69,6 +126,12 @@ export function OverviewPanel({
           </AppButton>
         ) : null}
       </AppCard>
+      <ImageLightboxModal
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        imageUrl={lightbox?.url}
+        title={lightbox?.title ?? "Component image"}
+      />
     </div>
   );
 }

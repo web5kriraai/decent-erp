@@ -8,7 +8,7 @@ type PageToolbarProps = {
   panel?: boolean;
 } & Omit<HTMLAttributes<HTMLDivElement>, "children" | "className">;
 
-/** Canonical list/filter toolbar — use instead of ad-hoc `.toolbar` / flex rows. */
+/** Canonical list/filter toolbar - use instead of ad-hoc `.toolbar` / flex rows. */
 export function PageToolbar({
   children,
   className,

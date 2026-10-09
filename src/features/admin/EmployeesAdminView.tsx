@@ -8,7 +8,7 @@ import {
   ModalFooterActions,
   ModalForm,
 } from "@/components/ui/Modal";
-import { FormSelect } from "@/components/ui/form-select";
+import { FormSearchSelect, SearchSelect } from "@/components/ui/search-select";
 import { FormTextField } from "@/components/ui/form-text-field";
 import { AppButton } from "@/components/ui/AppButton";
 import { ListPage } from "@/components/ui/ListPage";
@@ -247,50 +247,19 @@ export function EmployeesAdminView() {
             key: "role",
             header: "Role",
             render: (row) => (
-              <select
-                className="form-select form-select--compact"
+              <SearchSelect
+                size="compact"
+                searchable
                 value={row.role.code}
                 disabled={updateEmployee.isPending || isSelf(row.id)}
-                onChange={(e) => handleRoleChange(row, e.target.value)}
+                onValueChange={(roleCode) => handleRoleChange(row, roleCode)}
                 aria-label={`Role for ${row.name}`}
-              >
-                {roles.map((role) => (
-                  <option key={role.code} value={role.code}>
-                    {role.displayName}
-                  </option>
-                ))}
-              </select>
+                options={roles.map((role) => ({
+                  value: role.code,
+                  label: role.displayName,
+                }))}
+              />
             ),
-          },
-          {
-            key: "grade",
-            header: "Grade",
-            render: (row) =>
-              row.gradeCode ? (
-                <span className="inline-flex flex-wrap items-center gap-2">
-                  <StatusBadge
-                    status={
-                      row.gradeCode === "A"
-                        ? "APPROVED"
-                        : row.gradeCode === "B"
-                          ? "COMPLETED"
-                          : row.gradeCode === "C"
-                            ? "ASSIGNED"
-                            : row.gradeCode === "D"
-                              ? "ON_HOLD"
-                              : "REJECTED"
-                    }
-                    label={`Grade ${row.gradeCode}`}
-                  />
-                  {row.marksBalance != null ? (
-                    <span className="text-sm text-muted-foreground">
-                      {Math.round(row.marksBalance * 10) / 10} marks
-                    </span>
-                  ) : null}
-                </span>
-              ) : (
-                "—"
-              ),
           },
           {
             key: "active",
@@ -428,10 +397,11 @@ function EmployeeFormModal({
       }
     >
       <ModalForm>
-        <FormSelect
+        <FormSearchSelect
           id="empRole"
           label="Role"
           required
+          searchable
           value={form.roleCode || null}
           onValueChange={(v) => onChange({ ...form, roleCode: v })}
           options={roles.map((role) => ({

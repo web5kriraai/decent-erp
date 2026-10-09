@@ -1,6 +1,6 @@
 import { getTaskStartAvailability } from "@/lib/action-availability";
 import type { DepSibling } from "@/lib/services/action-center";
-import { findNextOpenTask } from "@/lib/services/action-center";
+import { findDependencyBlocker, findNextOpenTask } from "@/lib/services/action-center";
 import { findStageApprovalGate, resolveEffectiveTaskStatus } from "@/lib/services/workflow-stage-gate";
 import { sortTasksByEffectivePriority } from "@/lib/task-priority";
 
@@ -74,6 +74,20 @@ export function enrichActionCenterHistoricalList<T extends EnrichableTask>(
       task.status === "CHECKING" && !task.subProcess.isApproval
         ? findStageApprovalGate(gateTask, siblings)
         : null;
+    const blocker =
+      task.status === "PENDING"
+        ? findDependencyBlocker(
+            {
+              id: task.id.toString(),
+              status: task.status,
+              dependencySequence: task.dependencySequence,
+              sequence: task.sequence,
+              subProcess: task.subProcess,
+              assignedEmployeeId: task.assignedEmployeeId,
+            },
+            siblings,
+          )
+        : null;
     const nextOpen =
       effectiveStatus === "COMPLETED" ? findNextOpenTask(siblings, task.sequence) : null;
     const pipelineContinues =
@@ -82,9 +96,17 @@ export function enrichActionCenterHistoricalList<T extends EnrichableTask>(
     return {
       ...task,
       effectiveStatus,
-      isWaitingOnOthers: approvalGate != null || pipelineContinues,
-      waitingOnStage: approvalGate?.subProcess?.name ?? null,
-      waitingOnAssignee: approvalGate?.assignedEmployee?.name ?? null,
+      isWaitingOnOthers: approvalGate != null || pipelineContinues || blocker != null,
+      waitingOnStage:
+        approvalGate?.subProcess?.name ??
+        blocker?.subProcess?.name ??
+        (pipelineContinues ? nextOpen?.subProcess?.name : null) ??
+        null,
+      waitingOnAssignee:
+        approvalGate?.assignedEmployee?.name ??
+        blocker?.assignedEmployee?.name ??
+        (pipelineContinues ? nextOpen?.assignedEmployee?.name : null) ??
+        null,
     };
   });
 }

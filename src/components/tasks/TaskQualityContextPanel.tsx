@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -13,7 +12,6 @@ import { useCorrections } from "@/hooks/use-corrections";
 import { OPEN_CORRECTION_STATUSES } from "@/lib/services/correction-queue-utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { DesignSummary } from "@/lib/types/api";
-import { formatMachineOutputSummary } from "@/lib/services/task-machine-output-utils";
 
 type TaskQualityContextProps = {
   designId: string;
@@ -22,16 +20,28 @@ type TaskQualityContextProps = {
 
 function ContextTile({
   label,
-  children,
+  status,
+  lines,
+  person,
 }: {
   label: string;
-  children: ReactNode;
+  status?: string;
+  lines: string[];
+  person?: string | null;
 }) {
   return (
-    <div className="task-quality-tile">
-      <span className="task-quality-tile-label">{label}</span>
-      <div className="task-quality-tile-value">{children}</div>
-    </div>
+    <article className="task-quality-tile">
+      <div className="task-quality-tile-head">
+        <span className="task-quality-tile-label">{label}</span>
+        {status ? <StatusBadge status={status} /> : null}
+      </div>
+      <ul className="task-quality-tile-lines">
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      <p className="task-quality-tile-person">{person?.trim() || "-"}</p>
+    </article>
   );
 }
 
@@ -65,43 +75,93 @@ export function TaskQualityContextPanel({ designId, subProcessCode }: TaskQualit
     design.tasks?.find((t) => t.subProcess?.code === "RESAMPLE") ??
     design.tasks?.find((t) => t.subProcess?.code === "SAMPLE_RECEIVE");
   const matReq = design.tasks?.find((t) => t.subProcess?.code === "MAT_REQ");
-  // Scope freeze: SAMPLE_CHECK approve stays checklist/outcome-based; precursor metrics are display-only.
-  const machineOutputSummary = formatMachineOutputSummary(machineSample?.artifacts?.[0]);
+  const punchArtifact = punch?.artifacts?.find(
+    (row) => row.artifactType === "PUNCHING_FILE" || row.stitchCount != null || row.machineFormat,
+  );
+  const sampleArtifact =
+    machineSample?.artifacts?.find((row) => row.sampleQty != null || row.wastageQty != null) ??
+    machineSample?.artifacts?.find((row) => row.artifactType === "SAMPLE_OUTPUT");
+  const punchLines = [
+    [
+      punchArtifact?.stitchCount != null
+        ? `${punchArtifact.stitchCount.toLocaleString()} stitches`
+        : null,
+      punchArtifact?.machineFormat?.trim() || null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    [
+      punchArtifact?.hoopSize?.trim() ? `Hoop ${punchArtifact.hoopSize.trim()}` : null,
+      punchArtifact?.needleCount != null ? `${punchArtifact.needleCount} needles` : null,
+      punchArtifact?.colorCount != null ? `${punchArtifact.colorCount} colors` : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  ].filter((line) => line.length > 0);
+  const sampleReadyForCheck =
+    subProcessCode === "SAMPLE_CHECK" && machineSample?.status === "CHECKING";
+  const sampleQtyLine = [
+    sampleArtifact?.sampleQty != null ? `${sampleArtifact.sampleQty} pcs` : null,
+    sampleArtifact?.wastageQty != null ? `${sampleArtifact.wastageQty} wastage` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const sampleLines = [
+    sampleReadyForCheck ? "Submitted for your check" : null,
+    sampleQtyLine || null,
+  ].filter((line): line is string => !!line);
 
   return (
-    <AppCard title="Quality context" className="task-quality-context stack-section-sm">
-      <div className="task-quality-grid">
-        <ContextTile label="Sketch">
-          <StatusBadge status={sketch?.status ?? "PENDING"} />
-        </ContextTile>
-        <ContextTile label="Punching">
-          <StatusBadge status={punch?.status ?? "PENDING"} />
-        </ContextTile>
-        <ContextTile label="Machine sample">
-          <div className="space-y-1">
-            <StatusBadge status={machineSample?.status ?? "PENDING"} />
-            {machineOutputSummary ? (
-              <p className="m-0 text-xs text-muted-foreground">{machineOutputSummary}</p>
-            ) : null}
-          </div>
-        </ContextTile>
-        <ContextTile label="Material">
-          <StatusBadge status={matReq?.status ?? "PENDING"} />
-        </ContextTile>
-        {canViewCorrections ? (
-          <ContextTile label="My open corrections">
-            <span className="task-quality-tile-count">{openCorrections.length}</span>
-          </ContextTile>
-        ) : null}
-      </div>
-      <div className="task-quality-actions">
-        <AppButtonLink href={ROUTES.designs.detail(designId)} appVariant="outline" size="sm">
-          Design files
-        </AppButtonLink>
-        {canViewCorrections && openCorrections.length > 0 ? (
-          <AppButtonLink href={ROUTES.quality.corrections} appVariant="outline" size="sm">
-            View my corrections
+    <AppCard
+      title="Quality context"
+      className="task-quality-context stack-section-sm"
+      headerAction={
+        <div className="flex flex-wrap justify-end gap-2">
+          <AppButtonLink href={ROUTES.designs.detail(designId)} appVariant="outline" size="sm">
+            Design files
           </AppButtonLink>
+          {canViewCorrections && openCorrections.length > 0 ? (
+            <AppButtonLink href={ROUTES.quality.corrections} appVariant="outline" size="sm">
+              View corrections
+            </AppButtonLink>
+          ) : null}
+        </div>
+      }
+    >
+      <div className="task-quality-grid">
+        {sketch ? (
+          <ContextTile
+            label="Sketch"
+            status={sketch.status}
+            lines={[]}
+            person={sketch.assignedEmployee?.name}
+          />
+        ) : null}
+        {punch ? (
+          <ContextTile
+            label="Punching"
+            status={punch.status}
+            lines={punchLines}
+            person={punch.assignedEmployee?.name}
+          />
+        ) : null}
+        {machineSample ? (
+          <ContextTile
+            label="Machine sample"
+            status={machineSample.status}
+            lines={sampleLines}
+            person={machineSample.assignedEmployee?.name}
+          />
+        ) : null}
+        {matReq ? (
+          <ContextTile label="Material" status={matReq.status} lines={[]} person={matReq.assignedEmployee?.name} />
+        ) : null}
+        {canViewCorrections ? (
+          <ContextTile
+            label="Open corrections"
+            lines={[openCorrections.length === 0 ? "None open" : `${openCorrections.length} open`]}
+            person="This design"
+          />
         ) : null}
       </div>
     </AppCard>

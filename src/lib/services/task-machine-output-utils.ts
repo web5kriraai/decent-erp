@@ -12,7 +12,7 @@ export function isMachineOutputTask(
   return resolveStageBehavior({ code: subProcessCode, capabilities }).machineOutput;
 }
 
-export function hasMachineMetricsInPayload(body: {
+type MachineMetricFields = {
   stitchCount?: number | null;
   machineFormat?: string | null;
   sampleQty?: number | null;
@@ -22,11 +22,12 @@ export function hasMachineMetricsInPayload(body: {
   hoopSize?: string | null;
   softwareName?: string | null;
   stitchDensity?: number | null;
-}): boolean {
+};
+
+/** Digitizing details recorded by the punching designer. */
+export function hasDigitizingMetrics(body: MachineMetricFields): boolean {
   return (
     body.stitchCount != null ||
-    body.sampleQty != null ||
-    body.wastageQty != null ||
     body.needleCount != null ||
     body.colorCount != null ||
     body.stitchDensity != null ||
@@ -34,6 +35,15 @@ export function hasMachineMetricsInPayload(body: {
     !!(body.hoopSize && body.hoopSize.trim()) ||
     !!(body.softwareName && body.softwareName.trim())
   );
+}
+
+/** Pieces the machine operator produced or scrapped. */
+export function hasSampleQuantity(body: MachineMetricFields): boolean {
+  return body.sampleQty != null || body.wastageQty != null;
+}
+
+export function hasMachineMetricsInPayload(body: MachineMetricFields): boolean {
+  return hasDigitizingMetrics(body) || hasSampleQuantity(body);
 }
 
 export function canRecordMachineMetrics(
@@ -65,9 +75,11 @@ export function pickPreferredSampleOutput<
     softwareName?: string | null;
     storageKey?: string | null;
   },
->(artifacts: T[]): T | null {
-  const candidates = artifacts.filter(
-    (a) => a.artifactType === "SAMPLE_OUTPUT" || a.artifactType === "PUNCHING_FILE",
+>(artifacts: T[], preferredType?: "SAMPLE_OUTPUT" | "PUNCHING_FILE"): T | null {
+  const candidates = artifacts.filter((a) =>
+    preferredType
+      ? a.artifactType === preferredType
+      : a.artifactType === "SAMPLE_OUTPUT" || a.artifactType === "PUNCHING_FILE",
   );
   if (candidates.length === 0) return null;
 

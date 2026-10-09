@@ -15,6 +15,8 @@ type CompactDesignActionsProps = {
   roleCode?: string;
   onAssignTask?: (taskId: string) => void;
   className?: string;
+  /** Skip the bordered tray when the buttons sit in another header. */
+  plain?: boolean;
 };
 
 function appVariantForAction(
@@ -32,6 +34,7 @@ export function CompactDesignActions({
   roleCode,
   onAssignTask,
   className,
+  plain = false,
 }: CompactDesignActionsProps) {
   const actions = useMemo(
     () =>
@@ -63,8 +66,8 @@ export function CompactDesignActions({
   }
 
   return (
-    <div className={cn("compact-design-actions", className)}>
-      <div className="compact-design-actions-row">
+    <div className={cn(plain ? "contents" : "compact-design-actions", className)}>
+      <div className={cn(plain ? "contents" : "compact-design-actions-row")}>
         {ranked.map((action) => {
           if (action.href) {
             return (
