@@ -1,10 +1,7 @@
 import type { ConceptMediaKind } from "@/lib/file-upload-policy";
-import {
-  limitLabelForMediaKind,
-  validateConceptMediaClient,
-} from "@/lib/file-upload-policy";
+import { formatBytes, maxBytesForMediaKind } from "@/lib/file-upload-policy";
 import { ApiClientError } from "@/lib/api-client";
-import { compressImageForStorage } from "@/lib/compress-image-client";
+import { prepareUploadFile } from "@/lib/prepare-upload-file";
 
 export type PendingConceptMedia = {
   id: string;
@@ -45,19 +42,19 @@ export async function uploadConceptMediaFile(options: {
     designComponentId = null,
   } = options;
 
-  const storedFile =
-    mediaKind === "IMAGE" ? await compressImageForStorage(file) : file;
-
-  const preflight = validateConceptMediaClient(storedFile, mediaKind);
-  if (!preflight.ok) {
+  const prepared = await prepareUploadFile(file, { mediaKind });
+  if (!prepared.ok) {
     throw new ApiClientError(
-      preflight.message,
-      preflight.status,
+      prepared.message,
+      prepared.status,
       undefined,
-      undefined,
-      undefined,
+      prepared.maxBytes != null
+        ? { maxBytes: prepared.maxBytes, actualBytes: prepared.actualBytes }
+        : undefined,
+      prepared.code,
     );
   }
+  const storedFile = prepared.file;
 
   const formData = new FormData();
   formData.append("file", storedFile);
@@ -76,13 +73,19 @@ export async function uploadConceptMediaFile(options: {
     method: "POST",
     body: formData,
   });
-  const json = await res.json().catch(() => ({}));
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: unknown;
+    correlationId?: string;
+    details?: { maxBytes?: number; actualBytes?: number };
+    code?: string;
+    data?: unknown;
+  };
   if (!res.ok) {
     throw new ApiClientError(
       typeof json.error === "string"
         ? json.error
         : res.status === 413
-          ? `File exceeds ${limitLabelForMediaKind(mediaKind)} limit`
+          ? oversizedUploadMessage(storedFile, mediaKind, json.details)
           : "Upload failed",
       res.status,
       json.correlationId,
@@ -168,6 +171,16 @@ export async function uploadPendingConceptMedia(options: {
   }
 
   return { uploaded, failed };
+}
+
+function oversizedUploadMessage(
+  file: File,
+  mediaKind: ConceptMediaKind,
+  details?: { maxBytes?: number; actualBytes?: number },
+): string {
+  const maxBytes = details?.maxBytes ?? maxBytesForMediaKind(mediaKind);
+  const actualBytes = details?.actualBytes ?? file.size;
+  return `${file.name} is ${formatBytes(actualBytes)}. Maximum allowed is ${formatBytes(maxBytes)}. Reduce the file size and try again.`;
 }
 
 export function createPendingMediaId(): string {

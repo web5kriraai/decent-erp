@@ -6,10 +6,12 @@ import { useApiToast } from "@/components/ui/ToastProvider";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import {
-  limitLabelForCategory,
+  formatBytes,
+  maxBytesForCategory,
+  uploadHintForCategory,
   type UploadCategory,
-  validateUploadFileClient,
 } from "@/lib/file-upload-policy";
+import { prepareErrorTitle, prepareUploadFile } from "@/lib/prepare-upload-file";
 import {
   hasDigitizingMetrics,
   hasSampleQuantity,
@@ -101,40 +103,43 @@ export function TaskArtifactPanel({
 
   const uploadFile = useCallback(
     async (file: File) => {
-      const preflight = validateUploadFileClient(file, uploadCategory);
-      if (!preflight.ok) {
-        toast.error(
-          preflight.status === 413 ? "File too large" : "Invalid file",
-          preflight.message,
-        );
+      const prepared = await prepareUploadFile(file, { category: uploadCategory });
+      if (!prepared.ok) {
+        toast.error(prepareErrorTitle(prepared.code), prepared.message);
         return;
       }
+      const stored = prepared.file;
 
       setUploading(true);
-      setActiveFileName(file.name);
+      setActiveFileName(stored.name);
       try {
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("file", stored);
         formData.append("category", uploadCategory);
         const uploadRes = await fetch(`/api/designs/${designId}/images`, {
           method: "POST",
           body: formData,
         });
-        const uploadJson = await uploadRes.json();
+        const uploadJson = (await uploadRes.json()) as {
+          error?: unknown;
+          data?: { storageKey?: string; fileName?: string };
+          details?: { maxBytes?: number; actualBytes?: number };
+        };
         if (!uploadRes.ok) {
+          const limit = maxBytesForCategory(uploadCategory);
           const message =
             typeof uploadJson.error === "string"
               ? uploadJson.error
               : uploadRes.status === 413
-                ? `File exceeds ${limitLabelForCategory(uploadCategory)} limit`
+                ? `${stored.name} is ${formatBytes(uploadJson.details?.actualBytes ?? stored.size)}. Maximum allowed is ${formatBytes(uploadJson.details?.maxBytes ?? limit)}. Reduce the file size and try again.`
                 : uploadRes.status === 503
                   ? "File storage is unavailable. Contact your administrator or start MinIO."
                   : "Upload failed";
           throw new Error(message);
         }
 
-        const storageKey = uploadJson.data?.storageKey as string | undefined;
-        const fileName = uploadJson.data?.fileName ?? file.name;
+        const storageKey = uploadJson.data?.storageKey;
+        const fileName = uploadJson.data?.fileName ?? stored.name;
 
         await apiPost(`/api/tasks/${taskId}/artifacts`, {
           artifactType,
@@ -175,10 +180,7 @@ export function TaskArtifactPanel({
   const artifacts = artifactsQuery.data ?? [];
   const uploadedArtifacts = artifacts.filter((a) => !!a.storageKey);
 
-  const typeHint =
-    artifactType === "PUNCHING_FILE"
-      ? "EMB, DST, PDF - max 50 MB"
-      : "JPEG, PNG, WebP, PDF - max 25 MB";
+  const typeHint = uploadHintForCategory(uploadCategory);
 
   return (
     <div className={cn("space-y-4", compact && "space-y-2")}>

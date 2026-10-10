@@ -8,8 +8,7 @@ import type { ConceptMediaKind } from "@/lib/file-upload-policy";
 import {
   acceptForAllConceptMedia,
   acceptForConceptMedia,
-  limitLabelForMediaKind,
-  validateConceptMediaClient,
+  uploadHintForMediaKind,
 } from "@/lib/file-upload-policy";
 import {
   createPendingMediaId,
@@ -17,6 +16,7 @@ import {
   type PendingConceptMedia,
   uploadConceptMediaFile,
 } from "@/lib/concept-media-upload";
+import { prepareErrorTitle, prepareUploadFile } from "@/lib/prepare-upload-file";
 
 type FileUploaderProps = {
   /** When set, uploads immediately to the design. */
@@ -86,38 +86,47 @@ export function FileUploader({
       : null;
 
   const enqueueFiles = useCallback(
-    (files: FileList | File[]) => {
+    async (files: FileList | File[]) => {
       const list = Array.from(files);
       if (!list.length || !onPendingChange) return;
       const next = [...pendingItems];
-      for (const file of list) {
-        const kind = resolveKind(file, autoDetectMediaKind, mediaKindProp);
-        const preflight = validateConceptMediaClient(file, kind);
-        if (!preflight.ok) {
-          toast.error(
-            preflight.status === 413 ? "File too large" : "Invalid file",
-            preflight.message,
-          );
-          continue;
+      setUploading(true);
+      setUploadTotal(list.length);
+      setUploadIndex(0);
+      try {
+        for (let i = 0; i < list.length; i++) {
+          const file = list[i];
+          setUploadIndex(i + 1);
+          const kind = resolveKind(file, autoDetectMediaKind, mediaKindProp);
+          const prepared = await prepareUploadFile(file, { mediaKind: kind });
+          if (!prepared.ok) {
+            toast.error(prepareErrorTitle(prepared.code), prepared.message);
+            continue;
+          }
+          const stored = prepared.file;
+          const previewUrl =
+            kind === "IMAGE" || kind === "VIDEO" || kind === "AUDIO"
+              ? URL.createObjectURL(stored)
+              : undefined;
+          next.push({
+            id: createPendingMediaId(),
+            file: stored,
+            mediaKind: kind,
+            isPrimary:
+              kind === "IMAGE" && !next.some((p) => p.mediaKind === "IMAGE" && p.isPrimary),
+            previewUrl,
+            componentTypeId:
+              queueComponentByTypeId && selectedComponentTypeId != null && !Number.isNaN(selectedComponentTypeId)
+                ? selectedComponentTypeId
+                : null,
+          });
         }
-        const previewUrl =
-          kind === "IMAGE" || kind === "VIDEO" || kind === "AUDIO"
-            ? URL.createObjectURL(file)
-            : undefined;
-        next.push({
-          id: createPendingMediaId(),
-          file,
-          mediaKind: kind,
-          isPrimary:
-            kind === "IMAGE" && !next.some((p) => p.mediaKind === "IMAGE" && p.isPrimary),
-          previewUrl,
-          componentTypeId:
-            queueComponentByTypeId && selectedComponentTypeId != null && !Number.isNaN(selectedComponentTypeId)
-              ? selectedComponentTypeId
-              : null,
-        });
+        onPendingChange(next);
+      } finally {
+        setUploading(false);
+        setUploadIndex(0);
+        setUploadTotal(0);
       }
-      onPendingChange(next);
     },
     [
       autoDetectMediaKind,
@@ -140,39 +149,40 @@ export function FileUploader({
       setUploadTotal(list.length);
       setUploadIndex(0);
       let ok = 0;
+      let lastName: string | undefined;
       try {
         for (let i = 0; i < list.length; i++) {
           const file = list[i];
           setUploadIndex(i + 1);
           const kind = resolveKind(file, autoDetectMediaKind, mediaKindProp);
-          const preflight = validateConceptMediaClient(file, kind);
-          if (!preflight.ok) {
-            toast.error(
-              preflight.status === 413 ? "File too large" : "Invalid file",
-              preflight.message,
-            );
+          const prepared = await prepareUploadFile(file, { mediaKind: kind });
+          if (!prepared.ok) {
+            toast.error(prepareErrorTitle(prepared.code), prepared.message);
             continue;
           }
           const componentId = showComponentSelect
             ? designComponentId
             : designComponentIdProp;
-          await uploadConceptMediaFile({
-            designId,
-            file,
-            mediaKind: kind,
-            designComponentId: componentId,
-          });
-          ok += 1;
+          try {
+            await uploadConceptMediaFile({
+              designId,
+              file: prepared.file,
+              mediaKind: kind,
+              designComponentId: componentId,
+            });
+            ok += 1;
+            lastName = prepared.file.name;
+          } catch (error) {
+            toast.errorFromApi(error, "Upload failed");
+          }
         }
         if (ok > 0) {
           toast.success(
             ok === 1 ? "File uploaded" : `${ok} files uploaded`,
-            ok === 1 ? list[0]?.name : undefined,
+            ok === 1 ? lastName : undefined,
           );
           onUploaded?.();
         }
-      } catch (error) {
-        toast.errorFromApi(error, "Upload failed");
       } finally {
         setUploading(false);
         setUploadIndex(0);
@@ -194,7 +204,7 @@ export function FileUploader({
   function handleFiles(files: FileList | null) {
     if (!files?.length || disabled || uploading) return;
     if (queueMode) {
-      enqueueFiles(files);
+      void enqueueFiles(files);
       return;
     }
     void uploadFiles(files);
@@ -242,9 +252,7 @@ export function FileUploader({
   const accept = autoDetectMediaKind
     ? acceptForAllConceptMedia()
     : acceptForConceptMedia(mediaKindProp);
-  const limitHint = autoDetectMediaKind
-    ? "per file limits apply"
-    : `max ${limitLabelForMediaKind(mediaKindProp)}`;
+  const limitHint = uploadHintForMediaKind(mediaKindProp, autoDetectMediaKind);
 
   return (
     <div className="vstack vstack--tight w-full">
@@ -299,7 +307,7 @@ export function FileUploader({
         />
         <p className="m-0 text-sm text-[var(--color-neutral-600)]">
           {uploading
-            ? `Uploading ${uploadIndex}/${uploadTotal}…`
+            ? `${queueMode ? "Preparing" : "Uploading"} ${uploadIndex}/${uploadTotal}…`
             : `Drag & drop files here, or click to browse (${limitHint})`}
         </p>
       </div>

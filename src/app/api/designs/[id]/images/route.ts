@@ -15,8 +15,20 @@ import {
   validateConceptMedia,
   resolveUploadCategory,
   validateUploadPayload,
+  type UploadValidationResult,
 } from "@/lib/file-upload-policy";
 import { scanUploadBuffer } from "@/lib/services/malware-scan";
+
+function rejectUpload(result: Extract<UploadValidationResult, { ok: false }>): never {
+  throw new ApiError(
+    result.message,
+    result.status,
+    result.status === 413
+      ? { maxBytes: result.maxBytes ?? null, actualBytes: result.actualBytes ?? null }
+      : undefined,
+    result.code,
+  );
+}
 
 async function listDesignImages(designId: bigint) {
   const images = await prisma.designImage.findMany({
@@ -104,9 +116,7 @@ export async function POST(
           uploadCategory,
           buffer,
         );
-        if (!punchValidation.ok) {
-          throw new ApiError(punchValidation.message, punchValidation.status);
-        }
+        if (!punchValidation.ok) rejectUpload(punchValidation);
         if (uploadCategory === "PUNCHING") resolvedMediaKind = "FILE";
         else if (file.name.toLowerCase().endsWith(".pdf")) resolvedMediaKind = "FILE";
       } else {
@@ -115,9 +125,7 @@ export async function POST(
           mediaKind,
           buffer,
         );
-        if (!validation.ok) {
-          throw new ApiError(validation.message, validation.status);
-        }
+        if (!validation.ok) rejectUpload(validation);
       }
 
       const scan = await scanUploadBuffer(buffer);

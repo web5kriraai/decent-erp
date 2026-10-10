@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  compressibleForCategory,
+  CONCEPT_MEDIA_MAX_BYTES,
   detectContentSignature,
+  fileTooLargeMessage,
+  formatBytes,
+  isCompressibleType,
+  uploadHintForCategory,
+  uploadHintForMediaKind,
   maxBytesForCategory,
   resolveUploadCategory,
+  STORED_FILE_MAX_BYTES,
+  STORED_MEDIA_MAX_BYTES,
   UPLOAD_MAX_BYTES,
+  validateConceptMedia,
   validateUploadContent,
   validateUploadFile,
   validateUploadPayload,
@@ -40,14 +50,44 @@ describe("file-upload-policy", () => {
     expect(resolveUploadCategory(undefined, "photo.png")).toBe("PRODUCT_IMAGE");
   });
 
-  it("enforces per-category size limits", () => {
-    expect(UPLOAD_MAX_BYTES.PRODUCT_IMAGE).toBe(10 * 1024 * 1024);
-    expect(UPLOAD_MAX_BYTES.SKETCH).toBe(25 * 1024 * 1024);
-    expect(UPLOAD_MAX_BYTES.PUNCHING).toBe(50 * 1024 * 1024);
+  it("enforces a 500 KB cap and a 5 MB cap for audio and video", () => {
+    expect(UPLOAD_MAX_BYTES.PRODUCT_IMAGE).toBe(STORED_FILE_MAX_BYTES);
+    expect(UPLOAD_MAX_BYTES.SKETCH).toBe(500 * 1024);
+    expect(UPLOAD_MAX_BYTES.PUNCHING).toBe(500 * 1024);
     expect(maxBytesForCategory("SKETCH")).toBe(UPLOAD_MAX_BYTES.SKETCH);
+    expect(CONCEPT_MEDIA_MAX_BYTES.IMAGE).toBe(500 * 1024);
+    expect(CONCEPT_MEDIA_MAX_BYTES.FILE).toBe(500 * 1024);
+    expect(CONCEPT_MEDIA_MAX_BYTES.AUDIO).toBe(STORED_MEDIA_MAX_BYTES);
+    expect(CONCEPT_MEDIA_MAX_BYTES.VIDEO).toBe(5 * 1024 * 1024);
   });
 
-  it("rejects oversized files with configured limit text", () => {
+  it("formats sizes in KB or MB", () => {
+    expect(formatBytes(500 * 1024)).toBe("500 KB");
+    expect(formatBytes(5 * 1024 * 1024)).toBe("5 MB");
+    expect(formatBytes(Math.round(3.2 * 1024 * 1024))).toBe("3.2 MB");
+  });
+
+  it("builds upload hints from the shared limits", () => {
+    expect(uploadHintForMediaKind("IMAGE", true)).toContain("Images are compressed automatically");
+    expect(uploadHintForMediaKind("IMAGE", true)).toContain("500 KB");
+    expect(uploadHintForMediaKind("IMAGE", true)).toContain("5 MB");
+    expect(uploadHintForMediaKind("AUDIO")).toBe("Max 5 MB");
+    expect(uploadHintForCategory("SKETCH")).toContain("500 KB");
+    expect(uploadHintForCategory("PUNCHING")).toContain("not compressed automatically");
+    expect(uploadHintForCategory("PUNCHING")).not.toContain("50 MB");
+  });
+
+  it("treats only jpeg, png, and webp as compressible", () => {
+    expect(isCompressibleType("image/png")).toBe(true);
+    expect(isCompressibleType("image/jpeg")).toBe(true);
+    expect(isCompressibleType("application/pdf")).toBe(false);
+    expect(isCompressibleType("audio/mpeg")).toBe(false);
+    expect(isCompressibleType("video/mp4")).toBe(false);
+    expect(compressibleForCategory("SKETCH", "image/webp")).toBe(true);
+    expect(compressibleForCategory("PUNCHING", "application/pdf")).toBe(false);
+  });
+
+  it("rejects oversized files with the file name and the limit", () => {
     const result = validateUploadFile(
       { name: "big.png", type: "image/png", size: UPLOAD_MAX_BYTES.PRODUCT_IMAGE + 1 },
       "PRODUCT_IMAGE",
@@ -55,7 +95,60 @@ describe("file-upload-policy", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.status).toBe(413);
-      expect(result.message).toContain("10MB");
+      expect(result.code).toBe("TOO_LARGE");
+      expect(result.maxBytes).toBe(500 * 1024);
+      expect(result.actualBytes).toBe(UPLOAD_MAX_BYTES.PRODUCT_IMAGE + 1);
+      expect(result.message).toContain("big.png");
+      expect(result.message).toContain("500 KB");
+      expect(result.message).toContain("Reduce the file size and try again.");
+      expect(result.message).not.toContain("cannot be compressed");
+    }
+  });
+
+  it("tells the user when a non-image cannot be compressed", () => {
+    const result = validateUploadFile(
+      { name: "sheet.pdf", type: "application/pdf", size: 600 * 1024 },
+      "SKETCH",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toBe(
+        fileTooLargeMessage({
+          fileName: "sheet.pdf",
+          actualBytes: 600 * 1024,
+          maxBytes: 500 * 1024,
+          compressible: false,
+        }),
+      );
+      expect(result.message).toContain("cannot be compressed automatically");
+    }
+  });
+
+  it("rejects empty files", () => {
+    const result = validateUploadFile(
+      { name: "a.png", type: "image/png", size: 0 },
+      "PRODUCT_IMAGE",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("EMPTY");
+  });
+
+  it("allows audio and video up to 5 MB", () => {
+    expect(
+      validateConceptMedia(
+        { name: "clip.mp3", type: "audio/mpeg", size: 1024 * 1024 },
+        "AUDIO",
+      ).ok,
+    ).toBe(true);
+    const video = validateConceptMedia(
+      { name: "clip.mp4", type: "video/mp4", size: 6 * 1024 * 1024 },
+      "VIDEO",
+    );
+    expect(video.ok).toBe(false);
+    if (!video.ok) {
+      expect(video.status).toBe(413);
+      expect(video.message).toContain("5 MB");
+      expect(video.maxBytes).toBe(5 * 1024 * 1024);
     }
   });
 
@@ -121,10 +214,17 @@ describe("file-upload-policy", () => {
     ).toBe(false);
   });
 
-  it("skips magic-byte check for punching EMB/DST", () => {
+  it("requires a minimum payload for punching EMB when the signature is unclear", () => {
     expect(
       validateUploadContent(
         new Uint8Array([0, 1, 2, 3]),
+        { name: "punch.emb", type: "application/octet-stream" },
+        "PUNCHING",
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateUploadContent(
+        new Uint8Array(128),
         { name: "punch.emb", type: "application/octet-stream" },
         "PUNCHING",
       ).ok,

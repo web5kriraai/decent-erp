@@ -10,19 +10,25 @@ export const CONCEPT_MEDIA_KINDS: ConceptMediaKind[] = [
   "FILE",
 ];
 
+const KB = 1024;
 const MB = 1024 * 1024;
 
+/** Stored size cap for images and every non-media file. */
+export const STORED_FILE_MAX_BYTES = 500 * KB;
+/** Stored size cap for audio and video only. */
+export const STORED_MEDIA_MAX_BYTES = 5 * MB;
+
 export const UPLOAD_MAX_BYTES: Record<UploadCategory, number> = {
-  PRODUCT_IMAGE: 10 * MB,
-  SKETCH: 25 * MB,
-  PUNCHING: 50 * MB,
+  PRODUCT_IMAGE: STORED_FILE_MAX_BYTES,
+  SKETCH: STORED_FILE_MAX_BYTES,
+  PUNCHING: STORED_FILE_MAX_BYTES,
 };
 
 export const CONCEPT_MEDIA_MAX_BYTES: Record<ConceptMediaKind, number> = {
-  IMAGE: 10 * MB,
-  AUDIO: 20 * MB,
-  VIDEO: 80 * MB,
-  FILE: 50 * MB,
+  IMAGE: STORED_FILE_MAX_BYTES,
+  AUDIO: STORED_MEDIA_MAX_BYTES,
+  VIDEO: STORED_MEDIA_MAX_BYTES,
+  FILE: STORED_FILE_MAX_BYTES,
 };
 
 const AUDIO_EXTENSIONS = new Set(["mp3", "wav", "m4a", "ogg", "webm"]);
@@ -81,12 +87,83 @@ export function maxBytesForCategory(category: UploadCategory): number {
   return UPLOAD_MAX_BYTES[category];
 }
 
-export function limitLabelForCategory(category: UploadCategory): string {
-  return `${Math.round(maxBytesForCategory(category) / MB)}MB`;
+export function maxBytesForMediaKind(kind: ConceptMediaKind): number {
+  return CONCEPT_MEDIA_MAX_BYTES[kind];
 }
 
-export function categoryLabel(category: UploadCategory): string {
-  return category.toLowerCase().replaceAll("_", " ");
+/** Human size: whole numbers stay whole, otherwise one decimal. */
+export function formatBytes(bytes: number): string {
+  const abs = Math.max(0, bytes);
+  if (abs < KB) return `${Math.round(abs)} B`;
+  if (abs < MB) return `${trimOneDecimal(abs / KB)} KB`;
+  return `${trimOneDecimal(abs / MB)} MB`;
+}
+
+function trimOneDecimal(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+const COMPRESSIBLE_IMAGE_MIMES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
+
+/** Browser canvas can shrink these image types. PDF, EMB/DST, audio, and video cannot. */
+export function isCompressibleType(contentType: string): boolean {
+  return COMPRESSIBLE_IMAGE_MIMES.has((contentType || "").toLowerCase());
+}
+
+export function compressibleForCategory(
+  _category: UploadCategory,
+  contentType: string,
+): boolean {
+  return isCompressibleType(contentType);
+}
+
+export function fileTooLargeMessage(options: {
+  fileName: string;
+  actualBytes: number;
+  maxBytes: number;
+  compressible: boolean;
+}): string {
+  const name = options.fileName.trim() || "This file";
+  const base = `${name} is ${formatBytes(options.actualBytes)}. Maximum allowed is ${formatBytes(options.maxBytes)}. Reduce the file size and try again.`;
+  if (options.compressible) return base;
+  return `${base} This file type cannot be compressed automatically.`;
+}
+
+export function limitLabelForCategory(category: UploadCategory): string {
+  return formatBytes(maxBytesForCategory(category));
+}
+
+export function uploadHintForCategory(category: UploadCategory): string {
+  const limit = limitLabelForCategory(category);
+  if (category === "PUNCHING") {
+    return `EMB, DST, PDF · max ${limit}. These files are not compressed automatically`;
+  }
+  if (category === "SKETCH") {
+    return `JPEG, PNG, WebP, PDF · images are compressed automatically · max ${limit}`;
+  }
+  return `JPEG, PNG, WebP · images are compressed automatically · max ${limit}`;
+}
+
+export function uploadHintForMediaKind(
+  kind: ConceptMediaKind,
+  autoDetect = false,
+): string {
+  if (autoDetect) {
+    return `Images are compressed automatically. Max ${formatBytes(STORED_FILE_MAX_BYTES)} (audio and video ${formatBytes(STORED_MEDIA_MAX_BYTES)})`;
+  }
+  if (kind === "IMAGE") {
+    return `Images are compressed automatically. Max ${limitLabelForMediaKind(kind)}`;
+  }
+  if (kind === "AUDIO" || kind === "VIDEO") {
+    return `Max ${limitLabelForMediaKind(kind)}`;
+  }
+  return `Max ${limitLabelForMediaKind(kind)}. This file type is not compressed automatically`;
 }
 
 function fileExtension(fileName: string): string {
@@ -97,40 +174,72 @@ function isLooseBinaryMime(type: string): boolean {
   return !type || type === "application/octet-stream";
 }
 
+export type UploadRejectCode = "TOO_LARGE" | "UNSUPPORTED_TYPE" | "EMPTY";
+
 export type UploadValidationResult =
   | { ok: true }
-  | { ok: false; message: string; status: 400 | 413 };
+  | {
+      ok: false;
+      message: string;
+      status: 400 | 413;
+      code: UploadRejectCode;
+      maxBytes?: number;
+      actualBytes?: number;
+    };
+
+function rejectIfEmptyOrTooLarge(
+  file: { name: string; type: string; size: number },
+  maxBytes: number,
+): UploadValidationResult | null {
+  const fileName = file.name?.trim() || "This file";
+  if (file.size <= 0) {
+    return {
+      ok: false,
+      status: 400,
+      code: "EMPTY",
+      message: `${fileName} is empty. Choose a file with content.`,
+    };
+  }
+  if (file.size > maxBytes) {
+    return {
+      ok: false,
+      status: 413,
+      code: "TOO_LARGE",
+      maxBytes,
+      actualBytes: file.size,
+      message: fileTooLargeMessage({
+        fileName,
+        actualBytes: file.size,
+        maxBytes,
+        compressible: isCompressibleType(file.type),
+      }),
+    };
+  }
+  return null;
+}
+
+function unsupported(message: string): UploadValidationResult {
+  return { ok: false, status: 400, code: "UNSUPPORTED_TYPE", message };
+}
 
 export function validateUploadFile(
   file: { name: string; type: string; size: number },
   category: UploadCategory,
 ): UploadValidationResult {
-  const maxBytes = maxBytesForCategory(category);
-  if (file.size > maxBytes) {
-    return {
-      ok: false,
-      status: 413,
-      message: `File exceeds ${limitLabelForCategory(category)} limit for ${categoryLabel(category)}`,
-    };
-  }
+  const sizeError = rejectIfEmptyOrTooLarge(file, maxBytesForCategory(category));
+  if (sizeError) return sizeError;
 
   const ext = fileExtension(file.name);
   const mime = (file.type || "").toLowerCase();
 
   if (category === "PRODUCT_IMAGE") {
     if (isLooseBinaryMime(mime) || !PRODUCT_IMAGE_MIMES.has(mime)) {
-      return {
-        ok: false,
-        status: 400,
-        message: "Product images must be JPEG, PNG, or WebP",
-      };
+      return unsupported("Product images must be JPEG, PNG, or WebP");
     }
     if (!IMAGE_EXTENSIONS.has(ext)) {
-      return {
-        ok: false,
-        status: 400,
-        message: "Product images must use a .jpg, .jpeg, .png, or .webp extension",
-      };
+      return unsupported(
+        "Product images must use a .jpg, .jpeg, .png, or .webp extension",
+      );
     }
     return { ok: true };
   }
@@ -139,25 +248,17 @@ export function validateUploadFile(
     const mimeOk = SKETCH_MIMES.has(mime);
     const extOk = SKETCH_EXTENSIONS.has(ext);
     if (isLooseBinaryMime(mime)) {
-      return {
-        ok: false,
-        status: 400,
-        message: "Sketch files must be JPEG, PNG, WebP, or PDF (MIME type required)",
-      };
+      return unsupported(
+        "Sketch files must be JPEG, PNG, WebP, or PDF (MIME type required)",
+      );
     }
     if (!mimeOk && !extOk) {
-      return {
-        ok: false,
-        status: 400,
-        message: "Sketch files must be JPEG, PNG, WebP, or PDF",
-      };
+      return unsupported("Sketch files must be JPEG, PNG, WebP, or PDF");
     }
     if (!extOk) {
-      return {
-        ok: false,
-        status: 400,
-        message: "Sketch files must use a .jpg, .jpeg, .png, .webp, or .pdf extension",
-      };
+      return unsupported(
+        "Sketch files must use a .jpg, .jpeg, .png, .webp, or .pdf extension",
+      );
     }
     return { ok: true };
   }
@@ -169,11 +270,7 @@ export function validateUploadFile(
   if (SKETCH_MIMES.has(mime) && SKETCH_EXTENSIONS.has(ext)) {
     return { ok: true };
   }
-  return {
-    ok: false,
-    status: 400,
-    message: "Punching files must be EMB, DST, or PDF",
-  };
+  return unsupported("Punching files must be EMB, DST, or PDF");
 }
 
 /** Detect JPEG / PNG / WebP / PDF from leading bytes. Returns null when unrecognized. */
@@ -253,28 +350,20 @@ export function validateUploadContent(
     if (signature === "pdf" || signature === "jpeg" || signature === "png" || signature === "webp") {
       return { ok: true };
     }
-    return {
-      ok: false,
-      status: 400,
-      message: "Punching file content does not look like a valid EMB/DST payload",
-    };
+    return unsupported(
+      "Punching file content does not look like a valid EMB/DST payload",
+    );
   }
 
   if (!signature || signature === "dst" || signature === "emb") {
-    return {
-      ok: false,
-      status: 400,
-      message: "File content does not match an allowed image or PDF format",
-    };
+    return unsupported(
+      "File content does not match an allowed image or PDF format",
+    );
   }
 
   if (category === "PRODUCT_IMAGE") {
     if (signature === "pdf") {
-      return {
-        ok: false,
-        status: 400,
-        message: "Product images must be JPEG, PNG, or WebP",
-      };
+      return unsupported("Product images must be JPEG, PNG, or WebP");
     }
     return { ok: true };
   }
@@ -321,7 +410,7 @@ export function parseConceptMediaKind(
 }
 
 export function limitLabelForMediaKind(kind: ConceptMediaKind): string {
-  return `${Math.round(CONCEPT_MEDIA_MAX_BYTES[kind] / MB)}MB`;
+  return formatBytes(CONCEPT_MEDIA_MAX_BYTES[kind]);
 }
 
 export function acceptForConceptMedia(kind: ConceptMediaKind): string {
@@ -352,14 +441,8 @@ export function validateConceptMedia(
   kind: ConceptMediaKind,
   buffer?: Uint8Array | ArrayBuffer,
 ): UploadValidationResult {
-  const maxBytes = CONCEPT_MEDIA_MAX_BYTES[kind];
-  if (file.size > maxBytes) {
-    return {
-      ok: false,
-      status: 413,
-      message: `${kind === "FILE" ? "File" : kind.charAt(0) + kind.slice(1).toLowerCase()} exceeds ${limitLabelForMediaKind(kind)} limit`,
-    };
-  }
+  const sizeError = rejectIfEmptyOrTooLarge(file, CONCEPT_MEDIA_MAX_BYTES[kind]);
+  if (sizeError) return sizeError;
 
   const ext = fileExtension(file.name);
   const mime = (file.type || "").toLowerCase();
@@ -375,11 +458,7 @@ export function validateConceptMedia(
     const mimeOk = mime.startsWith("audio/");
     const extOk = AUDIO_EXTENSIONS.has(ext);
     if (!mimeOk && !extOk) {
-      return {
-        ok: false,
-        status: 400,
-        message: "Audio must be MP3, WAV, M4A, OGG, or WebM",
-      };
+      return unsupported("Audio must be MP3, WAV, M4A, OGG, or WebM");
     }
     return { ok: true };
   }
@@ -388,11 +467,7 @@ export function validateConceptMedia(
     const mimeOk = mime.startsWith("video/");
     const extOk = VIDEO_EXTENSIONS.has(ext);
     if (!mimeOk && !extOk) {
-      return {
-        ok: false,
-        status: 400,
-        message: "Video must be MP4, WebM, or MOV",
-      };
+      return unsupported("Video must be MP4, WebM, or MOV");
     }
     return { ok: true };
   }
@@ -401,19 +476,12 @@ export function validateConceptMedia(
   const mimeOk = CONCEPT_FILE_MIMES.has(mime) || isLooseBinaryMime(mime);
   const extOk = CONCEPT_FILE_EXTENSIONS.has(ext);
   if (!extOk) {
-    return {
-      ok: false,
-      status: 400,
-      message:
-        "Files must be PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, TXT, CSV, ZIP, EMB, or DST",
-    };
+    return unsupported(
+      "Files must be PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, TXT, CSV, ZIP, EMB, or DST",
+    );
   }
   if (!mimeOk && !isLooseBinaryMime(mime)) {
-    return {
-      ok: false,
-      status: 400,
-      message: "File type is not allowed for concept attachments",
-    };
+    return unsupported("File type is not allowed for concept attachments");
   }
   return { ok: true };
 }

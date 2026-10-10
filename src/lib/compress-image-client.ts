@@ -1,13 +1,27 @@
-/** Stored product photos stay at or under this size. */
-export const STORED_IMAGE_MAX_BYTES = 500 * 1024;
+import { STORED_FILE_MAX_BYTES } from "@/lib/file-upload-policy";
+
+/** Stored product photos stay at or under the shared file cap. */
+export const STORED_IMAGE_MAX_BYTES = STORED_FILE_MAX_BYTES;
+
+export type CompressImageResult =
+  | { ok: true; file: File }
+  | { ok: false; code: "CANNOT_COMPRESS"; bytes: number };
 
 /**
- * Shrink a product photo in the browser, then return a JPEG at or under 500KB.
+ * Shrink a product photo in the browser, then return a JPEG at or under 500 KB.
+ * PNG and WebP are stored as JPEG, so transparency is flattened to white.
+ * When the image is still over 500 KB after the last attempt, this reports
+ * CANNOT_COMPRESS instead of returning the oversized file.
  * Non-images are returned unchanged.
  */
-export async function compressImageForStorage(file: File): Promise<File> {
-  if (!file.type.startsWith("image/") || typeof document === "undefined") return file;
-  if (file.size <= STORED_IMAGE_MAX_BYTES && file.type === "image/jpeg") return file;
+export async function compressImageForStorage(file: File): Promise<CompressImageResult> {
+  if (!file.type.startsWith("image/")) return { ok: true, file };
+  if (typeof document === "undefined" || typeof createImageBitmap !== "function") {
+    return { ok: true, file };
+  }
+  if (file.size <= STORED_IMAGE_MAX_BYTES && file.type === "image/jpeg") {
+    return { ok: true, file };
+  }
 
   const bitmap = await createImageBitmap(file);
   try {
@@ -22,13 +36,15 @@ export async function compressImageForStorage(file: File): Promise<File> {
 
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
+    if (!ctx) return { ok: true, file };
 
     let quality = 0.82;
     let blob: Blob | null = null;
     for (let attempt = 0; attempt < 8; attempt += 1) {
       canvas.width = width;
       canvas.height = height;
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, width, height);
       ctx.drawImage(bitmap, 0, 0, width, height);
       blob = await new Promise<Blob | null>((resolve) => {
         canvas.toBlob((next) => resolve(next), "image/jpeg", quality);
@@ -41,11 +57,18 @@ export async function compressImageForStorage(file: File): Promise<File> {
       }
     }
 
-    if (!blob) return file;
-    if (blob.size >= file.size && file.size <= STORED_IMAGE_MAX_BYTES) return file;
+    if (!blob || blob.size > STORED_IMAGE_MAX_BYTES) {
+      return { ok: false, code: "CANNOT_COMPRESS", bytes: blob?.size ?? file.size };
+    }
+    if (blob.size >= file.size && file.size <= STORED_IMAGE_MAX_BYTES) {
+      return { ok: true, file };
+    }
 
     const base = file.name.replace(/\.[^.]+$/, "") || "image";
-    return new File([blob], `${base}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
+    return {
+      ok: true,
+      file: new File([blob], `${base}.jpg`, { type: "image/jpeg", lastModified: Date.now() }),
+    };
   } finally {
     bitmap.close();
   }
