@@ -85,7 +85,7 @@ export function DesignDetailView({
       (t) => t.subProcess?.code === "SAMPLE_CHECK",
     );
     if (!sampleCheck) return null;
-    if (sampleCheck.status === "COMPLETED") return "APPROVE";
+    if (sampleCheck.status === "COMPLETED") return "Passed";
     if (sampleCheck.status === "CORRECTION_REQUIRED") return "REJECT / RESAMPLE pending";
     return sampleCheck.status;
   }, [designQuery.data?.tasks, isFinalApproval]);
@@ -179,6 +179,14 @@ export function DesignDetailView({
                 }
                 costingEntryCount={
                   isFinalApproval ? costsQuery.data?.summary.entryCount : undefined
+                }
+                costByType={isFinalApproval ? costsQuery.data?.summary.byType : undefined}
+                estimatedCost={
+                  isFinalApproval
+                    ? (costsQuery.data?.summary.estimatedCost ??
+                      designQuery.data.detailMeta?.costSummary.estimatedCost ??
+                      designQuery.data.estimatedCost)
+                    : undefined
                 }
                 sampleOutcome={isFinalApproval ? sampleOutcomeForFinal : undefined}
               />

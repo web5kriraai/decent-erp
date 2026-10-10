@@ -60,6 +60,18 @@ export function sanitizeHandoffRemark(remark?: string | null): string | null {
   return cleaned || null;
 }
 
+const AUTO_COSTING_REMARK =
+  /^Costing submitted:\s*.+?[;:]\s*total ₹[\d,]+\.\d{2}\.?\s*/i;
+
+/** Extra note after the auto costing line. The generated totals line itself is not a note. */
+export function extractCostingAdditionalNote(remark?: string | null): string | null {
+  const cleaned = sanitizeHandoffRemark(remark);
+  if (!cleaned) return null;
+  if (!AUTO_COSTING_REMARK.test(cleaned)) return cleaned;
+  const note = cleaned.replace(AUTO_COSTING_REMARK, "").trim();
+  return isMeaningfulCostingNote(note) ? note : null;
+}
+
 /** Empty means 0. A negative or non-numeric value is invalid. */
 export function parseCostAmount(raw: string): number | null {
   const trimmed = raw.trim();

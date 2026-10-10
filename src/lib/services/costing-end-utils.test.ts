@@ -4,6 +4,7 @@ import {
   costingEndHasPositiveCosts,
   isMeaningfulCostingNote,
   mergeCostAmountsByType,
+  extractCostingAdditionalNote,
   sanitizeHandoffRemark,
   totalFromByType,
 } from "@/lib/services/costing-end-utils";
@@ -66,6 +67,19 @@ describe("mergeCostAmountsByType / buildCostingOutputRemark", () => {
     expect(buildCostingOutputRemark({ MATERIAL: 500 }, 500, "nothing")).toBe(
       "Costing submitted: TIME ₹0.00, MATERIAL ₹500.00, MACHINE ₹0.00, CORRECTION ₹0.00; total ₹500.00",
     );
+  });
+
+  it("keeps only the extra note from an auto costing remark", () => {
+    expect(
+      extractCostingAdditionalNote(
+        "Costing submitted: TIME ₹100.00, MATERIAL ₹100.00, MACHINE ₹100.00, CORRECTION ₹100.00; total ₹400.00",
+      ),
+    ).toBeNull();
+    expect(
+      extractCostingAdditionalNote(
+        "Costing submitted: TIME ₹100.00, MATERIAL ₹100.00, MACHINE ₹100.00, CORRECTION ₹100.00; total ₹400.00. Check the border.",
+      ),
+    ).toBe("Check the border.");
   });
 
   it("strips trailing placeholder notes from stored remarks", () => {

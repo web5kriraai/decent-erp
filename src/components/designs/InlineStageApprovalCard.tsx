@@ -8,8 +8,13 @@ import { FormTextArea } from "@/components/ui/form-text-area";
 import { ImageGallery } from "@/components/ImageGallery";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
+import {
+  DesignerTimePanel,
+  type DesignerTimeStage,
+} from "@/components/tasks/DesignerTimePanel";
 import { TaskCompareVersionsPanel } from "@/components/tasks/TaskCompareVersionsPanel";
 import { useAssignTask, useCompleteStageApproval } from "@/hooks/use-tasks";
+import { COST_ENTRY_TYPES, extractCostingAdditionalNote } from "@/lib/services/costing-end-utils";
 import { queryKeys } from "@/lib/query-keys";
 import {
   getStageApprovalBlockedMessage,
@@ -33,8 +38,60 @@ type InlineStageApprovalCardProps = {
   canAssign: boolean;
   costingTotal?: number | null;
   costingEntryCount?: number | null;
+  costByType?: Record<string, number> | null;
+  estimatedCost?: number | null;
   sampleOutcome?: string | null;
 };
+
+const COST_TYPE_LABEL: Record<string, string> = {
+  TIME: "Time",
+  MATERIAL: "Material",
+  MACHINE: "Machine",
+  CORRECTION: "Correction rework",
+};
+
+function inr(amount: number) {
+  return `₹${amount.toFixed(2)}`;
+}
+
+function amountsByType(
+  design: DesignSummary,
+  costByType?: Record<string, number> | null,
+): Record<string, number> {
+  if (costByType) return costByType;
+  const totals: Record<string, number> = {};
+  for (const cost of design.costs ?? []) {
+    const amount = Number(cost.amount);
+    if (!Number.isFinite(amount)) continue;
+    totals[cost.costType] = (totals[cost.costType] ?? 0) + amount;
+  }
+  return totals;
+}
+
+function stageTimesBefore(design: DesignSummary, beforeSequence: number): DesignerTimeStage[] {
+  return (design.tasks ?? [])
+    .filter((task) => task.sequence < beforeSequence)
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((task) => {
+      const time = task.timeEvents?.length ? computeTimeSummary(task.timeEvents) : null;
+      return {
+        id: task.id,
+        sequence: task.sequence,
+        status: task.status,
+        expectedMinutes: task.expectedMinutes,
+        activeSeconds: time?.activeSeconds ?? 0,
+        holdSeconds: time?.holdSeconds ?? 0,
+        subProcess: {
+          name: task.subProcess.name,
+          code: task.subProcess.code,
+          defaultRole: task.subProcess.defaultRole
+            ? { name: task.subProcess.defaultRole.name ?? null }
+            : null,
+        },
+        assignedEmployee: task.assignedEmployee ? { name: task.assignedEmployee.name } : null,
+      };
+    });
+}
 
 function nextTaskAfter(current: DesignTask, tasks: DesignTask[] | undefined): DesignTask | null {
   if (!tasks?.length) return null;
@@ -78,6 +135,8 @@ export function InlineStageApprovalCard({
   canAssign,
   costingTotal,
   costingEntryCount,
+  costByType,
+  estimatedCost,
   sampleOutcome,
 }: InlineStageApprovalCardProps) {
   const queryClient = useQueryClient();
@@ -108,9 +167,26 @@ export function InlineStageApprovalCard({
   const showReject = uiConfig.actions.includes("reject");
 
   const nextTask = nextTaskAfter(approvalTask, design.tasks);
-  const workTime = workTask?.timeEvents?.length
-    ? computeTimeSummary(workTask.timeEvents)
+  const isFinalApproval = approvalCode === "FINAL_APPROVAL";
+  const costAmounts = isFinalApproval ? amountsByType(design, costByType) : null;
+  const costTotal = costAmounts
+    ? COST_ENTRY_TYPES.reduce((sum, type) => sum + Number(costAmounts[type] ?? 0), 0)
     : null;
+  const baseline =
+    estimatedCost ??
+    design.detailMeta?.costSummary.estimatedCost ??
+    design.estimatedCost ??
+    null;
+  const stageTimes = isFinalApproval
+    ? stageTimesBefore(design, approvalTask.sequence)
+    : [];
+  const priorRemark = isFinalApproval
+    ? extractCostingAdditionalNote(workTask?.outputRemark)
+    : workTask?.outputRemark;
+  const workTime =
+    !isFinalApproval && workTask?.timeEvents?.length
+      ? computeTimeSummary(workTask.timeEvents)
+      : null;
   const handoff: HandoffContext = {
     ideaRef: design.ideaRef,
     collectionName: design.collectionName,
@@ -133,7 +209,7 @@ export function InlineStageApprovalCard({
           code: workTask.subProcess?.code,
           name: workTask.subProcess?.name ?? "Prior stage",
           status: workTask.status,
-          outputRemark: workTask.outputRemark,
+          outputRemark: priorRemark,
           assigneeName: workTask.assignedEmployee?.name,
         }
       : null,
@@ -143,8 +219,8 @@ export function InlineStageApprovalCard({
     timeSectionTitle: workTask
       ? `${workTask.subProcess?.name ?? "Submitted work"} time`
       : null,
-    costingTotal: costingTotal ?? null,
-    costingEntryCount: costingEntryCount ?? null,
+    costingTotal: isFinalApproval ? null : (costingTotal ?? null),
+    costingEntryCount: isFinalApproval ? null : (costingEntryCount ?? null),
     sampleOutcome: sampleOutcome ?? null,
     blockers: !canApprove && approvalBlockedMessage ? [approvalBlockedMessage] : undefined,
   };
@@ -251,6 +327,44 @@ export function InlineStageApprovalCard({
     >
       <div className="space-y-4">
         <ActionHandoffBanner context={handoff} />
+
+        {isFinalApproval && costAmounts && costTotal != null ? (
+          <section className="handoff-group" aria-label="Development costs">
+            <p className="handoff-group-title">Development costs</p>
+            <div className="handoff-metrics">
+              {COST_ENTRY_TYPES.map((type) => (
+                <div className="handoff-tile" key={type}>
+                  <span className="handoff-tile-label">{COST_TYPE_LABEL[type]}</span>
+                  <div className="handoff-tile-value">
+                    <p className="handoff-metric-value">{inr(Number(costAmounts[type] ?? 0))}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="handoff-tile">
+                <span className="handoff-tile-label">Total</span>
+                <div className="handoff-tile-value">
+                  <p className="handoff-metric-value">{inr(costTotal)}</p>
+                </div>
+              </div>
+              {baseline != null ? (
+                <div className="handoff-tile">
+                  <span className="handoff-tile-label">Vs estimate</span>
+                  <div className="handoff-tile-value">
+                    <p className="handoff-metric-value">{inr(baseline - costTotal)}</p>
+                    <p className="handoff-metric-sub">Estimate {inr(baseline)}</p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {isFinalApproval ? (
+          <section className="handoff-group" aria-label="Stage time">
+            <p className="handoff-group-title">Stage time</p>
+            <DesignerTimePanel stages={stageTimes} />
+          </section>
+        ) : null}
 
         {uiConfig.showCompare ? <TaskCompareVersionsPanel designId={designId} /> : null}
 
