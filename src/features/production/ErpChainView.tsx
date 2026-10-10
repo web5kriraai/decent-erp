@@ -224,9 +224,11 @@ export function ErpChainView() {
                     )}
                     onClick={() => setSelectedDesignId(row.designId)}
                   >
-                    <span className="erp-chain-row-ref">{row.ideaRef}</span>
+                    <span className="erp-chain-row-ref" title={row.collectionName}>
+                      {row.collectionName}
+                    </span>
                     <p className="erp-chain-row-meta">
-                      {row.collectionName} · {row.completedCount}/9
+                      {row.ideaRef} · {row.completedCount}/9
                       {row.currentModule
                         ? ` · ${stageLabel(row.currentModule)}`
                         : done

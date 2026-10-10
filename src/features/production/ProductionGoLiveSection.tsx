@@ -4,10 +4,8 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { DataTable } from "@/components/DataTable";
 import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
 import { ListSearch } from "@/components/ui/ListSearch";
 import { PaginationBar } from "@/components/ui/PaginationBar";
-import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import type { ReleasedDesignForGoLive } from "@/hooks/use-production";
@@ -27,16 +25,12 @@ export function ProductionGoLiveSection({
   permissions,
   markLivePending,
   onMarkLive,
-  onRefresh,
-  isRefreshing,
 }: {
   designs: ReleasedDesignForGoLive[];
   roleCode: string | undefined;
   permissions: string[];
   markLivePending: boolean;
   onMarkLive: (designId: string) => Promise<unknown>;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
 }) {
   const canExecuteTasks = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const [confirmDesign, setConfirmDesign] = useState<ReleasedDesignForGoLive | null>(null);
@@ -45,16 +39,8 @@ export function ProductionGoLiveSection({
 
   return (
     <>
-      <AppCard
-        title="Awaiting go-live"
-        className="production-desk-secondary-card overflow-visible"
-        description={undefined}
-        headerAction={
-          onRefresh ? (
-            <ListRefreshButton onRefresh={onRefresh} isRefreshing={isRefreshing} />
-          ) : null
-        }
-      >
+      <div className="production-desk-secondary-card">
+        <div className="production-desk-secondary-body">
         <div className="page-toolbar !mb-0 border-b px-3 py-2">
           <ListSearch
             value={list.search}
@@ -63,37 +49,33 @@ export function ProductionGoLiveSection({
             aria-label="Search awaiting go-live designs"
           />
         </div>
+        <div className="production-desk-secondary-scroll">
         <DataTable
           flush
           columns={[
             {
               key: "ideaRef",
               header: "Design",
-              render: (row) => (
-                <Link href={ROUTES.designs.detail(row.id)} className="data-table-link">
-                  {row.ideaRef}
-                </Link>
-              ),
-            },
-            { key: "collectionName", header: "Design name" },
-            {
-              key: "productType",
-              header: "Product",
-              render: (r) => r.productType?.name ?? "-",
-            },
-            {
-              key: "designHead",
-              header: "Design Head",
-              render: (r) => r.designHead?.name ?? "-",
-            },
-            {
-              key: "status",
-              header: "Status",
-              render: () => <StatusBadge status="PRODUCTION_RELEASED" />,
+              render: (row) => {
+                const meta = [row.ideaRef, row.productType?.name, row.designHead?.name]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <Link href={ROUTES.designs.detail(row.id)} className="concept-board-design">
+                    <span className="concept-board-line" title={`${row.collectionName} · ${meta}`}>
+                      <span className="concept-board-line__title data-table-link">
+                        {row.collectionName}
+                      </span>
+                      <span className="data-table-subtext concept-board-line__meta">{meta}</span>
+                    </span>
+                  </Link>
+                );
+              },
             },
             {
               key: "liveReview",
               header: "Live review",
+              className: "production-desk-golive-review",
               render: (row) =>
                 row.liveReviewCompleted ? (
                   <StatusBadge status="COMPLETED" label="Ready" />
@@ -105,6 +87,7 @@ export function ProductionGoLiveSection({
               key: "actions",
               header: "",
               align: "right",
+              className: "production-desk-golive-next",
               render: (row) => {
                 const availability = getMarkLiveAvailability(row.status, {
                   liveReviewCompleted: row.liveReviewCompleted,
@@ -127,17 +110,17 @@ export function ProductionGoLiveSection({
                       canExecuteTasks && row.liveReviewTaskId
                         ? ROUTES.work.taskDetail(row.liveReviewTaskId)
                         : null;
+                    if (reviewHref) {
+                      return (
+                        <AppButtonLink href={reviewHref} appVariant="outline" size="sm">
+                          Open live review
+                        </AppButtonLink>
+                      );
+                    }
                     return (
-                      <div className="flex max-w-56 flex-col items-end gap-1">
-                        <span className="text-right text-xs text-muted-foreground">
-                          Complete Live Design Review first
-                        </span>
-                        {reviewHref ? (
-                          <AppButtonLink href={reviewHref} appVariant="ghost" size="sm">
-                            Open live review
-                          </AppButtonLink>
-                        ) : null}
-                      </div>
+                      <span className="production-desk-golive-note">
+                        Waiting on live review
+                      </span>
                     );
                   }
                   return null;
@@ -145,7 +128,7 @@ export function ProductionGoLiveSection({
 
                 if (!availability.available) {
                   return (
-                    <span className="text-right text-xs text-muted-foreground">
+                    <span className="production-desk-golive-note" title={availability.reason}>
                       {availability.reason}
                     </span>
                   );
@@ -169,6 +152,7 @@ export function ProductionGoLiveSection({
           getRowKey={(r) => r.id}
           emptyTitle="No designs awaiting go-live"
         />
+        </div>
         {list.total > 0 ? (
           <PaginationBar
             total={list.total}
@@ -179,7 +163,8 @@ export function ProductionGoLiveSection({
             pageSizeSelectId="production-golive-page-size"
           />
         ) : null}
-      </AppCard>
+        </div>
+      </div>
 
       <MarkLiveConfirm
         open={!!confirmDesign}

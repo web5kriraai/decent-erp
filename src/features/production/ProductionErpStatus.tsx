@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useCallback, useMemo } from "react";
 import { DataTable } from "@/components/DataTable";
 import { AppButton } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
 import { ListSearch } from "@/components/ui/ListSearch";
 import { PaginationBar } from "@/components/ui/PaginationBar";
-import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import type { ErpIntegrationStatus, ProductionHandoffRow } from "@/hooks/use-production";
@@ -15,7 +13,6 @@ import {
   erpModeDisplayLabel,
   erpModeShortHint,
   formatErpModuleLabel,
-  formatErpReferenceDisplay,
   getHandoffDisplayStatus,
 } from "@/lib/services/erp-integration-config";
 import { useClientList } from "@/hooks/use-client-list";
@@ -45,8 +42,52 @@ export function ProductionErpModePill({
   );
 }
 
-function handoffSearchText(row: ProductionHandoffRow) {
-  return `${row.design.ideaRef} ${row.erpModule} ${row.designNumber} ${row.status} ${row.erpReference ?? ""} ${row.payload?.error ?? ""}`;
+type DesignHandoffGroup = {
+  designId: string;
+  ideaRef: string;
+  collectionName: string;
+  designNumber: string;
+  modules: string[];
+  sync: string;
+  failedId: string | null;
+  error: string | null;
+};
+
+function groupHandoffs(rows: ProductionHandoffRow[]): DesignHandoffGroup[] {
+  const map = new Map<string, DesignHandoffGroup>();
+  for (const row of rows) {
+    const sync = getHandoffDisplayStatus({
+      status: row.status,
+      erpReference: row.erpReference,
+    });
+    const existing = map.get(row.design.id);
+    if (!existing) {
+      map.set(row.design.id, {
+        designId: row.design.id,
+        ideaRef: row.design.ideaRef,
+        collectionName: row.design.collectionName,
+        designNumber: row.designNumber,
+        modules: [formatErpModuleLabel(row.erpModule)],
+        sync,
+        failedId: sync === "FAILED" ? row.id : null,
+        error: row.payload?.error ?? null,
+      });
+      continue;
+    }
+    existing.modules.push(formatErpModuleLabel(row.erpModule));
+    if (sync === "FAILED") {
+      existing.sync = "FAILED";
+      existing.failedId = row.id;
+      existing.error = row.payload?.error ?? existing.error;
+    } else if (existing.sync !== "FAILED" && existing.sync !== sync) {
+      existing.sync = "MIXED";
+    }
+  }
+  return [...map.values()];
+}
+
+function handoffSearchText(row: DesignHandoffGroup) {
+  return `${row.ideaRef} ${row.collectionName} ${row.designNumber} ${row.modules.join(" ")} ${row.sync} ${row.error ?? ""}`;
 }
 
 export function ProductionErpHandoffsSection({
@@ -55,19 +96,16 @@ export function ProductionErpHandoffsSection({
   retryPending,
   onSyncLatest,
   onRetry,
-  onRefresh,
-  isRefreshing,
 }: {
   handoffs: ProductionHandoffRow[];
   syncPending: boolean;
   retryPending: boolean;
   onSyncLatest: (designId: string) => void;
   onRetry: (handoffId: string) => void;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
 }) {
+  const groups = useMemo(() => groupHandoffs(handoffs), [handoffs]);
   const getSearchText = useCallback(handoffSearchText, []);
-  const list = useClientList({ items: handoffs, getSearchText });
+  const list = useClientList({ items: groups, getSearchText });
 
   const latestByDesign = useMemo(() => {
     const map = new Map<string, { ideaRef: string; id: string }>();
@@ -91,38 +129,13 @@ export function ProductionErpHandoffsSection({
     );
 
   return (
-    <AppCard
-      title="ERP handoffs"
-      className="production-desk-secondary-card overflow-visible"
-      description={
-        allLocal
-          ? "Simulated LOCAL sync - partner posts are stubbed until ERP_API_BASE_URL is set."
-          : "Sync status for modules pushed after production release."
-      }
-      headerAction={
-        <div className="flex flex-wrap items-center gap-2">
-          {onRefresh ? (
-            <ListRefreshButton onRefresh={onRefresh} isRefreshing={isRefreshing} />
-          ) : null}
-          {primaryDesign ? (
-            <AppButton
-              type="button"
-              appVariant="secondary"
-              size="sm"
-              disabled={syncPending}
-              title={
-                latestByDesign.length > 1
-                  ? `Syncs ${primaryDesign.ideaRef} (first design in list)`
-                  : `Sync ${primaryDesign.ideaRef}`
-              }
-              onClick={() => onSyncLatest(primaryDesign.id)}
-            >
-              {syncPending ? "Syncing…" : "Sync latest design"}
-            </AppButton>
-          ) : null}
-        </div>
-      }
-    >
+    <div className="production-desk-secondary-card">
+      <div className="production-desk-secondary-body">
+      {allLocal ? (
+        <p className="production-desk-note">
+          Simulated sync until the ERP connection is set.
+        </p>
+      ) : null}
       <div className="page-toolbar !mb-0 border-b px-3 py-2">
         <ListSearch
           value={list.search}
@@ -130,7 +143,24 @@ export function ProductionErpHandoffsSection({
           placeholder="Search handoffs…"
           aria-label="Search ERP handoffs"
         />
+        {primaryDesign ? (
+          <AppButton
+            type="button"
+            appVariant="secondary"
+            size="sm"
+            disabled={syncPending}
+            title={
+              latestByDesign.length > 1
+                ? `Syncs ${primaryDesign.ideaRef} (first design in list)`
+                : `Sync ${primaryDesign.ideaRef}`
+            }
+            onClick={() => onSyncLatest(primaryDesign.id)}
+          >
+            {syncPending ? "Syncing…" : "Sync latest"}
+          </AppButton>
+        ) : null}
       </div>
+      <div className="production-desk-secondary-scroll">
       <DataTable
         flush
         columns={[
@@ -138,80 +168,66 @@ export function ProductionErpHandoffsSection({
             key: "design",
             header: "Design",
             render: (row) => (
-              <Link href={ROUTES.designs.detail(row.design.id)} className="data-table-link">
-                {row.design.ideaRef}
+              <Link href={ROUTES.designs.detail(row.designId)} className="concept-board-design">
+                <span className="concept-board-line" title={`${row.collectionName} · ${row.ideaRef}`}>
+                  <span className="concept-board-line__title data-table-link">
+                    {row.collectionName}
+                  </span>
+                  <span className="data-table-subtext concept-board-line__meta">
+                    {row.ideaRef}
+                    {row.designNumber ? ` · ${row.designNumber}` : ""}
+                  </span>
+                </span>
               </Link>
             ),
           },
           {
-            key: "erpModule",
-            header: "Module",
+            key: "modules",
+            header: "Modules",
             render: (row) => (
-              <span className="production-desk-erp-module">
-                {formatErpModuleLabel(row.erpModule)}
+              <span title={row.modules.join(", ")}>
+                {row.modules.length} modules
               </span>
             ),
           },
-          { key: "designNumber", header: "Design No." },
           {
             key: "status",
             header: "Sync",
             render: (row) => {
-              const display = getHandoffDisplayStatus({
-                status: row.status,
-                erpReference: row.erpReference,
-              });
               const badgeStatus =
-                display === "LOCAL"
+                row.sync === "LOCAL" || row.sync === "MIXED"
                   ? "CHECKING"
-                  : display === "FAILED"
+                  : row.sync === "FAILED"
                     ? "REJECTED"
-                    : display === "QUEUED"
+                    : row.sync === "QUEUED"
                       ? "PENDING"
                       : "COMPLETED";
-              return <StatusBadge status={badgeStatus} label={display} />;
+              const label = row.sync === "MIXED" ? "Mixed" : row.sync;
+              return <StatusBadge status={badgeStatus} label={label} />;
             },
           },
           {
             key: "error",
             header: "Last error",
             render: (row) =>
-              row.payload?.error ? (
-                <span className="text-xs text-destructive">{row.payload.error}</span>
+              row.error ? (
+                <span className="text-xs text-destructive">{row.error}</span>
               ) : (
                 <span className="text-muted-foreground">-</span>
               ),
-          },
-          {
-            key: "erpReference",
-            header: "ERP Ref",
-            render: (r) => {
-              const ref = formatErpReferenceDisplay(r.erpReference);
-              return (
-                <span className="production-desk-erp-ref" title={ref.full}>
-                  {ref.simulated ? (
-                    <span className="production-desk-erp-ref-sim">Sim</span>
-                  ) : null}
-                  <span className="production-desk-erp-ref-main">{ref.primary}</span>
-                  {ref.secondary ? (
-                    <span className="production-desk-erp-ref-meta">{ref.secondary}</span>
-                  ) : null}
-                </span>
-              );
-            },
           },
           {
             key: "actions",
             header: "",
             align: "right",
             render: (row) =>
-              row.status === "FAILED" || row.status === "QUEUED" ? (
+              row.failedId ? (
                 <AppButton
                   type="button"
                   appVariant="secondary"
                   size="sm"
                   disabled={retryPending}
-                  onClick={() => onRetry(row.id)}
+                  onClick={() => onRetry(row.failedId!)}
                 >
                   Retry
                 </AppButton>
@@ -219,10 +235,11 @@ export function ProductionErpHandoffsSection({
           },
         ]}
         rows={list.pageItems}
-        getRowKey={(r) => r.id}
+        getRowKey={(r) => r.designId}
         emptyTitle="No ERP handoffs yet"
         emptyDescription="Handoffs appear when a design is released to production."
       />
+      </div>
       {list.total > 0 ? (
         <PaginationBar
           total={list.total}
@@ -233,6 +250,7 @@ export function ProductionErpHandoffsSection({
           pageSizeSelectId="production-handoffs-page-size"
         />
       ) : null}
-    </AppCard>
+      </div>
+    </div>
   );
 }

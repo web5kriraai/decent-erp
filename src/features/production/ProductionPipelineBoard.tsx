@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { IconProduction } from "@/components/icons";
 import { AppButtonLink } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
 import { ListSearch } from "@/components/ui/ListSearch";
 import { PaginationBar } from "@/components/ui/PaginationBar";
-import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import type { ApprovedDesignForProduction } from "@/hooks/use-production";
@@ -32,15 +30,6 @@ const FILTERS: Array<{ key: PipelineFilter; label: string }> = [
   { key: "missing_ladder", label: "Missing stages" },
 ];
 
-function stageBadgeStatus(status: string | null): string {
-  if (!status) return "PENDING";
-  if (status === "COMPLETED") return "COMPLETED";
-  if (status === "RUNNING" || status === "CHECKING") return "CHECKING";
-  if (status === "ON_HOLD" || status === "CORRECTION_REQUIRED") return "REJECTED";
-  if (status === "ASSIGNED" || status === "PENDING") return "PENDING";
-  return status;
-}
-
 function shortStatus(status: string | null): string {
   if (!status) return "-";
   if (status === "COMPLETED") return "Done";
@@ -49,6 +38,7 @@ function shortStatus(status: string | null): string {
   if (status === "RUNNING") return "Running";
   if (status === "CHECKING") return "Checking";
   if (status === "ON_HOLD") return "Hold";
+  if (status === "CORRECTION_REQUIRED") return "Correction";
   return status.replace(/_/g, " ");
 }
 
@@ -100,11 +90,11 @@ function PipelineRow({
       )}
     >
       <div className="production-desk-row-title-block">
-        <Link href={ROUTES.designs.detail(row.id)} className="production-desk-row-ref">
-          {row.ideaRef}
-        </Link>
-        <p className="production-desk-row-meta">
+        <Link href={ROUTES.designs.detail(row.id)} className="production-desk-row-ref" title={row.collectionName}>
           {row.collectionName}
+        </Link>
+        <p className="production-desk-row-meta" title={`${row.ideaRef} · ${row.productType.name} · ${row.designHead.name}`}>
+          {row.ideaRef}
           <span aria-hidden> · </span>
           {row.productType.name}
           <span aria-hidden> · </span>
@@ -140,12 +130,10 @@ function PipelineRow({
                 <span className="production-desk-ladder-index" aria-hidden>
                   {index + 1}
                 </span>
-                <div className="production-desk-ladder-copy">
-                  <span className="production-desk-ladder-label">
-                    {PRODUCTION_DESK_STAGE_LABELS[code]}
-                  </span>
-                  <StatusBadge status={stageBadgeStatus(status)} label={shortStatus(status)} />
-                </div>
+                <span className="production-desk-ladder-label">
+                  {PRODUCTION_DESK_STAGE_LABELS[code]}
+                </span>
+                <span className="production-desk-ladder-status">{shortStatus(status)}</span>
               </div>
             </li>
           );
@@ -153,22 +141,27 @@ function PipelineRow({
       </ol>
 
       <div className="production-desk-row-footer">
-        <div className="production-desk-row-gate">
+        <div
+          className="production-desk-row-gate"
+          title={
+            row.releaseMissing?.length
+              ? row.releaseMissing.join("; ")
+              : undefined
+          }
+        >
           {row.releaseReady ? (
             <StatusBadge status="COMPLETED" label="Gate ready" />
           ) : (
-            <>
-              <StatusBadge status="CHECKING" label="Gate blocked" />
-              {row.releaseMissing?.length ? (
-                <p className="production-desk-row-gate-detail">
-                  {row.releaseMissing.slice(0, 2).join("; ")}
-                  {row.releaseMissing.length > 2
-                    ? ` (+${row.releaseMissing.length - 2})`
-                    : ""}
-                </p>
-              ) : null}
-            </>
+            <StatusBadge status="CHECKING" label="Gate blocked" />
           )}
+          {!row.releaseReady && row.releaseMissing?.length ? (
+            <span className="production-desk-row-gate-detail">
+              {row.releaseMissing.slice(0, 2).join("; ")}
+              {row.releaseMissing.length > 2
+                ? ` (+${row.releaseMissing.length - 2})`
+                : ""}
+            </span>
+          ) : null}
         </div>
 
         <div className="production-desk-row-actions">
@@ -204,15 +197,11 @@ export function ProductionPipelineBoard({
   roleCode,
   permissions,
   employeeId,
-  onRefresh,
-  isRefreshing,
 }: {
   designs: ApprovedDesignForProduction[];
   roleCode?: string | null;
   permissions: string[];
   employeeId?: number | null;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
 }) {
   const [filter, setFilter] = useState<PipelineFilter>("ALL");
 
@@ -271,16 +260,7 @@ export function ProductionPipelineBoard({
   });
 
   return (
-    <AppCard
-      title="Production pipeline"
-      className="production-desk-pipeline-card overflow-visible"
-      contentClassName="production-desk-card-content"
-      headerAction={
-        onRefresh ? (
-          <ListRefreshButton onRefresh={onRefresh} isRefreshing={isRefreshing} />
-        ) : null
-      }
-    >
+    <div className="production-desk-pipeline-card">
       <div className="production-desk-board">
         {designs.length > 0 ? (
           <>
@@ -292,15 +272,14 @@ export function ProductionPipelineBoard({
               aria-label="Search production pipeline"
             />
           </div>
-          <div className="production-desk-filters" role="tablist" aria-label="Filter pipeline">
+          <div className="production-desk-filters" role="group" aria-label="Filter pipeline">
             {FILTERS.map((item) => {
               if (item.key !== "ALL" && counts[item.key] === 0) return null;
               return (
                 <button
                   key={item.key}
                   type="button"
-                  role="tab"
-                  aria-selected={filter === item.key}
+                  aria-pressed={filter === item.key}
                   className={cn(
                     "production-desk-filter",
                     filter === item.key && "production-desk-filter--active",
@@ -359,6 +338,6 @@ export function ProductionPipelineBoard({
           </>
         )}
       </div>
-    </AppCard>
+    </div>
   );
 }

@@ -9205,16 +9205,13 @@ a.file-slot-name {
 .production-desk-page {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
   max-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-contain: contain;
-  padding-bottom: 1.25rem;
-  scrollbar-width: thin;
+  overflow: hidden;
+  padding-bottom: 0;
 }
 
 .production-desk-page__header {
@@ -9336,61 +9333,8 @@ a.file-slot-name {
   line-height: 1.45;
 }
 
-.production-desk-flow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem 0.65rem;
-  margin: 0;
-  padding: 0.75rem 0.9rem;
-  list-style: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--primary) 5%, var(--card)) 0%,
-      var(--card) 55%
-    );
-}
-
-.production-desk-flow-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: 0;
-}
-
-.production-desk-flow-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 14%, transparent);
-  color: var(--primary);
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.production-desk-flow-label {
-  font-size: 0.8125rem;
-  font-weight: 650;
-  color: var(--foreground);
-}
-
-.production-desk-flow-who {
-  font-size: 0.75rem;
-  color: var(--color-neutral-500);
-}
-
-.production-desk-flow-arrow {
-  color: var(--color-neutral-400);
-  font-size: 0.85rem;
-}
-
 .production-desk-metric-row {
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.75rem), 1fr));
   gap: 0.55rem;
@@ -9476,11 +9420,43 @@ a.file-slot-name {
   line-height: 1.15;
 }
 
+.production-desk-page > .production-desk-workspace {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.production-desk-tabs {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.production-desk-tab-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  flex-direction: column;
+}
+
+.production-desk-tab-panel:not([hidden]) {
+  display: flex;
+}
+
 .production-desk-pipeline-card,
 .production-desk-secondary-card {
-  border-color: color-mix(in srgb, var(--border) 90%, transparent);
-  flex-shrink: 0;
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: none;
+  background: transparent;
 }
 
 .production-desk-card-content {
@@ -9490,23 +9466,75 @@ a.file-slot-name {
   padding-top: 0;
 }
 
-.production-desk-board {
+.production-desk-board,
+.production-desk-secondary-body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.75rem 0.85rem 0.85rem;
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 0;
+  overflow: hidden;
 }
 
-.production-desk-board > .page-toolbar {
-  margin: -0.75rem -0.85rem 0;
-  padding-left: 0.85rem !important;
-  padding-right: 0.85rem !important;
+.production-desk-board > .page-toolbar,
+.production-desk-secondary-body > .page-toolbar {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.production-desk-note {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.55rem 0.85rem 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
 }
 
 .production-desk-filters {
   display: flex;
   flex-wrap: wrap;
+  flex-shrink: 0;
   gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.production-desk-secondary-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.production-desk-secondary-scroll > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.production-desk-secondary-scroll .app-table-wrap,
+.production-desk-secondary-scroll .app-table-wrap--flush {
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.production-desk-secondary-scroll .app-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-neutral-50, var(--muted));
+}
+
+.production-desk-board .pagination-bar,
+.production-desk-secondary-body .pagination-bar {
+  flex-shrink: 0;
 }
 
 .production-desk-filter {
@@ -9554,21 +9582,34 @@ a.file-slot-name {
 .production-desk-rows {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.55rem 0.65rem 0.65rem;
+  scrollbar-width: thin;
 }
 
 .production-desk-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
-  padding: 0.75rem 0.85rem;
+  padding: 0.45rem 0.7rem;
   border-left-width: 3px;
   border-left-color: var(--border);
-  min-height: 0;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  height: auto;
+  align-items: center;
+}
+
+@media (min-width: 960px) {
+  .production-desk-row {
+    grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr) auto;
+  }
 }
 
 .production-desk-row--ready {
@@ -9670,12 +9711,12 @@ a.file-slot-name {
 .production-desk-ladder-step {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  min-width: 6.25rem;
+  gap: 0.35rem;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--muted) 40%, var(--card));
-  padding: 0.35rem 0.45rem;
+  padding: 0.2rem 0.45rem;
 }
 
 .production-desk-ladder-step--done {
@@ -9717,64 +9758,99 @@ a.file-slot-name {
   color: var(--primary);
 }
 
-.production-desk-ladder-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
 .production-desk-ladder-label {
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--color-neutral-500);
+  white-space: nowrap;
+}
+
+.production-desk-ladder-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
 }
 
 .production-desk-row-footer {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem 0.75rem;
+  align-self: center;
+  min-width: 0;
+  height: auto;
 }
 
 .production-desk-row-gate {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.25rem;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
   min-width: 0;
-  flex: 1 1 12rem;
+  max-width: 18rem;
+  flex: 0 1 auto;
 }
 
 .production-desk-row-gate-detail {
   margin: 0;
-  max-width: 28rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-caption);
   color: var(--color-neutral-500);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .production-desk-row-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
   gap: 0.35rem;
   flex: 0 1 auto;
-  max-width: 100%;
+  min-width: 0;
+  max-width: 16rem;
 }
 
 .production-desk-waiting {
   margin: 0;
+  min-width: 0;
   max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-caption);
   color: var(--color-neutral-500);
-  line-height: 1.4;
+  line-height: 1.3;
   text-align: right;
+}
+
+.production-desk-golive-review {
+  width: 8.5rem;
+  white-space: nowrap;
+}
+
+td.production-desk-golive-next,
+th.production-desk-golive-next {
+  width: 11rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.production-desk-golive-note {
+  display: inline-block;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-caption);
+  color: var(--color-neutral-500);
+  vertical-align: middle;
 }
 
 @media (max-width: 639px) {
@@ -9838,52 +9914,6 @@ a.file-slot-name {
   padding: 0.55rem 0.15rem;
   font-size: 0.8125rem;
   color: var(--color-neutral-500);
-}
-
-.production-desk-tools-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  padding: 0.75rem 0.9rem;
-}
-
-.production-desk-tools-copy {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.55rem;
-  min-width: 0;
-}
-
-.production-desk-tools-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 999px;
-  background: var(--muted);
-  color: var(--color-neutral-600);
-  flex-shrink: 0;
-}
-
-.production-desk-tools-title {
-  margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 650;
-  color: var(--foreground);
-}
-
-.production-desk-tools-hint {
-  margin: 0.15rem 0 0;
-  max-width: 34rem;
-  font-size: var(--font-size-caption);
-  color: var(--color-neutral-500);
-  line-height: 1.4;
 }
 
 /* Management approval package (Decide modal) */
@@ -10535,6 +10565,12 @@ a.file-slot-name {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.erp-chain-page > .erp-chain-metric-row {
+  flex-shrink: 0;
 }
 
 .erp-chain-header-actions {
@@ -10624,7 +10660,10 @@ a.file-slot-name {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.85rem;
-  align-items: start;
+  align-items: stretch;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (min-width: 960px) {
@@ -10633,14 +10672,28 @@ a.file-slot-name {
   }
 }
 
+.erp-chain-queue-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
 .erp-chain-queue {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 0.65rem;
+  scrollbar-width: thin;
 }
 
 .erp-chain-queue-empty {
@@ -10685,6 +10738,9 @@ a.file-slot-name {
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .erp-chain-row-meta {
@@ -10692,6 +10748,9 @@ a.file-slot-name {
   font-size: 0.75rem;
   color: var(--color-neutral-500);
   line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .erp-chain-work-panel {
@@ -10700,6 +10759,9 @@ a.file-slot-name {
   background: var(--card);
   padding: 0.85rem 0.95rem;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
 }
 
 .erp-chain-operator {

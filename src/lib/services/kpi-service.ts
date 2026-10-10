@@ -404,6 +404,18 @@ export async function getKpiDefinitions(roleId?: number) {
   });
 }
 
+/** Fill the current UTC month when the dashboard has never been recalculated. */
+export async function ensureCurrentMonthKpiScores() {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+  const existing = await prisma.employeeKpiScore.count({
+    where: { periodYear: year, periodMonth: month },
+  });
+  if (existing > 0) return;
+  await calculateMonthlyKpi(year, month);
+}
+
 export async function calculateMonthlyKpi(year: number, month: number) {
   const start = new Date(Date.UTC(year, month - 1, 1));
   const end = new Date(Date.UTC(year, month, 1));

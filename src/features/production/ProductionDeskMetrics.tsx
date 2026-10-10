@@ -94,31 +94,3 @@ export function ProductionDeskMetrics({
     </div>
   );
 }
-
-export function ProductionDeskFlowStrip() {
-  return (
-    <ol className="production-desk-flow" aria-label="Release flow">
-      <li className="production-desk-flow-step">
-        <span className="production-desk-flow-num">1</span>
-        <span className="production-desk-flow-label">Handoff</span>
-        <span className="production-desk-flow-who">Design Head</span>
-      </li>
-      <li className="production-desk-flow-arrow" aria-hidden>
-        →
-      </li>
-      <li className="production-desk-flow-step">
-        <span className="production-desk-flow-num">2</span>
-        <span className="production-desk-flow-label">Instruction</span>
-        <span className="production-desk-flow-who">Production Head</span>
-      </li>
-      <li className="production-desk-flow-arrow" aria-hidden>
-        →
-      </li>
-      <li className="production-desk-flow-step">
-        <span className="production-desk-flow-num">3</span>
-        <span className="production-desk-flow-label">Release</span>
-        <span className="production-desk-flow-who">Triggers ERP</span>
-      </li>
-    </ol>
-  );
-}

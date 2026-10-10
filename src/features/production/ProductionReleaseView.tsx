@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ListRefreshButton } from "@/components/ui/ListRefreshButton";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { QueryState } from "@/components/ui/QueryState";
@@ -25,10 +26,7 @@ import { canViewErpChain } from "@/lib/erp-rbac";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import { classifyProductionDeskRow } from "@/lib/services/production-desk-snapshot";
-import {
-  ProductionDeskFlowStrip,
-  ProductionDeskMetrics,
-} from "@/features/production/ProductionDeskMetrics";
+import { ProductionDeskMetrics } from "@/features/production/ProductionDeskMetrics";
 import { ProductionDeskTools } from "@/features/production/ProductionDeskTools";
 import {
   ProductionErpHandoffsSection,
@@ -36,6 +34,8 @@ import {
 } from "@/features/production/ProductionErpStatus";
 import { ProductionGoLiveSection } from "@/features/production/ProductionGoLiveSection";
 import { ProductionPipelineBoard } from "@/features/production/ProductionPipelineBoard";
+
+type DeskTab = "pipeline" | "golive" | "handoffs";
 
 export function ProductionReleaseView() {
   const { data: session, status: sessionStatus } = useSession();
@@ -61,6 +61,21 @@ export function ProductionReleaseView() {
   const designs = designsQuery.data ?? [];
   const released = releasedQuery.data ?? [];
   const handoffs = handoffsQuery.data ?? [];
+  const handoffDesignCount = useMemo(
+    () => new Set(handoffs.map((row) => row.design.id)).size,
+    [handoffs],
+  );
+
+  const tabs = useMemo(() => {
+    const items: Array<{ id: DeskTab; label: string; count: number }> = [];
+    if (canRelease) items.push({ id: "pipeline", label: "Pipeline", count: designs.length });
+    if (canMarkLive) items.push({ id: "golive", label: "Go-live", count: released.length });
+    if (showErpOps) items.push({ id: "handoffs", label: "ERP handoffs", count: handoffDesignCount });
+    return items;
+  }, [canRelease, canMarkLive, showErpOps, designs.length, released.length, handoffDesignCount]);
+
+  const [tab, setTab] = useState<DeskTab>("pipeline");
+  const activeTab = tabs.some((item) => item.id === tab) ? tab : (tabs[0]?.id ?? "pipeline");
 
   const metrics = useMemo(() => {
     const counts = {
@@ -127,6 +142,12 @@ export function ProductionReleaseView() {
               status={erpStatusQuery.data}
               showErpChainLink={showErpOps}
             />
+            {canEnsureLadder ? (
+              <ProductionDeskTools
+                ensurePending={ensureLadder.isPending}
+                onEnsureLadder={() => ensureLadder.mutate(undefined)}
+              />
+            ) : null}
             {canExecuteTasks ? (
               <AppButtonLink href={ROUTES.work.tasks} appVariant="primary" size="sm">
                 Open My Tasks
@@ -135,8 +156,6 @@ export function ProductionReleaseView() {
           </div>
         }
       />
-
-      <ProductionDeskFlowStrip />
 
       {canRelease ? (
         <ProductionDeskMetrics
@@ -149,71 +168,79 @@ export function ProductionReleaseView() {
         />
       ) : null}
 
-      {canRelease ? (
-        <QueryState
-          isLoading={designsQuery.isLoading}
-          isError={designsQuery.isError}
-          error={designsQuery.error}
-          onRetry={() => designsQuery.refetch()}
-          skeletonVariant="table"
-        >
-          <ProductionPipelineBoard
-            designs={designs}
-            roleCode={roleCode}
-            permissions={permissions}
-            employeeId={employeeId}
-            onRefresh={() => designsQuery.refetch()}
-            isRefreshing={designsQuery.isFetching}
-          />
-        </QueryState>
-      ) : null}
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setTab(value as DeskTab)}
+        className="production-desk-workspace action-center-tabs-root"
+      >
+        <TabsList className="action-center-tabs-list production-desk-tabs">
+          {tabs.map((item) => (
+            <TabsTrigger key={item.id} value={item.id} className="action-center-tab-trigger">
+              {item.label}
+              <span className="action-center-tab-count">{item.count}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      {canMarkLive && (releasedQuery.isLoading || released.length > 0) ? (
-        <QueryState
-          isLoading={releasedQuery.isLoading}
-          isError={releasedQuery.isError}
-          error={releasedQuery.error}
-          onRetry={() => releasedQuery.refetch()}
-          skeletonVariant="table"
-        >
-          <ProductionGoLiveSection
-            designs={released}
-            roleCode={roleCode}
-            permissions={permissions}
-            markLivePending={markLive.isPending}
-            onMarkLive={(id) => markLive.mutateAsync(id)}
-            onRefresh={() => releasedQuery.refetch()}
-            isRefreshing={releasedQuery.isFetching}
-          />
-        </QueryState>
-      ) : null}
+        {canRelease ? (
+          <TabsContent value="pipeline" className="production-desk-tab-panel">
+            <QueryState
+              isLoading={designsQuery.isLoading}
+              isError={designsQuery.isError}
+              error={designsQuery.error}
+              onRetry={() => designsQuery.refetch()}
+              skeletonVariant="table"
+            >
+              <ProductionPipelineBoard
+                designs={designs}
+                roleCode={roleCode}
+                permissions={permissions}
+                employeeId={employeeId}
+              />
+            </QueryState>
+          </TabsContent>
+        ) : null}
 
-      {showErpOps && (handoffsQuery.isLoading || handoffs.length > 0) ? (
-        <QueryState
-          isLoading={handoffsQuery.isLoading}
-          isError={handoffsQuery.isError}
-          error={handoffsQuery.error}
-          onRetry={() => handoffsQuery.refetch()}
-          skeletonVariant="table"
-        >
-          <ProductionErpHandoffsSection
-            handoffs={handoffs}
-            syncPending={syncDesignHandoffs.isPending}
-            retryPending={retrySync.isPending}
-            onSyncLatest={(designId) => syncDesignHandoffs.mutate(designId)}
-            onRetry={(id) => retrySync.mutate(id)}
-            onRefresh={() => handoffsQuery.refetch()}
-            isRefreshing={handoffsQuery.isFetching}
-          />
-        </QueryState>
-      ) : null}
+        {canMarkLive ? (
+          <TabsContent value="golive" className="production-desk-tab-panel">
+            <QueryState
+              isLoading={releasedQuery.isLoading}
+              isError={releasedQuery.isError}
+              error={releasedQuery.error}
+              onRetry={() => releasedQuery.refetch()}
+              skeletonVariant="table"
+            >
+              <ProductionGoLiveSection
+                designs={released}
+                roleCode={roleCode}
+                permissions={permissions}
+                markLivePending={markLive.isPending}
+                onMarkLive={(id) => markLive.mutateAsync(id)}
+              />
+            </QueryState>
+          </TabsContent>
+        ) : null}
 
-      {canEnsureLadder ? (
-        <ProductionDeskTools
-          ensurePending={ensureLadder.isPending}
-          onEnsureLadder={() => ensureLadder.mutate(undefined)}
-        />
-      ) : null}
+        {showErpOps ? (
+          <TabsContent value="handoffs" className="production-desk-tab-panel">
+            <QueryState
+              isLoading={handoffsQuery.isLoading}
+              isError={handoffsQuery.isError}
+              error={handoffsQuery.error}
+              onRetry={() => handoffsQuery.refetch()}
+              skeletonVariant="table"
+            >
+              <ProductionErpHandoffsSection
+                handoffs={handoffs}
+                syncPending={syncDesignHandoffs.isPending}
+                retryPending={retrySync.isPending}
+                onSyncLatest={(designId) => syncDesignHandoffs.mutate(designId)}
+                onRetry={(id) => retrySync.mutate(id)}
+              />
+            </QueryState>
+          </TabsContent>
+        ) : null}
+      </Tabs>
     </div>
   );
 }
