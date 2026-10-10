@@ -54,6 +54,7 @@ export function ManagementDashboard() {
           <StatCard label="Approved - production queue" value={summary?.approvedCount ?? 0} />
           <StatCard label="Released to production" value={summary?.releasedCount ?? 0} />
           <StatCard label="Live review pending" value={summary?.liveReviewPending ?? 0} />
+          <StatCard label="Ready to mark live" value={summary?.readyToMarkLiveCount ?? 0} />
           <StatCard label="Under development" value={summary?.underDevelopment ?? 0} />
           <StatCard
             label="Concept target"
@@ -90,6 +91,30 @@ export function ManagementDashboard() {
             <AppButtonLink href={ROUTES.production.release} appVariant="secondary" size="sm">
               View production desk
             </AppButtonLink>
+          </WorkbenchQueueCard>
+
+          <WorkbenchQueueCard
+            title="Ready to mark live"
+            href={`${ROUTES.production.release}?tab=golive`}
+            linkLabel="Go-live"
+            emptyMessage="No designs are ready to mark live."
+          >
+            {!summary?.readyToMarkLive?.length ? (
+              <WorkbenchEmpty message="Mark Live appears after Live Design Review is complete." />
+            ) : (
+              <ul className="detail-task-list">
+                {summary.readyToMarkLive.map((design) => (
+                  <WorkbenchListItem
+                    key={design.id}
+                    primaryHref={`${ROUTES.production.release}?tab=golive`}
+                    primaryLabel={design.ideaRef}
+                    meta={design.collectionName}
+                    detail="Live review complete"
+                    trailing={<StatusBadge status={design.status} />}
+                  />
+                ))}
+              </ul>
+            )}
           </WorkbenchQueueCard>
 
           {hubTabs.stage ? (

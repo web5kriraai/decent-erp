@@ -77,6 +77,25 @@ export function TaskDesignBrief({
               <dd>{fact(design.productType)}</dd>
             </div>
             <div>
+              <dt>Fabric</dt>
+              <dd>{fact(design.fabric || design.materialFabric)}</dd>
+            </div>
+            <div>
+              <dt>Stitching</dt>
+              <dd>
+                {fact(
+                  design.stitchingType ||
+                    (task.priorPunching?.stitchCount != null
+                      ? `${task.priorPunching.stitchCount.toLocaleString()} stitches`
+                      : null),
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Machine</dt>
+              <dd>{fact(design.machine || task.priorPunching?.machineFormat)}</dd>
+            </div>
+            <div>
               <dt>Season</dt>
               <dd>{fact(design.season)}</dd>
             </div>
@@ -97,20 +116,8 @@ export function TaskDesignBrief({
               <dd>{fact(design.celebrityReference)}</dd>
             </div>
             <div>
-              <dt>Fabric</dt>
-              <dd>{fact(design.fabric)}</dd>
-            </div>
-            <div>
-              <dt>Stitching</dt>
-              <dd>{fact(design.stitchingType)}</dd>
-            </div>
-            <div>
               <dt>Grade</dt>
               <dd>{fact(design.designGrade)}</dd>
-            </div>
-            <div>
-              <dt>Machine</dt>
-              <dd>{fact(design.machine)}</dd>
             </div>
             <div>
               <dt>Design head</dt>

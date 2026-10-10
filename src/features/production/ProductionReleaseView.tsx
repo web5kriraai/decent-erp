@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { AppButtonLink } from "@/components/ui/AppButton";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -15,6 +16,7 @@ import {
   useMarkDesignLive,
   useProductionHandoffs,
   useReleasedDesigns,
+  useReleaseToProduction,
   useRetryHandoffSync,
   useSyncDesignHandoffs,
 } from "@/hooks/use-production";
@@ -54,6 +56,9 @@ export function ProductionReleaseView() {
   const handoffsQuery = useProductionHandoffs(canRelease && showErpOps);
   const erpStatusQuery = useErpIntegrationStatus(canRelease);
   const markLive = useMarkDesignLive();
+  const releaseDesign = useReleaseToProduction();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
   const retrySync = useRetryHandoffSync();
   const syncDesignHandoffs = useSyncDesignHandoffs();
   const ensureLadder = useEnsureProductionLadder();
@@ -74,7 +79,11 @@ export function ProductionReleaseView() {
     return items;
   }, [canRelease, canMarkLive, showErpOps, designs.length, released.length, handoffDesignCount]);
 
-  const [tab, setTab] = useState<DeskTab>("pipeline");
+  const [tab, setTab] = useState<DeskTab>(
+    requestedTab === "golive" || requestedTab === "handoffs" || requestedTab === "pipeline"
+      ? requestedTab
+      : "pipeline",
+  );
   const activeTab = tabs.some((item) => item.id === tab) ? tab : (tabs[0]?.id ?? "pipeline");
 
   const metrics = useMemo(() => {
@@ -196,6 +205,8 @@ export function ProductionReleaseView() {
                 roleCode={roleCode}
                 permissions={permissions}
                 employeeId={employeeId}
+                retryPending={releaseDesign.isPending}
+                onRetryRelease={(designId) => releaseDesign.mutate(designId)}
               />
             </QueryState>
           </TabsContent>

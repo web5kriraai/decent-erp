@@ -138,6 +138,22 @@ export function canOpenProductionDeskNextAction(input: {
   return input.roleCode === PRODUCTION_DESK_STAGE_OWNER_ROLE[action.code];
 }
 
+/**
+ * PROD_RELEASE task is done but the design never reached PRODUCTION_RELEASED.
+ * The desk can offer Retry release for this row.
+ */
+export function isReleasePendingRetry(input: {
+  designStatus: string;
+  prodReleaseStatus: string | null | undefined;
+}): boolean {
+  if (input.prodReleaseStatus !== "COMPLETED") return false;
+  return (
+    input.designStatus === "APPROVED" ||
+    input.designStatus === "PRODUCTION_ACCEPTED" ||
+    input.designStatus === "APPROVAL_PENDING"
+  );
+}
+
 /** Pipeline filter buckets derived from ladder + readiness. */
 export type ProductionDeskPipelineBucket =
   | "blocked"

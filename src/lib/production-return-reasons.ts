@@ -1,3 +1,10 @@
+/** Prefix stored on correction root cause for a production-only re-handoff. */
+export const PRODUCTION_RETURN_ROOT_PREFIX = "Production return:";
+
+export function isProductionReturnRootCause(rootCause: string | null | undefined): boolean {
+  return typeof rootCause === "string" && rootCause.startsWith(PRODUCTION_RETURN_ROOT_PREFIX);
+}
+
 export const PRODUCTION_RETURN_REASON_CODES = [
   "MISSING_PRODUCTION_INSTRUCTION",
   "MISSING_FILE",

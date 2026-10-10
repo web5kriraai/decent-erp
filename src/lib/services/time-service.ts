@@ -457,6 +457,26 @@ async function loadPriorPunchingDetails(designId: bigint, taskId: bigint, sequen
   };
 }
 
+async function materialFabricLabel(designId: bigint) {
+  const lines = await prisma.designMaterialLine.findMany({
+    where: {
+      designId,
+      catalogItem: { masterType: "FABRIC_QUALITY" },
+    },
+    include: { catalogItem: { select: { name: true } } },
+    orderBy: { createdAtUtc: "asc" },
+  });
+  const labels = lines
+    .map((line) => {
+      const name = line.catalogItem.name?.trim();
+      if (!name) return null;
+      const qty = String(line.quantity);
+      return line.unit?.trim() ? `${name} · ${qty} ${line.unit.trim()}` : name;
+    })
+    .filter((label): label is string => !!label);
+  return labels.length > 0 ? labels.join(", ") : null;
+}
+
 async function presentTaskDesign(design: {
   id: bigint;
   ideaRef: string;
@@ -526,6 +546,7 @@ async function presentTaskDesign(design: {
     fabric: design.fabric?.name ?? null,
     machine: design.machine?.name ?? null,
     stitchingType: design.stitchingType?.name ?? null,
+    materialFabric: await materialFabricLabel(design.id),
     designGrade: design.designGrade?.name ?? null,
     primaryImageUrl: await signedDownloadUrl(primary?.storageKey),
     primaryImageName: primary?.fileName ?? null,

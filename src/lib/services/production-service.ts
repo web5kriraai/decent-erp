@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { writeAuditLog } from "@/lib/audit";
+import { writeAuditLog, writeAuditLogDirect } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import {
@@ -11,6 +11,7 @@ import { canRoleMarkDesignLive } from "@/lib/action-availability";
 import { ERP_HANDOFF_MODULES } from "@/lib/kpi-metrics";
 import {
   buildProductionDeskLadderSnapshot,
+  isReleasePendingRetry,
   PRODUCTION_DESK_LADDER_CODES,
 } from "@/lib/services/production-desk-snapshot";
 import {
@@ -49,11 +50,16 @@ export async function listApprovedDesigns() {
     designs.map(async (design) => {
       const readiness = await validateProductionReleaseReadiness(design.id);
       const ladder = buildProductionDeskLadderSnapshot(design.tasks);
+      const releaseStatus = ladder.stages.find((stage) => stage.code === "PROD_RELEASE")?.status;
       const { tasks: _tasks, ...rest } = design;
       return {
         ...rest,
         releaseReady: readiness.ok,
         releaseMissing: readiness.missing,
+        releasePendingRetry: isReleasePendingRetry({
+          designStatus: design.status,
+          prodReleaseStatus: releaseStatus,
+        }),
         ladderStages: ladder.stages,
         nextAction: ladder.nextAction,
       };
@@ -79,6 +85,8 @@ export async function listReleasedDesignsForGoLive() {
 
   return designs.map((design) => {
     const liveReview = design.tasks[0];
+    // Short patterns with no LIVE_REVIEW task are treated as review-satisfied.
+    // When the task exists, Mark Live stays blocked until it is COMPLETED.
     const liveReviewCompleted = !liveReview || liveReview.status === "COMPLETED";
     return {
       id: design.id,
@@ -119,6 +127,18 @@ export async function releaseToProduction(
         APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
         readiness.missing,
         formatProductionReleaseMissing(readiness.missing),
+      );
+    }
+
+    const { assertFloorErpCompleteForRelease } = await import(
+      "@/lib/services/erp-stage-service"
+    );
+    const floor = await assertFloorErpCompleteForRelease(designId, tx);
+    if (!floor.ok) {
+      throw businessRule(
+        APP_ERROR_CODES.PRODUCTION_RELEASE_BLOCKED,
+        floor.missing,
+        `Complete Floor ERP stages before production release (${floor.completed}/${floor.total}).`,
       );
     }
 
@@ -248,7 +268,51 @@ export async function healStuckProdReleaseChecking(
   });
 
   const prodRelease = siblings.find((t) => t.subProcess.code === "PROD_RELEASE");
-  if (!prodRelease || prodRelease.status !== "CHECKING") {
+  if (!prodRelease) {
+    return { healedTask: false, released: false };
+  }
+
+  if (prodRelease.status === "COMPLETED") {
+    const design = await prisma.designConcept.findUnique({
+      where: { id: designId },
+      select: { status: true },
+    });
+    if (
+      !design ||
+      !isReleasePendingRetry({
+        designStatus: design.status,
+        prodReleaseStatus: prodRelease.status,
+      })
+    ) {
+      return { healedTask: false, released: false };
+    }
+    try {
+      await releaseToProduction(designId, actorId, `${correlationId}-retry-release`);
+      return { healedTask: false, released: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "retry production release failed",
+          designId: designId.toString(),
+          correlationId,
+          error: message,
+        }),
+      );
+      await writeAuditLogDirect({
+        entityType: "DesignConcept",
+        entityId: designId.toString(),
+        action: "PRODUCTION_RELEASE_FAILED",
+        userId: actorId,
+        correlationId,
+        after: { error: message },
+      }).catch(() => undefined);
+      return { healedTask: false, released: false };
+    }
+  }
+
+  if (prodRelease.status !== "CHECKING") {
     return { healedTask: false, released: false };
   }
 
@@ -341,7 +405,7 @@ export async function markDesignLive(designId: bigint, actorId: number, correlat
         APP_ERROR_CODES.PERMISSION_DENIED,
         403,
         undefined,
-        "Only Management can mark a design live.",
+        "Only Management or Admin can mark a design live.",
       );
     }
 

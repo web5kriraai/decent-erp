@@ -4,8 +4,23 @@ import {
   buildProductionDeskLadderSnapshot,
   canOpenProductionDeskNextAction,
   classifyProductionDeskRow,
+  isReleasePendingRetry,
   PRODUCTION_DESK_STAGE_LABELS,
 } from "./production-desk-snapshot";
+
+describe("isReleasePendingRetry", () => {
+  it("is true only when release is complete and the design is not released", () => {
+    expect(
+      isReleasePendingRetry({ designStatus: "PRODUCTION_ACCEPTED", prodReleaseStatus: "COMPLETED" }),
+    ).toBe(true);
+    expect(
+      isReleasePendingRetry({ designStatus: "PRODUCTION_RELEASED", prodReleaseStatus: "COMPLETED" }),
+    ).toBe(false);
+    expect(
+      isReleasePendingRetry({ designStatus: "APPROVED", prodReleaseStatus: "RUNNING" }),
+    ).toBe(false);
+  });
+});
 
 describe("buildProductionDeskLadderSnapshot", () => {
   it("builds stages and picks the first incomplete next action", () => {

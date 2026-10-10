@@ -105,7 +105,7 @@ function nextTaskAfter(current: DesignTask, tasks: DesignTask[] | undefined): De
 function nextStepHintForApproval(code: string): string {
   switch (code) {
     case "LIVE_REVIEW":
-      return "Design goes live";
+      return "Complete live review, then mark the design live";
     case "FINAL_APPROVAL":
       return "Send to Management for production approval";
     default:

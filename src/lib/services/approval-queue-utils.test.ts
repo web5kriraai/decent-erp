@@ -57,13 +57,18 @@ describe("canEmployeeActOnApprovalLevel", () => {
 });
 
 describe("readyForSignOffScopeFilter", () => {
-  it("scopes every role to their portfolio", () => {
-    expect(readyForSignOffScopeFilter(7, "ADMIN")).toEqual({});
-    expect(readyForSignOffScopeFilter(7, "MANAGEMENT")).toEqual({ designHeadEmployeeId: 7 });
+  it("lets Admin see every design and Design Head see owned or assigned work", () => {
+    expect(readyForSignOffScopeFilter(7, "ADMIN")).toEqual({ kind: "all" });
+    expect(readyForSignOffScopeFilter(7, "MANAGEMENT")).toEqual({
+      kind: "owner",
+      designHeadEmployeeId: 7,
+    });
     expect(readyForSignOffScopeFilter(12, "DESIGN_HEAD")).toEqual({
+      kind: "owner-or-assignee",
       designHeadEmployeeId: 12,
     });
     expect(readyForSignOffScopeFilter(3, "SAMPLE_CHECKER")).toEqual({
+      kind: "owner",
       designHeadEmployeeId: 3,
     });
   });

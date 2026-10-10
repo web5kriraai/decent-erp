@@ -56,6 +56,7 @@ import { resolveWorkOpenHref } from "@/lib/resolve-work-open-href";
 import { usesStageApprovalActionsNotTimerEnd } from "@/lib/stage-approval-rbac";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
 import { cn } from "@/lib/utils";
+import { humanizeApiError } from "@/lib/humanize-api-error";
 
 const KANBAN_COLUMNS = [
   ["READY", "Ready to Start"],
@@ -128,6 +129,7 @@ export function TaskWorkspace() {
   const [holdReasonId, setHoldReasonId] = useState<number | "">("");
   const [holdRemark, setHoldRemark] = useState("");
   const [endRemark, setEndRemark] = useState("");
+  const [endError, setEndError] = useState<string | null>(null);
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
   const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [checklistNote, setChecklistNote] = useState("");
@@ -400,28 +402,34 @@ export function TaskWorkspace() {
     }
 
     const note = checklistNote.trim() || undefined;
-    await end.mutateAsync({
-      taskId: activeTask.id,
-      version: activeTask.version,
-      outputRemark: endRemark.trim() || "Completed",
-      completionStatus: isSampleCheck
-        ? sampleOutcome === "REJECT"
-          ? "CHECKING"
-          : "COMPLETED"
-        : isCosting || endDialogConfig?.forceChecking
-          ? "CHECKING"
-          : endStatus,
-      checklist: checklist.length
-        ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
-        : undefined,
-      checklistNote: note,
-      sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
-      correctionRoute:
-        isSampleCheck && sampleOutcome === "REJECT" && correctionRoute
-          ? correctionRoute
+    try {
+      await end.mutateAsync({
+        taskId: activeTask.id,
+        version: activeTask.version,
+        outputRemark: endRemark.trim() || "Completed",
+        completionStatus: isSampleCheck
+          ? sampleOutcome === "REJECT"
+            ? "CHECKING"
+            : "COMPLETED"
+          : isCosting || endDialogConfig?.forceChecking
+            ? "CHECKING"
+            : endStatus,
+        checklist: checklist.length
+          ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
           : undefined,
-      costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
-    });
+        checklistNote: note,
+        sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+        correctionRoute:
+          isSampleCheck && sampleOutcome === "REJECT" && correctionRoute
+            ? correctionRoute
+            : undefined,
+        costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
+      });
+    } catch (error) {
+      setEndError(humanizeApiError(error, "Cannot end task").title);
+      return;
+    }
+    setEndError(null);
     setEndModalOpen(false);
     setEndRemark("");
     setChecklistResults({});
@@ -573,6 +581,7 @@ export function TaskWorkspace() {
                   canEnd && (runningTask || onHoldTask)
                     ? () => {
                         setEndModalOpen(true);
+                        setEndError(null);
                         setEndRemark("");
                         setChecklistNote("");
                         setSampleOutcome("");
@@ -751,6 +760,7 @@ export function TaskWorkspace() {
         open={endModalOpen && canEnd}
         onClose={() => {
           setEndModalOpen(false);
+          setEndError(null);
           setCostEntries([]);
         }}
         endStatus={endStatus}
@@ -794,6 +804,7 @@ export function TaskWorkspace() {
         onCostEntriesChange={setCostEntries}
         onSubmit={handleEndSubmit}
         isPending={end.isPending}
+        submitError={endError}
       />
 
       <CloseWorkdayConfirm

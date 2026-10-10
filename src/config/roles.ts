@@ -119,14 +119,15 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
   [ROLE_CODES.PRODUCTION_HEAD]: {
     code: ROLE_CODES.PRODUCTION_HEAD,
     displayName: "Production Head",
-    summary: "Accepts production release and coordinates shop-floor handoff.",
+    summary: "Accepts production handoff, writes instructions, and releases to the floor.",
     responsibilities: [
       "View approved designs ready for production",
-      "Review production instructions and costing summary",
-      "Accept or hold production release decisions",
+      "Accept handoff, write production instructions, and release after floor ERP",
+      "Operate floor and sales ERP stages",
     ],
     restrictions: [
       "Cannot alter prior design history or time events",
+      "Cannot mark a design live - that is Management or Admin",
       "No admin master configuration",
     ],
     permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.PRODUCTION_HEAD],
@@ -169,7 +170,7 @@ export const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       "Does not create designs or assign work (Design Head does)",
     ],
     permissions: DEFAULT_ROLE_PERMISSIONS[ROLE_CODES.MANAGEMENT],
-    navFocus: ["Quality", "Finance", "Team & Reports"],
+    navFocus: ["Quality", "Finance", "Team & Reports", "Production"],
   },
 };
 

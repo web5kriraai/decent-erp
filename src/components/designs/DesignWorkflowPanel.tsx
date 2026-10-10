@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
-import { AppButton } from "@/components/ui/AppButton";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { isDesignReadyForSignOff } from "@/lib/services/approval-queue-utils";
+import { ROLE_CODES } from "@/lib/permissions";
 import { AppCard } from "@/components/ui/AppCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
@@ -48,6 +50,7 @@ type DesignWorkflowPanelProps = {
 
 export function DesignWorkflowPanel({
   design,
+  designId,
   canAssign,
   onAssignTask,
   viewerEmployeeId,
@@ -96,6 +99,23 @@ export function DesignWorkflowPanel({
   );
   const totalActiveSeconds = stageActiveSeconds.reduce((sum, seconds) => sum + seconds, 0);
 
+  const readyToSend =
+    (design.status === "ACTIVE" || design.status === "DRAFT") &&
+    isDesignReadyForSignOff(
+      (design.tasks ?? []).map((task) => ({
+        status: task.status,
+        subProcess: {
+          code: task.subProcess.code,
+          isApproval: !!task.subProcess.isApproval,
+          isFileRequired: task.subProcess.isFileRequired,
+          capabilities: task.subProcess.capabilities,
+        },
+      })),
+    );
+  const canSend =
+    viewerRoleCode === ROLE_CODES.DESIGN_HEAD || viewerRoleCode === ROLE_CODES.ADMIN;
+  const sendHref = ROUTES.quality.requestSignOff(designId || design.id);
+
   const showNowStrip =
     Boolean(workflowContext.currentStage) ||
     Boolean(statusLine) ||
@@ -115,6 +135,23 @@ export function DesignWorkflowPanel({
       headerAction={headerAction}
       contentClassName="workflow-panel-body"
     >
+      {readyToSend ? (
+        <div className="erp-chain-notice" role="status">
+          <p className="erp-chain-notice-title">Send this design to Management</p>
+          <p className="erp-chain-notice-body">
+            Design work is finished. This design has not been sent to Management, so Production Release cannot be completed.
+          </p>
+          {canSend ? (
+            <AppButtonLink href={sendHref} size="sm">
+              Send to Management
+            </AppButtonLink>
+          ) : (
+            <p className="erp-chain-notice-body">
+              Design Head opens this design and uses Send to Management.
+            </p>
+          )}
+        </div>
+      ) : null}
       {showNowStrip ? (
         <div className="workflow-now">
           <div className="workflow-now-main">

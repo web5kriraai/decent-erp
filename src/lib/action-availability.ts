@@ -11,6 +11,7 @@ export type ActionAvailability = {
   reason?: string;
 };
 
+/** Role gate. A MARK_LIVE permission on Production Head does not allow Mark Live. */
 export function canRoleMarkDesignLive(roleCode: string | null | undefined): boolean {
   return roleCode === ROLE_CODES.MANAGEMENT || roleCode === ROLE_CODES.ADMIN;
 }
@@ -100,7 +101,7 @@ export function getMarkLiveAvailability(
   if (options?.roleCode != null && !canRoleMarkDesignLive(options.roleCode)) {
     return {
       available: false,
-      reason: "Only Management can mark a design live.",
+      reason: "Only Management or Admin can mark a design live.",
     };
   }
   if (designStatus !== "PRODUCTION_RELEASED") {

@@ -26,6 +26,7 @@ export async function GET(
       return jsonOk(
         {
           ok: readiness.ok && floor.ok,
+          designStatus: readiness.designStatus,
           missing,
           floor: {
             ok: floor.ok,

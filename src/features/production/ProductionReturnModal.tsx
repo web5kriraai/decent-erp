@@ -52,7 +52,7 @@ export function ProductionReturnModal({
       stageCode: "PRODUCTION",
       status: options?.instructionStatus ?? null,
       description:
-        "Returns an accepted production handoff back into the design workflow for clarification.",
+        "Sends the design back for clarification. Management approval stays. After the rework, accept the handoff again.",
       nextStepHint,
     };
   }, [options, ideaRef, selectedRoute, selectedReason]);

@@ -58,6 +58,13 @@ export type ManagementWorkbenchSummary = {
     design: { id: string; ideaRef: string; collectionName: string; status: string };
     subProcess: { name: string };
   }>;
+  readyToMarkLiveCount: number;
+  readyToMarkLive: Array<{
+    id: string;
+    ideaRef: string;
+    collectionName: string;
+    status: string;
+  }>;
   managementLevelId: number | null;
   recentApprovalQueue: Array<{
     id: string;

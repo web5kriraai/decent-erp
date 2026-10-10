@@ -18,6 +18,7 @@ import {
   OPEN_CORRECTION_STATUSES,
 } from "@/lib/services/correction-queue-utils";
 import { designImagesRejectWhere } from "@/lib/services/design-image-reject";
+import { isProductionReturnRootCause } from "@/lib/production-return-reasons";
 import {
   hasCorrectionApprovePermission,
   PERMISSIONS,
@@ -512,35 +513,40 @@ export async function updateCorrection(
       }
 
       if (sourceTask && sourceTask.status === "CORRECTION_REQUIRED") {
-        // Routed quality corrections: reopen the check/source for another review.
-        // Never COMPLETE the gate or unlock Costing from the Corrections dropdown.
-        await tx.designTask.update({
-          where: { id: sourceTask.id },
-          data: {
-            status: "ASSIGNED",
-            completedAt: null,
-            version: { increment: 1 },
-          },
-        });
-
-        await tx.designConcept.update({
-          where: { id: sourceTask.designId },
-          data: {
-            currentStage: sourceTask.subProcess.code,
-            status: "ACTIVE",
-          },
-        });
-
-        if (sourceTask.assignedEmployeeId != null) {
-          await enqueueOutboxAndNotify(
-            "TASK_ASSIGNED",
-            {
-              taskId: sourceTask.id.toString(),
-              employeeId: sourceTask.assignedEmployeeId,
-              isStageApproval: sourceTask.subProcess.isApproval === true,
+        // Production return keeps the commercial approval and asks Production Head to accept again.
+        if (isProductionReturnRootCause(existing.rootCause)) {
+          await restoreApprovedAfterProductionReturn(tx, sourceTask);
+        } else {
+          // Routed quality corrections: reopen the check/source for another review.
+          // Never COMPLETE the gate or unlock Costing from the Corrections dropdown.
+          await tx.designTask.update({
+            where: { id: sourceTask.id },
+            data: {
+              status: "ASSIGNED",
+              completedAt: null,
+              version: { increment: 1 },
             },
-            correlationId,
-          );
+          });
+
+          await tx.designConcept.update({
+            where: { id: sourceTask.designId },
+            data: {
+              currentStage: sourceTask.subProcess.code,
+              status: "ACTIVE",
+            },
+          });
+
+          if (sourceTask.assignedEmployeeId != null) {
+            await enqueueOutboxAndNotify(
+              "TASK_ASSIGNED",
+              {
+                taskId: sourceTask.id.toString(),
+                employeeId: sourceTask.assignedEmployeeId,
+                isStageApproval: sourceTask.subProcess.isApproval === true,
+              },
+              correlationId,
+            );
+          }
         }
       }
     }
@@ -652,6 +658,48 @@ export async function closeOpenCorrectionsForTask(
 }
 
 /** After routed rework (Machine Sample) finishes, reopen the source check for another pass. */
+/**
+ * Production return is a factory re-handoff. Management approvals stay.
+ * The design goes back to Approved and Production Instruction waits for Accept.
+ */
+async function restoreApprovedAfterProductionReturn(
+  tx: Tx,
+  sourceTask: {
+    id: bigint;
+    designId: bigint;
+    subProcess: { code: string };
+  },
+) {
+  await tx.designConcept.update({
+    where: { id: sourceTask.designId },
+    data: { currentStage: "PROD_HANDOFF", status: "APPROVED" },
+  });
+
+  const instruction =
+    sourceTask.subProcess.code === "PROD_INSTRUCTION"
+      ? { id: sourceTask.id, status: "CORRECTION_REQUIRED" }
+      : await tx.designTask.findFirst({
+          where: {
+            designId: sourceTask.designId,
+            subProcess: { code: "PROD_INSTRUCTION" },
+          },
+          select: { id: true, status: true },
+        });
+
+  if (instruction && instruction.status !== "COMPLETED") {
+    await tx.designTask.update({
+      where: { id: instruction.id },
+      data: {
+        status: "PENDING",
+        assignedEmployeeId: null,
+        completedAt: null,
+        outputRemark: null,
+        version: { increment: 1 },
+      },
+    });
+  }
+}
+
 export async function reopenSourceCheckAfterRoutedRework(
   tx: Tx,
   input: {
@@ -716,6 +764,17 @@ export async function reopenSourceCheckAfterRoutedRework(
       },
       { tx },
     );
+  }
+
+  if (isProductionReturnRootCause(openCorrection.rootCause)) {
+    // Commercial Management approval stays. Design returns to Approved so
+    // Production Head can accept the handoff again after the rework.
+    await restoreApprovedAfterProductionReturn(tx, sourceTask);
+    await tx.designCorrection.update({
+      where: { id: openCorrection.id },
+      data: { status: "IN_PROGRESS" },
+    });
+    return sourceTask;
   }
 
   await tx.designTask.update({

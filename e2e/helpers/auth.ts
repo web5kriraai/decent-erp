@@ -22,14 +22,14 @@ export async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
   await page.getByLabel("Email address").waitFor({ state: "visible", timeout: 15_000 });
   await page.getByLabel("Email address").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByRole("textbox", { name: "Password", exact: true }).fill(password);
   await page.getByRole("button", { name: /Sign in to workspace/i }).click();
   try {
     await page.waitForURL("**/dashboard", { timeout: 15_000 });
   } catch {
     if (!page.url().includes("/dashboard")) {
       await page.getByLabel("Email address").fill(email);
-      await page.getByLabel("Password").fill(password);
+      await page.getByRole("textbox", { name: "Password", exact: true }).fill(password);
       await page.getByRole("button", { name: /Sign in to workspace/i }).click();
       await page.waitForURL("**/dashboard", { timeout: 30_000 });
     }

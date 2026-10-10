@@ -115,12 +115,18 @@ export function resolveDesignContextActions(input: {
       liveReview.subProcess?.capabilities,
     );
 
-  const openApprovals = tasks.some(
-    (t) =>
-      t.subProcess?.isApproval &&
-      !SATISFIED.has(t.status) &&
-      t.status !== "CANCELLED",
-  );
+  const openApprovals = tasks.some((t) => {
+    if (!t.subProcess?.isApproval) return false;
+    if (SATISFIED.has(t.status) || t.status === "CANCELLED") return false;
+    return !isSignOffScopeExcludedTask({
+      subProcess: {
+        code: t.subProcess.code,
+        isApproval: t.subProcess.isApproval,
+        isFileRequired: t.subProcess.isFileRequired,
+        capabilities: t.subProcess.capabilities,
+      },
+    });
+  });
 
   // Prefer Live Design Review over management-chain CTA once production release is ready.
   if (liveReviewOpen && liveReview) {

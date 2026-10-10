@@ -4,10 +4,17 @@
 import { expect, test } from "@playwright/test";
 import {
   USERS,
+  apiGetJson,
   apiPostJson,
   createDesignViaApi,
   login,
 } from "./helpers/auth";
+import {
+  advanceDesignToAcceptedHandoff,
+  completeTaskForUser,
+  getDesign,
+  getDesignTaskByCode,
+} from "./helpers/workflow";
 
 test.describe("Production return and API errors", () => {
   test("production head cannot return before handoff completes", async ({ page }) => {
@@ -50,6 +57,40 @@ test.describe("Production return and API errors", () => {
     expect(res.status()).toBe(403);
     expect(json.code).toBe("PERMISSION_DENIED");
     expect(json.error).toMatch(/permission/i);
+  });
+
+  test("production return rework stays approved for another accept", async ({ page }) => {
+    test.setTimeout(300_000);
+
+    const { designId } = await advanceDesignToAcceptedHandoff(
+      page,
+      `Return loop ${Date.now()}`,
+    );
+
+    await login(page, USERS.production.email, USERS.production.password);
+    const options = await apiGetJson<{
+      canReturn: boolean;
+      routeOptions: Array<{ id: number; code: string }>;
+    }>(page, `/api/production/return?designId=${designId}`);
+    expect(options.canReturn).toBe(true);
+    const sketch = options.routeOptions.find((row) => row.code === "SKETCH");
+    expect(sketch).toBeTruthy();
+
+    await apiPostJson(page, "/api/production/return", {
+      designId,
+      reasonCode: "MISSING_FILE",
+      routeToSubProcessId: sketch!.id,
+      remark: "E2E production return before release",
+    });
+
+    const reworkDone = await completeTaskForUser(page, USERS.sketch.email, designId, "SKETCH");
+    expect(reworkDone).toBe(true);
+
+    await login(page, USERS.production.email, USERS.production.password);
+    const after = await getDesign(page, designId);
+    expect(after.status).toBe("APPROVED");
+    const instruction = await getDesignTaskByCode(page, designId, "PROD_INSTRUCTION");
+    expect(instruction?.status).toBe("PENDING");
   });
 
   test("direct production release blocked when workflow tasks incomplete", async ({ page }) => {

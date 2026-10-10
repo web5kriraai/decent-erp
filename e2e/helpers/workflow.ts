@@ -396,7 +396,9 @@ export async function completeAssignedTask(
           : detail.subProcess.code === "PUNCH"
             ? "PUNCHING_FILE"
             : "SAMPLE_OUTPUT";
-      await addTaskArtifact(page, taskId, type);
+      await addTaskArtifact(page, taskId, type, {
+        metrics: type === "PUNCHING_FILE" ? DEFAULT_MACHINE_METRICS : undefined,
+      });
     }
   }
 
@@ -745,10 +747,10 @@ async function employeeIdFor(page: Page, email: string) {
 }
 
 /**
- * Advance a design through workflow up to PROD_INSTRUCTION complete and handoff accepted,
- * with costing added, but leave PROD_RELEASE incomplete. Used for production release gate tests.
+ * Advance a design through management approval, Design Head handoff, and Production Head accept.
+ * Production instruction stays open so a production return is still allowed.
  */
-export async function advanceDesignToProdReleaseGate(
+export async function advanceDesignToAcceptedHandoff(
   page: Page,
   collectionName: string,
 ) {
@@ -788,20 +790,34 @@ export async function advanceDesignToProdReleaseGate(
   await login(page, USERS.production.email, USERS.production.password);
   await apiPostJson(page, "/api/production/accept-handoff", { designId: design.id });
 
+  const snapshot = await getDesign(page, design.id);
+  return { designId: design.id, status: snapshot.status };
+}
+
+/**
+ * Advance a design through workflow up to PROD_INSTRUCTION complete and handoff accepted,
+ * with costing added, but leave PROD_RELEASE incomplete. Used for production release gate tests.
+ */
+export async function advanceDesignToProdReleaseGate(
+  page: Page,
+  collectionName: string,
+) {
+  const { designId } = await advanceDesignToAcceptedHandoff(page, collectionName);
+
   const instructionDone = await completeTaskForUser(
     page,
     USERS.production.email,
-    design.id,
+    designId,
     "PROD_INSTRUCTION",
   );
   if (!instructionDone) throw new Error("PROD_INSTRUCTION task was not completed");
 
-  const prodRelease = await getDesignTaskByCode(page, design.id, "PROD_RELEASE");
+  const prodRelease = await getDesignTaskByCode(page, designId, "PROD_RELEASE");
   if (!prodRelease) throw new Error("PROD_RELEASE task missing");
   if (prodRelease.status === "COMPLETED") {
     throw new Error("PROD_RELEASE should remain incomplete for prod release gate test");
   }
 
-  const snapshot = await getDesign(page, design.id);
-  return { designId: design.id, status: snapshot.status };
+  const snapshot = await getDesign(page, designId);
+  return { designId, status: snapshot.status };
 }

@@ -46,6 +46,13 @@ describe("getVisibleNavSections", () => {
     expect(allItemIds(ROLE_CODES.ADMIN)).toContain("reports-hub");
   });
 
+  it("shows Go-live to Management and Admin, and hides it from Production Head", () => {
+    expect(allItemIds(ROLE_CODES.MANAGEMENT)).toContain("production-golive");
+    expect(allItemIds(ROLE_CODES.ADMIN)).toContain("production-golive");
+    expect(allItemIds(ROLE_CODES.PRODUCTION_HEAD)).not.toContain("production-golive");
+    expect(allItemIds(ROLE_CODES.PRODUCTION_HEAD)).toContain("production-release");
+  });
+
   it("orders Management by Quality → Finance → Team & Reports → Production", () => {
     expect(sectionIds(ROLE_CODES.MANAGEMENT)).toEqual([
       "main",

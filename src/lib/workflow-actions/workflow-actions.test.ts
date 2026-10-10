@@ -283,6 +283,46 @@ describe("workflow-actions resolve", () => {
     expect(actions.find((a) => a.label === "Open Management Sign-off")).toBeUndefined();
   });
 
+  it("still offers Send to Management when only Live Design Review is open", () => {
+    const design: DesignSummary = {
+      id: "1",
+      ideaRef: "IDEA-1",
+      collectionName: "Test",
+      status: "ACTIVE",
+      priority: "MEDIUM",
+      tasks: [
+        task({
+          id: "fa",
+          sequence: 9,
+          status: "COMPLETED",
+          subProcess: { id: 9, name: "Final Approval", code: "FINAL_APPROVAL", isApproval: true },
+        }),
+        task({
+          id: "pr",
+          sequence: 10,
+          status: "RUNNING",
+          subProcess: { id: 10, name: "Production Release", code: "PROD_RELEASE", isApproval: false },
+        }),
+        task({
+          id: "lr",
+          sequence: 11,
+          status: "PENDING",
+          subProcess: { id: 11, name: "Live Design Review", code: "LIVE_REVIEW", isApproval: true },
+        }),
+      ],
+    };
+
+    const actions = resolveDesignContextActions({
+      design,
+      permissions: [PERMISSIONS.TASK_EXECUTE, PERMISSIONS.DESIGN_APPROVE],
+      roleCode: "DESIGN_HEAD",
+    });
+
+    expect(actions.find((a) => a.code === WORKFLOW_ACTION_CODES.REQUEST_APPROVAL)?.href).toBe(
+      "/quality/approvals/request-sign-off/1",
+    );
+  });
+
   it("shows Live Design Review CTA when Production Release is complete", () => {
     const design: DesignSummary = {
       id: "1",

@@ -146,14 +146,14 @@ const TEXTILE_END_COPY: Partial<
     priorContextSlots: ["remark", "files"],
   },
   MAT_REQ: {
-    description: "",
+    description: "Add the fabric, thread, or accessories for this design, then complete the stage.",
     remarkLabel: "Material note",
     remarkPlaceholder: "Optional note…",
     nextStepHint: "",
     priorContextSlots: ["files", "remark"],
   },
   FABRIC_ISSUE: {
-    description: "",
+    description: "Available material lines are issued when you complete this stage.",
     remarkLabel: "Material note",
     remarkPlaceholder: "Optional note…",
     nextStepHint: "",

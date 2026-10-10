@@ -102,12 +102,26 @@ export async function getManagementWorkbenchSummary(employeeId: number) {
 
   const actionableDesignIds = new Set(actionableApprovals.map((item) => item.designId));
 
+  const readyToMarkLiveWhere = {
+    status: "PRODUCTION_RELEASED" as const,
+    OR: [
+      { tasks: { none: { subProcess: { code: "LIVE_REVIEW" } } } },
+      {
+        tasks: {
+          some: { subProcess: { code: "LIVE_REVIEW" }, status: "COMPLETED" as const },
+        },
+      },
+    ],
+  };
+
   const [
     blockedInApproval,
     approvedCount,
     releasedCount,
     underDevelopment,
     stageApprovals,
+    readyToMarkLiveCount,
+    readyToMarkLiveRows,
   ] = await Promise.all([
     prisma.designConcept.count({
       where: {
@@ -122,6 +136,18 @@ export async function getManagementWorkbenchSummary(employeeId: number) {
     }),
     // Same visibility rules as Approvals hub Stage tab (owner oversee + ready PENDING).
     listStageApprovalQueue(employeeId, "MANAGEMENT"),
+    prisma.designConcept.count({ where: readyToMarkLiveWhere }),
+    prisma.designConcept.findMany({
+      where: readyToMarkLiveWhere,
+      orderBy: { updatedAtUtc: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        ideaRef: true,
+        collectionName: true,
+        status: true,
+      },
+    }),
   ]);
 
   const liveReviewQueue = stageApprovals.filter((item) => item.stageCode === "LIVE_REVIEW");
@@ -171,6 +197,13 @@ export async function getManagementWorkbenchSummary(employeeId: number) {
     underDevelopment,
     liveReviewPending: liveReviewQueue.length,
     liveReviewTasks,
+    readyToMarkLiveCount,
+    readyToMarkLive: readyToMarkLiveRows.map((row) => ({
+      id: row.id.toString(),
+      ideaRef: row.ideaRef,
+      collectionName: row.collectionName,
+      status: row.status,
+    })),
     managementLevelId: managementLevel?.id ?? null,
     recentApprovalQueue,
   };

@@ -380,6 +380,8 @@ export type TaskTimeDetail = {
     designHead?: string | null;
     location?: string | null;
     fabric?: string | null;
+    /** Fabric requested on Material Requirement when the design header has no fabric. */
+    materialFabric?: string | null;
     machine?: string | null;
     stitchingType?: string | null;
     designGrade?: string | null;

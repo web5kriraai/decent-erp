@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { writeAuditLog } from "@/lib/audit";
+import { writeAuditLog, writeAuditLogDirect } from "@/lib/audit";
 import { enqueueOutboxAndNotify } from "@/lib/notifications";
 import { publishRealtime } from "@/lib/realtime";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
@@ -1203,8 +1203,25 @@ export async function endTask(
     if (result.triggerProductionRelease) {
       try {
         await releaseToProduction(result.updated.designId, employeeId, correlationId);
-      } catch {
-        // Task is already COMPLETED; heal/ensure-ladder/design-open will retry release.
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            msg: "production release after PROD_RELEASE complete failed",
+            designId: result.updated.designId.toString(),
+            correlationId,
+            error: message,
+          }),
+        );
+        await writeAuditLogDirect({
+          entityType: "DesignConcept",
+          entityId: result.updated.designId.toString(),
+          action: "PRODUCTION_RELEASE_FAILED",
+          userId: employeeId,
+          correlationId,
+          after: { error: message },
+        }).catch(() => undefined);
       }
     }
     return result.updated;
@@ -1574,11 +1591,21 @@ export async function completeStageApproval(
       orderBy: { sequence: "asc" },
       select: { subProcess: { select: { code: true } } },
     });
+    const designStatus = await tx.designConcept.findUnique({
+      where: { id: task.designId },
+      select: { status: true },
+    });
+    // Live review (and any later approval) must not pull a released design back to Active.
+    const preserveStatus =
+      designStatus?.status === "PRODUCTION_RELEASED" ||
+      designStatus?.status === "LIVE" ||
+      designStatus?.status === "CLOSED" ||
+      designStatus?.status === "REJECTED";
     await tx.designConcept.update({
       where: { id: task.designId },
       data: {
         currentStage: nextOpen?.subProcess.code ?? task.subProcess.code,
-        status: "ACTIVE",
+        ...(preserveStatus ? {} : { status: "ACTIVE" as const }),
       },
     });
 

@@ -138,12 +138,23 @@ export async function listDesignsReadyForSignOff(
   });
   if (!employee) return [];
 
-  const portfolioFilter = readyForSignOffScopeFilter(employeeId, employee.role?.code);
+  const portfolio = readyForSignOffScopeFilter(employeeId, employee.role?.code);
+  const portfolioWhere =
+    portfolio.kind === "all"
+      ? {}
+      : portfolio.kind === "owner-or-assignee"
+        ? {
+            OR: [
+              { designHeadEmployeeId: portfolio.designHeadEmployeeId },
+              { tasks: { some: { assignedEmployeeId: employeeId } } },
+            ],
+          }
+        : { designHeadEmployeeId: portfolio.designHeadEmployeeId };
 
-    const designs = await prisma.designConcept.findMany({
+  const designs = await prisma.designConcept.findMany({
     where: {
       status: { in: ["DRAFT", "ACTIVE"] },
-      ...portfolioFilter,
+      ...portfolioWhere,
     },
     include: {
       tasks: {

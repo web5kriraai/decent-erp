@@ -175,7 +175,9 @@ test.describe("Mark Live gate and guards", () => {
     await expect(designRow).toBeVisible();
     // Mark Live is omitted until live review completes - not shown disabled.
     await expect(designRow.getByRole("button", { name: "Mark Live" })).toHaveCount(0);
-    await expect(designRow.getByText(/Complete Live Design Review first/i)).toBeVisible();
+    await expect(
+      designRow.getByText(/Open live review|Waiting on live review/i),
+    ).toBeVisible();
   });
 
   test("production head cannot mark live even after live review", async ({ page }) => {

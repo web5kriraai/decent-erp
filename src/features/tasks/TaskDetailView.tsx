@@ -40,6 +40,7 @@ import {
   floorProgressFromChain,
 } from "@/features/production/ErpStageOperator";
 import { ApiClientError } from "@/lib/api-client";
+import { humanizeApiError } from "@/lib/humanize-api-error";
 import { APP_ERROR_CODES } from "@/lib/errors/app-errors";
 import { PERMISSIONS } from "@/lib/permissions";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
@@ -86,6 +87,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
   const [holdReasonId, setHoldReasonId] = useState<number | "">("");
   const [holdRemark, setHoldRemark] = useState("");
   const [endRemark, setEndRemark] = useState("");
+  const [endError, setEndError] = useState<string | null>(null);
   const [endStatus, setEndStatus] = useState<"CHECKING" | "COMPLETED">("CHECKING");
   const [checklistResults, setChecklistResults] = useState<Record<number, boolean>>({});
   const [checklistNote, setChecklistNote] = useState("");
@@ -368,28 +370,34 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
     }
 
     const note = checklistNote.trim() || undefined;
-    await end.mutateAsync({
-      taskId: task.id,
-      version: task.version,
-      outputRemark: endRemark.trim() || "Completed",
-      completionStatus: isSampleCheck
-        ? sampleOutcome === "REJECT"
-          ? "CHECKING"
-          : "COMPLETED"
-        : isCosting || endDialogConfig?.forceChecking
-          ? "CHECKING"
-          : endStatus,
-      checklist: checklist.length
-        ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
-        : undefined,
-      checklistNote: note,
-      sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
-      correctionRoute:
-        isSampleCheck && sampleOutcome === "REJECT" && correctionRoute
-          ? correctionRoute
+    try {
+      await end.mutateAsync({
+        taskId: task.id,
+        version: task.version,
+        outputRemark: endRemark.trim() || "Completed",
+        completionStatus: isSampleCheck
+          ? sampleOutcome === "REJECT"
+            ? "CHECKING"
+            : "COMPLETED"
+          : isCosting || endDialogConfig?.forceChecking
+            ? "CHECKING"
+            : endStatus,
+        checklist: checklist.length
+          ? checklist.map((c) => (c.result ? c : { ...c, remark: note }))
           : undefined,
-      costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
-    });
+        checklistNote: note,
+        sampleOutcome: isSampleCheck && sampleOutcome ? sampleOutcome : undefined,
+        correctionRoute:
+          isSampleCheck && sampleOutcome === "REJECT" && correctionRoute
+            ? correctionRoute
+            : undefined,
+        costEntries: isCosting && costEntries.length > 0 ? costEntries : undefined,
+      });
+    } catch (error) {
+      setEndError(humanizeApiError(error, "Cannot end task").title);
+      return;
+    }
+    setEndError(null);
     setEndModalOpen(false);
     setEndRemark("");
     setChecklistResults({});
@@ -580,6 +588,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
                         timerFlags?.showEnd
                           ? () => {
                               setEndModalOpen(true);
+                              setEndError(null);
                               setEndRemark("");
                               setChecklistNote("");
                               setSampleOutcome("");
@@ -738,6 +747,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             }
             onClose={() => {
               setEndModalOpen(false);
+              setEndError(null);
               setCostEntries([]);
             }}
             endStatus={endStatus}
@@ -782,6 +792,7 @@ export function TaskDetailView({ taskId, designId }: TaskDetailViewProps) {
             onCostEntriesChange={setCostEntries}
             onSubmit={handleEndSubmit}
             isPending={end.isPending}
+            submitError={endError}
           />
         </>
       )}

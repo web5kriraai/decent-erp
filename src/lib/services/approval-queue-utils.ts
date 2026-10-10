@@ -40,15 +40,21 @@ export function isSignOffScopeExcludedTask(task: {
   return isSignOffScopeExcluded(task.subProcess.code);
 }
 
+export type ReadySignOffScope =
+  | { kind: "all" }
+  | { kind: "owner"; designHeadEmployeeId: number }
+  /** Designs this Design Head owns, or was assigned to work on. */
+  | { kind: "owner-or-assignee"; designHeadEmployeeId: number };
+
 export function readyForSignOffScopeFilter(
   employeeId: number,
   roleCode: string | null | undefined,
-): { designHeadEmployeeId?: number } {
-  if (roleCode === "ADMIN") return {};
+): ReadySignOffScope {
+  if (roleCode === "ADMIN") return { kind: "all" };
   if (roleCode === "DESIGN_HEAD") {
-    return { designHeadEmployeeId: employeeId };
+    return { kind: "owner-or-assignee", designHeadEmployeeId: employeeId };
   }
-  return { designHeadEmployeeId: employeeId };
+  return { kind: "owner", designHeadEmployeeId: employeeId };
 }
 
 export function canEmployeeActOnApprovalLevel(

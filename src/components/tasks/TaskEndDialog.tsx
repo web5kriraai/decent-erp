@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Modal,
+  ModalAlert,
   ModalFooterActions,
   ModalForm,
   ModalFormGrid,
@@ -14,7 +15,11 @@ import { FormTextArea } from "@/components/ui/form-text-area";
 import { AppButton } from "@/components/ui/AppButton";
 import { ActionHandoffBanner } from "@/components/tasks/ActionHandoffBanner";
 import { cn } from "@/lib/utils";
-import { IconCheck, IconClose } from "@/components/icons";
+import { IconCheck } from "@/components/icons";
+import {
+  ApprovalPathCard,
+  isApprovalGapMessage,
+} from "@/features/production/ApprovalPathCard";
 import type { ChecklistItemMaster } from "@/hooks/use-masters";
 import { TaskArtifactPanel, useTaskHasFiles, useTaskHasMachineMetrics } from "@/components/tasks/TaskArtifactPanel";
 import { TaskMachineOutputPanel } from "@/components/tasks/TaskMachineOutputPanel";
@@ -43,6 +48,7 @@ import {
   PunchingDetailsFacts,
 } from "@/components/tasks/PunchingDetailsFacts";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+import { MaterialRequestSection } from "@/components/tasks/MaterialRequestSection";
 
 export type { CostEntryInput };
 
@@ -89,6 +95,7 @@ type TaskEndDialogProps = {
   onCostEntriesChange?: (entries: CostEntryInput[]) => void;
   onSubmit: () => void;
   isPending: boolean;
+  submitError?: string | null;
 };
 
 const COST_TYPE_OPTIONS: Array<{ value: CostType; label: string }> = [
@@ -134,6 +141,7 @@ export function TaskEndDialog({
   onCostEntriesChange,
   onSubmit,
   isPending,
+  submitError,
 }: TaskEndDialogProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [costAmounts, setCostAmounts] = useState<Record<CostType, string>>({
@@ -144,6 +152,20 @@ export function TaskEndDialog({
   });
   const [costingNote, setCostingNote] = useState("");
   const [machineOutputBusy, setMachineOutputBusy] = useState(false);
+  const [materialBlocking, setMaterialBlocking] = useState(false);
+  const onMaterialBlocking = useCallback((blocking: boolean) => {
+    setMaterialBlocking(blocking);
+  }, []);
+  const materialGate =
+    subProcessCode === "MAT_REQ" || subProcessCode === "FABRIC_ISSUE"
+      ? subProcessCode
+      : null;
+  const materialGateKey = open && materialGate ? materialGate : "";
+  const [seenMaterialGate, setSeenMaterialGate] = useState(materialGateKey);
+  if (seenMaterialGate !== materialGateKey) {
+    setSeenMaterialGate(materialGateKey);
+    setMaterialBlocking(materialGateKey !== "");
+  }
 
   const stageBehavior = resolveStageBehavior({
     code: subProcessCode ?? "",
@@ -154,7 +176,7 @@ export function TaskEndDialog({
   const readinessQuery = useQuery({
     queryKey: queryKeys.designs.productionReadiness(designId ?? ""),
     queryFn: () =>
-      apiGet<{ ok: boolean; missing: string[] }>(
+      apiGet<{ ok: boolean; missing: string[]; designStatus?: string }>(
         `/api/designs/${designId}/production-readiness`,
       ),
     enabled: open && isProdRelease && !!designId,
@@ -163,6 +185,13 @@ export function TaskEndDialog({
   const existingSummary = costsQuery.data?.summary;
   const existingCosts = costsQuery.data?.costs ?? [];
   const liveReadinessMissing = readinessQuery.data?.missing ?? [];
+  const approvalGap = liveReadinessMissing.filter(isApprovalGapMessage);
+  const otherReadinessMissing = liveReadinessMissing.filter(
+    (item) => !isApprovalGapMessage(item),
+  );
+  const approvalDesignStatus =
+    readinessQuery.data?.designStatus ??
+    (approvalGap.length > 0 ? "ACTIVE" : "");
   const liveReadinessOk = readinessQuery.data?.ok === true;
   const readinessItems =
     releaseReadinessItems && releaseReadinessItems.length > 0
@@ -298,13 +327,15 @@ export function TaskEndDialog({
     (!isCosting || costingOk) &&
     !costingLoading;
 
+  const materialBlockingActive = !!materialGate && (materialBlocking || !designId);
   const canSubmit =
     formComplete &&
     !filesBlocking &&
     !metricsBlocking &&
     !isPending &&
     !readinessBlocking &&
-    !machineOutputBusy;
+    !machineOutputBusy &&
+    !materialBlockingActive;
 
   function markAllPassed() {
     for (const item of checklistItems) {
@@ -331,7 +362,7 @@ export function TaskEndDialog({
       size={
         isCosting || isProdRelease
           ? "xl"
-          : denseDeliverables && digitizingStage
+          : materialGate || (denseDeliverables && digitizingStage)
             ? "lg"
             : "md"
       }
@@ -359,6 +390,20 @@ export function TaskEndDialog({
       <ModalForm className="gap-3 pb-1">
         <ActionHandoffBanner context={handoff} />
 
+        {submitError ? (
+          <p className="m-0 text-sm text-destructive" role="alert">
+            {submitError}
+          </p>
+        ) : null}
+
+        {open && materialGate && designId ? (
+          <MaterialRequestSection
+            designId={designId}
+            mode={materialGate}
+            onBlockingChange={onMaterialBlocking}
+          />
+        ) : null}
+
         {isCosting ? (
           <ModalSection
             title="Designer time"
@@ -377,14 +422,23 @@ export function TaskEndDialog({
                 Could not verify release readiness. Retry or contact an admin.
               </p>
             ) : liveReadinessMissing.length > 0 ? (
-              <ul className="space-y-1 text-sm text-foreground">
-                {liveReadinessMissing.map((item) => (
-                  <li key={item} className="flex gap-2 text-destructive">
-                    <IconClose className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="flex flex-col gap-3">
+                {approvalGap.length > 0 ? (
+                  <ApprovalPathCard
+                    designId={designId}
+                    designStatus={approvalDesignStatus}
+                  />
+                ) : null}
+                {otherReadinessMissing.length > 0 ? (
+                  <ModalAlert variant="warning">
+                    <ul className="list-disc space-y-1 pl-4">
+                      {otherReadinessMissing.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </ModalAlert>
+                ) : null}
+              </div>
             ) : readinessItems.length > 0 ? (
               <ul className="space-y-1 text-sm text-foreground">
                 {readinessItems.map((item) => (

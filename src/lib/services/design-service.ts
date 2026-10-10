@@ -588,7 +588,8 @@ export async function getDesignById(
 
 /**
  * Repair designs where a prior stage is satisfied but the next task stayed PENDING.
- * Also heals PROD_RELEASE stuck in CHECKING (LIVE_REVIEW was wrongly treated as a gate).
+ * Also heals PROD_RELEASE stuck in CHECKING, and retries release when that task
+ * is COMPLETED but the design is still not PRODUCTION_RELEASED.
  */
 async function reconcileStuckWorkflowTasks(
   designId: bigint,

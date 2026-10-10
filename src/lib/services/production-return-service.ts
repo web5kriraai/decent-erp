@@ -6,6 +6,7 @@ import { businessRule, notFound } from "@/lib/errors/create-app-error";
 import {
   labelForProductionReturnReason,
   PRODUCTION_RETURN_REASON_CODES,
+  PRODUCTION_RETURN_ROOT_PREFIX,
   type ProductionReturnReasonCode,
 } from "@/lib/production-return-reasons";
 import { raiseCorrectionInTransaction } from "@/lib/services/correction-service";
@@ -116,7 +117,7 @@ export async function returnProductionForClarification(
 
     const reasonLabel = labelForProductionReturnReason(input.reasonCode);
     const rootCause = [
-      `Production return: ${reasonLabel}`,
+      `${PRODUCTION_RETURN_ROOT_PREFIX} ${reasonLabel}`,
       input.remark?.trim() ? input.remark.trim() : null,
       `Route to: ${routeSubProcess.name}`,
     ]

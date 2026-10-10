@@ -9813,8 +9813,9 @@ a.file-slot-name {
   justify-content: flex-end;
   gap: 0.35rem;
   flex: 0 1 auto;
+  flex-wrap: wrap;
   min-width: 0;
-  max-width: 16rem;
+  max-width: 22rem;
 }
 
 .production-desk-waiting {
@@ -10932,6 +10933,58 @@ th.production-desk-golive-next {
 .erp-chain-work-done {
   font-size: 0.82rem;
   color: var(--color-neutral-500);
+}
+
+.erp-chain-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+  background: var(--color-warning-bg);
+}
+
+.erp-chain-notice-title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.erp-chain-notice-body {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+  color: var(--foreground);
+}
+
+.erp-chain-notice-steps {
+  margin: 0.35rem 0 0;
+  padding-left: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+  color: var(--foreground);
+}
+
+.erp-chain-notice-step-role {
+  font-weight: 600;
+}
+
+.erp-chain-notice-steps li[data-current="true"] .erp-chain-notice-step-role {
+  color: var(--primary);
+}
+
+.erp-chain-notice-steps li[data-done="true"] {
+  color: var(--color-neutral-500);
+}
+
+.erp-chain-notice a {
+  align-self: flex-start;
+  margin-top: 0.35rem;
 }
 
 .erp-chain-form {

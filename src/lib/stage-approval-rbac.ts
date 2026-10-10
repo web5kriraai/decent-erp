@@ -113,7 +113,7 @@ export function nextStepHintForStageApproval(code: string): string {
     case "FINAL_APPROVAL":
       return "Approve costing and sample, then send the package to Management";
     case "LIVE_REVIEW":
-      return "Approve go-live · design goes LIVE";
+      return "Complete live review, then mark the design live";
     default:
       return "Approve to advance the workflow";
   }

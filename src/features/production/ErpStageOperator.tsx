@@ -11,11 +11,11 @@ import {
   ERP_FLOOR_MODULES,
   fieldsForErpModule,
   isErpFloorModule,
-  permissionRequiredForErpModule,
   validateCompleteErpStageInput,
 } from "@/lib/erp-rbac";
 import { ERP_STAGE_LABELS } from "@/lib/services/erp-stage-constants";
-import { formatPermissionLabel } from "@/lib/user-messages";
+import { erpStageBlockedNotice, releaseApprovalNotice } from "@/lib/erp-stage-guidance";
+import { ApprovalPathCard } from "@/features/production/ApprovalPathCard";
 import { cn } from "@/lib/utils";
 import type { ErpStageChain, ErpStageRow } from "@/hooks/use-production";
 
@@ -96,10 +96,11 @@ export function ErpStageOperator({
     !!activeStage &&
     canCompleteErpStage(permissions, activeStage.erpModule, activeStage.status);
   const fields = canComplete && activeStage ? fieldsForErpModule(activeStage.erpModule) : null;
-  const blockedPerm =
+  const blockedNotice =
     activeStage && !canOperateErpModule(permissions, activeStage.erpModule)
-      ? permissionRequiredForErpModule(activeStage.erpModule)
+      ? erpStageBlockedNotice(activeStage.erpModule, activeStage.status)
       : null;
+  const approvalNotice = releaseApprovalNotice(chain.designStatus);
 
   useEffect(() => {
     setFormError(null);
@@ -202,11 +203,7 @@ export function ErpStageOperator({
             <StatusBadge status={activeStage.status} />
           </div>
 
-          {blockedPerm ? (
-            <p className="erp-chain-work-blocked m-0">
-              Waiting on {formatPermissionLabel(blockedPerm)}
-            </p>
-          ) : null}
+          {blockedNotice ? <FlowNoticeCard notice={blockedNotice} /> : null}
 
           {canStart ? (
             <AppButton
@@ -307,9 +304,24 @@ export function ErpStageOperator({
             </div>
           ) : null}
         </div>
+      ) : approvalNotice ? (
+        <ApprovalPathCard designId={chain.designId} designStatus={chain.designStatus} />
       ) : (
         <p className="erp-chain-work-done m-0">All stages complete</p>
       )}
+
+      {activeStage && approvalNotice ? (
+        <ApprovalPathCard designId={chain.designId} designStatus={chain.designStatus} />
+      ) : null}
+    </div>
+  );
+}
+
+function FlowNoticeCard({ notice }: { notice: { title: string; body: string } }) {
+  return (
+    <div className="erp-chain-notice" role="status">
+      <p className="erp-chain-notice-title">{notice.title}</p>
+      <p className="erp-chain-notice-body">{notice.body}</p>
     </div>
   );
 }

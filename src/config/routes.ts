@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { PERMISSIONS, type PermissionCode } from "@/lib/permissions";
+import { PERMISSIONS, ROLE_CODES, type PermissionCode } from "@/lib/permissions";
 import { canRoleAccessApprovalsHub } from "@/lib/stage-approval-rbac";
 import {
   IconDashboard,
@@ -98,6 +98,8 @@ export type NavLink = {
   permission?: PermissionCode;
   /** Visible when the user has any of these permissions (OR). */
   anyPermission?: PermissionCode[];
+  /** Visible only for these role codes (in addition to any permission check). */
+  roles?: string[];
   /** Match exact path only (not children) */
   exact?: boolean;
 };
@@ -233,6 +235,13 @@ export const NAV_SECTIONS: NavSection[] = [
         href: ROUTES.production.release,
         icon: IconProduction,
         permission: PERMISSIONS.PRODUCTION_RELEASE,
+      },
+      {
+        id: "production-golive",
+        label: "Go-live",
+        href: `${ROUTES.production.release}?tab=golive`,
+        icon: IconProduction,
+        roles: [ROLE_CODES.MANAGEMENT, ROLE_CODES.ADMIN],
       },
       {
         id: "production-erp",
@@ -439,12 +448,13 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
 };
 
 export function isNavActive(pathname: string, href: string, exact?: boolean): boolean {
-  if (exact) return pathname === href;
-  if (pathname === href) return true;
+  const path = href.split("?")[0] ?? href;
+  if (exact) return pathname === path;
+  if (pathname === path) return true;
   if (href === ROUTES.designs.list && pathname.startsWith("/designs/")) {
     return pathname !== ROUTES.designs.new && pathname !== ROUTES.designs.kanban;
   }
-  return pathname.startsWith(`${href}/`);
+  return pathname.startsWith(`${path}/`);
 }
 
 export function getVisibleNavSections(permissions: string[], roleCode?: string): NavSection[] {
@@ -456,6 +466,7 @@ export function getVisibleNavSections(permissions: string[], roleCode?: string):
     ...section,
     items: section.items.filter((item) => {
       if (item.id === "approvals" && !showApprovals) return false;
+      if (item.roles?.length && (!roleCode || !item.roles.includes(roleCode))) return false;
       if (item.anyPermission?.length) {
         return item.anyPermission.some((p) => permissions.includes(p));
       }

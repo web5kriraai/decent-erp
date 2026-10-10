@@ -3,12 +3,17 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { IconProduction } from "@/components/icons";
-import { AppButtonLink } from "@/components/ui/AppButton";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
 import { ListSearch } from "@/components/ui/ListSearch";
 import { PaginationBar } from "@/components/ui/PaginationBar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ROUTES } from "@/config/routes";
 import type { ApprovedDesignForProduction } from "@/hooks/use-production";
+import { useAcceptProductionHandoff } from "@/hooks/use-production";
+import { PERMISSIONS } from "@/lib/permissions";
+import type { ProductionInboxDesign } from "@/lib/services/production-inbox-service";
+import { AcceptHandoffConfirm } from "@/features/production/AcceptHandoffConfirm";
+import { ProductionReturnModal } from "@/features/production/ProductionReturnModal";
 import { useClientList } from "@/hooks/use-client-list";
 import {
   canOpenProductionDeskNextAction,
@@ -66,14 +71,35 @@ function PipelineRow({
   roleCode,
   permissions,
   employeeId,
+  retryPending,
+  onRetryRelease,
+  onAccept,
+  onReturn,
 }: {
   row: ApprovedDesignForProduction;
   bucket: ProductionDeskPipelineBucket;
   roleCode?: string | null;
   permissions: string[];
   employeeId?: number | null;
+  retryPending: boolean;
+  onRetryRelease: (designId: string) => void;
+  onAccept: (row: ApprovedDesignForProduction) => void;
+  onReturn: (row: ApprovedDesignForProduction) => void;
 }) {
   const stages = row.ladderStages ?? [];
+  const handoff = stages.find((stage) => stage.code === "PROD_HANDOFF");
+  const instruction = stages.find((stage) => stage.code === "PROD_INSTRUCTION");
+  const release = stages.find((stage) => stage.code === "PROD_RELEASE");
+  const canOperateRelease = permissions.includes(PERMISSIONS.PRODUCTION_RELEASE);
+  const canAccept =
+    canOperateRelease &&
+    handoff?.status === "COMPLETED" &&
+    instruction?.status === "PENDING";
+  const canReturn =
+    canOperateRelease &&
+    handoff?.status === "COMPLETED" &&
+    release?.status !== "COMPLETED" &&
+    instruction?.status !== "COMPLETED";
   const canOpen = canOpenProductionDeskNextAction({
     roleCode,
     permissions,
@@ -81,6 +107,7 @@ function PipelineRow({
     nextAction: row.nextAction,
   });
   const waiting = waitingCopy(row);
+  const showOpen = canOpen && !!row.nextAction && !canAccept && !row.releasePendingRetry;
 
   return (
     <article
@@ -165,7 +192,27 @@ function PipelineRow({
         </div>
 
         <div className="production-desk-row-actions">
-          {canOpen && row.nextAction ? (
+          {row.releasePendingRetry && canOperateRelease ? (
+            <AppButton
+              type="button"
+              size="sm"
+              disabled={retryPending}
+              onClick={() => onRetryRelease(row.id)}
+            >
+              {retryPending ? "Releasing…" : "Retry release"}
+            </AppButton>
+          ) : null}
+          {canAccept ? (
+            <AppButton type="button" size="sm" onClick={() => onAccept(row)}>
+              Accept
+            </AppButton>
+          ) : null}
+          {canReturn ? (
+            <AppButton type="button" appVariant="outline" size="sm" onClick={() => onReturn(row)}>
+              Return
+            </AppButton>
+          ) : null}
+          {showOpen && row.nextAction ? (
             <AppButtonLink
               href={ROUTES.work.taskDetail(row.nextAction.taskId)}
               appVariant="primary"
@@ -173,7 +220,7 @@ function PipelineRow({
             >
               {`Open ${row.nextAction.label}`}
             </AppButtonLink>
-          ) : waiting ? (
+          ) : !canAccept && !row.releasePendingRetry && waiting ? (
             <p className="production-desk-waiting">{waiting}</p>
           ) : null}
         </div>
@@ -192,18 +239,39 @@ function pipelineSearchText(item: PipelineRowItem) {
   return `${row.ideaRef} ${row.collectionName} ${row.productType.name} ${row.designHead.name}`;
 }
 
+function acceptItemFromRow(row: ApprovedDesignForProduction): ProductionInboxDesign {
+  return {
+    designId: row.id,
+    ideaRef: row.ideaRef,
+    collectionName: row.collectionName,
+    status: row.status,
+    productType: row.productType.name,
+    designHead: row.designHead.name,
+    section: "ready_for_acceptance",
+    stageLabel: "Accept production handoff",
+    needsAcceptance: true,
+  };
+}
+
 export function ProductionPipelineBoard({
   designs,
   roleCode,
   permissions,
   employeeId,
+  retryPending = false,
+  onRetryRelease,
 }: {
   designs: ApprovedDesignForProduction[];
   roleCode?: string | null;
   permissions: string[];
   employeeId?: number | null;
+  retryPending?: boolean;
+  onRetryRelease?: (designId: string) => void;
 }) {
   const [filter, setFilter] = useState<PipelineFilter>("ALL");
+  const [acceptRow, setAcceptRow] = useState<ApprovedDesignForProduction | null>(null);
+  const [returnRow, setReturnRow] = useState<ApprovedDesignForProduction | null>(null);
+  const acceptHandoff = useAcceptProductionHandoff();
 
   const rowsWithBucket = useMemo(
     () =>
@@ -322,6 +390,10 @@ export function ProductionPipelineBoard({
                   roleCode={roleCode}
                   permissions={permissions}
                   employeeId={employeeId}
+                  retryPending={retryPending}
+                  onRetryRelease={(designId) => onRetryRelease?.(designId)}
+                  onAccept={setAcceptRow}
+                  onReturn={setReturnRow}
                 />
               ))}
             </div>
@@ -338,6 +410,26 @@ export function ProductionPipelineBoard({
           </>
         )}
       </div>
+      {returnRow ? (
+        <ProductionReturnModal
+          open
+          designId={returnRow.id}
+          ideaRef={returnRow.ideaRef}
+          onClose={() => setReturnRow(null)}
+        />
+      ) : null}
+      <AcceptHandoffConfirm
+        open={!!acceptRow}
+        item={acceptRow ? acceptItemFromRow(acceptRow) : null}
+        onClose={() => setAcceptRow(null)}
+        onConfirm={() => {
+          if (!acceptRow) return;
+          acceptHandoff.mutate(acceptRow.id, {
+            onSuccess: () => setAcceptRow(null),
+          });
+        }}
+        isPending={acceptHandoff.isPending}
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   designRequiresCosting,
   evaluateTransition,
 } from "@/lib/workflow/transition-policies";
+import { releaseApprovalGapMessage } from "@/lib/erp-stage-guidance";
 
 export { collectPresentStageGaps } from "@/lib/services/production-release-readiness-utils";
 export type { ReadinessTaskSnapshot } from "@/lib/services/production-release-readiness-utils";
@@ -26,6 +27,7 @@ type Tx = Prisma.TransactionClient;
 export type ProductionReleaseReadiness = {
   ok: boolean;
   missing: string[];
+  designStatus: string;
 };
 
 /**
@@ -45,7 +47,7 @@ export async function validateProductionReleaseReadiness(
     select: { status: true },
   });
   if (!design) {
-    return { ok: false, missing: ["Design record"] };
+    return { ok: false, missing: ["Design record"], designStatus: "MISSING" };
   }
 
   const designTasks = await db.designTask.findMany({
@@ -80,23 +82,22 @@ export async function validateProductionReleaseReadiness(
   });
 
   // Spec Stage 9 - all active ApprovalLevels must pass before release.
+  let managementLevelsMissing = false;
   if (requireManagementLevels) {
     const levels = await db.approvalLevel.findMany({
       where: { active: true },
       orderBy: { sequence: "asc" },
     });
     if (levels.length === 0) {
-      missing.push("Management approval levels (configure Approval Levels)");
+      missing.push(
+        "Management approval levels are not set. An admin configures them under Approval Levels.",
+      );
     } else {
       const approvals = await db.designApproval.findMany({
         where: { designId, decision: { in: ["APPROVED", "SKIPPED"] } },
       });
       const passedIds = new Set(approvals.map((a) => a.approvalLevelId));
-      for (const level of levels) {
-        if (!passedIds.has(level.id)) {
-          missing.push(`${level.name} approval`);
-        }
-      }
+      managementLevelsMissing = levels.some((level) => !passedIds.has(level.id));
     }
   }
 
@@ -123,19 +124,18 @@ export async function validateProductionReleaseReadiness(
   }
 
   const finalGateSatisfied = isDesignHeadFinalGateSatisfied(tasksByCode);
-  if (
-    !isDesignLifecycleReadyForRelease({
-      designStatus: design.status,
-      finalGateSatisfied,
-      managementDecideStarted: requireManagementLevels,
-    })
-  ) {
-    missing.push("Management / final approval (design must be Approved)");
+  const lifecycleReady = isDesignLifecycleReadyForRelease({
+    designStatus: design.status,
+    finalGateSatisfied,
+    managementDecideStarted: requireManagementLevels,
+  });
+  if (!lifecycleReady || managementLevelsMissing) {
+    missing.push(releaseApprovalGapMessage(design.status));
   }
 
   missing.push(...collectPresentStageGaps(tasksByCode));
 
-  return { ok: missing.length === 0, missing };
+  return { ok: missing.length === 0, missing, designStatus: design.status };
 }
 
 /**

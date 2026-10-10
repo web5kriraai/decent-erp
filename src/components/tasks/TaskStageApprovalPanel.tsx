@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AppButton } from "@/components/ui/AppButton";
+import { AppButton, AppButtonLink } from "@/components/ui/AppButton";
+import { ROUTES } from "@/config/routes";
+import { canRoleMarkDesignLive } from "@/lib/action-availability";
 import { FormTextArea } from "@/components/ui/form-text-area";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ImageGallery } from "@/components/ImageGallery";
@@ -53,7 +55,7 @@ function approveLabelForCode(code: string, stageName: string): string {
     case "PUNCH_CHECK":
       return "Approve punch";
     case "LIVE_REVIEW":
-      return "Approve go-live";
+      return "Complete live review";
     default:
       return `Approve ${stageName.toLowerCase()}`;
   }
@@ -81,6 +83,7 @@ export function TaskStageApprovalPanel({
   const completeStageApproval = useCompleteStageApproval();
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [liveReviewDone, setLiveReviewDone] = useState(false);
 
   const uiConfig = getStageApprovalUiConfig(stageCode, capabilities, { isApproval });
   const roleAllowed = canRoleActOnStageApproval(roleCode, stageCode, {
@@ -88,6 +91,27 @@ export function TaskStageApprovalPanel({
     capabilities,
   });
   const isOpen = !["COMPLETED", "CANCELLED", "CORRECTION_REQUIRED"].includes(status);
+
+  if (
+    stageCode === "LIVE_REVIEW" &&
+    (status === "COMPLETED" || liveReviewDone) &&
+    canRoleMarkDesignLive(roleCode)
+  ) {
+    return (
+      <AppCard
+        className="mb-4 border-primary/20"
+        title="Live review complete"
+        contentClassName="space-y-3"
+      >
+        <p className="text-sm text-muted-foreground">
+          Live review is recorded. The design stays production released until you mark it live.
+        </p>
+        <AppButtonLink href={`${ROUTES.production.release}?tab=golive`} size="sm">
+          Mark Live now
+        </AppButtonLink>
+      </AppCard>
+    );
+  }
 
   // task_end_dialog stages (e.g. SAMPLE_CHECK) complete via End dialog - not this panel.
   if (
@@ -137,6 +161,9 @@ export function TaskStageApprovalPanel({
               : `${stageName} correction requested`),
         decision,
       });
+      if (decision === "APPROVED" && stageCode === "LIVE_REVIEW") {
+        setLiveReviewDone(true);
+      }
       setRemark("");
     } finally {
       setIsSubmitting(false);
