@@ -535,8 +535,40 @@ export async function getDesignById(
       ? Math.round(((baseline - costTotal) / baseline) * 1000) / 10
       : null;
 
+  const { getPresignedDownloadUrl } = await import("@/lib/storage");
+  async function signedUrl(storageKey: string | null | undefined) {
+    if (!storageKey) return null;
+    try {
+      return await getPresignedDownloadUrl(storageKey);
+    } catch {
+      return null;
+    }
+  }
+
+  const [tasks, images] = await Promise.all([
+    Promise.all(
+      design.tasks.map(async (task) => ({
+        ...task,
+        artifacts: await Promise.all(
+          task.artifacts.map(async (artifact) => ({
+            ...artifact,
+            downloadUrl: await signedUrl(artifact.storageKey),
+          })),
+        ),
+      })),
+    ),
+    Promise.all(
+      design.images.map(async (image) => ({
+        ...image,
+        downloadUrl: await signedUrl(image.storageKey),
+      })),
+    ),
+  ]);
+
   return {
     ...design,
+    tasks,
+    images,
     detailMeta: {
       progressPercent: totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0,
       completedTasks,
@@ -958,6 +990,15 @@ function nearestOpenDueAt(
   return dates.reduce((soonest, d) => (d < soonest ? d : soonest));
 }
 
+/** When every stage is finished, the card still shows the last stage deadline. */
+function latestTaskDueAt(
+  tasks: Array<{ dueAt: Date | null }>,
+): Date | null {
+  const dates = tasks.map((t) => t.dueAt).filter((d): d is Date => d != null);
+  if (dates.length === 0) return null;
+  return dates.reduce((latest, d) => (d > latest ? d : latest));
+}
+
 export type KanbanDashboardQuery = {
   page?: number;
   pageSize?: number;
@@ -1001,7 +1042,7 @@ export async function getDesignWorkflowDashboard(
   const pageSize = clampKanbanPageSize(query.pageSize ?? 10);
 
   const items = designs.map((design) => {
-    const dueAt = nearestOpenDueAt(design.tasks);
+    const dueAt = nearestOpenDueAt(design.tasks) ?? latestTaskDueAt(design.tasks);
     const estimatedCost = toNumberCost(design.estimatedCost);
     const openCorrectionCount =
       design.corrections.length +
@@ -1079,6 +1120,9 @@ export async function getDesignWorkflowDashboard(
   const delayedCount = items.filter((d) => {
     if (!d.dueAt) return false;
     if (["APPROVED", "PRODUCTION_ACCEPTED", "PRODUCTION_RELEASED", "LIVE"].includes(d.status)) {
+      return false;
+    }
+    if (d.workflow.totalStages > 0 && d.workflow.completedStages >= d.workflow.totalStages) {
       return false;
     }
     return new Date(d.dueAt) < now;

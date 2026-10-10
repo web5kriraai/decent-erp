@@ -58,7 +58,7 @@ describe("canEmployeeActOnApprovalLevel", () => {
 
 describe("readyForSignOffScopeFilter", () => {
   it("scopes every role to their portfolio", () => {
-    expect(readyForSignOffScopeFilter(7, "ADMIN")).toEqual({ designHeadEmployeeId: 7 });
+    expect(readyForSignOffScopeFilter(7, "ADMIN")).toEqual({});
     expect(readyForSignOffScopeFilter(7, "MANAGEMENT")).toEqual({ designHeadEmployeeId: 7 });
     expect(readyForSignOffScopeFilter(12, "DESIGN_HEAD")).toEqual({
       designHeadEmployeeId: 12,

@@ -12,14 +12,14 @@ Non-technical end-to-end business flow for Decent ERP design operations - from c
 
 | Role | What they do in this journey |
 | --- | --- |
-| **Design Head** | Creates the concept, assigns people, approves sketch / final stages, requests management sign-off, sends the design to production, may send to a QC phase or jump a stage when authorized |
+| **Design Head** | Creates the concept, assigns people, approves sketch and the finished package once, sends that package to Management, then hands the approved design to production |
 | **Sketch Designer** | Draws / completes the sketch; fixes sketch rework from corrections |
 | **Punching Designer** | Digitizes / punches the design; common target for rework |
 | **Machine Operator** | Runs the machine sample |
-| **Sample Checker** | Checks punch and sample (approve, reject, or re-sample); first level of management sign-off |
+| **Sample Checker** | Checks punch and sample once (approve, reject, or re-sample). Does not approve again at sign-off |
 | **Costing Team** | Enters development / standard costs (required before final management approve) |
 | **Production Head** | Accepts handoff, writes instruction, releases to production, or returns for clarification |
-| **Management** | Final level of management sign-off; reviews released designs and marks them live |
+| **Management** | The only commercial sign-off after the package is finished; later marks a released design live |
 
 Anyone with correction permission (typically Design Head, Sketch / Punching Designer, Sample Checker) can raise a correction during quality loops.
 
@@ -137,17 +137,15 @@ flowchart TD
   PunchWork -.-> OpenCorrList
   SampleApprove -.-> OpenCorrList
 
-  subgraph phase5 [5. Ready for sign-off and management chain]
+  subgraph phase5 [5. Ready for sign-off]
     StagesDone{All required stages complete?}
     NotReady[Not ready - finish open stages or costing first]
     ReadyList[Design appears under Ready for sign-off]
     EmptyApprovals([Approvals queue empty - nothing to act on])
-    RequestSignOff[Design Head requests management approval]
-    ChainL1{Level 1 - Sample Checker}
-    ChainL2{Level 2 - Design Head}
-    ChainL3{Level 3 - Management}
+    RequestSignOff[Design Head sends the package to Management]
+    ManagementDecide{Management: approve for production?}
     CostGate{Have costs been entered for this design?}
-    CostBlock[Final approve blocked - Costing Team must add costs]
+    CostBlock[Approve blocked - Costing Team must add costs]
     DesignRejected([Outcome: Design rejected - journey stopped])
     CorrFromChain[Design reopened - correction raised from sign-off]
     FullyApproved[Design fully approved]
@@ -158,16 +156,10 @@ flowchart TD
   StagesDone -->|No| NotReady --> OpenMyWork
   StagesDone -->|Yes| ReadyList
   ReadyList -->|Queue empty for this user| EmptyApprovals
-  ReadyList -->|Design ready| RequestSignOff --> ChainL1
-  ChainL1 -->|Approve| ChainL2
-  ChainL1 -->|Correction required| CorrFromChain
-  ChainL1 -->|Reject| DesignRejected
-  ChainL2 -->|Approve| ChainL3
-  ChainL2 -->|Correction required| CorrFromChain
-  ChainL2 -->|Reject| DesignRejected
-  ChainL3 -->|Approve| CostGate
-  ChainL3 -->|Correction required| CorrFromChain
-  ChainL3 -->|Reject| DesignRejected
+  ReadyList -->|Design ready| RequestSignOff --> ManagementDecide
+  ManagementDecide -->|Approve| CostGate
+  ManagementDecide -->|Correction required| CorrFromChain
+  ManagementDecide -->|Reject| DesignRejected
   CorrFromChain --> RaiseCorr
   CostGate -->|No| CostBlock --> CostingStage
   CostGate -->|Yes| FullyApproved
@@ -214,7 +206,7 @@ flowchart TD
 
 ### How to read this diagram
 
-1. **Happy path:** Create → sketch → punch → material/fabric → sample → costing → request sign-off → three approval levels → production handoff → accept → instruction → release → live.
+1. **Happy path:** Create → sketch → punch → material/fabric → sample → costing → Design Head final approval → send to Management → production handoff → accept → instruction → release → live. Each person decides once.
 2. **Loops:** Hold/resume, invalid inputs, corrections, re-sample, stage returns, and production return all send work back to an earlier step - they are not dead ends.
 3. **Terminal outcomes:**
    - **Design live** - success
@@ -286,14 +278,11 @@ Use this as an end-to-end testing checklist. Each row maps a decision or path fr
 | Stages incomplete | Design does **not** appear as ready for sign-off |
 | Stages complete | Design appears under Ready for sign-off for Design Head |
 | Empty approvals queue | Empty state for users with nothing pending at their level |
-| Request management approval | Design enters the sign-off chain; Level 1 (Sample Checker) can act |
-| Level 1 Approve | Advances to Design Head level |
-| Level 1 Correction required | Design reopens; correction path available; chain does not complete |
-| Level 1 Reject | Design rejected - journey stopped; no production handoff |
-| Level 2 Approve / Correction / Reject | Same three outcomes; approve advances to Management |
-| Level 3 Approve **without** costs | Final approve blocked; message to add costs first |
-| Level 3 Approve **with** costs | Design fully approved; production handoff becomes available |
-| Level 3 Correction / Reject | Reopen via correction, or stop as rejected |
+| Request management approval | Design waits for Management only. Sample Checker and Design Head are not asked again |
+| Management Approve **without** costs | Approve blocked; message to add costs first |
+| Management Approve **with** costs | Design fully approved; production handoff becomes available |
+| Management Correction required | Design reopens; correction path available; production does not start |
+| Management Reject | Design rejected - journey stopped; no production handoff |
 | After cost block → add costs → approve again | Retry succeeds once costs exist |
 
 ### 6. Production
@@ -327,8 +316,8 @@ Use this as an end-to-end testing checklist. Each row maps a decision or path fr
 4. Material / fabric stages complete → Machine Operator finishes sample  
 5. Sample Checker approves sample  
 6. Costing Team enters costs and finishes costing  
-7. Design Head requests management approval  
-8. Sample Checker → Design Head → Management all approve (costs already present)  
+7. Design Head approves the finished package, then sends it to Management  
+8. Management approves (costs already present)  
 9. Design Head production handoff → Production Head accepts → instruction → release  
 10. Management marks live  
 
@@ -336,7 +325,7 @@ Use this as an end-to-end testing checklist. Each row maps a decision or path fr
 
 1. Sample check **Re-sample** then approve on second pass  
 2. Sample check **Reject** → raise correction → rework → mark Done → continue  
-3. Management **Correction required** → fix → request approval again → full chain approve  
+3. Management **Correction required** → fix → request approval again → Management approves  
 4. Final approve **without costs** → blocked → add costs → approve  
 5. Production **return for clarification** → resolve → accept again → release → live  
 

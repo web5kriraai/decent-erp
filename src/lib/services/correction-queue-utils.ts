@@ -83,6 +83,14 @@ export function isRoutedReworkSatisfied(status: string): boolean {
   return (ROUTED_REWORK_SATISFIED_STATUSES as readonly string[]).includes(status);
 }
 
+/** Done is refused until the routed rework task is finished. */
+export function correctionReworkStillOpen(correction: {
+  routedTask?: { status: string } | null;
+}): boolean {
+  if (!correction.routedTask) return false;
+  return !isRoutedReworkSatisfied(correction.routedTask.status);
+}
+
 export function buildCorrectionScopeForEmployee(
   employeeId: number,
 ): Prisma.DesignCorrectionWhereInput {

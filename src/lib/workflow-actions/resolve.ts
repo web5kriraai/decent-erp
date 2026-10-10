@@ -18,6 +18,7 @@ import {
   WORKFLOW_ACTION_CODES,
   type ResolvedWorkflowAction,
 } from "@/lib/workflow-actions/types";
+import { correctionReworkStillOpen } from "@/lib/services/correction-queue-utils";
 import type { CorrectionRecord } from "@/lib/types/api";
 
 const SATISFIED = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);
@@ -145,7 +146,7 @@ export function resolveDesignContextActions(input: {
           enabled: true,
           label: "Request management approval",
           description:
-            "Submit the package for Checker → Design Head → Management decide before production unlocks.",
+            "Send the finished package to Management. Production unlocks after Management approves.",
           designId: design.id,
           href: ROUTES.quality.requestSignOff(design.id),
         }),
@@ -279,7 +280,7 @@ export function resolveCorrectionContextActions(input: {
   if (input.correction && canRaise) {
     const status = input.correction.status;
     const done = status === "DONE" || status === "REJECTED";
-    if (!done) {
+    if (!done && !correctionReworkStillOpen(input.correction)) {
       actions.push(
         buildAction(WORKFLOW_ACTION_CODES.COMPLETE_CORRECTION, {
           enabled: true,

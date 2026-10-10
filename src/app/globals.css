@@ -508,6 +508,64 @@ h3 {
   border-radius: var(--radius-md);
   background: var(--card);
   font-size: var(--font-size-caption);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.costing-type-chip:hover {
+  background: var(--color-neutral-50);
+}
+
+.costing-type-chip.is-current {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+}
+
+.costing-type-chip:focus {
+  outline: none;
+}
+
+.costing-type-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.costing-mrp {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.costing-mrp__form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.costing-mrp__amount {
+  width: 11rem;
+}
+
+.app-content:has(.costing-page) > .list-page-host > .costing-page.list-page {
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.costing-page .list-page__table > [data-slot="card"] > [data-slot="card-content"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .costing-type-chip__type {
@@ -906,35 +964,6 @@ h3 {
   padding: 0.5rem 0 0;
   border: none;
   background: transparent;
-}
-
-/* Corrections: stats + activity sit above the table, so the page scrolls
-   instead of clipping the list to a single row. */
-.app-content:has(.list-page-host):has(.corrections-page) {
-  overflow-y: auto;
-}
-
-.app-content:has(.list-page-host):has(.corrections-page) > .list-page-host {
-  height: auto;
-  max-height: none;
-  overflow: visible;
-}
-
-.corrections-page.list-page {
-  height: auto;
-  max-height: none;
-  overflow: visible;
-}
-
-.corrections-page .list-page__body,
-.corrections-page .list-page__table,
-.corrections-page .list-page__table > div,
-.corrections-page .list-page__table .app-table-wrap,
-.corrections-page .list-page__table .app-table-wrap--flush {
-  overflow: visible;
-  max-height: none;
-  height: auto;
-  flex: none;
 }
 
 /* Master Data: keep title + tabs fixed; scroll only the tab content */
@@ -10917,4 +10946,106 @@ a.file-slot-name {
   .page-shell--narrow {
     gap: 0.75rem;
   }
+}
+
+.approval-guide-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.approval-guide {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+}
+
+@media (min-width: 960px) {
+  .approval-guide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.approval-guide-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.approval-guide-card:hover {
+  background: var(--color-neutral-50);
+}
+
+.approval-guide-card:focus {
+  outline: none;
+}
+
+.approval-guide-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.approval-guide-card.is-current {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--color-surface));
+}
+
+.approval-guide-step {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-100);
+  color: var(--foreground);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+
+.approval-guide-card.is-current .approval-guide-step {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.approval-guide-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.approval-guide-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.approval-guide-text {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--muted-foreground);
+}
+
+.approval-guide-note {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--muted-foreground);
 }

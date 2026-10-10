@@ -76,10 +76,30 @@ export async function seedDatabase() {
     });
   }
 
+  // Sample Checker and Design Head already decide inside the stage pipeline
+  // (sample check, final approval). The commercial gate is Management only.
   const approvalLevels = [
-    { code: "CHECKER_APPROVAL", name: "Sample Checker Approval", sequence: 1, roleCode: "SAMPLE_CHECKER" },
-    { code: "DESIGN_HEAD_APPROVAL", name: "Design Head Approval", sequence: 2, roleCode: "DESIGN_HEAD" },
-    { code: "MANAGEMENT_APPROVAL", name: "Management Approval", sequence: 3, roleCode: "MANAGEMENT" },
+    {
+      code: "CHECKER_APPROVAL",
+      name: "Sample Checker Approval",
+      sequence: 1,
+      roleCode: "SAMPLE_CHECKER",
+      active: false,
+    },
+    {
+      code: "DESIGN_HEAD_APPROVAL",
+      name: "Design Head Approval",
+      sequence: 2,
+      roleCode: "DESIGN_HEAD",
+      active: false,
+    },
+    {
+      code: "MANAGEMENT_APPROVAL",
+      name: "Management Approval",
+      sequence: 1,
+      roleCode: "MANAGEMENT",
+      active: true,
+    },
   ];
   for (const level of approvalLevels) {
     const role = await prisma.role.findUnique({ where: { code: level.roleCode } });
@@ -89,12 +109,14 @@ export async function seedDatabase() {
         name: level.name,
         sequence: level.sequence,
         requiredRoleId: role?.id ?? null,
+        active: level.active,
       },
       create: {
         code: level.code,
         name: level.name,
         sequence: level.sequence,
         requiredRoleId: role?.id ?? null,
+        active: level.active,
       },
     });
   }

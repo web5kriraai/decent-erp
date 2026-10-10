@@ -3,6 +3,7 @@ import {
   CORRECTION_WORKFLOW_STATUSES,
   getAllowedCorrectionStatusOptions,
   isOpenCorrectionStatus,
+  correctionReworkStillOpen,
   isRoutedReworkSatisfied,
   normalizeCorrectionStatus,
 } from "@/lib/services/correction-queue-utils";
@@ -35,6 +36,13 @@ describe("correction workflow statuses", () => {
     expect(isRoutedReworkSatisfied("COMPLETED")).toBe(true);
     expect(isRoutedReworkSatisfied("CORRECTION_REQUIRED")).toBe(false);
     expect(isRoutedReworkSatisfied("ASSIGNED")).toBe(false);
+  });
+
+  it("keeps Done blocked while the routed rework task is open", () => {
+    expect(correctionReworkStillOpen({})).toBe(false);
+    expect(correctionReworkStillOpen({ routedTask: null })).toBe(false);
+    expect(correctionReworkStillOpen({ routedTask: { status: "COMPLETED" } })).toBe(false);
+    expect(correctionReworkStillOpen({ routedTask: { status: "ASSIGNED" } })).toBe(true);
   });
 
   it.each([

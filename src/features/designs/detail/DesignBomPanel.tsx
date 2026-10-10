@@ -101,44 +101,48 @@ export function DesignBomPanel({ designId }: { designId: string }) {
       <div className="space-y-3 border-t border-border px-4 py-4 sm:px-5">
         <p className="m-0 text-sm text-foreground">
           Estimated material total:{" "}
-          <strong>₹{Math.round(estimatedTotal).toLocaleString("en-IN")}</strong>
+          <strong className="tabular-nums">
+            ₹{Math.round(estimatedTotal).toLocaleString("en-IN")}
+          </strong>
         </p>
-        <div className="grid gap-2 sm:grid-cols-4">
-        <FormTextField
-          id={`bom-name-${designId}`}
-          label="Item"
-          value={itemName}
-          onChange={(e) => setItemName(e.target.value)}
-        />
-        <FormTextField
-          id={`bom-qty-${designId}`}
-          label="Qty"
-          type="number"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-        />
-        <FormTextField
-          id={`bom-unit-${designId}`}
-          label="Unit"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-        />
-        <FormTextField
-          id={`bom-cost-${designId}`}
-          label="Unit cost"
-          type="number"
-          value={unitCost}
-          onChange={(e) => setUnitCost(e.target.value)}
-        />
-      </div>
-      <AppButton
-        type="button"
-        size="sm"
-        disabled={!itemName.trim() || create.isPending}
-        onClick={() => create.mutate()}
-      >
-        Add material
-      </AppButton>
+        <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(12rem,1.6fr)_7rem_7rem_9rem_auto]">
+          <FormTextField
+            id={`bom-name-${designId}`}
+            label="Item"
+            value={itemName}
+            onChange={(e) => setItemName(e.target.value)}
+            placeholder="Cloth, thread, trim"
+          />
+          <FormTextField
+            id={`bom-qty-${designId}`}
+            label="Qty"
+            type="number"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+          <FormTextField
+            id={`bom-unit-${designId}`}
+            label="Unit"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+          />
+          <FormTextField
+            id={`bom-cost-${designId}`}
+            label="Unit cost"
+            type="number"
+            value={unitCost}
+            onChange={(e) => setUnitCost(e.target.value)}
+            placeholder="0"
+          />
+          <AppButton
+            type="button"
+            size="sm"
+            disabled={!itemName.trim() || create.isPending}
+            onClick={() => create.mutate()}
+          >
+            Add material
+          </AppButton>
+        </div>
       </div>
     </AppCard>
   );

@@ -395,6 +395,18 @@ describe("workflow-actions resolve", () => {
     expect(
       doneActions.find((a) => a.code === WORKFLOW_ACTION_CODES.COMPLETE_CORRECTION),
     ).toBeUndefined();
+
+    const reworkOpen = resolveCorrectionContextActions({
+      permissions: [PERMISSIONS.CORRECTION_RAISE],
+      correction: {
+        ...correction("OPEN"),
+        routedTask: { id: "t2", status: "ASSIGNED" },
+      },
+      includeRaise: false,
+    });
+    expect(
+      reworkOpen.find((a) => a.code === WORKFLOW_ACTION_CODES.COMPLETE_CORRECTION),
+    ).toBeUndefined();
   });
 
   it("exposes management decide action when approval context is present", () => {

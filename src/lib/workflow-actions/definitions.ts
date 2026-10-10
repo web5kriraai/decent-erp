@@ -15,7 +15,7 @@ export const WORKFLOW_ACTION_META: Record<
   [WORKFLOW_ACTION_CODES.REQUEST_APPROVAL]: {
     label: "Request management approval",
     variant: "primary",
-    description: "Design Head submits the package for Checker → Design Head → Management decide before production unlock.",
+    description: "Design Head sends the finished package to Management. Production unlocks after Management approves.",
   },
   [WORKFLOW_ACTION_CODES.OPEN_APPROVALS_QUEUE]: {
     label: "Open Approvals",

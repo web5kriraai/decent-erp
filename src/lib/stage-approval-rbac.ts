@@ -111,7 +111,7 @@ export function nextStepHintForStageApproval(code: string): string {
     case "PUNCH_CHECK":
       return "Approve punch · unlocks material / sample work";
     case "FINAL_APPROVAL":
-      return "Approve when costing & sample look right · unlocks management sign-off";
+      return "Approve costing and sample, then send the package to Management";
     case "LIVE_REVIEW":
       return "Approve go-live · design goes LIVE";
     default:

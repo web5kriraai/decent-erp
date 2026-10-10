@@ -256,7 +256,7 @@ export async function listCorrections(filters: {
     ? buildCorrectionReviewerScope(filters.employeeId)
     : buildCorrectionScopeForEmployee(filters.employeeId);
 
-  return prisma.designCorrection.findMany({
+  const rows = await prisma.designCorrection.findMany({
     where: {
       AND: [
         scope,
@@ -267,6 +267,33 @@ export async function listCorrections(filters: {
     include: correctionInclude,
     orderBy: { createdAtUtc: "desc" },
   });
+
+  const routedIds = [
+    ...new Set(
+      rows
+        .map((row) => row.routedTaskId)
+        .filter((id): id is bigint => id != null),
+    ),
+  ];
+  const routedTasks = routedIds.length
+    ? await prisma.designTask.findMany({
+        where: { id: { in: routedIds } },
+        select: {
+          id: true,
+          status: true,
+          assignedEmployee: { select: { name: true } },
+          subProcess: { select: { name: true } },
+        },
+      })
+    : [];
+  const routedById = new Map(routedTasks.map((task) => [task.id.toString(), task]));
+
+  return rows.map((row) => ({
+    ...row,
+    routedTask: row.routedTaskId
+      ? (routedById.get(row.routedTaskId.toString()) ?? null)
+      : null,
+  }));
 }
 
 export type RaiseCorrectionInput = {

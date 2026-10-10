@@ -104,7 +104,7 @@ export function useRequestDesignApproval() {
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.management });
       toast.success(
         "Sent for management approval",
-        "Checker → Design Head → Management must decide before production handoff unlocks.",
+        "Management approves next. Production handoff opens after that approval.",
       );
     },
     // Form shows the message inline - avoid a second floating error box.

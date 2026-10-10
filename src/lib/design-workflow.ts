@@ -627,12 +627,12 @@ export function getDesignWorkflowContext(input: {
     return {
       ...empty,
       summary:
-        "Awaiting management decide chain (Sample Checker → Design Head → Management).",
+        "Waiting for Management to approve this design for production.",
       currentStage: "Management approval",
       currentStatus: "approval pending",
       nextAction: "Complete management sign-off",
       waitingMessage:
-        "Open Approvals → Management sign-off. Production handoff unlocks after the final Management approval.",
+        "Open Approvals. Production handoff unlocks after Management approves.",
       nextActionHint: null,
     };
   }

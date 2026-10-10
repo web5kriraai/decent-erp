@@ -130,7 +130,7 @@ export async function listDesignsReadyForSignOff(
   employeeId: number,
   roleCode?: string | null,
 ): Promise<ReadyForSignOffItem[]> {
-  if (roleCode && roleCode !== "DESIGN_HEAD") return [];
+  if (roleCode && roleCode !== "DESIGN_HEAD" && roleCode !== "ADMIN") return [];
 
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
@@ -379,7 +379,7 @@ export async function requestDesignApproval(
 }
 
 /**
- * Checker → Design Head → Management decide chain (spec Stage 9).
+ * Commercial sign-off. The active level is Management; sample and Design Head already decided on the stage pipeline.
  * Final level APPROVED marks design APPROVED and unlocks production ladder.
  */
 export async function submitApproval(

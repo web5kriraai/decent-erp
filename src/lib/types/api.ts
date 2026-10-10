@@ -59,7 +59,14 @@ export type DesignSummary = {
     componentType?: { name: string; code: string };
     specification?: string | null;
   }>;
-  images?: Array<{ id: string; isPrimary: boolean; fileName?: string; mediaKind?: string }>;
+  images?: Array<{
+    id: string;
+    isPrimary: boolean;
+    fileName?: string;
+    mediaKind?: string;
+    downloadUrl?: string | null;
+    uploadedAtUtc?: string;
+  }>;
   tasks?: DesignTask[];
   corrections?: DesignCorrectionDetail[];
   approvals?: DesignApprovalDetail[];
@@ -265,6 +272,7 @@ export type DesignTask = {
     stitchDensity?: number | string | null;
     fileName?: string | null;
     storageKey?: string | null;
+    downloadUrl?: string | null;
     contentType?: string | null;
     uploadedAtUtc?: string | null;
   }>;
@@ -544,6 +552,12 @@ export type CorrectionRecord = {
   reviewerEmployee?: { id: number; name: string; employeeCode: string } | null;
   cycleNo?: number;
   routeToSubProcess?: { id: number; code: string; name: string } | null;
+  routedTask?: {
+    id: string;
+    status: string;
+    assignedEmployee?: { name: string } | null;
+    subProcess?: { name: string } | null;
+  } | null;
 };
 
 export type ApprovalLevel = {

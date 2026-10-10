@@ -11,7 +11,6 @@ import { ListPage } from "@/components/ui/ListPage";
 import { PermissionDenied } from "@/components/PermissionDenied";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TableIconActionGroup } from "@/components/ui/TableIconAction";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Modal,
   ModalFooterActions,
@@ -57,7 +56,6 @@ function isApprovalTab(value: string | null): value is ApprovalTab {
 }
 
 function TabCountBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
   return <span className="action-center-tab-count">{count}</span>;
 }
 
@@ -180,8 +178,6 @@ export function ApprovalsView() {
       </div>
     );
   }
-
-  const showTabChrome = visibleTabs.length > 1;
 
   async function handleManagementSubmit() {
     if (!decideItem || !isApprovalDecisionFormValid(formState, decideItem.costingReady)) return;
@@ -315,7 +311,8 @@ export function ApprovalsView() {
           ]}
           rows={pageRows}
           getRowKey={(row) => row.designId}
-          emptyTitle="No designs ready to request management approval"
+          emptyTitle="No finished design is waiting to be sent"
+          emptyDescription="A design appears here after Final Approval. It stays here until someone sends it to Management."
         />
       );
     }
@@ -397,7 +394,8 @@ export function ApprovalsView() {
           ]}
           rows={pageRows}
           getRowKey={(row) => `${row.designId}-${row.currentLevel.id}`}
-          emptyTitle="No management sign-offs waiting for you"
+          emptyTitle="Nothing is with Management yet"
+          emptyDescription="Finished designs stay under Send to Management until they are sent. Production starts after Management approves."
         />
       );
     }
@@ -466,7 +464,8 @@ export function ApprovalsView() {
         ]}
         rows={pageRows}
         getRowKey={(row) => row.taskId}
-        emptyTitle="No stage approvals waiting"
+        emptyTitle="No stage check is waiting"
+        emptyDescription="These are decisions while a design is still being made: concept, sketch, sample, and final approval."
       />
     );
   }
@@ -498,30 +497,66 @@ export function ApprovalsView() {
         onRefresh={() => hubQuery.refetch()}
         isRefreshing={hubQuery.isFetching}
         beforeTable={
-          showTabChrome ? (
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ApprovalTab)}>
-              <TabsList>
-                {hubTabs.stage ? (
-                  <TabsTrigger value="stage" className="action-center-tab-trigger">
-                    Stage approvals
-                    <TabCountBadge count={stageItems.length} />
-                  </TabsTrigger>
-                ) : null}
-                {hubTabs.ready ? (
-                  <TabsTrigger value="ready" className="action-center-tab-trigger">
-                    Ready to request
-                    <TabCountBadge count={readyItems.length} />
-                  </TabsTrigger>
-                ) : null}
-                {hubTabs.management ? (
-                  <TabsTrigger value="management" className="action-center-tab-trigger">
-                    Management sign-off
-                    <TabCountBadge count={managementItems.length} />
-                  </TabsTrigger>
-                ) : null}
-              </TabsList>
-            </Tabs>
-          ) : undefined
+          <div className="approval-guide-wrap">
+            <div className="approval-guide" role="tablist" aria-label="Approval steps">
+              {(
+                [
+                  hubTabs.stage
+                    ? {
+                        id: "stage" as const,
+                        title: "Stage checks",
+                        text: "While the design is being made",
+                        count: stageItems.length,
+                      }
+                    : null,
+                  hubTabs.ready
+                    ? {
+                        id: "ready" as const,
+                        title: "Send to Management",
+                        text: "Finished work, not sent yet",
+                        count: readyItems.length,
+                      }
+                    : null,
+                  hubTabs.management
+                    ? {
+                        id: "management" as const,
+                        title: "Management decision",
+                        text: "Approve, send back, or reject",
+                        count: managementItems.length,
+                      }
+                    : null,
+                ].filter((step) => step != null)
+              ).map((step, index) => {
+                const selected = activeTab === step.id;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    className={selected ? "approval-guide-card is-current" : "approval-guide-card"}
+                    onClick={() => setActiveTab(step.id)}
+                  >
+                    <span className="approval-guide-step">{index + 1}</span>
+                    <span className="approval-guide-copy">
+                      <span className="approval-guide-title">
+                        {step.title}
+                        <TabCountBadge count={step.count} />
+                      </span>
+                      <span className="approval-guide-text">{step.text}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="approval-guide-note">
+              {activeTab === "ready"
+                ? "These designs finished every stage. Send one to Management. It is not in Stage checks."
+                : activeTab === "management"
+                  ? "Management decides here. Production starts after an approval."
+                  : "These are concept, sketch, sample, and final approval while work is still going."}
+            </p>
+          </div>
         }
         query={{
           isLoading: hubQuery.isLoading,

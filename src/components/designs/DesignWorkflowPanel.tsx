@@ -202,6 +202,11 @@ export function DesignWorkflowPanel({
                         Worked {formatWorkingTotals(stageActiveSeconds[index] ?? 0)}
                       </p>
                     ) : null}
+                    {step.isDone && step.task.completedAt ? (
+                      <p className="workflow-step-meta">
+                        Submitted {formatTaskStamp(step.task.completedAt)}
+                      </p>
+                    ) : null}
                     {isMachineOutputTask(step.task.subProcess?.code) ? (
                       <p className="workflow-step-meta">
                         {formatMachineOutputSummary(step.task.artifacts?.[0]) ??

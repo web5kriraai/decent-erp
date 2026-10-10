@@ -74,63 +74,47 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
     setDescription("");
   }
 
-  const money = (n: number) => (hasEntries && n > 0 ? inr(n) : "Not entered");
+  const figure = (n: number) => (hasEntries ? inr(n) : "Not entered");
+  const costTiles = [
+    { label: "Employee", value: figure(employeeEst) },
+    { label: "Material", value: figure(materialEst) },
+    { label: "Machine", value: figure(machineEst) },
+    { label: "Correction", value: figure(correctionCost) },
+    { label: "Total", value: hasEntries ? inr(total) : "Not entered" },
+  ];
 
   return (
     <div className="space-y-4">
       <AppCard
         title="Development cost"
-        description="Money spent to develop this design: employee time, cloth and trims, machine time, and extra cost when a sample is corrected. Margin compares that total with the baseline estimate."
+        description="Entered cost for this design. Each type is part of the total. Margin appears when a baseline estimate is set."
       >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div>
-            <p className="m-0 mb-2 text-sm font-semibold text-foreground">Estimated</p>
-            <dl className="design-detail-facts">
-              <div>
-                <dt>Employee</dt>
-                <dd>{money(employeeEst)}</dd>
-              </div>
-              <div>
-                <dt>Material</dt>
-                <dd>{money(materialEst)}</dd>
-              </div>
-              <div>
-                <dt>Machine</dt>
-                <dd>{money(machineEst)}</dd>
-              </div>
-              <div>
-                <dt>Baseline</dt>
-                <dd>{estimated != null ? inr(estimated) : "Not set"}</dd>
-              </div>
-            </dl>
-          </div>
-          <div>
-            <p className="m-0 mb-2 text-sm font-semibold text-foreground">Actual</p>
-            <dl className="design-detail-facts">
-              <div>
-                <dt>Total cost</dt>
-                <dd>{hasEntries ? inr(total) : "Not entered"}</dd>
-              </div>
-              <div>
-                <dt>Correction cost</dt>
-                <dd>{hasEntries && correctionCost > 0 ? inr(correctionCost) : "Not entered"}</dd>
-              </div>
-              <div>
-                <dt>Margin</dt>
-                <dd>{margin != null ? `${margin}%` : "Not entered"}</dd>
-              </div>
-            </dl>
-          </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {costTiles.map((tile) => (
+            <div className="handoff-tile" key={tile.label}>
+              <span className="handoff-tile-label">{tile.label}</span>
+              <p className="handoff-metric-value m-0">{tile.value}</p>
+            </div>
+          ))}
         </div>
-        {!hasEntries ? (
-          <p className="m-0 mt-3 text-sm text-muted-foreground">
-            Nothing has been costed yet. Figures appear when work is logged, or when the costing team adds an entry.
-          </p>
-        ) : null}
+        <p className="m-0 mt-3 text-sm text-muted-foreground">
+          {estimated != null
+            ? `Baseline ${inr(estimated)}. Margin ${margin != null ? `${margin}%` : "not calculated"}.`
+            : "No baseline estimate is set, so margin is not calculated."}
+        </p>
       </AppCard>
 
-      {hasEntries ? (
-        <AppCard title="Cost entries" flush>
+      <AppCard
+        title="Cost entries"
+        flush
+        headerAction={
+          canCost && !open ? (
+            <AppButton type="button" appVariant="primary" size="sm" onClick={() => setOpen(true)}>
+              Add cost entry
+            </AppButton>
+          ) : null
+        }
+      >
           <DataTable<DesignCostRecord & Record<string, unknown>>
             flush
             columns={[
@@ -159,19 +143,12 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
             rows={entries as (DesignCostRecord & Record<string, unknown>)[]}
             getRowKey={(row) => row.id}
             emptyTitle="No cost entries"
+            emptyDescription="Add employee, material, machine, or correction cost."
           />
         </AppCard>
-      ) : null}
-
-      {canCost && !open ? (
-        <AppButton type="button" appVariant="primary" size="sm" onClick={() => setOpen(true)}>
-          Add Cost Entry
-        </AppButton>
-      ) : null}
 
       {canCost && open ? (
-        <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3 sm:p-4">
-          <h3 className="text-sm font-semibold">Add Cost Entry</h3>
+        <AppCard title="Add cost entry">
           <ModalForm className="gap-3">
             <ModalFormGrid>
               <FormSelect
@@ -216,7 +193,7 @@ export function CostingPanel({ design }: { design: DesignSummary }) {
               {addCost.isPending ? "Saving…" : "Save"}
             </AppButton>
           </div>
-        </div>
+        </AppCard>
       ) : null}
     </div>
   );

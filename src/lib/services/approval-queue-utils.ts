@@ -44,6 +44,7 @@ export function readyForSignOffScopeFilter(
   employeeId: number,
   roleCode: string | null | undefined,
 ): { designHeadEmployeeId?: number } {
+  if (roleCode === "ADMIN") return {};
   if (roleCode === "DESIGN_HEAD") {
     return { designHeadEmployeeId: employeeId };
   }

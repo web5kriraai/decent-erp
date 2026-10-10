@@ -33,14 +33,14 @@ export function canRoleActOnManagementLevel(
 }
 
 export function canRoleSeeReadyForSignOff(roleCode: string | null | undefined): boolean {
-  return roleCode === ROLE_CODES.DESIGN_HEAD;
+  return roleCode === ROLE_CODES.DESIGN_HEAD || roleCode === ROLE_CODES.ADMIN;
 }
 
-/** Roles that participate in the Checker → Design Head → Management decide chain. */
+/** Commercial sign-off is Management only. Sample and Design Head already decided on the stage pipeline. */
 export function canRoleSeeManagementSignOff(roleCode: string | null | undefined): boolean {
   if (!roleCode) return false;
   if (roleCode === ROLE_CODES.ADMIN) return true;
-  return Object.values(MANAGEMENT_LEVEL_OWNER_ROLE).includes(roleCode);
+  return roleCode === ROLE_CODES.MANAGEMENT;
 }
 
 /** Filter pending management-queue items to levels this role may decide. */

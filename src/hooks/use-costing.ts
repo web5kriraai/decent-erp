@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { DesignCostRecord, DesignCostSummary } from "@/lib/types/api";
 import { useApiToast } from "@/components/ui/ToastProvider";
@@ -34,5 +34,24 @@ export function useAddCostEntry(designId: string) {
       toast.success("Cost entry added");
     },
     onError: (error) => toast.errorFromApi(error, "Could not add cost"),
+  });
+}
+
+export function useSaveExpectedMrp(designId: string) {
+  const queryClient = useQueryClient();
+  const toast = useApiToast();
+
+  return useMutation({
+    mutationFn: (expectedMrp: number) =>
+      apiPatch<{ id: string; expectedMrp: number | null }>(
+        `/api/designs/${designId}/costs`,
+        { expectedMrp },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.list(designId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.designs.detail(designId) });
+      toast.success("Expected MRP saved");
+    },
+    onError: (error) => toast.errorFromApi(error, "Could not save Expected MRP"),
   });
 }

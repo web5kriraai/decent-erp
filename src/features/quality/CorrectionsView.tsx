@@ -22,6 +22,7 @@ import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { CorrectionRecord } from "@/lib/types/api";
 import {
+  correctionReworkStillOpen,
   getAllowedCorrectionStatusOptions,
   normalizeCorrectionStatus,
   type CorrectionWorkflowStatus,
@@ -35,19 +36,6 @@ import {
 function isOpenStatus(status: string): boolean {
   const s = normalizeCorrectionStatus(status);
   return s !== "DONE" && s !== "REJECTED";
-}
-
-function formatWhen(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      day: "2-digit",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
 }
 
 function correctionSearchText(row: CorrectionRecord) {
@@ -108,17 +96,6 @@ export function CorrectionsView() {
     return { open, mistakes, improvements, extraCost };
   }, [rows]);
 
-  const timeline = useMemo(
-    () =>
-      [...rows]
-        .sort(
-          (a, b) =>
-            new Date(b.createdAtUtc).getTime() - new Date(a.createdAtUtc).getTime(),
-        )
-        .slice(0, 8),
-    [rows],
-  );
-
   const getSearchText = useCallback(correctionSearchText, []);
 
   const list = useClientList({
@@ -134,11 +111,12 @@ export function CorrectionsView() {
     );
   }
 
-  async function handleStatusChange(row: CorrectionRecord, status: string) {
+  function handleStatusChange(row: CorrectionRecord, status: string) {
     const next = normalizeCorrectionStatus(status) as CorrectionWorkflowStatus;
     const current = normalizeCorrectionStatus(row.status);
     if (current === next) return;
-    await updateStatus.mutateAsync({ id: row.id, status: next });
+    if (next === "DONE" && correctionReworkStillOpen(row)) return;
+    updateStatus.mutate({ id: row.id, status: next });
   }
 
   function handlePageAction(action: ResolvedWorkflowAction) {
@@ -151,7 +129,7 @@ export function CorrectionsView() {
     <ListPage
       className="corrections-page"
       title="Correction Management"
-        subtitle="Track every correction, mistake owner, improvement and cost impact"
+        subtitle="Rework on a design: who owns it, and whether it is a mistake or an improvement."
         actions={
           <ContextualActionsPanel
             actions={pageActions}
@@ -184,51 +162,29 @@ export function CorrectionsView() {
               <StatCard
                 label="Open Corrections"
                 value={stats.open}
-                trend={`${rows.length} total`}
-                tone={stats.open > 0 ? "warning" : "success"}
+                trend={stats.open > 0 ? "Still to finish" : "None waiting"}
+                tone={stats.open > 0 ? "warning" : "default"}
               />
               <StatCard
                 label="Mistakes"
                 value={stats.mistakes}
-                trend="Rating applies"
-                tone="danger"
+                trend="Affects the person's rating"
+                tone={stats.mistakes > 0 ? "danger" : "default"}
               />
               <StatCard
                 label="Improvements"
                 value={stats.improvements}
-                trend="No penalty"
-                tone="accent"
+                trend="Does not affect the rating"
+                tone={stats.improvements > 0 ? "accent" : "default"}
               />
               <StatCard
                 label="Extra Cost"
                 value={`₹${stats.extraCost.toLocaleString(undefined, {
                   maximumFractionDigits: 0,
                 })}`}
-                trend="Logged impact"
+                trend="Added cost from rework"
               />
             </div>
-
-            {timeline.length > 0 ? (
-              <div className="stack-section-sm">
-                <p className="text-sm font-medium m-0">Recent activity</p>
-                <ul className="event-timeline">
-                  {timeline.map((row) => (
-                    <li key={row.id} className="event-timeline-item">
-                      <span className="event-timeline-dot" aria-hidden />
-                      <p className="event-timeline-title">
-                        COR-{row.id.slice(-4)} -{" "}
-                        {row.rootCause?.trim() ||
-                          row.correctionType.replace(/_/g, " ")}
-                      </p>
-                      <p className="event-timeline-meta">
-                        {formatWhen(row.createdAtUtc)} · {row.raisedBy.name} ·{" "}
-                        {row.design.ideaRef}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
           </>
         }
         query={{
@@ -274,9 +230,18 @@ export function CorrectionsView() {
             {
               key: "issue",
               header: "Issue",
-              render: (row) =>
-                row.rootCause?.trim() ||
-                `${row.task.process.name} → ${row.task.subProcess.name}`,
+              render: (row) => {
+                const note = row.rootCause?.trim();
+                const stage = row.task.subProcess?.name ?? row.task.process?.name ?? "Stage";
+                return (
+                  <div className="min-w-0">
+                    <p className="m-0 text-sm">{stage}</p>
+                    {note ? (
+                      <p className="m-0 text-xs text-muted-foreground">{note}</p>
+                    ) : null}
+                  </div>
+                );
+              },
             },
             {
               key: "responsibleEmployee",
@@ -287,14 +252,18 @@ export function CorrectionsView() {
             {
               key: "correctionType",
               header: "Type",
-              render: (row) => row.correctionType.replace(/_/g, " "),
+              render: (row) =>
+                row.correctionType
+                  .toLowerCase()
+                  .replace(/_/g, " ")
+                  .replace(/^\w/, (letter) => letter.toUpperCase()),
             },
             {
               key: "extraCost",
               header: "Cost",
               align: "right",
               render: (row) =>
-                row.extraCost != null ? Number(row.extraCost).toFixed(0) : "-",
+                row.extraCost != null ? `₹${Number(row.extraCost).toFixed(0)}` : "-",
             },
             {
               key: "cycleNo",
@@ -306,19 +275,39 @@ export function CorrectionsView() {
               header: "Status",
               render: (row) => {
                 const displayStatus = normalizeCorrectionStatus(row.status);
-                const options = getAllowedCorrectionStatusOptions(row.status);
+                const reworkOpen = correctionReworkStillOpen(row);
+                const options = getAllowedCorrectionStatusOptions(row.status).filter(
+                  (status) => !(reworkOpen && status === "DONE"),
+                );
                 const terminal =
                   displayStatus === "DONE" || displayStatus === "REJECTED";
+                const reworkNote = reworkOpen ? (
+                  <p className="m-0 text-xs text-muted-foreground">
+                    Rework still open
+                    {row.routedTask?.subProcess?.name
+                      ? ` on ${row.routedTask.subProcess.name}`
+                      : ""}
+                    {row.routedTask?.assignedEmployee?.name
+                      ? ` with ${row.routedTask.assignedEmployee.name}`
+                      : ""}
+                    .
+                  </p>
+                ) : null;
+                if (terminal || options.length <= 1) {
+                  return (
+                    <div className="min-w-0">
+                      <StatusBadge status={displayStatus} />
+                      {reworkNote}
+                    </div>
+                  );
+                }
                 return (
-                  <div className="vstack vstack--tight">
-                    <StatusBadge status={displayStatus} />
+                  <div className="min-w-0">
                     <SearchSelect
                       size="compact"
                       searchable={false}
                       value={displayStatus}
-                      disabled={
-                        updateStatus.isPending || terminal || options.length <= 1
-                      }
+                      disabled={updateStatus.isPending}
                       onValueChange={(next) => handleStatusChange(row, next)}
                       aria-label={`Status for correction ${row.id}`}
                       options={options.map((s) => ({
@@ -326,6 +315,7 @@ export function CorrectionsView() {
                         label: s.replace(/_/g, " "),
                       }))}
                     />
+                    {reworkNote}
                   </div>
                 );
               },

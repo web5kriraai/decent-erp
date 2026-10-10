@@ -655,7 +655,7 @@ export async function submitApprovalAtLevel(
   });
 }
 
-/** Design Head request → Checker → Design Head → Management decide chain (spec Stage 9). */
+/** Design Head request, then each active approval level. Commercial gate is Management. */
 export async function submitManagementApprovals(page: Page, designId: string) {
   await requestDesignApprovalIfNeeded(page, designId);
 

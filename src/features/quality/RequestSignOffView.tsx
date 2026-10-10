@@ -127,7 +127,7 @@ export function RequestSignOffView({ designId }: RequestSignOffViewProps) {
       status: design.status,
       nextStepHint: costingBlocked
         ? "Complete costing first"
-        : "Submit to Checker → Design Head → Management chain",
+        : "Send to Management. Production starts after Management approves.",
       description: undefined,
       priorStage: completed
         ? {

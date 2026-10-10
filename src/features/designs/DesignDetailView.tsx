@@ -15,6 +15,7 @@ import { useDesign } from "@/hooks/use-designs";
 import { useDesignCosts } from "@/hooks/use-costing";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
 import { DesignCompletionSummaryPanel, canViewDesignCompletionSummary } from "@/features/designs/DesignCompletionSummaryPanel";
+import { RoleSubmissionPanel } from "@/features/designs/RoleSubmissionPanel";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
 import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
 import { DesignDetailTabsBody } from "@/features/designs/DesignDetailModal";
@@ -224,6 +225,8 @@ export function DesignDetailView({
                 </>
               }
             />
+
+            <RoleSubmissionPanel design={designQuery.data} />
 
             {designQuery.data.status === "APPROVAL_PENDING" ? (
               <ManagementApprovalCard
