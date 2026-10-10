@@ -4401,6 +4401,66 @@ a.sidebar-link--active:hover {
 
 .login-error-alert {
   margin-bottom: 1rem;
+  border-color: color-mix(in srgb, var(--color-danger) 20%, transparent);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.login-password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-password-field__input {
+  padding-right: 2.5rem;
+}
+
+.login-password-toggle {
+  position: absolute;
+  right: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.login-password-toggle:hover {
+  color: var(--foreground);
+}
+
+.login-password-toggle:focus {
+  outline: none;
+}
+
+.login-password-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.login-remember-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.login-remember-row__input {
+  margin-top: 0.15rem;
+  accent-color: var(--primary);
+}
+
+.login-remember-row__label {
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  color: var(--foreground);
 }
 
 .error-state-card {

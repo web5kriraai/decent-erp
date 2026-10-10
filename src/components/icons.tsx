@@ -20,6 +20,7 @@ import {
   Clock3,
   Copy,
   Eye,
+  EyeOff,
   Factory,
   File,
   FileBarChart,
@@ -153,6 +154,7 @@ export const IconSend = createIcon(Send, "IconSend");
 export const IconListTree = createIcon(ListTree, "IconListTree");
 export const IconGripVertical = createIcon(GripVertical, "IconGripVertical");
 export const IconEye = createIcon(Eye, "IconEye");
+export const IconEyeOff = createIcon(EyeOff, "IconEyeOff");
 export const IconArrowRight = createIcon(ArrowRight, "IconArrowRight");
 export const IconRefreshCw = createIcon(RefreshCw, "IconRefreshCw");
 

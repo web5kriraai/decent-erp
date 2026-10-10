@@ -28,6 +28,7 @@ declare module "next-auth" {
     permissions: string[];
     companyId: number;
     locationId: number | null;
+    rememberMe?: boolean;
     emailVerified?: Date | null;
   }
 }
@@ -79,9 +80,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        remember: { label: "Remember", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+        const rememberMe = String(credentials.remember ?? "true") === "true";
 
         const employee = await prisma.employee.findUnique({
           where: { email: String(credentials.email) },
@@ -107,6 +110,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           permissions,
           companyId: employee.companyId,
           locationId: employee.locationId,
+          rememberMe,
           emailVerified: null,
         };
       },

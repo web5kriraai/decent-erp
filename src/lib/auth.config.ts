@@ -1,12 +1,21 @@
 import type { NextAuthConfig } from "next-auth";
 import { ROUTES } from "@/config/routes";
+import {
+  SESSION_REMEMBER_MAX_AGE_SECONDS,
+  SESSION_UPDATE_AGE_SECONDS,
+  sessionMaxAgeForRemember,
+} from "@/lib/auth-session";
 
 /**
  * Edge-safe Auth.js config - no Prisma/DB imports.
  * Used by middleware and merged into the full auth setup in auth.ts.
  */
 export const authConfig = {
-  session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
+  session: {
+    strategy: "jwt",
+    maxAge: SESSION_REMEMBER_MAX_AGE_SECONDS,
+    updateAge: SESSION_UPDATE_AGE_SECONDS,
+  },
   trustHost: true,
   pages: {
     signIn: ROUTES.login,
@@ -20,6 +29,9 @@ export const authConfig = {
         token.permissions = user.permissions;
         token.companyId = user.companyId;
         token.locationId = user.locationId;
+        const rememberMe = user.rememberMe === true;
+        const maxAgeSeconds = sessionMaxAgeForRemember(rememberMe);
+        token.exp = Math.floor(Date.now() / 1000) + maxAgeSeconds;
       }
 
       // Client calls session.update({ permissions, roleCode }) after /api/auth/refresh-session.

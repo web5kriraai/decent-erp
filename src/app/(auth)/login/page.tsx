@@ -6,21 +6,16 @@ import { useState } from "react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { IconCheck } from "@/components/icons";
 import { AppButton } from "@/components/ui/AppButton";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordField } from "@/components/ui/PasswordField";
 import { ROUTES } from "@/config/routes";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -32,6 +27,7 @@ export default function LoginPage() {
       const result = await signIn("credentials", {
         email,
         password,
+        remember: rememberMe ? "true" : "false",
         redirect: false,
       });
       if (result?.error) {
@@ -42,18 +38,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function applyDemoRole(value: string) {
-    const option = demoOptions.find((o) => o.email === value);
-    if (!option) {
-      setEmail("");
-      setPassword("");
-      return;
-    }
-    setEmail(option.email);
-    setPassword(option.password);
-    setError("");
   }
 
   return (
@@ -86,53 +70,54 @@ export default function LoginPage() {
       </div>
 
       <div className="login-form-panel">
-        <Card className="w-full max-w-md shadow-md mx-auto">
-          <CardHeader className="space-y-1">
-            <div className="login-form-logo mb-3 flex justify-center">
-              <BrandLogo variant="mark" size="md" priority />
-            </div>
-            <CardTitle className="text-[length:var(--font-size-h1)]">Sign in</CardTitle>
-            <CardDescription>Design Management Module</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {error ? (
-              <div
-                className="mb-4 rounded-lg border border-[var(--color-danger)]/20 bg-[var(--color-danger-bg)] px-3 py-2 text-sm text-[var(--color-danger)]"
-                role="alert"
-              >
-                {error}
-              </div>
-            ) : null}
+        <div className="login-form-card">
+          <div className="login-form-logo mb-3 flex justify-center">
+            <BrandLogo variant="mark" size="md" priority />
+          </div>
+          <h2 className="text-[length:var(--font-size-h1)] font-semibold">Sign in</h2>
+          <p className="login-form-subtitle text-sm">Design Management Module</p>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
-              <AppButton type="submit" size="lg" className="w-full" disabled={loading}>
-                {loading ? "Signing in…" : "Sign in to workspace"}
-              </AppButton>
-            </form>
-          </CardContent>
-        </Card>
+          {error ? (
+            <div className="login-error-alert rounded-lg border px-3 py-2 text-sm" role="alert">
+              {error}
+            </div>
+          ) : null}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                required
+              />
+            </div>
+            <PasswordField
+              id="password"
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              autoComplete="current-password"
+              required
+            />
+            <label className="login-remember-row" htmlFor="rememberMe">
+              <input
+                id="rememberMe"
+                type="checkbox"
+                className="login-remember-row__input"
+                checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)}
+              />
+              <span className="login-remember-row__label">Keep me signed in on this device</span>
+            </label>
+            <AppButton type="submit" size="lg" className="w-full" disabled={loading}>
+              {loading ? "Signing in…" : "Sign in to workspace"}
+            </AppButton>
+          </form>
+        </div>
       </div>
     </div>
   );
