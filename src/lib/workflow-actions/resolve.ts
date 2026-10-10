@@ -18,7 +18,7 @@ import {
   WORKFLOW_ACTION_CODES,
   type ResolvedWorkflowAction,
 } from "@/lib/workflow-actions/types";
-import { correctionReworkStillOpen } from "@/lib/services/correction-queue-utils";
+import { correctionReworkStillOpen } from "@/lib/correction-rework";
 import type { CorrectionRecord } from "@/lib/types/api";
 
 const SATISFIED = new Set(["COMPLETED", "CHECKING", "CANCELLED"]);

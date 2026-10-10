@@ -14,7 +14,9 @@ import { TableIconActionGroup } from "@/components/ui/TableIconAction";
 import {
   Modal,
   ModalFooterActions,
+  ModalForm,
 } from "@/components/ui/Modal";
+import { FormSelect } from "@/components/ui/form-select";
 import {
   ApprovalDecisionForm,
   defaultApprovalDecisionFormState,
@@ -29,8 +31,29 @@ import { apiPost } from "@/lib/api-client";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { useEmployeeOptions } from "@/hooks/use-corrections";
 import { parseApprovalRequestPackage } from "@/lib/approval-request-package";
-import { canRoleAccessApprovalsHub, getApprovalHubTabsForRole } from "@/lib/stage-approval-rbac";
+import { canRoleAccessApprovalsHub, getApprovalHubTabsForRole, getStageApprovalOwnerRole } from "@/lib/stage-approval-rbac";
+import { hasAssignManualPermission, PERMISSIONS } from "@/lib/permissions";
+import { useAssignTask } from "@/hooks/use-tasks";
 import type { PendingApprovalQueueItem } from "@/lib/types/api";
+
+function DesignNameCell({
+  name,
+  ideaRef,
+  href,
+}: {
+  name: string;
+  ideaRef: string;
+  href: string;
+}) {
+  return (
+    <Link href={href} className="concept-board-design">
+      <span className="concept-board-line">
+        <span className="concept-board-line__title data-table-link">{name}</span>
+        <span className="data-table-subtext concept-board-line__meta">{ideaRef}</span>
+      </span>
+    </Link>
+  );
+}
 
 type ApprovalTab = "stage" | "ready" | "management";
 
@@ -40,6 +63,9 @@ type StageApprovalRow = {
   ideaRef: string;
   collectionName: string;
   stageName: string;
+  stageCode: string;
+  assigneeName: string | null;
+  ownerRoleCode?: string | null;
   workStageName: string | null;
   status: string;
 };
@@ -69,7 +95,7 @@ function formatCompletedAt(value: string | null) {
 }
 
 function stageSearchText(row: StageApprovalRow) {
-  return [row.ideaRef, row.collectionName, row.stageName, row.workStageName, row.status]
+  return [row.ideaRef, row.collectionName, row.stageName, row.assigneeName, row.workStageName, row.status]
     .filter(Boolean)
     .join(" ");
 }
@@ -89,6 +115,70 @@ function managementSearchText(row: PendingApprovalQueueItem) {
     .join(" ");
 }
 
+function StageAssignModal({
+  row,
+  employees,
+  employeeId,
+  onEmployeeId,
+  pending,
+  onClose,
+  onAssign,
+}: {
+  row: StageApprovalRow | null;
+  employees: Array<{ id: number; name: string; role: { code: string; name: string } }>;
+  employeeId: string | null;
+  onEmployeeId: (value: string | null) => void;
+  pending: boolean;
+  onClose: () => void;
+  onAssign: () => Promise<void>;
+}) {
+  const ownerRole = row ? getStageApprovalOwnerRole(row.stageCode, row.ownerRoleCode) : null;
+  const options = employees.filter((employee) => !ownerRole || employee.role.code === ownerRole);
+  return (
+    <Modal
+      open={!!row}
+      title={row ? `Assign ${row.stageName}` : "Assign"}
+      size="sm"
+      onClose={onClose}
+      footer={
+        <ModalFooterActions>
+          <AppButton type="button" appVariant="outline" onClick={onClose} disabled={pending}>
+            Cancel
+          </AppButton>
+          <AppButton
+            type="button"
+            appVariant="primary"
+            disabled={pending || !employeeId}
+            onClick={() => void onAssign()}
+          >
+            {pending ? "Assigning…" : "Assign"}
+          </AppButton>
+        </ModalFooterActions>
+      }
+    >
+      {row ? (
+        <ModalForm>
+          <p className="m-0 text-sm">
+            {row.collectionName} needs a person for {row.stageName}. The list is only people who hold that stage role.
+          </p>
+          <FormSelect
+            id="stage-assign-employee"
+            label="Person"
+            required
+            value={employeeId}
+            onValueChange={onEmployeeId}
+            placeholder={options.length ? "Choose a person…" : "No one in this role"}
+            options={options.map((employee) => ({
+              value: String(employee.id),
+              label: employee.name,
+            }))}
+          />
+        </ModalForm>
+      ) : null}
+    </Modal>
+  );
+}
+
 export function ApprovalsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,7 +196,14 @@ export function ApprovalsView() {
   const [formState, setFormState] = useState<ApprovalDecisionFormState>(
     defaultApprovalDecisionFormState(),
   );
-  const employeesQuery = useEmployeeOptions(!!decideItem);
+  const permissions = session?.user?.permissions ?? [];
+  const canAssign =
+    hasAssignManualPermission(permissions) ||
+    permissions.includes(PERMISSIONS.DESIGN_REASSIGN);
+  const [assignRow, setAssignRow] = useState<StageApprovalRow | null>(null);
+  const [assignEmployeeId, setAssignEmployeeId] = useState<string | null>(null);
+  const assignTask = useAssignTask();
+  const employeesQuery = useEmployeeOptions(!!decideItem || !!assignRow);
 
   const stageItems = hubQuery.data?.stageApprovals ?? [];
   const readyItems = hubQuery.data?.readyForSignOff ?? [];
@@ -278,12 +375,13 @@ export function ApprovalsView() {
               key: "design",
               header: "Design",
               render: (row) => (
-                <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
-                  {row.ideaRef}
-                </Link>
+                <DesignNameCell
+                  name={row.collectionName}
+                  ideaRef={row.ideaRef}
+                  href={ROUTES.designs.detail(row.designId)}
+                />
               ),
             },
-            { key: "collection", header: "Collection", render: (row) => row.collectionName },
             {
               key: "completed",
               header: "Workflow completed",
@@ -348,15 +446,12 @@ export function ApprovalsView() {
               key: "design",
               header: "Design",
               render: (row) => (
-                <Link href={ROUTES.designs.detail(row.designId)} className="data-table-link">
-                  {row.design.ideaRef}
-                </Link>
+                <DesignNameCell
+                  name={row.design.collectionName}
+                  ideaRef={row.design.ideaRef}
+                  href={ROUTES.designs.detail(row.designId)}
+                />
               ),
-            },
-            {
-              key: "collection",
-              header: "Collection",
-              render: (row) => row.design.collectionName,
             },
             {
               key: "level",
@@ -416,14 +511,32 @@ export function ApprovalsView() {
                   intent: "task",
                 }) ?? ROUTES.designs.detail(row.designId);
               return (
-                <Link href={href} className="data-table-link">
-                  {row.ideaRef}
-                </Link>
+                <DesignNameCell name={row.collectionName} ideaRef={row.ideaRef} href={href} />
               );
             },
           },
-          { key: "collection", header: "Collection", render: (row) => row.collectionName },
           { key: "stage", header: "Stage", render: (row) => row.stageName },
+          {
+            key: "assignee",
+            header: "With",
+            render: (row) => {
+              if (row.assigneeName) return row.assigneeName;
+              if (!canAssign) return "Not assigned";
+              return (
+                <AppButton
+                  type="button"
+                  appVariant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAssignEmployeeId(null);
+                    setAssignRow(row);
+                  }}
+                >
+                  Assign person
+                </AppButton>
+              );
+            },
+          },
           {
             key: "work",
             header: "Work submitted",
@@ -573,6 +686,7 @@ export function ApprovalsView() {
           pageSizeSelectId: `approvals-${activeTab}-page-size`,
         }}
         overlays={
+          <>
           <Modal
             open={!!decideItem}
             title={decideItem ? `Decide ${decideItem.design.ideaRef}` : "Decide"}
@@ -621,6 +735,27 @@ export function ApprovalsView() {
               />
             ) : null}
           </Modal>
+          <StageAssignModal
+            row={assignRow}
+            employees={employeesQuery.data ?? []}
+            employeeId={assignEmployeeId}
+            onEmployeeId={setAssignEmployeeId}
+            pending={assignTask.isPending}
+            onClose={() => {
+              setAssignRow(null);
+              setAssignEmployeeId(null);
+            }}
+            onAssign={async () => {
+              if (!assignRow || !assignEmployeeId) return;
+              await assignTask.mutateAsync({
+                taskId: assignRow.taskId,
+                employeeId: Number(assignEmployeeId),
+              });
+              setAssignRow(null);
+              setAssignEmployeeId(null);
+            }}
+          />
+          </>
         }
       >
         {tableContent}

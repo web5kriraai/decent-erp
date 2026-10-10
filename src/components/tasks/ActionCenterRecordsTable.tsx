@@ -159,7 +159,7 @@ export function ActionCenterRecordsTable(props: ActionCenterRecordsTableProps) {
           columns={[
             {
               key: "collection",
-              header: "Collection",
+              header: "Design",
               render: (row) => (
                 <div className="action-center-records__design">
                   <span className="font-medium text-foreground">{row.collection}</span>

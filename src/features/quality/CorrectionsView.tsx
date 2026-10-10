@@ -21,8 +21,8 @@ import { useClientList } from "@/hooks/use-client-list";
 import { ROUTES } from "@/config/routes";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { CorrectionRecord } from "@/lib/types/api";
+import { correctionReworkStillOpen } from "@/lib/correction-rework";
 import {
-  correctionReworkStillOpen,
   getAllowedCorrectionStatusOptions,
   normalizeCorrectionStatus,
   type CorrectionWorkflowStatus,
@@ -32,6 +32,17 @@ import {
   WORKFLOW_ACTION_CODES,
   type ResolvedWorkflowAction,
 } from "@/lib/workflow-actions";
+
+const STATUS_LABELS: Record<string, string> = {
+  OPEN: "Open",
+  IN_PROGRESS: "In progress",
+  DONE: "Done",
+  REJECTED: "Rejected",
+};
+
+function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+}
 
 function isOpenStatus(status: string): boolean {
   const s = normalizeCorrectionStatus(status);
@@ -209,23 +220,24 @@ export function CorrectionsView() {
           flush
           columns={[
             {
-              key: "id",
-              header: "No.",
-              render: (row) => (
-                <span className="font-medium">COR-{row.id.slice(-4)}</span>
-              ),
-            },
-            {
               key: "design",
               header: "Design",
-              render: (row) => (
-                <Link
-                  href={ROUTES.designs.detail(row.design.id)}
-                  className="data-table-link"
-                >
-                  {row.design.ideaRef}
-                </Link>
-              ),
+              render: (row) => {
+                const cycle = row.cycleNo != null && row.cycleNo > 1 ? `Cycle ${row.cycleNo}` : null;
+                const meta = [`COR-${row.id.slice(-4)}`, row.design.ideaRef, cycle]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <Link href={ROUTES.designs.detail(row.design.id)} className="concept-board-design">
+                    <span className="concept-board-line" title={`${row.design.collectionName} · ${meta}`}>
+                      <span className="concept-board-line__title data-table-link">
+                        {row.design.collectionName}
+                      </span>
+                      <span className="data-table-subtext concept-board-line__meta">{meta}</span>
+                    </span>
+                  </Link>
+                );
+              },
             },
             {
               key: "issue",
@@ -234,10 +246,10 @@ export function CorrectionsView() {
                 const note = row.rootCause?.trim();
                 const stage = row.task.subProcess?.name ?? row.task.process?.name ?? "Stage";
                 return (
-                  <div className="min-w-0">
-                    <p className="m-0 text-sm">{stage}</p>
+                  <div className="concept-board-line" title={note ? `${stage} · ${note}` : stage}>
+                    <span className="concept-board-line__title">{stage}</span>
                     {note ? (
-                      <p className="m-0 text-xs text-muted-foreground">{note}</p>
+                      <span className="data-table-subtext concept-board-line__meta">{note}</span>
                     ) : null}
                   </div>
                 );
@@ -246,8 +258,11 @@ export function CorrectionsView() {
             {
               key: "responsibleEmployee",
               header: "Person",
-              render: (row) =>
-                row.responsibleEmployee?.name ?? row.raisedBy.name,
+              render: (row) => (
+                <span className="concept-board-line__title">
+                  {row.responsibleEmployee?.name ?? row.raisedBy.name}
+                </span>
+              ),
             },
             {
               key: "correctionType",
@@ -266,11 +281,6 @@ export function CorrectionsView() {
                 row.extraCost != null ? `₹${Number(row.extraCost).toFixed(0)}` : "-",
             },
             {
-              key: "cycleNo",
-              header: "Cycle",
-              render: (row) => (row.cycleNo != null ? String(row.cycleNo) : "1"),
-            },
-            {
               key: "status",
               header: "Status",
               render: (row) => {
@@ -281,41 +291,36 @@ export function CorrectionsView() {
                 );
                 const terminal =
                   displayStatus === "DONE" || displayStatus === "REJECTED";
-                const reworkNote = reworkOpen ? (
-                  <p className="m-0 text-xs text-muted-foreground">
-                    Rework still open
-                    {row.routedTask?.subProcess?.name
-                      ? ` on ${row.routedTask.subProcess.name}`
-                      : ""}
-                    {row.routedTask?.assignedEmployee?.name
-                      ? ` with ${row.routedTask.assignedEmployee.name}`
-                      : ""}
-                    .
-                  </p>
-                ) : null;
-                if (terminal || options.length <= 1) {
-                  return (
-                    <div className="min-w-0">
-                      <StatusBadge status={displayStatus} />
-                      {reworkNote}
-                    </div>
-                  );
-                }
+                const reworkNote = reworkOpen
+                  ? [
+                      "Waiting",
+                      row.routedTask?.subProcess?.name,
+                      row.routedTask?.assignedEmployee?.name,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : null;
                 return (
-                  <div className="min-w-0">
-                    <SearchSelect
-                      size="compact"
-                      searchable={false}
-                      value={displayStatus}
-                      disabled={updateStatus.isPending}
-                      onValueChange={(next) => handleStatusChange(row, next)}
-                      aria-label={`Status for correction ${row.id}`}
-                      options={options.map((s) => ({
-                        value: s,
-                        label: s.replace(/_/g, " "),
-                      }))}
-                    />
-                    {reworkNote}
+                  <div className="concept-board-line corrections-status" title={reworkNote ?? statusLabel(displayStatus)}>
+                    {terminal || options.length <= 1 ? (
+                      <StatusBadge status={displayStatus} label={statusLabel(displayStatus)} />
+                    ) : (
+                      <SearchSelect
+                        size="compact"
+                        searchable={false}
+                        value={displayStatus}
+                        disabled={updateStatus.isPending}
+                        onValueChange={(next) => handleStatusChange(row, next)}
+                        aria-label={`Status for correction ${row.id}`}
+                        options={options.map((s) => ({
+                          value: s,
+                          label: statusLabel(s),
+                        }))}
+                      />
+                    )}
+                    {reworkNote ? (
+                      <span className="data-table-subtext concept-board-line__meta">{reworkNote}</span>
+                    ) : null}
                   </div>
                 );
               },

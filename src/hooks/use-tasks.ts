@@ -304,6 +304,7 @@ export function useAssignTask() {
       queryClient.invalidateQueries({ queryKey: ["designs", "detail"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all });
       toast.success("Task assigned", data.assignedEmployee?.name ?? "Employee updated");
     },
     onError: (error) => toast.errorFromApi(error, "Could not assign task"),

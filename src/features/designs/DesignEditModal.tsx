@@ -141,7 +141,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
     setAttemptedSubmit(false);
   }
 
-  const collectionError = !collectionName.trim() ? "Collection name is required" : undefined;
+  const collectionError = !collectionName.trim() ? "Design name is required" : undefined;
   const taskErrors: Record<string, string> = {};
   taskDrafts.forEach((task) => {
     if (!task.editable) return;
@@ -227,7 +227,7 @@ export function DesignEditModal({ design, open, onClose }: DesignEditModalProps)
         <ModalFormGrid>
           <FormTextField
             id="editCollection"
-            label="Collection Name"
+            label="Design name"
             required
             value={collectionName}
             onChange={(e) => setCollectionName(e.target.value)}

@@ -75,7 +75,7 @@ export function ProductionGoLiveSection({
                 </Link>
               ),
             },
-            { key: "collectionName", header: "Collection" },
+            { key: "collectionName", header: "Design name" },
             {
               key: "productType",
               header: "Product",

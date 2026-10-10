@@ -175,7 +175,7 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
   }, [processes.data]);
 
   const validationErrors: Record<string, string> = {};
-  if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
+  if (!collectionName.trim()) validationErrors.collectionName = "Design name is required";
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
   if (!conceptNote.trim()) validationErrors.conceptNote = "Concept note is required";
@@ -462,11 +462,12 @@ export function DesignCreateModal({ open, onClose }: DesignCreateModalProps) {
         <ModalFormGrid>
           <FormTextField
             id="createCollection"
-            label="Collection"
+            label="Design name"
             required
             value={collectionName}
             onChange={(e) => setCollectionName(e.target.value)}
-            placeholder="Collection name"
+            placeholder="e.g. 09_DECENT-01"
+            hint="Name of this design. The idea number is created for you."
             error={showErrors ? validationErrors.collectionName : undefined}
           />
           <FormSelect

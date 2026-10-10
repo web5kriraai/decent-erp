@@ -615,6 +615,8 @@ export type StageApprovalQueueItem = {
   stageCode: string;
   status: string;
   assigneeName: string | null;
+  /** Role that should own this stage check, used to pick who can be assigned. */
+  ownerRoleCode?: string | null;
   workStageName: string | null;
 };
 

@@ -34,6 +34,38 @@ const STATUS_OPTIONS = STATUS_FILTERS.map((s) => ({
   label: STATUS_LABELS[s],
 }));
 
+const STATUS_DISPLAY: Record<string, string> = {
+  DRAFT: "Draft",
+  ACTIVE: "Active",
+  ON_HOLD: "On hold",
+  APPROVAL_PENDING: "With Management",
+  APPROVED: "Approved",
+  PRODUCTION_ACCEPTED: "In production",
+  PRODUCTION_RELEASED: "Released",
+  REJECTED: "Rejected",
+  LIVE: "Live",
+  CLOSED: "Closed",
+};
+
+function BoardLine({
+  title,
+  meta,
+  link,
+}: {
+  title: string;
+  meta?: string | null;
+  link?: boolean;
+}) {
+  return (
+    <div className="concept-board-line" title={meta ? `${title} · ${meta}` : title}>
+      <span className={link ? "concept-board-line__title data-table-link" : "concept-board-line__title"}>
+        {title}
+      </span>
+      {meta ? <span className="data-table-subtext concept-board-line__meta">{meta}</span> : null}
+    </div>
+  );
+}
+
 function designSearchText(row: DesignSummary) {
   return [
     row.ideaRef,
@@ -81,6 +113,7 @@ export function DesignListView() {
   return (
     <ListPage
       title="Concept Board"
+      subtitle="Each design, the stage it is on, and who has it now."
       className="concept-board-page"
       actions={
         <AppButtonLink href={ROUTES.designs.new} appVariant="primary" size="sm">
@@ -134,48 +167,60 @@ export function DesignListView() {
         flush
         columns={[
           {
-            key: "ideaRef",
-            header: "Ref",
-            render: (row) => (
-              <button
-                type="button"
-                className="data-table-link"
-                onClick={() => detailModal?.openDesign(row.id)}
-              >
-                {row.ideaRef}
-              </button>
-            ),
-          },
-          { key: "collectionName", header: "Design" },
-          {
-            key: "product",
-            header: "Product",
-            render: (row) => row.productType?.name ?? "-",
+            key: "design",
+            header: "Design",
+            render: (row) => {
+              const product = row.productType?.name;
+              const owner = row.designHead?.name;
+              const meta = [row.ideaRef, product, owner ? `Owner ${owner}` : null]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <button
+                  type="button"
+                  className="concept-board-design"
+                  onClick={() => detailModal?.openDesign(row.id)}
+                >
+                  <BoardLine title={row.collectionName} meta={meta} link />
+                </button>
+              );
+            },
           },
           {
             key: "status",
             header: "Status",
-            render: (row) => <StatusBadge status={row.status} />,
+            render: (row) => (
+              <StatusBadge
+                status={row.status}
+                label={STATUS_DISPLAY[row.status] ?? row.status.replace(/_/g, " ")}
+              />
+            ),
           },
           {
             key: "stage",
-            header: "Current stage",
-            render: (row) => row.listMeta?.currentStageName?.trim() || "-",
+            header: "Stage",
+            render: (row) => {
+              const stage = row.listMeta?.currentStageName?.trim() || "-";
+              const manual = (row.listMeta?.assignmentMode ?? row.assignmentMode) === "MANUAL";
+              return <BoardLine title={stage} meta={manual ? "Manual assignment" : null} />;
+            },
           },
           {
-            key: "workflow",
-            header: "Workflow",
-            render: (row) => row.listMeta?.workflowTypeLabel ?? row.assignmentMode ?? "-",
-          },
-          {
-            key: "assignee",
-            header: "Assignee",
-            render: (row) => row.listMeta?.currentAssigneeName ?? "-",
-          },
-          {
-            key: "reviewer",
-            header: "Reviewer",
-            render: (row) => row.listMeta?.pendingReviewerName ?? "-",
+            key: "with",
+            header: "With",
+            render: (row) => {
+              const assignee = row.listMeta?.currentAssigneeName;
+              const reviewer = row.listMeta?.pendingReviewerName;
+              if (!assignee && !reviewer) return "-";
+              return (
+                <BoardLine
+                  title={assignee ?? reviewer ?? "-"}
+                  meta={
+                    reviewer && reviewer !== assignee ? `Review ${reviewer}` : null
+                  }
+                />
+              );
+            },
           },
           {
             key: "corrections",
@@ -184,13 +229,13 @@ export function DesignListView() {
               const open = row.listMeta?.openCorrectionCount ?? 0;
               const cycle = row.listMeta?.maxCorrectionCycle ?? 0;
               if (open === 0 && cycle === 0) return "-";
-              return cycle > 0 ? `${open} open · cycle ${cycle}` : `${open} open`;
+              return (
+                <BoardLine
+                  title={open === 1 ? "1 open" : `${open} open`}
+                  meta={cycle > 0 ? `Cycle ${cycle}` : null}
+                />
+              );
             },
-          },
-          {
-            key: "owner",
-            header: "Owner",
-            render: (row) => row.designHead?.name ?? "-",
           },
           {
             key: "priority",

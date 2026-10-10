@@ -200,7 +200,7 @@ export function DesignCreateForm() {
   }, [processes.data]);
 
   const validationErrors: Record<string, string> = {};
-  if (!collectionName.trim()) validationErrors.collectionName = "Collection name is required";
+  if (!collectionName.trim()) validationErrors.collectionName = "Design name is required";
   if (!productTypeId) validationErrors.productTypeId = "Product type is required";
   if (!seasonId) validationErrors.seasonId = "Season is required";
   if (!conceptNote.trim()) validationErrors.conceptNote = "Concept note is required";
@@ -470,8 +470,9 @@ export function DesignCreateForm() {
               <div className="form-grid">
                 <FormTextField
                   id="collection"
-                  label="Collection Name"
+                  label="Design name"
                   required
+                  hint="The name of this one design. It shows on the board and in approvals. The idea number is created for you."
                   value={collectionName}
                   onChange={(e) => setCollectionName(e.target.value)}
                   error={
