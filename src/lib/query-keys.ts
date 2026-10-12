@@ -5,6 +5,7 @@ export const queryKeys = {
     list: (filters?: { status?: string; search?: string }) =>
       ["designs", "list", filters] as const,
     detail: (id: string) => ["designs", "detail", id] as const,
+    deletePreview: (id: string) => ["designs", "delete-preview", id] as const,
     history: (id: string) => ["designs", "history", id] as const,
     completionSummary: (id: string) => ["designs", "completion-summary", id] as const,
     productionReadiness: (id: string) => ["designs", "production-readiness", id] as const,

@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useDesign } from "@/hooks/use-designs";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
+import { DeleteDesignDialog } from "@/features/designs/DeleteDesignDialog";
 import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
 import { OverviewPanel } from "@/features/designs/detail/OverviewPanel";
 import { CorrectionsPanel } from "@/features/designs/detail/CorrectionsPanel";
@@ -52,6 +53,7 @@ export function DesignDetailTabsBody({
   onTabChange,
   compactHero = false,
   layout = "panel",
+  onDesignDeleted,
 }: {
   designId: string;
   tab: DesignDetailTab;
@@ -59,6 +61,7 @@ export function DesignDetailTabsBody({
   compactHero?: boolean;
   /** Full design page: current task is stated once, then each tab is only its own content. */
   layout?: "page" | "panel";
+  onDesignDeleted?: () => void;
 }) {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
@@ -67,6 +70,7 @@ export function DesignDetailTabsBody({
   const [editOpen, setEditOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [imageLightboxOpen, setImageLightboxOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const canAssign =
     permissions.includes(PERMISSIONS.DESIGN_ASSIGN) ||
@@ -248,6 +252,16 @@ export function DesignDetailTabsBody({
                     presentation={compactHero ? "inline" : "modal"}
                   />
                 ) : null}
+                {canEdit && !pageLayout ? (
+                  <AppButton
+                    type="button"
+                    appVariant="danger"
+                    size="sm"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    Delete
+                  </AppButton>
+                ) : null}
               </div>
             </div>
           </div>
@@ -318,6 +332,15 @@ export function DesignDetailTabsBody({
               design={design}
             />
           ) : null}
+          <DeleteDesignDialog
+            designId={design.id}
+            open={deleteOpen}
+            onClose={() => setDeleteOpen(false)}
+            onDeleted={() => {
+              setDeleteOpen(false);
+              onDesignDeleted?.();
+            }}
+          />
           <ImageLightboxModal
             open={imageLightboxOpen}
             onClose={() => setImageLightboxOpen(false)}
@@ -355,6 +378,7 @@ export function DesignDetailModal({
         tab={tab}
         onTabChange={onTabChange}
         compactHero
+        onDesignDeleted={onClose}
       />
     </RightDrawer>
   );

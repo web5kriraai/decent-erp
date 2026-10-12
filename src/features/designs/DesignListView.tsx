@@ -17,6 +17,7 @@ import { useDesignsList } from "@/hooks/use-designs";
 import { useClientList } from "@/hooks/use-client-list";
 import type { DesignSummary } from "@/lib/types/api";
 import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
+import { DeleteDesignDialog } from "@/features/designs/DeleteDesignDialog";
 
 const STATUS_FILTERS = ["ALL", "DRAFT", "ACTIVE", "APPROVAL_PENDING", "APPROVED", "ON_HOLD"] as const;
 
@@ -85,6 +86,7 @@ export function DesignListView() {
   const permissions = session?.user?.permissions ?? [];
   const detailModal = useOptionalDesignDetailModal();
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [deleteDesignId, setDeleteDesignId] = useState<string | null>(null);
 
   const designsQuery = useDesignsList(permissions.includes(PERMISSIONS.DESIGN_CREATE));
 
@@ -111,6 +113,7 @@ export function DesignListView() {
   }
 
   return (
+    <>
     <ListPage
       title="Concept Board"
       subtitle="Each design, the stage it is on, and who has it now."
@@ -253,6 +256,11 @@ export function DesignListView() {
                   label="Open design"
                   onClick={() => detailModal?.openDesign(row.id)}
                 />
+                <TableIconAction
+                  action="remove"
+                  label="Delete design"
+                  onClick={() => setDeleteDesignId(row.id)}
+                />
               </TableIconActionGroup>
             ),
           },
@@ -269,5 +277,12 @@ export function DesignListView() {
         }
       />
     </ListPage>
+    <DeleteDesignDialog
+      designId={deleteDesignId}
+      open={!!deleteDesignId}
+      onClose={() => setDeleteDesignId(null)}
+      onDeleted={() => setDeleteDesignId(null)}
+    />
+    </>
   );
 }

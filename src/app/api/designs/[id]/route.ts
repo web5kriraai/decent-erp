@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  ApiError,
   jsonOk,
   parseBody,
   serializeBigInt,
@@ -8,6 +9,7 @@ import {
 import { PERMISSIONS } from "@/lib/permissions";
 import { assertCanReadDesign } from "@/lib/design-access";
 import { getDesignById, updateDesign } from "@/lib/services/design-service";
+import { deleteDesign } from "@/lib/services/design-delete-service";
 
 const patchSchema = z.object({
   collectionName: z.string().min(1).optional(),
@@ -60,5 +62,17 @@ export async function PATCH(
       ctx.correlationId,
     );
     return jsonOk(serializeBigInt(design), ctx.correlationId);
+  });
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  return withApiHandler(PERMISSIONS.DESIGN_CREATE, async (ctx) => {
+    const { id } = await params;
+    if (!/^\d+$/.test(id)) throw new ApiError("Invalid design id", 400);
+    const result = await deleteDesign(BigInt(id), ctx.companyId, ctx.employeeId, ctx.correlationId);
+    return jsonOk(result, ctx.correlationId);
   });
 }

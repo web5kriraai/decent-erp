@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useBreadcrumbReplacement } from "@/components/layout/BreadcrumbProvider";
@@ -17,6 +18,7 @@ import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
 import { DesignCompletionSummaryPanel, canViewDesignCompletionSummary } from "@/features/designs/DesignCompletionSummaryPanel";
 import { RoleSubmissionPanel } from "@/features/designs/RoleSubmissionPanel";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
+import { DeleteDesignDialog } from "@/features/designs/DeleteDesignDialog";
 import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
 import { DesignDetailTabsBody } from "@/features/designs/DesignDetailModal";
 import type { DesignDetailTab } from "@/features/designs/DesignDetailModalProvider";
@@ -42,12 +44,14 @@ export function DesignDetailView({
   highlightImageId?: string | null;
   initialTab?: DesignDetailTab;
 }) {
+  const router = useRouter();
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
   const employeeId = session?.user?.employeeId;
   const designQuery = useDesign(designId);
   const [assignTask, setAssignTask] = useState<DesignTask | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<DesignDetailTab>(
     initialTab ?? (highlightImageId || showConceptSetup ? "files" : "overview"),
   );
@@ -127,6 +131,16 @@ export function DesignDetailView({
                       onClick={() => setEditOpen(true)}
                     >
                       Edit Concept
+                    </AppButton>
+                  ) : null}
+                  {canEdit ? (
+                    <AppButton
+                      type="button"
+                      appVariant="danger"
+                      size="sm"
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      Delete
                     </AppButton>
                   ) : null}
                   <AppButtonLink href={ROUTES.designs.list} appVariant="ghost" size="sm">
@@ -259,6 +273,15 @@ export function DesignDetailView({
               design={designQuery.data}
               open={editOpen}
               onClose={() => setEditOpen(false)}
+            />
+            <DeleteDesignDialog
+              designId={designId}
+              open={deleteOpen}
+              onClose={() => setDeleteOpen(false)}
+              onDeleted={() => {
+                setDeleteOpen(false);
+                router.push(ROUTES.designs.list);
+              }}
             />
           </>
         )}
