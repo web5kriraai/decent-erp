@@ -224,3 +224,8 @@ export function buildStorageKey(designId: string, fileName: string) {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   return `designs/${designId}/${Date.now()}-${safeName}`;
 }
+
+/** True when `key` lives under this design's folder (see buildStorageKey). */
+export function isDesignStorageKey(designId: bigint | string, key: string) {
+  return key.startsWith(`designs/${designId}/`);
+}

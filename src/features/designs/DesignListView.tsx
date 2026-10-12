@@ -18,6 +18,7 @@ import { useClientList } from "@/hooks/use-client-list";
 import type { DesignSummary } from "@/lib/types/api";
 import { useOptionalDesignDetailModal } from "@/features/designs/DesignDetailModalProvider";
 import { DeleteDesignDialog } from "@/features/designs/DeleteDesignDialog";
+import { canOfferDesignDelete } from "@/lib/design-delete-rules";
 
 const STATUS_FILTERS = ["ALL", "DRAFT", "ACTIVE", "APPROVAL_PENDING", "APPROVED", "ON_HOLD"] as const;
 
@@ -84,6 +85,9 @@ function designSearchText(row: DesignSummary) {
 export function DesignListView() {
   const { data: session } = useSession();
   const permissions = session?.user?.permissions ?? [];
+  const deleteActor = session?.user
+    ? { employeeId: session.user.employeeId, permissions }
+    : null;
   const detailModal = useOptionalDesignDetailModal();
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [deleteDesignId, setDeleteDesignId] = useState<string | null>(null);
@@ -256,11 +260,13 @@ export function DesignListView() {
                   label="Open design"
                   onClick={() => detailModal?.openDesign(row.id)}
                 />
-                <TableIconAction
-                  action="remove"
-                  label="Delete design"
-                  onClick={() => setDeleteDesignId(row.id)}
-                />
+                {canOfferDesignDelete(deleteActor, row) ? (
+                  <TableIconAction
+                    action="remove"
+                    label="Delete design"
+                    onClick={() => setDeleteDesignId(row.id)}
+                  />
+                ) : null}
               </TableIconActionGroup>
             ),
           },

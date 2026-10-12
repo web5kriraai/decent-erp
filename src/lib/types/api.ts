@@ -49,6 +49,8 @@ export type DesignSummary = {
   productType?: { id: number; name: string; code: string };
   season?: { id: number; name: string; code: string };
   designHead?: { id: number; name: string };
+  designHeadEmployeeId?: number;
+  createdById?: number;
   fabric?: { id: number; name: string; code: string };
   machine?: { id: number; name: string; code: string };
   stitchingType?: { id: number; name: string; code: string };

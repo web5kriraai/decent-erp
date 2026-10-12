@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type Query, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Modal, ModalAlert, ModalFooterActions } from "@/components/ui/Modal";
 import { AppButton } from "@/components/ui/AppButton";
 import { useApiToast } from "@/components/ui/ToastProvider";
@@ -35,11 +35,25 @@ export function DeleteDesignDialog({
 
   const removeDesign = useMutation({
     mutationFn: () => apiDelete<{ deleted: boolean }>(`/api/designs/${designId}`),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.designs.all });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.designs.kanban });
+    onSuccess: () => {
       toast.success("Design deleted", previewQuery.data?.ideaRef);
       onDeleted();
+
+      // Per-id queries for this design (detail, delete-preview, images, …) would 404 if
+      // refetched. Leave mounted ones alone (they unmount once onDeleted closes or
+      // navigates; removing them while observed makes the observer refetch) and drop
+      // the rest.
+      const isDeletedDesign = (query: Query) =>
+        query.queryKey[0] === queryKeys.designs.all[0] && query.queryKey[2] === designId;
+      queryClient.removeQueries({ predicate: isDeletedDesign, type: "inactive" });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.designs.all,
+        predicate: (query) => !isDeletedDesign(query),
+      });
+      // Task lists may still show this design's tasks; per-task queries are left alone.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
+      void queryClient.invalidateQueries({ queryKey: ["tasks", "my-day"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
     },
     onError: (error) => toast.errorFromApi(error, "Could not delete design"),
   });

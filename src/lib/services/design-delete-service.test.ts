@@ -24,36 +24,29 @@ vi.mock("@/lib/audit", () => ({
 
 vi.mock("@/lib/storage", () => ({
   deleteObject: vi.fn().mockResolvedValue(undefined),
+  isDesignStorageKey: (designId: bigint | string, key: string) =>
+    key.startsWith(`designs/${designId}/`),
 }));
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
     designConcept: { findUnique: vi.fn(), delete: vi.fn() },
-    taskTimeEvent: { count: vi.fn(), deleteMany: vi.fn() },
-    taskArtifact: { findMany: vi.fn(), deleteMany: vi.fn() },
-    taskChecklistResult: { deleteMany: vi.fn() },
-    taskTimerIdempotency: { deleteMany: vi.fn() },
-    designCorrection: { deleteMany: vi.fn() },
-    designApproval: { deleteMany: vi.fn() },
-    designCost: { deleteMany: vi.fn() },
-    designImage: { deleteMany: vi.fn() },
-    designComponent: { deleteMany: vi.fn() },
-    designCreativityRating: { deleteMany: vi.fn() },
-    productionHandoff: { deleteMany: vi.fn() },
-    designSuccessMetric: { deleteMany: vi.fn() },
-    erpStageRecord: { deleteMany: vi.fn() },
-    designMaterialLine: { deleteMany: vi.fn() },
-    designBomLine: { updateMany: vi.fn(), deleteMany: vi.fn() },
-    designProcess: { findMany: vi.fn(), deleteMany: vi.fn() },
-    designSubProcess: { deleteMany: vi.fn() },
-    designTask: { deleteMany: vi.fn() },
+    taskTimeEvent: { count: vi.fn() },
+    taskArtifact: { findMany: vi.fn() },
+    $queryRaw: vi.fn(),
     $transaction: vi.fn(),
   },
 }));
 
 vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 
+import { writeAuditLog } from "@/lib/audit";
+import { deleteObject } from "@/lib/storage";
 import { deleteDesign, getDesignDeleteEligibility } from "@/lib/services/design-delete-service";
+
+const owner = { employeeId: 2, permissions: ["DESIGN_CREATE"] };
+const stranger = { employeeId: 99, permissions: ["DESIGN_CREATE"] };
+const admin = { employeeId: 99, permissions: ["DESIGN_CREATE", "MASTER_ADMIN"] };
 
 const idleDesign = {
   id: 8n,
@@ -61,6 +54,8 @@ const idleDesign = {
   ideaRef: "IDEA-1",
   collectionName: "Mistake",
   status: "ACTIVE",
+  createdById: 2,
+  designHeadEmployeeId: 5,
   tasks: [{ id: 3n, status: "PENDING" }],
   images: [],
   _count: {
@@ -83,7 +78,7 @@ describe("getDesignDeleteEligibility", () => {
 
   it("allows a new active design whose tasks have not started", async () => {
     prismaMock.designConcept.findUnique.mockResolvedValue(idleDesign);
-    const result = await getDesignDeleteEligibility(8n, 1);
+    const result = await getDesignDeleteEligibility(8n, 1, owner);
     expect(result.allowed).toBe(true);
     expect(result.reasons).toEqual([]);
   });
@@ -91,7 +86,7 @@ describe("getDesignDeleteEligibility", () => {
   it("blocks when time has been logged", async () => {
     prismaMock.designConcept.findUnique.mockResolvedValue(idleDesign);
     prismaMock.taskTimeEvent.count.mockResolvedValue(1);
-    const result = await getDesignDeleteEligibility(8n, 1);
+    const result = await getDesignDeleteEligibility(8n, 1, owner);
     expect(result.allowed).toBe(false);
     expect(result.reasons.map((reason) => reason.code)).toContain("TIME_LOGGED");
   });
@@ -101,7 +96,7 @@ describe("getDesignDeleteEligibility", () => {
       ...idleDesign,
       tasks: [{ id: 3n, status: "COMPLETED" }],
     });
-    const result = await getDesignDeleteEligibility(8n, 1);
+    const result = await getDesignDeleteEligibility(8n, 1, owner);
     expect(result.reasons.map((reason) => reason.code)).toContain("TASK_STARTED");
   });
 
@@ -110,7 +105,7 @@ describe("getDesignDeleteEligibility", () => {
       ...idleDesign,
       _count: { ...idleDesign._count, approvals: 1 },
     });
-    const result = await getDesignDeleteEligibility(8n, 1);
+    const result = await getDesignDeleteEligibility(8n, 1, owner);
     expect(result.reasons.map((reason) => reason.code)).toContain("APPROVAL");
   });
 
@@ -120,8 +115,22 @@ describe("getDesignDeleteEligibility", () => {
       status: "APPROVED",
       tasks: [],
     });
-    const result = await getDesignDeleteEligibility(8n, 1);
+    const result = await getDesignDeleteEligibility(8n, 1, owner);
     expect(result.reasons.map((reason) => reason.code)).toContain("STATUS");
+  });
+
+  it("blocks someone who is not the creator, design head, or an admin", async () => {
+    prismaMock.designConcept.findUnique.mockResolvedValue(idleDesign);
+    const result = await getDesignDeleteEligibility(8n, 1, stranger);
+    expect(result.reasons.map((reason) => reason.code)).toEqual(["NOT_OWNER"]);
+  });
+
+  it("allows the design head and admins", async () => {
+    prismaMock.designConcept.findUnique.mockResolvedValue(idleDesign);
+    const head = await getDesignDeleteEligibility(8n, 1, { employeeId: 5, permissions: [] });
+    const asAdmin = await getDesignDeleteEligibility(8n, 1, admin);
+    expect(head.allowed).toBe(true);
+    expect(asAdmin.allowed).toBe(true);
   });
 });
 
@@ -131,33 +140,9 @@ describe("deleteDesign", () => {
     prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<unknown>) =>
       fn(prismaMock),
     );
+    prismaMock.$queryRaw.mockResolvedValue([]);
     prismaMock.taskTimeEvent.count.mockResolvedValue(0);
     prismaMock.taskArtifact.findMany.mockResolvedValue([]);
-    prismaMock.designProcess.findMany.mockResolvedValue([]);
-    for (const key of [
-      "taskChecklistResult",
-      "taskArtifact",
-      "taskTimeEvent",
-      "taskTimerIdempotency",
-      "designCorrection",
-      "designApproval",
-      "designCost",
-      "designImage",
-      "designComponent",
-      "designCreativityRating",
-      "productionHandoff",
-      "designSuccessMetric",
-      "erpStageRecord",
-      "designMaterialLine",
-      "designBomLine",
-      "designProcess",
-      "designSubProcess",
-      "designTask",
-    ] as const) {
-      const model = prismaMock[key] as { deleteMany?: ReturnType<typeof vi.fn> };
-      model.deleteMany?.mockResolvedValue({ count: 0 });
-    }
-    prismaMock.designBomLine.updateMany.mockResolvedValue({ count: 0 });
     prismaMock.designConcept.delete.mockResolvedValue({});
   });
 
@@ -167,7 +152,58 @@ describe("deleteDesign", () => {
       status: "LIVE",
       tasks: [],
     });
-    await expect(deleteDesign(8n, 1, 2, "corr")).rejects.toThrow(/cannot be deleted/i);
+    await expect(deleteDesign(8n, 1, owner, "corr")).rejects.toThrow(/cannot be deleted/i);
     expect(prismaMock.designConcept.delete).not.toHaveBeenCalled();
+  });
+
+  it("checks the tenant before taking any lock", async () => {
+    const { assertSameCompany } = await import("@/lib/tenant");
+    vi.mocked(assertSameCompany).mockImplementationOnce(() => {
+      throw new Error("Design not found");
+    });
+    prismaMock.designConcept.findUnique.mockResolvedValue({ ...idleDesign, companyId: 2 });
+    await expect(deleteDesign(8n, 1, owner, "corr")).rejects.toThrow(/not found/i);
+    expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+    expect(prismaMock.designConcept.delete).not.toHaveBeenCalled();
+  });
+
+  it("refuses with 403 when the caller does not own the design", async () => {
+    prismaMock.designConcept.findUnique.mockResolvedValue(idleDesign);
+    await expect(deleteDesign(8n, 1, stranger, "corr")).rejects.toMatchObject({ status: 403 });
+    expect(prismaMock.designConcept.delete).not.toHaveBeenCalled();
+  });
+
+  it("locks rows before checking, then audits, deletes, and removes this design's files", async () => {
+    prismaMock.designConcept.findUnique.mockResolvedValue({
+      ...idleDesign,
+      images: [{ storageKey: "designs/8/1-front.png" }],
+    });
+    prismaMock.taskArtifact.findMany.mockResolvedValue([
+      { storageKey: "designs/8/1-front.png" },
+      { storageKey: "designs/8/2-punch.dst" },
+      { storageKey: "designs/77/3-other-design.png" },
+    ]);
+
+    await expect(deleteDesign(8n, 1, owner, "corr")).resolves.toEqual({ deleted: true });
+
+    // tasks → design → tasks, all before the eligibility read.
+    const lockSql = prismaMock.$queryRaw.mock.calls.map(([sql]) => (sql as string[]).join("?"));
+    expect(lockSql).toEqual([
+      expect.stringContaining("FROM design_tasks"),
+      expect.stringContaining("FROM design_concepts"),
+      expect.stringContaining("FROM design_tasks"),
+    ]);
+    expect(prismaMock.$queryRaw.mock.invocationCallOrder[2]).toBeLessThan(
+      prismaMock.designConcept.findUnique.mock.invocationCallOrder[1],
+    );
+    expect(writeAuditLog).toHaveBeenCalledWith(
+      prismaMock,
+      expect.objectContaining({ entityId: "8", action: "DELETE", userId: 2 }),
+    );
+    expect(prismaMock.designConcept.delete).toHaveBeenCalledWith({ where: { id: 8n } });
+    expect(vi.mocked(deleteObject).mock.calls.map(([key]) => key)).toEqual([
+      "designs/8/1-front.png",
+      "designs/8/2-punch.dst",
+    ]);
   });
 });

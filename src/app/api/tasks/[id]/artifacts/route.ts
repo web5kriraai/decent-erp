@@ -11,6 +11,7 @@ import {
   MACHINE_FORMATS,
 } from "@/lib/services/task-machine-output-utils";
 import { assertTaskAssignedToEmployee } from "@/lib/services/task-service";
+import { isDesignStorageKey } from "@/lib/storage";
 import type { TaskArtifactType } from "@prisma/client";
 
 const schema = z
@@ -49,12 +50,21 @@ export async function POST(
     const body = await parseBody(request, schema);
 
     await assertTaskAssignedToEmployee(taskId, ctx.employeeId);
-    const subProcessCode = (
-      await prisma.designTask.findUnique({
-        where: { id: taskId },
-        select: { subProcess: { select: { code: true } } },
-      })
-    )?.subProcess.code;
+    const task = await prisma.designTask.findUnique({
+      where: { id: taskId },
+      select: { designId: true, subProcess: { select: { code: true } } },
+    });
+    const subProcessCode = task?.subProcess.code;
+
+    // Files are uploaded through /api/designs/[id]/images, so the key must belong to this design.
+    const storageKey = body.storageKey?.trim();
+    if (storageKey && (!task || !isDesignStorageKey(task.designId, storageKey))) {
+      throw businessRule(
+        APP_ERROR_CODES.VALIDATION_FAILED,
+        undefined,
+        "The uploaded file does not belong to this design.",
+      );
+    }
 
     if (
       hasMachineMetricsInPayload(body) &&
@@ -80,7 +90,7 @@ export async function POST(
           where: { id: existing.id },
           data: {
             ...(body.fileName !== undefined ? { fileName: body.fileName } : {}),
-            ...(body.storageKey !== undefined ? { storageKey: body.storageKey } : {}),
+            ...(storageKey !== undefined ? { storageKey } : {}),
             ...(body.stitchCount !== undefined ? { stitchCount: body.stitchCount } : {}),
             ...(body.machineFormat !== undefined
               ? { machineFormat: body.machineFormat }
@@ -114,7 +124,7 @@ export async function POST(
         taskId,
         artifactType: body.artifactType as TaskArtifactType,
         fileName: body.fileName,
-        storageKey: body.storageKey,
+        storageKey,
         stitchCount: body.stitchCount,
         machineFormat: body.machineFormat,
         sampleQty: body.sampleQty,

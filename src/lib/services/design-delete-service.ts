@@ -1,11 +1,15 @@
-import type { DesignStatus, Prisma, TaskStatus } from "@prisma/client";
+import type { Prisma, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { ApiError } from "@/lib/api-utils";
 import { assertSameCompany } from "@/lib/tenant";
-import { deleteObject } from "@/lib/storage";
+import { deleteObject, isDesignStorageKey } from "@/lib/storage";
+import {
+  canActorDeleteDesign,
+  isDesignStatusDeletable,
+  type DesignDeleteActor,
+} from "@/lib/design-delete-rules";
 
-const DELETABLE_STATUSES = new Set<DesignStatus>(["DRAFT", "ACTIVE"]);
 const IDLE_TASK_STATUSES = new Set<TaskStatus>([
   "PENDING",
   "ASSIGNED",
@@ -38,6 +42,11 @@ export type DesignDeleteEligibility = {
 
 type DesignDb = Prisma.TransactionClient | typeof prisma;
 
+export type { DesignDeleteActor };
+
+const NOT_OWNER_MESSAGE =
+  "Only the design head, the person who created this design, or an admin can delete it.";
+
 function pushCount(
   reasons: DesignDeleteReason[],
   count: number,
@@ -47,7 +56,12 @@ function pushCount(
   if (count > 0) reasons.push({ code, message });
 }
 
-async function evaluateDesignDelete(db: DesignDb, designId: bigint, companyId: number) {
+async function evaluateDesignDelete(
+  db: DesignDb,
+  designId: bigint,
+  companyId: number,
+  actor: DesignDeleteActor,
+) {
   const design = await db.designConcept.findUnique({
     where: { id: designId },
     select: {
@@ -56,6 +70,8 @@ async function evaluateDesignDelete(db: DesignDb, designId: bigint, companyId: n
       ideaRef: true,
       collectionName: true,
       status: true,
+      createdById: true,
+      designHeadEmployeeId: true,
       tasks: { select: { id: true, status: true } },
       images: { select: { storageKey: true } },
       _count: {
@@ -75,7 +91,10 @@ async function evaluateDesignDelete(db: DesignDb, designId: bigint, companyId: n
   assertSameCompany(design.companyId, { companyId }, "Design");
 
   const reasons: DesignDeleteReason[] = [];
-  if (!DELETABLE_STATUSES.has(design.status)) {
+  if (!canActorDeleteDesign(actor, design)) {
+    reasons.push({ code: "NOT_OWNER", message: NOT_OWNER_MESSAGE });
+  }
+  if (!isDesignStatusDeletable(design.status)) {
     reasons.push({
       code: "STATUS",
       message:
@@ -130,9 +149,14 @@ async function evaluateDesignDelete(db: DesignDb, designId: bigint, companyId: n
     design,
     taskIds,
     reasons,
+    // Artifact keys are client-supplied; only remove files stored under this design.
     storageKeys: [
-      ...design.images.map((image) => image.storageKey),
-      ...artifactKeys.map((row) => row.storageKey).filter((key): key is string => !!key),
+      ...new Set(
+        [
+          ...design.images.map((image) => image.storageKey),
+          ...artifactKeys.map((row) => row.storageKey),
+        ].filter((key): key is string => !!key && isDesignStorageKey(designId, key)),
+      ),
     ],
   };
 }
@@ -140,8 +164,9 @@ async function evaluateDesignDelete(db: DesignDb, designId: bigint, companyId: n
 export async function getDesignDeleteEligibility(
   designId: bigint,
   companyId: number,
+  actor: DesignDeleteActor,
 ): Promise<DesignDeleteEligibility> {
-  const { design, reasons } = await evaluateDesignDelete(prisma, designId, companyId);
+  const { design, reasons } = await evaluateDesignDelete(prisma, designId, companyId, actor);
   return {
     allowed: reasons.length === 0,
     reasons,
@@ -150,56 +175,47 @@ export async function getDesignDeleteEligibility(
   };
 }
 
-async function deleteDesignChildren(
+/**
+ * Lock the design and its task rows before checking eligibility. Timer starts,
+ * artifact uploads and status changes either update a task row or insert a child
+ * row (FK KEY SHARE lock), so they wait for this transaction instead of slipping
+ * in between the check and the delete.
+ *
+ * Task transactions lock the task row and then touch the design row, so lock in
+ * the same order (tasks, then design) to avoid deadlocks. Tasks are locked again
+ * after the design, which catches any task inserted between the first two locks;
+ * no new task can be inserted once the design row is locked.
+ */
+async function lockDesignForDelete(
   tx: Prisma.TransactionClient,
   designId: bigint,
-  taskIds: bigint[],
+  companyId: number,
 ) {
-  if (taskIds.length) {
-    await tx.taskChecklistResult.deleteMany({ where: { taskId: { in: taskIds } } });
-    await tx.taskArtifact.deleteMany({ where: { taskId: { in: taskIds } } });
-    await tx.taskTimeEvent.deleteMany({ where: { taskId: { in: taskIds } } });
-    await tx.taskTimerIdempotency.deleteMany({ where: { taskId: { in: taskIds } } });
-  }
-
-  await tx.designCorrection.deleteMany({ where: { designId } });
-  await tx.designApproval.deleteMany({ where: { designId } });
-  await tx.designCost.deleteMany({ where: { designId } });
-  await tx.designImage.deleteMany({ where: { designId } });
-  await tx.designComponent.deleteMany({ where: { designId } });
-  await tx.designCreativityRating.deleteMany({ where: { designId } });
-  await tx.productionHandoff.deleteMany({ where: { designId } });
-  await tx.designSuccessMetric.deleteMany({ where: { designId } });
-  await tx.erpStageRecord.deleteMany({ where: { designId } });
-  await tx.designMaterialLine.deleteMany({ where: { designId } });
-  await tx.designBomLine.updateMany({
-    where: { designId },
-    data: { parentLineId: null },
+  // Tenant check first, so a caller can never hold locks on another company's rows.
+  const owner = await tx.designConcept.findUnique({
+    where: { id: designId },
+    select: { companyId: true },
   });
-  await tx.designBomLine.deleteMany({ where: { designId } });
+  if (!owner) throw new ApiError("Design not found", 404);
+  assertSameCompany(owner.companyId, { companyId }, "Design");
 
-  const processes = await tx.designProcess.findMany({
-    where: { designId },
-    select: { id: true },
-  });
-  if (processes.length) {
-    await tx.designSubProcess.deleteMany({
-      where: { designProcessId: { in: processes.map((row) => row.id) } },
-    });
-  }
-  await tx.designProcess.deleteMany({ where: { designId } });
-  await tx.designTask.deleteMany({ where: { designId } });
-  await tx.designConcept.delete({ where: { id: designId } });
+  await tx.$queryRaw`SELECT task_id FROM design_tasks WHERE design_id = ${designId} FOR UPDATE`;
+  await tx.$queryRaw`SELECT design_id FROM design_concepts WHERE design_id = ${designId} FOR UPDATE`;
+  await tx.$queryRaw`SELECT task_id FROM design_tasks WHERE design_id = ${designId} FOR UPDATE`;
 }
 
 export async function deleteDesign(
   designId: bigint,
   companyId: number,
-  userId: number,
+  actor: DesignDeleteActor,
   correlationId: string,
 ) {
   const storageKeys = await prisma.$transaction(async (tx) => {
-    const evaluated = await evaluateDesignDelete(tx, designId, companyId);
+    await lockDesignForDelete(tx, designId, companyId);
+    const evaluated = await evaluateDesignDelete(tx, designId, companyId, actor);
+    if (evaluated.reasons.some((reason) => reason.code === "NOT_OWNER")) {
+      throw new ApiError(NOT_OWNER_MESSAGE, 403, undefined, "DESIGN_DELETE_FORBIDDEN");
+    }
     if (evaluated.reasons.length > 0) {
       throw new ApiError(
         "This design cannot be deleted.",
@@ -213,7 +229,7 @@ export async function deleteDesign(
       entityType: "DesignConcept",
       entityId: designId.toString(),
       action: "DELETE",
-      userId,
+      userId: actor.employeeId,
       correlationId,
       before: {
         ideaRef: evaluated.design.ideaRef,
@@ -223,7 +239,8 @@ export async function deleteDesign(
       },
     });
 
-    await deleteDesignChildren(tx, designId, evaluated.taskIds);
+    // Every child table cascades from DesignConcept / DesignTask (FK ON DELETE CASCADE).
+    await tx.designConcept.delete({ where: { id: designId } });
     return evaluated.storageKeys;
   });
 

@@ -72,7 +72,12 @@ export async function DELETE(
   return withApiHandler(PERMISSIONS.DESIGN_CREATE, async (ctx) => {
     const { id } = await params;
     if (!/^\d+$/.test(id)) throw new ApiError("Invalid design id", 400);
-    const result = await deleteDesign(BigInt(id), ctx.companyId, ctx.employeeId, ctx.correlationId);
+    const result = await deleteDesign(
+      BigInt(id),
+      ctx.companyId,
+      { employeeId: ctx.employeeId, permissions: ctx.permissions },
+      ctx.correlationId,
+    );
     return jsonOk(result, ctx.correlationId);
   });
 }

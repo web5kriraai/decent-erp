@@ -19,6 +19,7 @@ import { DesignCompletionSummaryPanel, canViewDesignCompletionSummary } from "@/
 import { RoleSubmissionPanel } from "@/features/designs/RoleSubmissionPanel";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
 import { DeleteDesignDialog } from "@/features/designs/DeleteDesignDialog";
+import { canOfferDesignDelete } from "@/lib/design-delete-rules";
 import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
 import { DesignDetailTabsBody } from "@/features/designs/DesignDetailModal";
 import type { DesignDetailTab } from "@/features/designs/DesignDetailModalProvider";
@@ -62,6 +63,9 @@ export function DesignDetailView({
   const canExecute = permissions.includes(PERMISSIONS.TASK_EXECUTE);
   const canAssign = permissions.includes(PERMISSIONS.DESIGN_ASSIGN);
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
+  const deleteActor = session?.user
+    ? { employeeId: session.user.employeeId, permissions }
+    : null;
   const canOverrideWorkflow = permissions.includes(PERMISSIONS.WORKFLOW_OVERRIDE);
   const canViewCompletion = canViewDesignCompletionSummary(permissions);
   const canOpenDesign =
@@ -133,7 +137,7 @@ export function DesignDetailView({
                       Edit Concept
                     </AppButton>
                   ) : null}
-                  {canEdit ? (
+                  {canEdit && canOfferDesignDelete(deleteActor, designQuery.data) ? (
                     <AppButton
                       type="button"
                       appVariant="danger"

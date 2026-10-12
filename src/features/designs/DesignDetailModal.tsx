@@ -11,6 +11,7 @@ import { useDesign } from "@/hooks/use-designs";
 import { AssignTaskModal } from "@/features/designs/AssignTaskModal";
 import { DesignEditModal } from "@/features/designs/DesignEditModal";
 import { DeleteDesignDialog } from "@/features/designs/DeleteDesignDialog";
+import { canOfferDesignDelete } from "@/lib/design-delete-rules";
 import { WorkflowOverrideActions } from "@/features/designs/WorkflowOverrideActions";
 import { OverviewPanel } from "@/features/designs/detail/OverviewPanel";
 import { CorrectionsPanel } from "@/features/designs/detail/CorrectionsPanel";
@@ -77,6 +78,9 @@ export function DesignDetailTabsBody({
     permissions.includes(PERMISSIONS.DESIGN_ASSIGN_MANUAL) ||
     permissions.includes(PERMISSIONS.DESIGN_ASSIGN_AUTO);
   const canEdit = permissions.includes(PERMISSIONS.DESIGN_CREATE);
+  const deleteActor = session?.user
+    ? { employeeId: session.user.employeeId, permissions }
+    : null;
   const canRaise =
     permissions.includes(PERMISSIONS.CORRECTION_RAISE) ||
     permissions.includes(PERMISSIONS.CORRECTION_REQUEST);
@@ -252,7 +256,7 @@ export function DesignDetailTabsBody({
                     presentation={compactHero ? "inline" : "modal"}
                   />
                 ) : null}
-                {canEdit && !pageLayout ? (
+                {canEdit && !pageLayout && canOfferDesignDelete(deleteActor, design) ? (
                   <AppButton
                     type="button"
                     appVariant="danger"
