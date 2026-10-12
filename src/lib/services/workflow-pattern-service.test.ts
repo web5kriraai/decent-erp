@@ -26,6 +26,10 @@ const { prismaMock } = vi.hoisted(() => ({
       deleteMany: vi.fn(),
       createMany: vi.fn(),
     },
+    designConcept: {
+      count: vi.fn(),
+      findMany: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -38,6 +42,8 @@ vi.mock("@/lib/audit", () => ({
 import {
   cloneWorkflowPattern,
   createWorkflowPattern,
+  getWorkflowPatternUsage,
+  updateWorkflowPattern,
   updateWorkflowPatternTasks,
   validatePatternTasks,
 } from "@/lib/services/workflow-pattern-service";
@@ -167,14 +173,62 @@ describe("updateWorkflowPatternTasks", () => {
   });
 });
 
+describe("getWorkflowPatternUsage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("blocks inactive while designs are still open", async () => {
+    prismaMock.designConcept.count.mockResolvedValue(1);
+    prismaMock.designConcept.findMany.mockResolvedValue([
+      {
+        id: 15n,
+        ideaRef: "IDEA-1",
+        designNumber: "DS-1",
+        collectionName: "Festive",
+        status: "ACTIVE",
+      },
+    ]);
+
+    const usage = await getWorkflowPatternUsage(3);
+    expect(usage.blocked).toBe(true);
+    expect(usage.total).toBe(1);
+    expect(usage.designs[0]?.id).toBe("15");
+  });
+});
+
+describe("updateWorkflowPattern", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("refuses to deactivate while designs still use the pattern", async () => {
+    prismaMock.workflowPattern.findUnique.mockResolvedValue({
+      id: 3,
+      active: true,
+      name: "Standard",
+    });
+    prismaMock.designConcept.count.mockResolvedValue(2);
+    prismaMock.designConcept.findMany.mockResolvedValue([]);
+
+    await expect(updateWorkflowPattern(3, { active: false }, 1, "corr")).rejects.toThrow(
+      /complete the open work/i,
+    );
+    expect(prismaMock.workflowPattern.update).not.toHaveBeenCalled();
+  });
+});
+
 describe("cloneWorkflowPattern", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.designConcept.count.mockResolvedValue(0);
+    prismaMock.designConcept.findMany.mockResolvedValue([]);
     prismaMock.workflowPattern.findUnique.mockResolvedValue({
       id: 3,
       name: "Standard",
       versionNo: 1,
       productTypeId: 1,
+      active: true,
       tasks: [
         {
           processId: 1,
@@ -217,5 +271,21 @@ describe("cloneWorkflowPattern", () => {
       }),
     );
     expect(cloned.versionNo).toBe(2);
+  });
+
+  it("does not clone when open designs still use the current pattern", async () => {
+    prismaMock.designConcept.count.mockResolvedValue(1);
+    prismaMock.designConcept.findMany.mockResolvedValue([
+      {
+        id: 9n,
+        ideaRef: "IDEA-9",
+        designNumber: null,
+        collectionName: "Open",
+        status: "ACTIVE",
+      },
+    ]);
+
+    await expect(cloneWorkflowPattern(3, 1, "corr-4")).rejects.toThrow(/complete the open work/i);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });

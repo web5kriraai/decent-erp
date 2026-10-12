@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { ListPage } from "@/components/ui/ListPage";
 import { PermissionDenied } from "@/components/PermissionDenied";
@@ -9,16 +9,66 @@ import { DataTable } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PERMISSIONS } from "@/lib/permissions";
 import { useWorkflowPatterns } from "@/hooks/use-masters";
-import { apiPatch, apiPost } from "@/lib/api-client";
+import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { useApiToast } from "@/components/ui/ToastProvider";
-import { Modal, ModalFooterActions } from "@/components/ui/Modal";
+import { Modal, ModalAlert, ModalFooterActions } from "@/components/ui/Modal";
 import { AppButton } from "@/components/ui/AppButton";
 import { TableIconAction, TableIconActionGroup } from "@/components/ui/TableIconAction";
 import { ListSelectFilter } from "@/components/ui/ListSelectFilter";
 import { CreateWorkflowPatternModal } from "@/features/admin/CreateWorkflowPatternModal";
 import { useClientList } from "@/hooks/use-client-list";
 import type { CreateWorkflowPatternPayload, WorkflowPattern } from "@/lib/types/api";
+
+type WorkflowPatternUsage = {
+  blocked: boolean;
+  total: number;
+  designs: Array<{
+    id: string;
+    ideaRef: string;
+    designNumber: string | null;
+    collectionName: string;
+    status: string;
+  }>;
+};
+
+function designStatusLabel(status: string) {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function OpenDesignList({ usage }: { usage: WorkflowPatternUsage }) {
+  return (
+    <div className="space-y-2">
+      <ModalAlert variant="warning">
+        {usage.total === 1
+          ? "1 design is still using this workflow. Complete it before making the pattern inactive."
+          : `${usage.total} designs are still using this workflow. Complete them before making the pattern inactive.`}
+      </ModalAlert>
+      <ul className="max-h-60 divide-y divide-border overflow-auto rounded-md border border-border">
+        {usage.designs.map((design) => (
+          <li key={design.id} className="flex items-center justify-between gap-3 px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm">{design.collectionName}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {design.designNumber ?? design.ideaRef}
+              </p>
+            </div>
+            <StatusBadge status={design.status} label={designStatusLabel(design.status)} />
+          </li>
+        ))}
+      </ul>
+      {usage.total > usage.designs.length ? (
+        <p className="text-xs text-muted-foreground">
+          And {usage.total - usage.designs.length} more.
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -42,7 +92,16 @@ export function WorkflowPatternsView() {
   const [open, setOpen] = useState(false);
   const [editPattern, setEditPattern] = useState<WorkflowPattern | null>(null);
   const [cloneTarget, setCloneTarget] = useState<WorkflowPattern | null>(null);
+  const [inactiveTarget, setInactiveTarget] = useState<WorkflowPattern | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const usagePatternId = inactiveTarget?.id ?? (cloneTarget?.active === false ? null : cloneTarget?.id) ?? null;
+  const usageQuery = useQuery({
+    queryKey: queryKeys.masters.workflowPatternUsage(usagePatternId ?? 0),
+    queryFn: () => apiGet<WorkflowPatternUsage>(`/api/workflow-patterns/${usagePatternId}/usage`),
+    enabled: usagePatternId != null,
+  });
+  const usageBlocked = usageQuery.data?.blocked === true;
 
   const statusFiltered = useMemo(() => {
     const items = patternsQuery.data ?? [];
@@ -198,7 +257,7 @@ export function WorkflowPatternsView() {
             <Modal
               open={!!cloneTarget}
               title="Clone as new version"
-              description="Creates a new version and deactivates the current one."
+              description="Creates a new version and makes the current one inactive."
               onClose={() => setCloneTarget(null)}
               size="sm"
               footer={
@@ -209,7 +268,11 @@ export function WorkflowPatternsView() {
                   <AppButton
                     type="button"
                     size="sm"
-                    disabled={clonePattern.isPending}
+                    disabled={
+                      clonePattern.isPending ||
+                      (cloneTarget?.active !== false &&
+                        (usageQuery.isLoading || usageQuery.isError || usageBlocked))
+                    }
                     onClick={() => cloneTarget && clonePattern.mutate(cloneTarget.id)}
                   >
                     {clonePattern.isPending ? "Cloning…" : "Clone pattern"}
@@ -218,10 +281,78 @@ export function WorkflowPatternsView() {
               }
             >
               {cloneTarget ? (
-                <p className="text-sm text-muted-foreground">
-                  Clone <strong>{cloneTarget.name}</strong> v{cloneTarget.versionNo} to v
-                  {cloneTarget.versionNo + 1}?
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Clone <strong>{cloneTarget.name}</strong> v{cloneTarget.versionNo} to v
+                    {cloneTarget.versionNo + 1}?
+                  </p>
+                  {usageQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Checking designs that use this pattern…</p>
+                  ) : null}
+                  {usageQuery.isError ? (
+                    <ModalAlert variant="error">
+                      Could not check designs using this pattern. Try again.
+                    </ModalAlert>
+                  ) : null}
+                  {usageQuery.data?.blocked ? <OpenDesignList usage={usageQuery.data} /> : null}
+                </div>
+              ) : null}
+            </Modal>
+
+            <Modal
+              open={!!inactiveTarget}
+              title="Make pattern inactive?"
+              description="Inactive patterns are hidden from new designs. Completed designs keep this workflow."
+              onClose={() => setInactiveTarget(null)}
+              size="sm"
+              footer={
+                <ModalFooterActions>
+                  <AppButton
+                    type="button"
+                    appVariant="ghost"
+                    size="sm"
+                    onClick={() => setInactiveTarget(null)}
+                  >
+                    Cancel
+                  </AppButton>
+                  <AppButton
+                    type="button"
+                    appVariant="danger"
+                    size="sm"
+                    disabled={updatePattern.isPending || usageQuery.isLoading || usageQuery.isError || usageBlocked}
+                    onClick={() =>
+                      inactiveTarget &&
+                      updatePattern.mutate(
+                        { id: inactiveTarget.id, active: false },
+                        { onSuccess: () => setInactiveTarget(null) },
+                      )
+                    }
+                  >
+                    {updatePattern.isPending ? "Saving…" : "Make inactive"}
+                  </AppButton>
+                </ModalFooterActions>
+              }
+            >
+              {inactiveTarget ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Make <strong>{inactiveTarget.name}</strong> v{inactiveTarget.versionNo} inactive?
+                  </p>
+                  {usageQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Checking designs that use this pattern…</p>
+                  ) : null}
+                  {usageQuery.isError ? (
+                    <ModalAlert variant="error">
+                      Could not check designs using this pattern. Try again.
+                    </ModalAlert>
+                  ) : null}
+                  {usageQuery.data && !usageQuery.data.blocked ? (
+                    <p className="text-sm text-muted-foreground">
+                      No open designs are using this workflow. You can make it inactive.
+                    </p>
+                  ) : null}
+                  {usageQuery.data?.blocked ? <OpenDesignList usage={usageQuery.data} /> : null}
+                </div>
               ) : null}
             </Modal>
           </>
@@ -263,12 +394,13 @@ export function WorkflowPatternsView() {
                   <TableIconAction
                     action={row.active === false ? "activate" : "deactivate"}
                     disabled={updatePattern.isPending}
-                    onClick={() =>
-                      updatePattern.mutate({
-                        id: row.id,
-                        active: row.active === false,
-                      })
-                    }
+                    onClick={() => {
+                      if (row.active === false) {
+                        updatePattern.mutate({ id: row.id, active: true });
+                        return;
+                      }
+                      setInactiveTarget(row);
+                    }}
                   />
                 </TableIconActionGroup>
               ),

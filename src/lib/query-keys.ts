@@ -28,6 +28,8 @@ export const queryKeys = {
     workflowPatterns: ["masters", "workflow-patterns"] as const,
     workflowPatternPreview: (id: number, taskDateMode: string, priority: string) =>
       ["masters", "workflow-patterns", id, "preview", taskDateMode, priority] as const,
+    workflowPatternUsage: (id: number) =>
+      ["masters", "workflow-patterns", id, "usage"] as const,
     holdReasons: ["masters", "hold-reasons"] as const,
     skills: ["masters", "skills"] as const,
     catalog: (masterType?: string, includeInactive?: boolean) =>

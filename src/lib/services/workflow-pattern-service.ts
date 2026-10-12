@@ -1,8 +1,76 @@
 import { prisma } from "@/lib/db";
 import { writeAuditLogDirect } from "@/lib/audit";
 import { ApiError } from "@/lib/api-utils";
-import type { Priority } from "@prisma/client";
+import type { DesignStatus, Priority } from "@prisma/client";
 import { resolveStageBehavior } from "@/lib/workflow/stage-behavior";
+
+/** Designs in these statuses have finished this workflow and do not block inactive. */
+const FINISHED_DESIGN_STATUSES: DesignStatus[] = [
+  "CLOSED",
+  "REJECTED",
+  "LIVE",
+  "PRODUCTION_RELEASED",
+];
+
+export type WorkflowPatternOpenDesign = {
+  id: string;
+  ideaRef: string;
+  designNumber: string | null;
+  collectionName: string;
+  status: DesignStatus;
+};
+
+export type WorkflowPatternUsage = {
+  blocked: boolean;
+  total: number;
+  designs: WorkflowPatternOpenDesign[];
+};
+
+export async function getWorkflowPatternUsage(patternId: number): Promise<WorkflowPatternUsage> {
+  const where = {
+    workflowPatternId: patternId,
+    status: { notIn: FINISHED_DESIGN_STATUSES },
+  };
+  const [total, rows] = await Promise.all([
+    prisma.designConcept.count({ where }),
+    prisma.designConcept.findMany({
+      where,
+      select: {
+        id: true,
+        ideaRef: true,
+        designNumber: true,
+        collectionName: true,
+        status: true,
+      },
+      orderBy: { updatedAtUtc: "desc" },
+      take: 20,
+    }),
+  ]);
+
+  return {
+    blocked: total > 0,
+    total,
+    designs: rows.map((row) => ({
+      id: row.id.toString(),
+      ideaRef: row.ideaRef,
+      designNumber: row.designNumber,
+      collectionName: row.collectionName,
+      status: row.status,
+    })),
+  };
+}
+
+async function assertWorkflowPatternCanDeactivate(patternId: number) {
+  const usage = await getWorkflowPatternUsage(patternId);
+  if (!usage.blocked) return;
+  const noun = usage.total === 1 ? "design is" : "designs are";
+  throw new ApiError(
+    `Complete the open work first. ${usage.total} ${noun} still using this workflow.`,
+    409,
+    { designs: usage.designs, total: usage.total },
+    "WORKFLOW_IN_USE",
+  );
+}
 
 export type WorkflowPatternTaskInput = {
   processId: number;
@@ -291,6 +359,10 @@ export async function updateWorkflowPattern(
   const existing = await prisma.workflowPattern.findUnique({ where: { id } });
   if (!existing) throw new ApiError("Workflow pattern not found", 404);
 
+  if (input.active === false && existing.active !== false) {
+    await assertWorkflowPatternCanDeactivate(id);
+  }
+
   const pattern = await prisma.workflowPattern.update({
     where: { id },
     data: input,
@@ -325,6 +397,9 @@ export async function cloneWorkflowPattern(
   if (!source) throw new ApiError("Workflow pattern not found", 404);
   if (source.tasks.length === 0) {
     throw new ApiError("Cannot clone a pattern with no task steps", 422);
+  }
+  if (source.active !== false) {
+    await assertWorkflowPatternCanDeactivate(sourceId);
   }
 
   const nextVersion = source.versionNo + 1;
