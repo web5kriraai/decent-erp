@@ -1,11 +1,21 @@
 "use client";
 
-import { type Query, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { type Query, type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Modal, ModalAlert, ModalFooterActions } from "@/components/ui/Modal";
 import { AppButton } from "@/components/ui/AppButton";
 import { useApiToast } from "@/components/ui/ToastProvider";
 import { apiDelete, apiGet } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+
+/** Per-id queries for a design: ["designs", <kind>, id] (detail, delete-preview, images, …). */
+function isDesignQuery(query: Query, designId: string) {
+  return query.queryKey[0] === queryKeys.designs.all[0] && query.queryKey[2] === designId;
+}
+
+function removeDesignQueries(queryClient: QueryClient, designId: string) {
+  queryClient.removeQueries({ predicate: (query) => isDesignQuery(query, designId) });
+}
 
 type DeletePreview = {
   allowed: boolean;
@@ -27,6 +37,17 @@ export function DeleteDesignDialog({
 }) {
   const toast = useApiToast();
   const queryClient = useQueryClient();
+  const deletedIdRef = useRef<string | null>(null);
+
+  // The detail views render this dialog, so it unmounts with them after onDeleted
+  // closes or navigates. Only then is it safe to drop the queries those views were
+  // observing (removing an observed query makes it refetch and 404).
+  useEffect(
+    () => () => {
+      if (deletedIdRef.current) removeDesignQueries(queryClient, deletedIdRef.current);
+    },
+    [queryClient],
+  );
   const previewQuery = useQuery({
     queryKey: queryKeys.designs.deletePreview(designId ?? ""),
     queryFn: () => apiGet<DeletePreview>(`/api/designs/${designId}/delete-preview`),
@@ -37,22 +58,23 @@ export function DeleteDesignDialog({
     mutationFn: () => apiDelete<{ deleted: boolean }>(`/api/designs/${designId}`),
     onSuccess: () => {
       toast.success("Design deleted", previewQuery.data?.ideaRef);
+      if (designId) deletedIdRef.current = designId;
       onDeleted();
 
-      // Per-id queries for this design (detail, delete-preview, images, …) would 404 if
-      // refetched. Leave mounted ones alone (they unmount once onDeleted closes or
-      // navigates; removing them while observed makes the observer refetch) and drop
-      // the rest.
-      const isDeletedDesign = (query: Query) =>
-        query.queryKey[0] === queryKeys.designs.all[0] && query.queryKey[2] === designId;
-      queryClient.removeQueries({ predicate: isDeletedDesign, type: "inactive" });
+      if (designId) {
+        // Unobserved copies can go now; observed ones go when this dialog unmounts.
+        queryClient.removeQueries({
+          predicate: (query) => isDesignQuery(query, designId),
+          type: "inactive",
+        });
+      }
       void queryClient.invalidateQueries({
         queryKey: queryKeys.designs.all,
-        predicate: (query) => !isDeletedDesign(query),
+        predicate: (query) => !designId || !isDesignQuery(query, designId),
       });
       // Task lists may still show this design's tasks; per-task queries are left alone.
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.my });
-      void queryClient.invalidateQueries({ queryKey: ["tasks", "my-day"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.myDayRoot });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.actionCenter });
     },
     onError: (error) => toast.errorFromApi(error, "Could not delete design"),

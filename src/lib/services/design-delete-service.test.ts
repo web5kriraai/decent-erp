@@ -127,7 +127,10 @@ describe("getDesignDeleteEligibility", () => {
 
   it("allows the design head and admins", async () => {
     prismaMock.designConcept.findUnique.mockResolvedValue(idleDesign);
-    const head = await getDesignDeleteEligibility(8n, 1, { employeeId: 5, permissions: [] });
+    const head = await getDesignDeleteEligibility(8n, 1, {
+      employeeId: 5,
+      permissions: ["DESIGN_CREATE"],
+    });
     const asAdmin = await getDesignDeleteEligibility(8n, 1, admin);
     expect(head.allowed).toBe(true);
     expect(asAdmin.allowed).toBe(true);
@@ -140,7 +143,7 @@ describe("deleteDesign", () => {
     prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<unknown>) =>
       fn(prismaMock),
     );
-    prismaMock.$queryRaw.mockResolvedValue([]);
+    prismaMock.$queryRaw.mockResolvedValue([{ design_id: 8n }]);
     prismaMock.taskTimeEvent.count.mockResolvedValue(0);
     prismaMock.taskArtifact.findMany.mockResolvedValue([]);
     prismaMock.designConcept.delete.mockResolvedValue({});
@@ -156,15 +159,29 @@ describe("deleteDesign", () => {
     expect(prismaMock.designConcept.delete).not.toHaveBeenCalled();
   });
 
-  it("checks the tenant before taking any lock", async () => {
-    const { assertSameCompany } = await import("@/lib/tenant");
-    vi.mocked(assertSameCompany).mockImplementationOnce(() => {
-      throw new Error("Design not found");
-    });
-    prismaMock.designConcept.findUnique.mockResolvedValue({ ...idleDesign, companyId: 2 });
-    await expect(deleteDesign(8n, 1, owner, "corr")).rejects.toThrow(/not found/i);
-    expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+  it("scopes the design lock to the caller's company and stops when it matches nothing", async () => {
+    prismaMock.$queryRaw.mockResolvedValueOnce([]);
+    await expect(deleteDesign(8n, 1, owner, "corr")).rejects.toMatchObject({ status: 404 });
+    const [strings, ...values] = prismaMock.$queryRaw.mock.calls[0] as [string[], ...unknown[]];
+    expect(strings.join("?")).toMatch(/design_concepts[\s\S]*company_id[\s\S]*FOR UPDATE/);
+    expect(values).toEqual([8n, 1]);
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prismaMock.designConcept.delete).not.toHaveBeenCalled();
+  });
+
+  it("retries when Postgres aborts the delete as a deadlock", async () => {
+    prismaMock.designConcept.findUnique.mockResolvedValue(idleDesign);
+    prismaMock.$transaction
+      .mockRejectedValueOnce(Object.assign(new Error("deadlock"), { code: "P2034" }))
+      .mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock));
+    await expect(deleteDesign(8n, 1, owner, "corr")).resolves.toEqual({ deleted: true });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry other errors", async () => {
+    prismaMock.$transaction.mockRejectedValueOnce(new Error("boom"));
+    await expect(deleteDesign(8n, 1, owner, "corr")).rejects.toThrow("boom");
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it("refuses with 403 when the caller does not own the design", async () => {
@@ -176,7 +193,7 @@ describe("deleteDesign", () => {
   it("locks rows before checking, then audits, deletes, and removes this design's files", async () => {
     prismaMock.designConcept.findUnique.mockResolvedValue({
       ...idleDesign,
-      images: [{ storageKey: "designs/8/1-front.png" }],
+      images: [{ storageKey: "designs/8/1-front.png" }, { storageKey: "seed/IDEA-1/primary.png" }],
     });
     prismaMock.taskArtifact.findMany.mockResolvedValue([
       { storageKey: "designs/8/1-front.png" },
@@ -186,23 +203,24 @@ describe("deleteDesign", () => {
 
     await expect(deleteDesign(8n, 1, owner, "corr")).resolves.toEqual({ deleted: true });
 
-    // tasks → design → tasks, all before the eligibility read.
+    // design → tasks, both before the eligibility read.
     const lockSql = prismaMock.$queryRaw.mock.calls.map(([sql]) => (sql as string[]).join("?"));
     expect(lockSql).toEqual([
-      expect.stringContaining("FROM design_tasks"),
       expect.stringContaining("FROM design_concepts"),
       expect.stringContaining("FROM design_tasks"),
     ]);
-    expect(prismaMock.$queryRaw.mock.invocationCallOrder[2]).toBeLessThan(
-      prismaMock.designConcept.findUnique.mock.invocationCallOrder[1],
+    expect(prismaMock.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+      prismaMock.designConcept.findUnique.mock.invocationCallOrder[0],
     );
     expect(writeAuditLog).toHaveBeenCalledWith(
       prismaMock,
       expect.objectContaining({ entityId: "8", action: "DELETE", userId: 2 }),
     );
     expect(prismaMock.designConcept.delete).toHaveBeenCalledWith({ where: { id: 8n } });
+    // Image keys are trusted wherever they live; artifact keys only under designs/8/.
     expect(vi.mocked(deleteObject).mock.calls.map(([key]) => key)).toEqual([
       "designs/8/1-front.png",
+      "seed/IDEA-1/primary.png",
       "designs/8/2-punch.dst",
     ]);
   });

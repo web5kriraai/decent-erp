@@ -57,7 +57,8 @@ export async function POST(
     const subProcessCode = task?.subProcess.code;
 
     // Files are uploaded through /api/designs/[id]/images, so the key must belong to this design.
-    const storageKey = body.storageKey?.trim();
+    // Blank keys are treated as "no file" so they never clear an existing file link.
+    const storageKey = body.storageKey?.trim() || undefined;
     if (storageKey && (!task || !isDesignStorageKey(task.designId, storageKey))) {
       throw businessRule(
         APP_ERROR_CODES.VALIDATION_FAILED,

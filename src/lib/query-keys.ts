@@ -15,6 +15,7 @@ export const queryKeys = {
   tasks: {
     all: ["tasks"] as const,
     my: ["tasks", "my"] as const,
+    myDayRoot: ["tasks", "my-day"] as const,
     myDay: (from: string, to: string) => ["tasks", "my-day", from, to] as const,
     actionCenter: ["tasks", "action-center"] as const,
     detail: (id: string) => ["tasks", "detail", id] as const,

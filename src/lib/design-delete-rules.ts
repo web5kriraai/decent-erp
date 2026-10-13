@@ -1,5 +1,5 @@
 import type { DesignStatus } from "@prisma/client";
-import { PERMISSIONS } from "@/lib/permissions";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 /** Design delete rules shared by the API and the UI. */
 export const DELETABLE_DESIGN_STATUSES = [
@@ -13,7 +13,7 @@ export function isDesignStatusDeletable(status: string) {
 
 export type DesignDeleteActor = {
   employeeId: number;
-  permissions: readonly string[];
+  permissions: string[];
 };
 
 /** The creator, the design head, or an admin may delete a design. */
@@ -22,7 +22,7 @@ export function canActorDeleteDesign(
   design: { createdById?: number | null; designHeadEmployeeId?: number | null },
 ) {
   return (
-    actor.permissions.includes(PERMISSIONS.MASTER_ADMIN) ||
+    hasPermission(actor.permissions, PERMISSIONS.MASTER_ADMIN) ||
     design.createdById === actor.employeeId ||
     design.designHeadEmployeeId === actor.employeeId
   );
@@ -33,5 +33,11 @@ export function canOfferDesignDelete(
   actor: DesignDeleteActor | null,
   design: { status: string; createdById?: number | null; designHeadEmployeeId?: number | null },
 ) {
-  return !!actor && isDesignStatusDeletable(design.status) && canActorDeleteDesign(actor, design);
+  return (
+    !!actor &&
+    // The delete and delete-preview routes require DESIGN_CREATE.
+    hasPermission(actor.permissions, PERMISSIONS.DESIGN_CREATE) &&
+    isDesignStatusDeletable(design.status) &&
+    canActorDeleteDesign(actor, design)
+  );
 }

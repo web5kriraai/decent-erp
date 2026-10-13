@@ -149,14 +149,15 @@ async function evaluateDesignDelete(
     design,
     taskIds,
     reasons,
-    // Artifact keys are client-supplied; only remove files stored under this design.
     storageKeys: [
-      ...new Set(
-        [
-          ...design.images.map((image) => image.storageKey),
-          ...artifactKeys.map((row) => row.storageKey),
-        ].filter((key): key is string => !!key && isDesignStorageKey(designId, key)),
-      ),
+      ...new Set([
+        // Image keys are server-generated and always belong to this design.
+        ...design.images.map((image) => image.storageKey),
+        // Artifact keys are client-supplied; only remove files stored under this design.
+        ...artifactKeys
+          .map((row) => row.storageKey)
+          .filter((key): key is string => !!key && isDesignStorageKey(designId, key)),
+      ]),
     ],
   };
 }
@@ -179,29 +180,44 @@ export async function getDesignDeleteEligibility(
  * Lock the design and its task rows before checking eligibility. Timer starts,
  * artifact uploads and status changes either update a task row or insert a child
  * row (FK KEY SHARE lock), so they wait for this transaction instead of slipping
- * in between the check and the delete.
+ * in between the check and the delete. Once the design row is locked no new task
+ * can be inserted for it.
  *
- * Task transactions lock the task row and then touch the design row, so lock in
- * the same order (tasks, then design) to avoid deadlocks. Tasks are locked again
- * after the design, which catches any task inserted between the first two locks;
- * no new task can be inserted once the design row is locked.
+ * The design row query also scopes by company, so a caller can never lock another
+ * company's rows.
  */
 async function lockDesignForDelete(
   tx: Prisma.TransactionClient,
   designId: bigint,
   companyId: number,
 ) {
-  // Tenant check first, so a caller can never hold locks on another company's rows.
-  const owner = await tx.designConcept.findUnique({
-    where: { id: designId },
-    select: { companyId: true },
-  });
-  if (!owner) throw new ApiError("Design not found", 404);
-  assertSameCompany(owner.companyId, { companyId }, "Design");
+  const locked = await tx.$queryRaw<Array<{ design_id: bigint }>>`
+    SELECT design_id FROM design_concepts
+    WHERE design_id = ${designId} AND company_id = ${companyId}
+    FOR UPDATE`;
+  if (locked.length === 0) throw new ApiError("Design not found", 404);
+  await tx.$queryRaw`SELECT task_id FROM design_tasks WHERE design_id = ${designId} FOR UPDATE`;
+}
 
-  await tx.$queryRaw`SELECT task_id FROM design_tasks WHERE design_id = ${designId} FOR UPDATE`;
-  await tx.$queryRaw`SELECT design_id FROM design_concepts WHERE design_id = ${designId} FOR UPDATE`;
-  await tx.$queryRaw`SELECT task_id FROM design_tasks WHERE design_id = ${designId} FOR UPDATE`;
+const DELETE_MAX_ATTEMPTS = 3;
+
+/**
+ * Other workflows lock design and task rows in both orders (updateDesign: design →
+ * tasks; endTask: task → design), so a concurrent edit can deadlock with the delete.
+ * Postgres aborts one side; retry ours instead of returning a 500.
+ */
+function isDeadlock(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const { code, meta, message } = error as {
+    code?: string;
+    meta?: { code?: string };
+    message?: string;
+  };
+  return (
+    code === "P2034" ||
+    meta?.code === "40P01" ||
+    (typeof message === "string" && message.includes("40P01"))
+  );
 }
 
 export async function deleteDesign(
@@ -210,7 +226,7 @@ export async function deleteDesign(
   actor: DesignDeleteActor,
   correlationId: string,
 ) {
-  const storageKeys = await prisma.$transaction(async (tx) => {
+  const runDelete = () => prisma.$transaction(async (tx) => {
     await lockDesignForDelete(tx, designId, companyId);
     const evaluated = await evaluateDesignDelete(tx, designId, companyId, actor);
     if (evaluated.reasons.some((reason) => reason.code === "NOT_OWNER")) {
@@ -243,6 +259,15 @@ export async function deleteDesign(
     await tx.designConcept.delete({ where: { id: designId } });
     return evaluated.storageKeys;
   });
+
+  let storageKeys: string[] | undefined;
+  for (let attempt = 1; !storageKeys; attempt++) {
+    try {
+      storageKeys = await runDelete();
+    } catch (error) {
+      if (attempt >= DELETE_MAX_ATTEMPTS || !isDeadlock(error)) throw error;
+    }
+  }
 
   for (const key of storageKeys) {
     try {
